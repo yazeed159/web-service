@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>trade.log — journal</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">
+    <span class="dot"></span>
+    <span class="name">trade<span class="muted">.log</span></span>
+  </a>
+  <div class="topbar-right">
+    <span id="session-status">MARKET —</span>
+    <span class="clock mono" id="clock">--:--:--</span>
+  </div>
+</div>
+
+<div class="ticker-wrap">
+  <div class="ticker-track" id="ticker-track"></div>
+</div>
+
+<div class="wrap">
+  <div class="page-head">
+    <h1>trade journal</h1>
+    <div class="sub">every entry, every exit, every reason why — logged automatically.</div>
+  </div>
+
+  <div class="stat-grid" id="stat-grid">
+    <div class="loading-line">loading stats</div>
+  </div>
+
+  <div class="equity-panel">
+    <div class="equity-head">
+      <span class="label">equity curve — cumulative % </span>
+      <span class="label mono" id="equity-range"></span>
+    </div>
+    <svg id="equity-svg" viewBox="0 0 1000 130" preserveAspectRatio="none"></svg>
+  </div>
+
+  <div class="controls">
+    <div class="search-box">
+      <input type="text" id="search" placeholder="search symbol…" autocomplete="off">
+    </div>
+    <button class="filter-btn active" data-filter="all">all</button>
+    <button class="filter-btn" data-filter="win">wins</button>
+    <button class="filter-btn" data-filter="loss">losses</button>
+  </div>
+
+  <table class="trade-table" id="trade-table">
+    <thead>
+      <tr>
+        <th data-key="trade_date">date <span class="arrow"></span></th>
+        <th data-key="symbol">symbol <span class="arrow"></span></th>
+        <th data-key="entry_time">entry <span class="arrow"></span></th>
+        <th data-key="exit_time">exit <span class="arrow"></span></th>
+        <th data-key="entry_price">entry px <span class="arrow"></span></th>
+        <th data-key="exit_price">exit px <span class="arrow"></span></th>
+        <th data-key="pnl_pct">p&amp;l <span class="arrow"></span></th>
+      </tr>
+    </thead>
+    <tbody id="trade-tbody">
+      <tr class="empty-row"><td colspan="7" class="loading-line">fetching trades.json</td></tr>
+    </tbody>
+  </table>
+
+  <div class="footer">trade.log — generated from data/trades.json · press <span class="mono">/</span> to search</div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

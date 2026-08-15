@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>trade.log — detail</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">
+    <span class="dot"></span>
+    <span class="name">trade<span class="muted">.log</span></span>
+  </a>
+  <div class="topbar-right">
+    <span class="clock mono" id="clock">--:--:--</span>
+  </div>
+</div>
+
+<div class="wrap">
+  <a href="index.html" class="back-link">&larr; all trades</a>
+
+  <div id="trade-content">
+    <div class="loading-line">loading trade</div>
+  </div>
+
+  <div class="footer">trade.log — candlestick chart renders client-side from this trade's <span class="mono">bars</span> array</div>
+</div>
+
+<script src="trade.js"></script>
+</body>
+</html>
