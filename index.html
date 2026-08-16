@@ -9,46 +9,200 @@
 </head>
 <body>
 
-<div class="topbar">
-  <a href="index.html" class="brand">
-    <span class="mark">T</span>
-    <span class="name">trade<span class="muted">.log</span></span>
-  </a>
-  <div class="topbar-right" id="last-updated"></div>
-</div>
+<div class="app-shell">
 
-<div class="wrap">
-  <div class="page-head">
-    <h1>Trade journal</h1>
-    <div class="sub">Every entry, exit, and the reasoning behind it — logged automatically from the daily pipeline.</div>
-  </div>
-
-  <div class="stat-grid" id="stat-grid">
-    <div class="loading-line">Loading stats…</div>
-  </div>
-
-  <div class="equity-panel">
-    <div class="equity-head">
-      <span class="label">Equity curve — cumulative net P&amp;L</span>
-      <span class="value mono" id="equity-total"></span>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <a href="index.html" class="brand">
+        <span class="mark">T</span>
+        <span class="name">trade<span class="muted">.log</span></span>
+      </a>
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
     </div>
-    <svg id="equity-svg" viewBox="0 0 1000 140" preserveAspectRatio="none"></svg>
-  </div>
 
-  <div class="controls">
-    <div class="search-box">
-      <input type="text" id="search" placeholder="Search symbol…" autocomplete="off">
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Journal</div>
+
+      <button class="nav-item active" data-tab="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
+        <span class="nav-label">Dashboard</span>
+      </button>
+
+      <button class="nav-item" data-tab="dayview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line></svg>
+        <span class="nav-label">Day View</span>
+      </button>
+
+      <button class="nav-item" data-tab="tradeview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line><circle cx="3" cy="6" r="0" ></circle></svg>
+        <span class="nav-label">Trade View</span>
+      </button>
+
+      <button class="nav-item" data-tab="reports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line></svg>
+        <span class="nav-label">Reports</span>
+      </button>
+
+      <div class="nav-section-label">More</div>
+
+      <button class="nav-item disabled" disabled title="Coming soon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        <span class="nav-label">Notebook</span>
+        <span class="soon-tag">Soon</span>
+      </button>
+
+      <button class="nav-item disabled" disabled title="Coming soon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+        <span class="nav-label">Playbooks</span>
+        <span class="soon-tag">Soon</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="pipeline-status"><span class="dot"></span><span id="last-updated">Loading…</span></div>
     </div>
-    <button class="filter-btn active" data-filter="all">All</button>
-    <button class="filter-btn" data-filter="win">Wins</button>
-    <button class="filter-btn" data-filter="loss">Losses</button>
-  </div>
+  </aside>
 
-  <div id="day-groups">
-    <div class="loading-line">Loading trades…</div>
-  </div>
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 id="page-title">Dashboard</h1>
+        <span class="date-range-pill" id="date-range"></span>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+      </div>
+    </header>
 
-  <div class="footer">trade.log — generated from data/trades.json</div>
+    <div class="content">
+
+      <!-- ===================== DASHBOARD TAB ===================== -->
+      <section class="tab-panel active" id="tab-dashboard">
+        <div class="stat-grid" id="stat-grid">
+          <div class="loading-line">Loading stats…</div>
+        </div>
+
+        <div class="dash-row">
+          <div class="panel-box">
+            <div class="panel-box-head">
+              <span class="title">Trader score</span>
+            </div>
+            <div class="score-wrap" id="score-wrap">
+              <div class="loading-line">Loading…</div>
+            </div>
+          </div>
+
+          <div class="panel-box">
+            <div class="panel-box-head">
+              <span class="title">This month</span>
+              <button class="link" data-goto="dayview">Open Day View →</button>
+            </div>
+            <div id="mini-cal">
+              <div class="loading-line">Loading…</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="equity-panel">
+          <div class="equity-head">
+            <span class="label">Equity curve — cumulative net P&amp;L</span>
+            <span class="value mono" id="equity-total"></span>
+          </div>
+          <svg id="equity-svg" viewBox="0 0 1000 140" preserveAspectRatio="none"></svg>
+        </div>
+
+        <div class="panel-box" style="margin-top:18px;">
+          <div class="panel-box-head">
+            <span class="title">Recent trades</span>
+            <button class="link" data-goto="tradeview">View all →</button>
+          </div>
+          <div id="recent-trades">
+            <div class="loading-line">Loading…</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== DAY VIEW TAB ===================== -->
+      <section class="tab-panel" id="tab-dayview">
+        <div class="cal-toolbar">
+          <div class="cal-nav">
+            <button class="cal-nav-btn" id="cal-prev" aria-label="Previous month">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+            <span class="cal-month-label" id="cal-month-label">—</span>
+            <button class="cal-nav-btn" id="cal-next" aria-label="Next month">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          </div>
+          <div class="cal-legend">
+            <span><span class="sw" style="background:var(--green)"></span>Win day</span>
+            <span><span class="sw" style="background:var(--red)"></span>Loss day</span>
+          </div>
+        </div>
+
+        <div class="cal-summary-strip" id="cal-summary-strip"></div>
+
+        <div class="cal-grid" id="cal-grid">
+          <div class="loading-line">Loading calendar…</div>
+        </div>
+
+        <div class="day-detail-panel" id="day-detail-panel" style="display:none;">
+          <div class="panel-box">
+            <div class="panel-box-head">
+              <span class="title" id="day-detail-title">—</span>
+              <button class="link" id="day-detail-close">Close ✕</button>
+            </div>
+            <div id="day-detail-body"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== TRADE VIEW TAB ===================== -->
+      <section class="tab-panel" id="tab-tradeview">
+        <div class="controls">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="search" placeholder="Search symbol…" autocomplete="off">
+          </div>
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="win">Wins</button>
+          <button class="filter-btn" data-filter="loss">Losses</button>
+        </div>
+
+        <div id="day-groups">
+          <div class="loading-line">Loading trades…</div>
+        </div>
+      </section>
+
+      <!-- ===================== REPORTS TAB ===================== -->
+      <section class="tab-panel" id="tab-reports">
+        <div class="section-label">Streaks</div>
+        <div class="streak-strip" id="streak-strip"></div>
+
+        <div class="section-label">Best &amp; worst trade</div>
+        <div class="highlight-pair" id="highlight-pair"></div>
+
+        <div class="section-label">Breakdown</div>
+        <div class="report-grid">
+          <div class="panel-box">
+            <div class="panel-box-head"><span class="title">By symbol</span></div>
+            <div id="report-symbol"><div class="loading-line">Loading…</div></div>
+          </div>
+          <div class="panel-box">
+            <div class="panel-box-head"><span class="title">By day of week</span></div>
+            <div id="report-dow"><div class="loading-line">Loading…</div></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <div class="footer">trade.log — generated from data/trades.json</div>
+  </div>
 </div>
 
 <script src="app.js"></script>

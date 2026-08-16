@@ -74,7 +74,8 @@
             <span class="legend-item"><span class="legend-swatch" style="background:#5b93f0"></span>EMA20</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#2fd08a"></span>entry</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#f2555a"></span>exit</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#a78bfa"></span>better entry/exit</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#22d3ee"></span>better entry</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#f472b6"></span>better exit</span>
           </div>
           <div>Scroll to zoom · drag to pan</div>
         </div>
@@ -194,14 +195,14 @@
     candleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema20Data);
 
     const markers = [
-      { time: toUnix(`${trade.trade_date} ${trade.entry_time}`), position: "belowBar", color: "#2fd08a", shape: "arrowUp", size: 1.1, text: "ENTRY" },
-      { time: toUnix(`${trade.trade_date} ${trade.exit_time}`), position: "aboveBar", color: "#f2555a", shape: "arrowDown", size: 1.1, text: "EXIT" },
+      { time: toUnix(`${trade.trade_date} ${trade.entry_time}`), position: "belowBar", color: "#2fd08a", shape: "arrowUp", size: 0.55, text: "ENTRY" },
+      { time: toUnix(`${trade.trade_date} ${trade.exit_time}`), position: "aboveBar", color: "#f2555a", shape: "arrowDown", size: 0.55, text: "EXIT" },
     ];
     if (trade.better_entry && trade.better_entry.price && trade.better_entry.time) {
-      markers.push({ time: toUnix(trade.better_entry.time.replace("T", " ")), position: "belowBar", color: "#a78bfa", shape: "arrowUp", size: 1.1, text: "BETTER ENTRY" });
+      markers.push({ time: toUnix(trade.better_entry.time.replace("T", " ")), position: "belowBar", color: "#22d3ee", shape: "arrowUp", size: 0.55, text: "BETTER ENTRY" });
     }
     if (trade.better_exit && trade.better_exit.price && trade.better_exit.time) {
-      markers.push({ time: toUnix(trade.better_exit.time.replace("T", " ")), position: "aboveBar", color: "#a78bfa", shape: "arrowDown", size: 1.1, text: "BETTER EXIT" });
+      markers.push({ time: toUnix(trade.better_exit.time.replace("T", " ")), position: "aboveBar", color: "#f472b6", shape: "arrowDown", size: 0.55, text: "BETTER EXIT" });
     }
     markers.sort((a, b) => a.time - b.time);
     candleSeries.setMarkers(markers);
@@ -226,10 +227,10 @@
       title: "exit",
     });
     if (trade.better_entry && trade.better_entry.price) {
-      candleSeries.createPriceLine({ price: trade.better_entry.price, color: "#a78bfa", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "better entry" });
+      candleSeries.createPriceLine({ price: trade.better_entry.price, color: "#22d3ee", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "better entry" });
     }
     if (trade.better_exit && trade.better_exit.price) {
-      candleSeries.createPriceLine({ price: trade.better_exit.price, color: "#a78bfa", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "better exit" });
+      candleSeries.createPriceLine({ price: trade.better_exit.price, color: "#f472b6", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "better exit" });
     }
     if (trade.suggested_stop) {
       candleSeries.createPriceLine({ price: trade.suggested_stop, color: "#b02a2a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "stop" });

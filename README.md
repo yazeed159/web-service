@@ -1,18 +1,33 @@
 # trade.log — interactive trading journal dashboard
 
-A static site that reads two kinds of JSON files and renders:
+A static, TradeZella-style site that reads two kinds of JSON files and
+renders a full sidebar app — no backend, no build step, no framework.
+It's plain HTML/CSS/JS plus two charting/font CDN scripts, so it works
+as-is on GitHub Pages (or any static host).
 
-- **`index.html`** — a home page with win-rate / gross / commission / net
-  P&L stats, an equity curve, and trades grouped by day (each day showing
-  its own trade count and net P&L), searchable by symbol and filterable by
-  win/loss.
-- **`trade.html?id=<trade_id>`** — a per-trade page with a gross/commission/
-  net breakdown, a real interactive candlestick chart (zoom, pan, hover
-  crosshair) built from that trade's actual OHLC bars, VWAP/EMA9/EMA20
-  overlays, a synced MACD panel, entry/exit markers, and the LLM's verdict.
+- **`index.html`** — a sidebar app shell with four tabs, all driven by
+  `data/trades.json`:
+  - **Dashboard** — stat cards (Net P&L, Trade Win %, Profit Factor, Day
+    Win %, Avg Win/Loss), a Zella-Score-style gauge, a mini month
+    calendar, the equity curve, and recent trades.
+  - **Day View** — a full month calendar heatmap (green/red day cells
+    with net P&L + trade count), month navigation, and a click-to-expand
+    day detail panel.
+  - **Trade View** — the original day-grouped trade table, searchable by
+    symbol and filterable by win/loss.
+  - **Reports** — win/loss streaks, best/worst trade, and breakdowns by
+    symbol and day-of-week.
+  - "Notebook" and "Playbooks" appear as disabled nav items (marked
+    "Soon") for the full-app feel — they're not wired up to anything.
+- **`trade.html?id=<trade_id>`** — a per-trade page (same sidebar shell)
+  with a gross/commission/net breakdown, a real interactive candlestick
+  chart (zoom, pan, hover crosshair) built from that trade's actual OHLC
+  bars, VWAP/EMA9/EMA20 overlays, a synced MACD panel, entry/exit
+  markers, and the LLM's verdict.
 
-No backend, no build step — it's plain HTML/CSS/JS plus two charting/font
-CDN scripts, so it works as-is on GitHub Pages (or any static host).
+The color system lives in `style.css` as CSS variables (`--primary` is
+the indigo/violet accent, `--green`/`--red` are win/loss) — swap those to
+retheme without touching any JS.
 
 ## Running it locally
 
