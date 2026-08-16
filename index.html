@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>trade.log — journal</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <a href="index.html" class="brand">
+    <span class="mark">T</span>
+    <span class="name">trade<span class="muted">.log</span></span>
+  </a>
+  <div class="topbar-right" id="last-updated"></div>
+</div>
+
+<div class="wrap">
+  <div class="page-head">
+    <h1>Trade journal</h1>
+    <div class="sub">Every entry, exit, and the reasoning behind it — logged automatically from the daily pipeline.</div>
+  </div>
+
+  <div class="stat-grid" id="stat-grid">
+    <div class="loading-line">Loading stats…</div>
+  </div>
+
+  <div class="equity-panel">
+    <div class="equity-head">
+      <span class="label">Equity curve — cumulative net P&amp;L</span>
+      <span class="value mono" id="equity-total"></span>
+    </div>
+    <svg id="equity-svg" viewBox="0 0 1000 140" preserveAspectRatio="none"></svg>
+  </div>
+
+  <div class="controls">
+    <div class="search-box">
+      <input type="text" id="search" placeholder="Search symbol…" autocomplete="off">
+    </div>
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="win">Wins</button>
+    <button class="filter-btn" data-filter="loss">Losses</button>
+  </div>
+
+  <div id="day-groups">
+    <div class="loading-line">Loading trades…</div>
+  </div>
+
+  <div class="footer">trade.log — generated from data/trades.json</div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
