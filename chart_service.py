@@ -309,7 +309,35 @@ def _fetch_raw_bars_from_polygon(symbol: str, trade_date_obj: date) -> pd.DataFr
     df["t"] = pd.to_datetime(df["t"], unit="ms", utc=True).dt.tz_convert(ET)
     df = df.rename(columns={"o": "Open", "h": "High", "l": "Low", "c": "Close", "v": "Volume", "vw": "vwap_bar"})
     df = df.set_index("t")[["Open", "High", "Low", "Close", "Volume", "vwap_bar"]].sort_index()
-    return df
+    return _fill_intraday_gaps(df)
+
+
+def _fill_intraday_gaps(df: pd.DataFrame) -> pd.DataFrame:
+    """Polygon only returns a bar for a minute if a trade actually printed
+    in it -- thin/illiquid tickers (especially pre/post-market on small
+    caps) can leave real gaps of several minutes with no bar at all. Left
+    as-is, that silently compresses the chart: a candlestick chart plots
+    bar-by-bar, not on a true time axis, so 20 real minutes with only 3
+    prints renders as if only 3 minutes passed -- which is why widening
+    CHART_WINDOW_BEFORE_MIN/AFTER_MIN alone didn't fix a chart that looked
+    like it only covered ~10 minutes. Reindex each trading day present to a
+    continuous 1-minute grid and forward-fill the missing minutes as flat,
+    zero-volume bars at the last known price, so the configured window
+    actually renders as that much time."""
+    if df.empty:
+        return df
+    filled = []
+    for _, day_df in df.groupby(df.index.date):
+        full_idx = pd.date_range(day_df.index.min(), day_df.index.max(), freq="1min", tz=day_df.index.tz)
+        day_df = day_df.reindex(full_idx)
+        day_df["Volume"] = day_df["Volume"].fillna(0)
+        day_df["Close"] = day_df["Close"].ffill()
+        day_df["Open"] = day_df["Open"].fillna(day_df["Close"])
+        day_df["High"] = day_df["High"].fillna(day_df["Close"])
+        day_df["Low"] = day_df["Low"].fillna(day_df["Close"])
+        day_df["vwap_bar"] = day_df["vwap_bar"].fillna(day_df["Close"])
+        filled.append(day_df)
+    return pd.concat(filled).sort_index()
 
 
 def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:

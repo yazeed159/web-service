@@ -146,9 +146,29 @@
     candleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema20Data);
 
     candleSeries.setMarkers([
-      { time: toUnix(`${trade.trade_date} ${trade.entry_time}`), position: "belowBar", color: "#2fd08a", shape: "arrowUp", text: `ENTRY $${trade.entry_price.toFixed(2)}` },
-      { time: toUnix(`${trade.trade_date} ${trade.exit_time}`), position: "aboveBar", color: "#f2555a", shape: "arrowDown", text: `EXIT $${trade.exit_price.toFixed(2)}` },
+      { time: toUnix(`${trade.trade_date} ${trade.entry_time}`), position: "inBar", color: "#2fd08a", shape: "circle", size: 0.55 },
+      { time: toUnix(`${trade.trade_date} ${trade.exit_time}`), position: "inBar", color: "#f2555a", shape: "circle", size: 0.55 },
     ]);
+
+    // Markers alone only anchor to a bar, not an exact price -- add dashed
+    // price lines at the literal entry/exit fill so they read precisely,
+    // not just "somewhere near that candle."
+    candleSeries.createPriceLine({
+      price: trade.entry_price,
+      color: "#2fd08a",
+      lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: "entry",
+    });
+    candleSeries.createPriceLine({
+      price: trade.exit_price,
+      color: "#f2555a",
+      lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: "exit",
+    });
 
     const macdEl = document.getElementById("macd-chart");
     const macdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: 110 });
