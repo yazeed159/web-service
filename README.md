@@ -184,3 +184,7 @@ for the `id` you clicked. If it's missing, re-run the workflow for that
 trade (or delete the stale row from `data/trades.json` and re-run) once
 whatever caused the original failure — usually a GitHub token permission
 issue — is fixed.
+
+
+## Update: better entry/exit + symbol info
+Data starts empty — populated only by the n8n pipeline. Each trade detail JSON now also includes better_entry / better_exit (price, time, reason), suggested_stop / suggested_target, risk_reward, walk_away_rule, lessons[], and symbol_info (name, country, sector, description), all produced by the Vision LLM step and drawn on the chart image (via a second /generate-chart pass) and on the interactive chart.

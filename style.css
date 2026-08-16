@@ -15,6 +15,8 @@
   --red-soft: rgba(242, 85, 90, 0.1);
   --blue: #5b93f0;
   --amber: #e8a94c;
+  --violet: #a78bfa;
+  --violet-soft: rgba(167, 139, 250, 0.1);
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --sans: 'Inter', system-ui, sans-serif;
   --radius: 8px;
@@ -201,6 +203,35 @@ a { color: inherit; }
 .indicator-row { display: flex; justify-content: space-between; font-size: 13px; border-bottom: 1px solid var(--border-soft); padding-bottom: 8px; }
 .indicator-row .k { color: var(--text-dim); }
 .indicator-row .v { font-family: var(--mono); }
+
+/* ---------- Better entry/exit card ---------- */
+.better-card { border-color: rgba(167,139,250,0.25); }
+.better-card h2 { color: var(--violet); }
+.better-row { display: flex; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border-soft); }
+.better-row:last-child { border-bottom: none; }
+.better-row .tag { flex: none; width: 74px; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--violet); padding-top: 2px; }
+.better-row .content .price-line { font-family: var(--mono); font-weight: 600; font-size: 14px; color: var(--text); margin-bottom: 4px; }
+.better-row .content .reason { font-size: 13px; line-height: 1.6; color: var(--text-dim); }
+.no-better { font-size: 13.5px; color: var(--text-faint); font-style: italic; }
+
+.rr-strip { display: flex; gap: 22px; flex-wrap: wrap; margin: 14px 0 4px; padding: 12px 14px; background: var(--panel-2); border-radius: var(--radius-sm); font-size: 12.5px; }
+.rr-strip .k { color: var(--text-faint); margin-right: 6px; }
+.rr-strip .v { font-family: var(--mono); font-weight: 600; }
+
+.walk-away { margin-top: 14px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--green-soft); border: 1px solid rgba(47,208,138,0.25); font-size: 13px; line-height: 1.55; }
+.walk-away b { color: var(--green); }
+
+/* ---------- Lessons card ---------- */
+.lessons-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.lessons-list li { display: flex; gap: 10px; font-size: 13.5px; line-height: 1.55; color: var(--text); }
+.lessons-list li::before { content: "→"; color: var(--amber); flex: none; font-weight: 700; }
+
+/* ---------- Symbol info card ---------- */
+.symbol-card .sym-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.symbol-card .sym-name { font-size: 15px; font-weight: 600; }
+.symbol-card .sym-meta-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.pill { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11.5px; font-weight: 500; background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim); }
+.symbol-card .sym-desc { font-size: 13.5px; line-height: 1.65; color: var(--text-dim); }
 
 /* ---------- Footer ---------- */
 .footer { text-align: center; padding: 32px 20px; color: var(--text-faint); font-size: 12px; }

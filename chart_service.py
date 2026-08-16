@@ -375,6 +375,51 @@ def nearest_row(df: pd.DataFrame, ts: datetime) -> pd.Series:
     return df.iloc[idx]
 
 
+def compute_trade_levels(full_bars: pd.DataFrame, entry_dt: datetime, entry_price: float, side: str) -> dict:
+    """Rule-based read of the setup + a chart-grounded stop/target, computed
+    from real levels (swing points, VWAP/EMA9) so the LLM has defensible
+    numbers instead of guessing. side is 'long' or 'short'."""
+    is_long = side != "short"
+    pre_entry = full_bars.loc[:entry_dt]
+    lookback = pre_entry.tail(30)  # ~30 min of structure before entry
+
+    avg_vol = pre_entry["Volume"].tail(20).mean() or 1.0
+    entry_bar_vol = pre_entry["Volume"].iloc[-1] if len(pre_entry) else 0.0
+    at_entry = nearest_row(full_bars, entry_dt)
+    vwap_e, ema9_e = float(at_entry["VWAP"]), float(at_entry["EMA9"])
+
+    recent_high = float(lookback["High"].max()) if len(lookback) else entry_price
+    recent_low = float(lookback["Low"].min()) if len(lookback) else entry_price
+    prior_high = float(lookback["High"].iloc[:-1].max()) if len(lookback) > 1 else recent_high
+
+    breakout = is_long and entry_price >= prior_high * 0.999 and entry_bar_vol >= 1.5 * avg_vol
+    dip_buy = is_long and abs(entry_price - vwap_e) / max(entry_price, 1) < 0.006 or (is_long and abs(entry_price - ema9_e) / max(entry_price, 1) < 0.006)
+    setup_type = "breakout" if breakout else ("dip_buy" if dip_buy else "other")
+
+    if is_long:
+        swing_stop = recent_low - (recent_high - recent_low) * 0.05
+        stop_price = min(swing_stop, vwap_e - 0.01) if setup_type == "dip_buy" else swing_stop
+        stop_price = min(stop_price, entry_price - 0.01)
+        risk = entry_price - stop_price
+        target_price = entry_price + risk * 2
+    else:
+        swing_stop = recent_high + (recent_high - recent_low) * 0.05
+        stop_price = max(swing_stop, vwap_e + 0.01) if setup_type == "dip_buy" else swing_stop
+        stop_price = max(stop_price, entry_price + 0.01)
+        risk = stop_price - entry_price
+        target_price = entry_price - risk * 2
+
+    reward = abs(target_price - entry_price)
+    return {
+        "setup_type": setup_type,
+        "stop_price": round(stop_price, 4),
+        "target_price": round(target_price, 4),
+        "risk_per_share": round(abs(risk), 4),
+        "reward_per_share": round(reward, 4),
+        "r_multiple": 2,
+    }
+
+
 def serialize_bars(df: pd.DataFrame) -> list:
     """Display-window bars -> plain JSON-able dicts for the dashboard's
     client-side candlestick chart. Timestamps are naive local (ET) strings --
@@ -400,7 +445,9 @@ def serialize_bars(df: pd.DataFrame) -> list:
 
 
 def render_chart(df: pd.DataFrame, symbol: str, entry_dt, exit_dt, entry_price, exit_price,
-                  vwap_at_entry, ema9_at_entry, ema20_at_entry) -> bytes:
+                  vwap_at_entry, ema9_at_entry, ema20_at_entry,
+                  stop_price=None, target_price=None,
+                  better_entry=None, better_exit=None) -> bytes:
     # Histogram bars colored per-bar: green when positive, red when negative.
     macd_hist_colors = ["#2ca02c" if v >= 0 else "#d62728" for v in df["MACD_hist"]]
     # MACD lives on its own panel (2), separate from volume (panel 1) -- both
@@ -431,6 +478,7 @@ def render_chart(df: pd.DataFrame, symbol: str, entry_dt, exit_dt, entry_price, 
             df, symbol, entry_dt, exit_dt, entry_price, exit_price,
             macd_panel, overlays, style,
             vwap_at_entry, ema9_at_entry, ema20_at_entry,
+            stop_price, target_price, better_entry, better_exit,
         )
     finally:
         RENDER_LOCK.release()
@@ -438,7 +486,9 @@ def render_chart(df: pd.DataFrame, symbol: str, entry_dt, exit_dt, entry_price, 
 
 def _render_chart_locked(df, symbol, entry_dt, exit_dt, entry_price, exit_price,
                           macd_panel, overlays, style,
-                          vwap_at_entry, ema9_at_entry, ema20_at_entry) -> bytes:
+                          vwap_at_entry, ema9_at_entry, ema20_at_entry,
+                          stop_price=None, target_price=None,
+                          better_entry=None, better_exit=None) -> bytes:
     """Everything here runs with RENDER_LOCK held -- see render_chart()."""
     fig, axes = mpf.plot(
         df,
@@ -549,6 +599,47 @@ def _render_chart_locked(df, symbol, entry_dt, exit_dt, entry_price, exit_price,
         ha="center", va="bottom", fontsize=9, color="red",
     )
 
+    # Structural / suggested stop & target — dashed reference lines so the
+    # levels used to grade the trade are visible on the chart itself.
+    if stop_price is not None:
+        price_ax.axhline(stop_price, color="#b02a2a", linestyle="--", linewidth=0.9, alpha=0.7)
+        price_ax.annotate(f"stop ${stop_price:.2f}", xy=(1, stop_price), xycoords=("axes fraction", "data"),
+                           xytext=(4, 0), textcoords="offset points", ha="left", va="center",
+                           fontsize=7.5, color="#b02a2a")
+    if target_price is not None:
+        price_ax.axhline(target_price, color="#1a7a4c", linestyle="--", linewidth=0.9, alpha=0.7)
+        price_ax.annotate(f"target ${target_price:.2f}", xy=(1, target_price), xycoords=("axes fraction", "data"),
+                           xytext=(4, 0), textcoords="offset points", ha="left", va="center",
+                           fontsize=7.5, color="#1a7a4c")
+
+    # Better entry/exit — where the trade SHOULD have been taken, per the
+    # review verdict. Blue, drawn beneath the actual entry/exit labels so
+    # both are readable on the same image.
+    def _mark_better(dt_val, price_val, kind):
+        if dt_val is None or price_val is None:
+            return
+        try:
+            x = df.index.get_indexer([pd.Timestamp(dt_val)], method="nearest")[0]
+        except Exception:
+            return
+        y = _local_high(x) + label_gap + box_half_height * (3 if kind == "entry" else 3.6)
+        price_ax.annotate(
+            f"BETTER {kind.upper()}\n${price_val:.2f}",
+            xy=(x, y), xycoords="data",
+            color="#2f6fed", fontweight="bold", fontsize=8, ha="center", va="center",
+            bbox=dict(boxstyle="round,pad=0.22", fc="white", ec="#2f6fed", alpha=0.92),
+        )
+        price_ax.annotate(
+            "\u25b2", xy=(x, price_val), xycoords="data",
+            xytext=(0, -5), textcoords="offset points",
+            ha="center", va="top", fontsize=9, color="#2f6fed",
+        )
+
+    if better_entry:
+        _mark_better(better_entry.get("time"), better_entry.get("price"), "entry")
+    if better_exit:
+        _mark_better(better_exit.get("time"), better_exit.get("price"), "exit")
+
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=130, bbox_inches="tight")
     plt.close(fig)
@@ -566,6 +657,7 @@ def _build_chart_response(body, start):
     exit_dt = datetime.fromisoformat(f"{trade_date}T{body['exit_time']}").replace(tzinfo=ET)
     entry_price = float(body["entry_price"])
     exit_price = float(body["exit_price"])
+    side = (body.get("side") or "long").lower()
 
     full_bars, display_mask = fetch_bars(symbol, trade_date, entry_dt, exit_dt)
     full_bars = compute_indicators(full_bars)
@@ -574,12 +666,30 @@ def _build_chart_response(body, start):
     # Computed up front (not after rendering) because the chart legend now
     # shows each indicator's price at entry instead of a color name.
     at_entry = nearest_row(full_bars, entry_dt)
+    levels = compute_trade_levels(full_bars, entry_dt, entry_price, side)
+
+    # Optional second-pass fields: once the review verdict is known, the
+    # workflow calls this endpoint again with these so the FINAL chart (the
+    # one that gets published) shows where the trade should've been taken,
+    # not just where it was.
+    def _better(price_key, time_key):
+        p, t = body.get(price_key), body.get(time_key)
+        if p is None or t is None:
+            return None
+        return {"price": float(p), "time": f"{trade_date}T{t}"}
+
+    better_entry = _better("better_entry_price", "better_entry_time")
+    better_exit = _better("better_exit_price", "better_exit_time")
+    stop_for_chart = float(body["suggested_stop"]) if body.get("suggested_stop") is not None else levels["stop_price"]
+    target_for_chart = float(body["suggested_target"]) if body.get("suggested_target") is not None else levels["target_price"]
 
     png_bytes = render_chart(
         display_bars, symbol, entry_dt, exit_dt, entry_price, exit_price,
         vwap_at_entry=float(at_entry["VWAP"]),
         ema9_at_entry=float(at_entry["EMA9"]),
         ema20_at_entry=float(at_entry["EMA20"]),
+        stop_price=stop_for_chart, target_price=target_for_chart,
+        better_entry=better_entry, better_exit=better_exit,
     )
 
     prior_slice = full_bars["MACD_hist"].loc[:at_entry.name]
@@ -596,6 +706,14 @@ def _build_chart_response(body, start):
         "entry_vs_vwap": "above" if entry_price > at_entry["VWAP"] else "below",
         "entry_vs_ema9": "above" if entry_price > at_entry["EMA9"] else "below",
         "entry_vs_ema20": "above" if entry_price > at_entry["EMA20"] else "below",
+        "setup_type": levels["setup_type"],
+        "stop_price": levels["stop_price"],
+        "target_price": levels["target_price"],
+        "risk_per_share": levels["risk_per_share"],
+        "reward_per_share": levels["reward_per_share"],
+        "r_multiple": levels["r_multiple"],
+        "display_price_low": round(float(display_bars["Low"].min()), 4),
+        "display_price_high": round(float(display_bars["High"].max()), 4),
     }
 
     log.info("Done: %s in %.1fs", symbol, time.monotonic() - start)

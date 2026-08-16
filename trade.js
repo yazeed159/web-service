@@ -74,6 +74,7 @@
             <span class="legend-item"><span class="legend-swatch" style="background:#5b93f0"></span>EMA20</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#2fd08a"></span>entry</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#f2555a"></span>exit</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#a78bfa"></span>better entry/exit</span>
           </div>
           <div>Scroll to zoom · drag to pan</div>
         </div>
@@ -86,6 +87,8 @@
           <h2>Verdict</h2>
           <div class="verdict-text">${escapeHtml(trade.verdict || "No verdict recorded.")}</div>
           ${trade.setup_type ? `<span class="setup-tag">${escapeHtml(trade.setup_type)}</span>` : ""}
+          ${rrStrip(trade)}
+          ${trade.walk_away_rule ? `<div class="walk-away"><b>Walk-away rule:</b> ${escapeHtml(trade.walk_away_rule)}</div>` : ""}
         </div>
         <div class="card">
           <h2>Indicators at entry</h2>
@@ -98,10 +101,55 @@
             ${indicatorRow("Hist", trade.indicators.macd_hist_at_entry)}
           </div>
         </div>
+
+        <div class="card better-card">
+          <h2>What you should've done</h2>
+          ${betterRow("Entry", trade.better_entry)}
+          ${betterRow("Exit", trade.better_exit)}
+          ${!trade.better_entry && !trade.better_exit ? `<div class="no-better">No better entry/exit flagged — this trade lined up with the plan.</div>` : ""}
+        </div>
+
+        <div class="card">
+          <h2>Lessons from this trade</h2>
+          ${Array.isArray(trade.lessons) && trade.lessons.length
+            ? `<ul class="lessons-list">${trade.lessons.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}</ul>`
+            : `<div class="no-better">No lessons recorded for this trade.</div>`}
+        </div>
+
+        ${trade.symbol_info && (trade.symbol_info.name || trade.symbol_info.description) ? `
+        <div class="card symbol-card" style="grid-column: 1 / -1;">
+          <h2>About ${escapeHtml(trade.symbol)}</h2>
+          <div class="sym-head"><span class="sym-name">${escapeHtml(trade.symbol_info.name || trade.symbol)}</span></div>
+          <div class="sym-meta-row">
+            ${trade.symbol_info.country ? `<span class="pill">${escapeHtml(trade.symbol_info.country)}</span>` : ""}
+            ${trade.symbol_info.sector ? `<span class="pill">${escapeHtml(trade.symbol_info.sector)}</span>` : ""}
+          </div>
+          <div class="sym-desc">${escapeHtml(trade.symbol_info.description || "")}</div>
+        </div>` : ""}
       </div>
     `;
 
     buildCharts(trade);
+  }
+
+  function rrStrip(trade) {
+    if (!trade.suggested_stop && !trade.suggested_target && !trade.risk_reward) return "";
+    return `<div class="rr-strip">
+      ${trade.suggested_stop ? `<span><span class="k">Stop</span><span class="v down">$${Number(trade.suggested_stop).toFixed(2)}</span></span>` : ""}
+      ${trade.suggested_target ? `<span><span class="k">Target</span><span class="v up">$${Number(trade.suggested_target).toFixed(2)}</span></span>` : ""}
+      ${trade.risk_reward ? `<span><span class="k">R:R</span><span class="v">${escapeHtml(trade.risk_reward)}</span></span>` : ""}
+    </div>`;
+  }
+
+  function betterRow(label, b) {
+    if (!b || !b.price) return "";
+    return `<div class="better-row">
+      <div class="tag">${label.toUpperCase()}</div>
+      <div class="content">
+        <div class="price-line">$${Number(b.price).toFixed(2)}${b.time ? ` @ ${escapeHtml(String(b.time).split("T").pop())}` : ""}</div>
+        <div class="reason">${escapeHtml(b.reason || "")}</div>
+      </div>
+    </div>`;
   }
 
   function indicatorRow(label, value, rel) {
@@ -145,10 +193,18 @@
     candleChart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema9Data);
     candleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema20Data);
 
-    candleSeries.setMarkers([
-      { time: toUnix(`${trade.trade_date} ${trade.entry_time}`), position: "inBar", color: "#2fd08a", shape: "circle", size: 0.55 },
-      { time: toUnix(`${trade.trade_date} ${trade.exit_time}`), position: "inBar", color: "#f2555a", shape: "circle", size: 0.55 },
-    ]);
+    const markers = [
+      { time: toUnix(`${trade.trade_date} ${trade.entry_time}`), position: "belowBar", color: "#2fd08a", shape: "arrowUp", size: 1.1, text: "ENTRY" },
+      { time: toUnix(`${trade.trade_date} ${trade.exit_time}`), position: "aboveBar", color: "#f2555a", shape: "arrowDown", size: 1.1, text: "EXIT" },
+    ];
+    if (trade.better_entry && trade.better_entry.price && trade.better_entry.time) {
+      markers.push({ time: toUnix(trade.better_entry.time.replace("T", " ")), position: "belowBar", color: "#a78bfa", shape: "arrowUp", size: 1.1, text: "BETTER ENTRY" });
+    }
+    if (trade.better_exit && trade.better_exit.price && trade.better_exit.time) {
+      markers.push({ time: toUnix(trade.better_exit.time.replace("T", " ")), position: "aboveBar", color: "#a78bfa", shape: "arrowDown", size: 1.1, text: "BETTER EXIT" });
+    }
+    markers.sort((a, b) => a.time - b.time);
+    candleSeries.setMarkers(markers);
 
     // Markers alone only anchor to a bar, not an exact price -- add dashed
     // price lines at the literal entry/exit fill so they read precisely,
@@ -169,6 +225,18 @@
       axisLabelVisible: true,
       title: "exit",
     });
+    if (trade.better_entry && trade.better_entry.price) {
+      candleSeries.createPriceLine({ price: trade.better_entry.price, color: "#a78bfa", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "better entry" });
+    }
+    if (trade.better_exit && trade.better_exit.price) {
+      candleSeries.createPriceLine({ price: trade.better_exit.price, color: "#a78bfa", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "better exit" });
+    }
+    if (trade.suggested_stop) {
+      candleSeries.createPriceLine({ price: trade.suggested_stop, color: "#b02a2a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "stop" });
+    }
+    if (trade.suggested_target) {
+      candleSeries.createPriceLine({ price: trade.suggested_target, color: "#1a7a4c", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "target" });
+    }
 
     const macdEl = document.getElementById("macd-chart");
     const macdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: 110 });
