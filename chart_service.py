@@ -564,9 +564,34 @@ def _render_chart_locked(df, symbol, entry_dt, exit_dt, entry_price, exit_price,
         else:
             exit_label_y = entry_label_y + box_half_height * 2
 
-    # Headroom only needs to cover whichever label ends up highest, plus a
-    # small margin -- not a fixed fraction of the whole chart like before.
-    chart_top = max(price_high, entry_label_y + box_half_height, exit_label_y + box_half_height)
+    # Better entry/exit label positions -- computed HERE, before ylim is set,
+    # so their headroom actually gets counted below. (Previously these were
+    # computed later inside _mark_better, after ylim was already locked in,
+    # so a better-entry/exit label could land above the visible range --
+    # and since the figure is saved with bbox_inches="tight", matplotlib
+    # would just stretch the whole image upward to reach it, which is what
+    # made the marker look like it had jumped somewhere far away.)
+    def _better_pos(dt_val, kind):
+        if dt_val is None:
+            return None
+        try:
+            x = int(df.index.get_indexer([pd.Timestamp(dt_val)], method="nearest")[0])
+        except Exception:
+            return None
+        y = _local_high(x) + label_gap + box_half_height * (3 if kind == "entry" else 3.6)
+        return (x, y)
+
+    better_entry_pos = _better_pos(better_entry.get("time"), "entry") if better_entry else None
+    better_exit_pos = _better_pos(better_exit.get("time"), "exit") if better_exit else None
+
+    # Headroom needs to cover whichever label ends up highest, plus a small
+    # margin -- not a fixed fraction of the whole chart like before.
+    candidate_tops = [price_high, entry_label_y + box_half_height, exit_label_y + box_half_height]
+    if better_entry_pos is not None:
+        candidate_tops.append(better_entry_pos[1] + box_half_height)
+    if better_exit_pos is not None:
+        candidate_tops.append(better_exit_pos[1] + box_half_height)
+    chart_top = max(candidate_tops)
     top_pad = max(price_range * 0.08, (chart_top - price_high) + price_range * 0.04)
     bottom_pad = price_range * 0.06
     price_ax.set_ylim(price_low - bottom_pad, price_high + top_pad)
@@ -614,15 +639,12 @@ def _render_chart_locked(df, symbol, entry_dt, exit_dt, entry_price, exit_price,
 
     # Better entry/exit — where the trade SHOULD have been taken, per the
     # review verdict. Blue, drawn beneath the actual entry/exit labels so
-    # both are readable on the same image.
-    def _mark_better(dt_val, price_val, kind):
-        if dt_val is None or price_val is None:
+    # both are readable on the same image. Position was already computed
+    # above (and folded into the ylim headroom) -- just draw it here.
+    def _mark_better(pos, price_val, kind):
+        if pos is None or price_val is None:
             return
-        try:
-            x = df.index.get_indexer([pd.Timestamp(dt_val)], method="nearest")[0]
-        except Exception:
-            return
-        y = _local_high(x) + label_gap + box_half_height * (3 if kind == "entry" else 3.6)
+        x, y = pos
         price_ax.annotate(
             f"BETTER {kind.upper()}\n${price_val:.2f}",
             xy=(x, y), xycoords="data",
@@ -636,9 +658,9 @@ def _render_chart_locked(df, symbol, entry_dt, exit_dt, entry_price, exit_price,
         )
 
     if better_entry:
-        _mark_better(better_entry.get("time"), better_entry.get("price"), "entry")
+        _mark_better(better_entry_pos, better_entry.get("price"), "entry")
     if better_exit:
-        _mark_better(better_exit.get("time"), better_exit.get("price"), "exit")
+        _mark_better(better_exit_pos, better_exit.get("price"), "exit")
 
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=130, bbox_inches="tight")
