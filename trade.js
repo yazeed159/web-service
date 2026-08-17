@@ -89,29 +89,17 @@
           ${rrStrip(trade)}
           ${trade.walk_away_rule ? `<div class="walk-away"><b>Walk-away rule:</b> ${escapeHtml(trade.walk_away_rule)}</div>` : ""}
         </div>
-        <div class="card">
-          <h2>Indicators at entry</h2>
-          <div class="indicator-grid">
-            ${indicatorRow("VWAP", trade.indicators.vwap_at_entry, trade.indicators.entry_vs_vwap)}
-            ${indicatorRow("EMA9", trade.indicators.ema9_at_entry, trade.indicators.entry_vs_ema9)}
-            ${indicatorRow("EMA20", trade.indicators.ema20_at_entry, trade.indicators.entry_vs_ema20)}
-            ${indicatorRow("MACD", trade.indicators.macd_at_entry)}
-            ${indicatorRow("Signal", trade.indicators.macd_signal_at_entry)}
-            ${indicatorRow("Hist", trade.indicators.macd_hist_at_entry)}
-          </div>
-        </div>
-
-        <div class="card better-card">
-          <h2>What you should've done</h2>
+        <div class="card better-card" style="padding:14px 16px;">
+          <h2 style="font-size:12.5px; margin:0 0 8px; text-transform:uppercase; letter-spacing:.03em; opacity:.75;">What you should've done</h2>
           ${betterRow("Entry", trade.better_entry)}
           ${betterRow("Exit", trade.better_exit)}
-          ${!trade.better_entry && !trade.better_exit ? `<div class="no-better">No better entry/exit flagged — this trade lined up with the plan.</div>` : ""}
+          ${!trade.better_entry && !trade.better_exit ? `<div class="no-better" style="font-size:12px; opacity:.7;">No better entry/exit flagged — this trade lined up with the plan.</div>` : ""}
         </div>
 
         <div class="card">
           <h2>Lessons from this trade</h2>
           ${Array.isArray(trade.lessons) && trade.lessons.length
-            ? `<ul class="lessons-list">${trade.lessons.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}</ul>`
+            ? `<ul class="lessons-list" style="margin:0; padding-left:18px;">${trade.lessons.map(lessonItem).join("")}</ul>`
             : `<div class="no-better">No lessons recorded for this trade.</div>`}
         </div>
 
@@ -142,18 +130,25 @@
 
   function betterRow(label, b) {
     if (!b || !b.price) return "";
-    return `<div class="better-row">
-      <div class="tag">${label.toUpperCase()}</div>
-      <div class="content">
-        <div class="price-line">$${Number(b.price).toFixed(2)}${b.time ? ` @ ${escapeHtml(String(b.time).split("T").pop())}` : ""}</div>
-        <div class="reason">${escapeHtml(b.reason || "")}</div>
+    const how = b.how_to_know
+      ? `<div class="how-to-know" style="font-size:11px; opacity:.65; margin-top:2px;">How you'd know: ${escapeHtml(b.how_to_know)}</div>`
+      : "";
+    return `<div class="better-row" style="display:flex; gap:10px; align-items:baseline; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.06);">
+      <div class="tag" style="font-size:10px; font-weight:700; letter-spacing:.03em; opacity:.65; min-width:38px; flex-shrink:0;">${label.toUpperCase()}</div>
+      <div class="content" style="flex:1; min-width:0;">
+        <div class="price-line" style="font-size:12.5px; font-weight:600;">$${Number(b.price).toFixed(2)}${b.time ? ` @ ${escapeHtml(String(b.time).split("T").pop())}` : ""}</div>
+        ${b.reason ? `<div class="reason" style="font-size:11.5px; opacity:.75; margin-top:1px;">${escapeHtml(b.reason)}</div>` : ""}
+        ${how}
       </div>
     </div>`;
   }
 
-  function indicatorRow(label, value, rel) {
-    const relTxt = rel ? ` <span class="${rel === "above" ? "up" : "down"}">${rel}</span>` : "";
-    return `<div class="indicator-row"><span class="k">${label}</span><span class="v">$${Number(value).toFixed(2)}${relTxt}</span></div>`;
+  function lessonItem(l) {
+    if (typeof l === "string") return `<li style="margin-bottom:6px; font-size:12.5px;">${escapeHtml(l)}</li>`;
+    const how = l.how_to_know
+      ? `<div style="font-size:11px; opacity:.65; margin-top:2px;">How you'd know: ${escapeHtml(l.how_to_know)}</div>`
+      : "";
+    return `<li style="margin-bottom:8px; font-size:12.5px;">${escapeHtml(l.lesson || l.text || "")}${how}</li>`;
   }
 
   function buildCharts(trade) {
