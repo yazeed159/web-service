@@ -194,15 +194,47 @@
     candleChart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema9Data);
     candleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema20Data);
 
+    // Find the candle a marker's timestamp falls on (nearest by time), so we
+    // can compare the fill price against THAT candle's actual high/low
+    // instead of guessing position from the role (entry vs exit).
+    function barAt(unixTime) {
+      let best = bars[0], bestDiff = Infinity;
+      for (const b of bars) {
+        const diff = Math.abs(toUnix(b.t) - unixTime);
+        if (diff < bestDiff) { best = b; bestDiff = diff; }
+      }
+      return best;
+    }
+
+    // Precise placement: if the fill sits in the upper half of its candle's
+    // high/low range, the marker goes ABOVE the candle with the arrow
+    // pointing down onto the price; if it's in the lower half, the marker
+    // goes BELOW with the arrow pointing up onto the price. This is
+    // independent of whether it's an entry or an exit -- a high entry gets
+    // an above-candle arrow, a low entry gets a below-candle arrow, and the
+    // same logic applies to exits and the better-entry/exit markers.
+    function placement(price, bar) {
+      const mid = (bar.h + bar.l) / 2;
+      return price >= mid
+        ? { position: "aboveBar", shape: "arrowDown" }
+        : { position: "belowBar", shape: "arrowUp" };
+    }
+
+    function buildMarker(time, price, color, text) {
+      return { time, color, size: 0.55, text, ...placement(price, barAt(time)) };
+    }
+
     const markers = [
-      { time: toUnix(`${trade.trade_date} ${trade.entry_time}`), position: "belowBar", color: "#2fd08a", shape: "arrowUp", size: 0.55, text: "ENTRY" },
-      { time: toUnix(`${trade.trade_date} ${trade.exit_time}`), position: "aboveBar", color: "#f2555a", shape: "arrowDown", size: 0.55, text: "EXIT" },
+      buildMarker(toUnix(`${trade.trade_date} ${trade.entry_time}`), trade.entry_price, "#2fd08a", "ENTRY"),
+      buildMarker(toUnix(`${trade.trade_date} ${trade.exit_time}`), trade.exit_price, "#f2555a", "EXIT"),
     ];
     if (trade.better_entry && trade.better_entry.price && trade.better_entry.time) {
-      markers.push({ time: toUnix(trade.better_entry.time.replace("T", " ")), position: "belowBar", color: "#22d3ee", shape: "arrowUp", size: 0.55, text: "BETTER ENTRY" });
+      const t = toUnix(trade.better_entry.time.replace("T", " "));
+      markers.push(buildMarker(t, trade.better_entry.price, "#22d3ee", "BETTER ENTRY"));
     }
     if (trade.better_exit && trade.better_exit.price && trade.better_exit.time) {
-      markers.push({ time: toUnix(trade.better_exit.time.replace("T", " ")), position: "aboveBar", color: "#f472b6", shape: "arrowDown", size: 0.55, text: "BETTER EXIT" });
+      const t = toUnix(trade.better_exit.time.replace("T", " "));
+      markers.push(buildMarker(t, trade.better_exit.price, "#f472b6", "BETTER EXIT"));
     }
     markers.sort((a, b) => a.time - b.time);
     candleSeries.setMarkers(markers);
@@ -232,13 +264,6 @@
     if (trade.better_exit && trade.better_exit.price) {
       candleSeries.createPriceLine({ price: trade.better_exit.price, color: "#f472b6", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "better exit" });
     }
-    if (trade.suggested_stop) {
-      candleSeries.createPriceLine({ price: trade.suggested_stop, color: "#b02a2a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "stop" });
-    }
-    if (trade.suggested_target) {
-      candleSeries.createPriceLine({ price: trade.suggested_target, color: "#1a7a4c", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "target" });
-    }
-
     const macdEl = document.getElementById("macd-chart");
     const macdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: 110 });
     macdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } }).setData(histData);
