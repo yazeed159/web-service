@@ -165,17 +165,16 @@
     const ema20Data = bars.map((b) => ({ time: toUnix(b.t), value: b.ema20 }));
     const macdData = bars.map((b) => ({ time: toUnix(b.t), value: b.macd }));
     const signalData = bars.map((b) => ({ time: toUnix(b.t), value: b.macd_signal }));
-    const histData = bars.map((b) => ({ time: toUnix(b.t), value: b.macd_hist, color: b.macd_hist >= 0 ? "rgba(47,208,138,0.55)" : "rgba(242,85,90,0.55)" }));
+    const histData = bars.map((b) => ({ time: toUnix(b.t), value: b.macd_hist, color: b.macd_hist >= 0 ? "#2fd08a" : "#f2555a" }));
 
+    const candleEl = document.getElementById("candle-chart");
     const commonOpts = {
-      layout: { background: { color: "transparent" }, textColor: "#8b92a0", fontFamily: "IBM Plex Mono, monospace", fontSize: 11 },
-      grid: { vertLines: { color: "#1a1e24" }, horzLines: { color: "#1a1e24" } },
+      layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
+      grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
       rightPriceScale: { borderColor: "#232830" },
       timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     };
-
-    const candleEl = document.getElementById("candle-chart");
     const candleChart = LightweightCharts.createChart(candleEl, { ...commonOpts, width: candleEl.clientWidth, height: 420 });
 
     const candleSeries = candleChart.addCandlestickSeries({
@@ -186,12 +185,12 @@
 
     // The right price scale autoscales to candle highs/lows only. As you
     // zoom in, the visible range tightens around just the candles in view,
-    // and the ENTRY/EXIT overlay labels (drawn a fixed pixel offset off
+    // and the entry/exit pointer markers (drawn a fixed pixel offset off
     // their exact fill price) can end up right at the pane edge. Reserving
     // extra top/bottom margin gives them permanent headroom so they're
     // never fighting the autoscale for room, at any zoom level.
     candleChart.priceScale("right").applyOptions({
-      scaleMargins: { top: 0.18, bottom: 0.22 },
+      scaleMargins: { top: 0.14, bottom: 0.18 },
     });
 
     const volSeries = candleChart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol" });
@@ -211,9 +210,8 @@
     // *nearest*-by-absolute-diff match picks whichever bar boundary is
     // numerically closest -- for anything in the second half of the minute
     // (:31-:59) that's the START of the NEXT bar, not the one the fill
-    // actually happened in. That's what was putting every arrow one candle
-    // late. Floor-matching (last bar whose start time is <= the fill time)
-    // is the correct rule for start-labeled bars.
+    // actually happened in. Floor-matching (last bar whose start time is
+    // <= the fill time) is the correct rule for start-labeled bars.
     function barAt(unixTime) {
       let best = bars[0];
       for (const b of bars) {
@@ -223,107 +221,74 @@
       return best;
     }
 
-    // Which side of the candle the label sits on: above with the stem
-    // pointing down if the fill is in the upper half of that candle's
-    // high/low range, below with the stem pointing up otherwise. This is
-    // purely cosmetic (which side looks less cramped) -- it does NOT
-    // determine vertical position on the chart, unlike lightweight-charts'
-    // own aboveBar/belowBar markers.
-    function side(price, bar) {
-      const mid = (bar.h + bar.l) / 2;
-      return price >= mid ? "above" : "below";
-    }
-
-    // lightweight-charts v4 series markers (setMarkers with aboveBar /
-    // belowBar) do NOT place at an arbitrary price -- they snap to a fixed
-    // pixel offset off the CANDLE's own high/low, full stop. The price you
-    // pass in only picks which side the marker goes on. So an exit whose
-    // fill candle sits far from the fill price (price already having moved
-    // on by the time that 1-min bar prints) rendered its arrow nowhere near
-    // the actual $ level -- e.g. an exit at $14.01 landing down at $13.30
-    // because that's where the 07:11 candle happened to be trading.
-    //
-    // Fix: skip setMarkers for entry/exit and draw plain DOM labels instead,
-    // positioned with the chart's own timeToCoordinate/priceToCoordinate --
-    // so the label sits at the literal fill price, on the correct candle in
-    // time, and stays correct across zoom/pan since we recompute on every
-    // range change.
-    function buildFillOverlay(points) {
+    // Small, clear pointer markers instead of a label box + connector stem
+    // + full-width dashed price line: just a tiny triangle sitting right on
+    // the exact fill point, pointing straight at it. Nothing else on the
+    // chart competes with it for attention, and it never gets orphaned from
+    // its own price line the way the old label system could. Hover it for
+    // the exact price/time (native tooltip, zero extra chart clutter).
+    function buildPointer(time, price, color, label) {
       const wrap = candleEl;
       wrap.style.position = "relative";
-      const overlay = document.createElement("div");
-      overlay.style.cssText = "position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:2;";
-      wrap.appendChild(overlay);
-
-      const els = points.map((p) => {
-        const el = document.createElement("div");
-        el.style.cssText = `
-          position:absolute; transform:translate(-50%, ${p.side === "above" ? "-100%" : "0"});
-          display:flex; flex-direction:column; align-items:center;
-          font:600 10px "IBM Plex Mono", monospace; color:#0b0d10; white-space:nowrap;
-        `;
-        const tag = `<span style="background:${p.color}; padding:1px 5px; border-radius:3px;">${p.text}</span>`;
-        const stem = `<span style="width:1px; height:14px; background:${p.color};"></span>`;
-        el.innerHTML = p.side === "above" ? tag + stem : stem + tag;
-        overlay.appendChild(el);
-        return el;
-      });
-
-      function reposition() {
-        points.forEach((p, i) => {
-          const x = candleChart.timeScale().timeToCoordinate(p.time);
-          const y = candleSeries.priceToCoordinate(p.price);
-          const el = els[i];
-          if (x === null || y === null) {
-            el.style.display = "none";
-            return;
-          }
-          el.style.display = "flex";
-          el.style.left = `${x}px`;
-          el.style.top = `${y}px`;
-        });
+      let overlay = wrap.querySelector(".fill-pointer-overlay");
+      if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.className = "fill-pointer-overlay";
+        overlay.style.cssText = "position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:2;";
+        wrap.appendChild(overlay);
       }
-
-      candleChart.timeScale().subscribeVisibleLogicalRangeChange(reposition);
-      window.addEventListener("resize", reposition);
-      // priceToCoordinate depends on the right price scale's own autoscale,
-      // which isn't settled until after setData/fitContent run -- a couple
-      // of follow-up passes catch that instead of racing it.
-      reposition();
-      requestAnimationFrame(reposition);
-      setTimeout(reposition, 0);
+      const el = document.createElement("div");
+      el.title = `${label} $${price.toFixed(2)}`;
+      el.style.cssText = `
+        position:absolute; width:0; height:0; pointer-events:auto;
+        border-left:6px solid transparent; border-right:6px solid transparent;
+        filter: drop-shadow(0 0 1.5px #0b0d10) drop-shadow(0 0 1.5px #0b0d10);
+      `;
+      overlay.appendChild(el);
+      return el;
     }
 
-    // Better-entry/better-exit are intentionally NOT drawn on the chart --
-    // they're hypothetical fills, not things that actually happened on this
-    // candle series, and plotting them next to the real entry/exit labels
-    // would read as if they were. The price + time + reasoning for each
-    // still shows in the "What you should've done" card below.
     const entryBar = barAt(toUnix(`${trade.trade_date} ${trade.entry_time}`));
     const exitBar = barAt(toUnix(`${trade.trade_date} ${trade.exit_time}`));
-    buildFillOverlay([
-      { time: toUnix(entryBar.t), price: trade.entry_price, color: "#2fd08a", text: "ENTRY", side: side(trade.entry_price, entryBar) },
-      { time: toUnix(exitBar.t), price: trade.exit_price, color: "#f2555a", text: "EXIT", side: side(trade.exit_price, exitBar) },
-    ]);
+    const pointers = [
+      // Entry: triangle sits just above the fill, tip pointing down onto it.
+      { time: toUnix(entryBar.t), price: trade.entry_price, color: "#2fd08a", label: "ENTRY", above: true,
+        el: buildPointer(toUnix(entryBar.t), trade.entry_price, "#2fd08a", "ENTRY") },
+      // Exit: triangle sits just below the fill, tip pointing up onto it.
+      { time: toUnix(exitBar.t), price: trade.exit_price, color: "#f2555a", label: "EXIT", above: false,
+        el: buildPointer(toUnix(exitBar.t), trade.exit_price, "#f2555a", "EXIT") },
+    ];
+    pointers.forEach((p) => {
+      p.el.style.borderBottom = p.above ? `9px solid ${p.color}` : "";
+      p.el.style.borderTop = p.above ? "" : `9px solid ${p.color}`;
+    });
 
-    // Dashed price lines at the literal entry/exit fill so the level reads
-    // precisely across the whole width of the chart, not just at the label.
-    candleSeries.createPriceLine({
-      price: trade.entry_price,
-      color: "#2fd08a",
-      lineWidth: 1,
-      lineStyle: LightweightCharts.LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: "entry",
-    });
-    candleSeries.createPriceLine({
-      price: trade.exit_price,
-      color: "#f2555a",
-      lineWidth: 1,
-      lineStyle: LightweightCharts.LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: "exit",
-    });
+    function repositionPointers() {
+      pointers.forEach((p) => {
+        const x = candleChart.timeScale().timeToCoordinate(p.time);
+        const y = candleSeries.priceToCoordinate(p.price);
+        if (x === null || y === null) {
+          p.el.style.display = "none";
+          return;
+        }
+        p.el.style.display = "block";
+        p.el.style.left = `${x}px`;
+        // Tip of the triangle sits exactly on the price; the shape itself
+        // extends 9px above (entry) or below (exit) from there.
+        p.el.style.top = p.above ? `${y - 9}px` : `${y}px`;
+        p.el.style.transform = "translateX(-50%)";
+      });
+    }
+
+    candleChart.timeScale().subscribeVisibleLogicalRangeChange(repositionPointers);
+    window.addEventListener("resize", repositionPointers);
+    // priceToCoordinate depends on the right price scale's own autoscale,
+    // which isn't settled until after setData/fitContent run -- a couple
+    // of follow-up passes catch that instead of racing it.
+    repositionPointers();
+    requestAnimationFrame(repositionPointers);
+    setTimeout(repositionPointers, 0);
+
     const macdEl = document.getElementById("macd-chart");
     const macdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: 110 });
     macdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } }).setData(histData);
