@@ -289,6 +289,23 @@
     requestAnimationFrame(repositionPointers);
     setTimeout(repositionPointers, 0);
 
+    candleSeries.createPriceLine({
+      price: trade.entry_price,
+      color: "#2fd08a",
+      lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: "",
+    });
+    candleSeries.createPriceLine({
+      price: trade.exit_price,
+      color: "#f2555a",
+      lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: "",
+    });
+
     const macdEl = document.getElementById("macd-chart");
     const macdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: 110 });
     macdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } }).setData(histData);
