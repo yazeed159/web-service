@@ -15,32 +15,43 @@ as-is on GitHub Pages (or any static host).
     day detail panel.
   - **Trade View** — the original day-grouped trade table, searchable by
     symbol and filterable by win/loss.
-  - **Reports** — win/loss streaks, best/worst trade, and breakdowns by
-    symbol and day-of-week.
-  - "Playbooks" still appears as a disabled nav item (marked "Soon")
-    — it's not wired up to anything.
+  - **Reports** — win/loss streaks, best/worst trade, breakdowns by
+    symbol (small-sample-size trades flagged with an `n=` pill), day-of-
+    week, time-of-day session bucket, and trade duration; a most-traded /
+    most-profitable symbol leaderboard; and a sector/country breakdown
+    (see `sector`/`country` in the schema below — empty until the publish
+    step copies those over).
 - **`trade.html?id=<trade_id>`** — a per-trade page (same sidebar shell)
   with a gross/commission/net breakdown, a real interactive candlestick
   chart (zoom, pan, hover crosshair) built from that trade's actual OHLC
   bars, VWAP/EMA9/EMA20 overlays (plus dotted price lines for the LLM's
   suggested better entry/exit), a synced MACD panel, entry/exit
-  markers, the LLM's verdict, prev/next sibling navigation between
-  trades, and inline 👍/👎 feedback buttons on each better-entry/exit
-  call and lesson (stored in `localStorage`, per browser — not synced
-  anywhere, just tallied on the Performance page).
+  markers, the LLM's verdict, a one-click "Copy" button on the verdict
+  text, a "PNG" button that exports the chart's current zoom/pan view as
+  a downloadable image, prev/next sibling navigation between trades, and
+  inline 👍/👎 feedback buttons on each better-entry/exit call and lesson
+  (stored in `localStorage`, per browser — not synced anywhere, just
+  tallied on the Performance page).
 - **`journal.html`** — the full trade log as one filterable, sortable
-  table: symbol search, date range, setup type, win/loss, and a "has
-  better entry/exit flagged" checkbox. Same sidebar shell as the rest
-  of the site.
+  table: symbol search, date range, entry time-of-day range, setup type,
+  win/loss, and a "has better entry/exit flagged" checkbox. Deep-linkable
+  from a Playbooks card via `?setup=<setup_type>`, which pre-selects that
+  setup's filter. Same sidebar shell as the rest of the site.
 - **`stats.html`** ("Performance" in the nav) — net P&L, win rate,
   avg win/loss, current/longest streaks, an interactive equity curve,
   win rate by setup, a "money left on the table" slippage estimate
-  (comparing actual fills to the LLM's suggested better entry/exit),
-  and a local tally of the 👍/👎 feedback left on trade pages.
+  (comparing actual fills to the LLM's suggested better entry/exit) split
+  by entry vs. exit, a cumulative slippage trend chart, a slippage-by-
+  setup breakdown, and a local tally of the 👍/👎 feedback left on trade
+  pages.
 - **`patterns.html`** — clusters every trade's `lesson_tags` (e.g.
   `chased_extension`, `late_exit`) by frequency so a mistake repeated
   across many trades stands out, with an expandable list of the
   trades behind each tag.
+- **`playbooks.html`** — one scorecard per `setup_type`: win rate, trade
+  count (flagged if under 5), net P&L, average P&L per trade, and the
+  most common `lesson_tags` entry logged against that setup. Click a
+  card to jump to `journal.html` pre-filtered to just that setup.
 
 The color system lives in `style.css` as CSS variables (`--primary` is
 the indigo/violet accent, `--green`/`--red` are win/loss) — swap those to
@@ -65,13 +76,14 @@ dashboard/
   journal.html          filterable, sortable log of every trade
   stats.html             "Performance" — equity curve, setup win rates, slippage, feedback tally
   patterns.html           recurring lesson-tag clusters
+  playbooks.html          per-setup_type scorecards, links into journal.html
   trade.html              per-trade page (reads ?id=... from the URL)
   style.css               shared design tokens + app-shell/sidebar layout
-  features.css              additive styles for journal/stats/patterns (filters, data table, bar rows)
+  features.css              additive styles for journal/stats/patterns/playbooks (filters, data table, bar rows, playbook cards)
   app.js                  home page logic
   trade.js                  trade page + chart logic
   data/
-    trades.json          index: one row per trade, feeds the home table and journal/stats/patterns pages
+    trades.json          index: one row per trade, feeds the home table and journal/stats/patterns/playbooks pages
     trades/<id>.json      full detail per trade, feeds trade.html
 ```
 
@@ -132,6 +144,11 @@ straight from the IBKR Flex report (not a recomputed percentage):
   flagged better fill, and `lesson_tags` when the trade has none — all four
   are optional and every page treats a missing value as "no data for this
   trade" rather than an error.
+- `sector` / `country` — optional flat copies of `symbol_info.sector` /
+  `symbol_info.country` from the detail file (same reasoning as the four
+  fields above: the Reports tab's sector/country breakdown reads only the
+  index, not every detail file). Not required — the breakdown just shows
+  an empty state until the publish step starts copying these over.
 
 ### `data/trades/<id>.json` — the detail record
 

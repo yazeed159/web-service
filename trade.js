@@ -49,43 +49,6 @@
     return Math.floor(new Date(t.replace(" ", "T") + "").getTime() / 1000);
   }
 
-  // Feedback ("was this LLM call right?") is stored client-side only —
-  // there's no write-back to the published JSON, so this is a per-browser
-  // scratchpad, not a synced record. Keyed by trade id + field name so a
-  // stats page can read `journal-feedback:*` and tally accuracy.
-  const FEEDBACK_PREFIX = "journal-feedback:";
-  function getFeedback(tradeId, field) {
-    try {
-      return localStorage.getItem(FEEDBACK_PREFIX + tradeId + ":" + field) || "";
-    } catch (_) {
-      return "";
-    }
-  }
-  function setFeedback(tradeId, field, value) {
-    try {
-      localStorage.setItem(FEEDBACK_PREFIX + tradeId + ":" + field, value);
-    } catch (_) {}
-  }
-  function feedbackWidget(tradeId, field) {
-    const current = getFeedback(tradeId, field);
-    const btn = (val, glyph) => `<button type="button" class="fb-btn${current === val ? " active" : ""}" data-fb-trade="${escapeHtml(tradeId)}" data-fb-field="${field}" data-fb-value="${val}" style="all:unset; cursor:pointer; padding:2px 6px; font-size:11px; border-radius:4px; border:1px solid rgba(255,255,255,.12); ${current === val ? "background:rgba(255,255,255,.14);" : ""}">${glyph}</button>`;
-    return `<span class="fb-widget" style="display:inline-flex; gap:4px; margin-top:4px;">${btn("good", "👍")}${btn("bad", "👎")}</span>`;
-  }
-  function wireFeedbackWidgets(root) {
-    root.querySelectorAll("[data-fb-trade]").forEach((el) => {
-      el.addEventListener("click", () => {
-        const tradeId = el.getAttribute("data-fb-trade");
-        const field = el.getAttribute("data-fb-field");
-        const value = el.getAttribute("data-fb-value");
-        const already = getFeedback(tradeId, field) === value;
-        setFeedback(tradeId, field, already ? "" : value);
-        root.querySelectorAll(`[data-fb-trade="${tradeId}"][data-fb-field="${field}"]`).forEach((b) => {
-          b.style.background = !already && b.getAttribute("data-fb-value") === value ? "rgba(255,255,255,.14)" : "";
-        });
-      });
-    });
-  }
-
   function siblingNav(trade, siblings) {
     if (!Array.isArray(siblings) || !siblings.length) return "";
     const key = (t) => (t.trade_date || "") + (t.entry_time || "");
@@ -146,7 +109,13 @@
             <span class="legend-item"><span class="legend-swatch" style="background:rgba(47,208,138,0.55)"></span>better entry</span>
             <span class="legend-item"><span class="legend-swatch" style="background:rgba(242,85,90,0.55)"></span>better exit</span>
           </div>
-          <div>Scroll to zoom · drag to pan</div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span>Scroll to zoom · drag to pan</span>
+            <button class="icon-btn" id="export-chart-btn" title="Export chart as PNG" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              PNG
+            </button>
+          </div>
         </div>
         <div id="candle-chart"></div>
         <div id="macd-chart"></div>
@@ -154,7 +123,13 @@
 
       <div class="detail-grid">
         <div class="card">
-          <h2>Verdict</h2>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+            <h2 style="margin:0;">Verdict</h2>
+            <button class="icon-btn" id="copy-verdict-btn" title="Copy verdict text" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              <span id="copy-verdict-label">Copy</span>
+            </button>
+          </div>
           <div class="verdict-text">${escapeHtml(trade.verdict || "No verdict recorded.")}</div>
           ${trade.setup_type ? `<span class="setup-tag">${escapeHtml(trade.setup_type)}</span>` : ""}
           ${rrStrip(trade)}
@@ -162,15 +137,15 @@
         </div>
         <div class="card better-card" style="padding:14px 16px;">
           <h2 style="font-size:12.5px; margin:0 0 8px; text-transform:uppercase; letter-spacing:.03em; opacity:.75;">What you should've done</h2>
-          ${betterRow("Entry", trade.better_entry, trade.id, "better_entry")}
-          ${betterRow("Exit", trade.better_exit, trade.id, "better_exit")}
+          ${betterRow("Entry", trade.better_entry)}
+          ${betterRow("Exit", trade.better_exit)}
           ${!trade.better_entry && !trade.better_exit ? `<div class="no-better" style="font-size:12px; opacity:.7;">No better entry/exit flagged — this trade lined up with the plan.</div>` : ""}
         </div>
 
         <div class="card">
           <h2>Lessons from this trade</h2>
           ${Array.isArray(trade.lessons) && trade.lessons.length
-            ? `<ul class="lessons-list" style="margin:0; padding-left:18px;">${trade.lessons.map((l, i) => lessonItem(l, trade.id, i)).join("")}</ul>`
+            ? `<ul class="lessons-list" style="margin:0; padding-left:18px;">${trade.lessons.map((l) => lessonItem(l)).join("")}</ul>`
             : `<div class="no-better">No lessons recorded for this trade.</div>`}
         </div>
 
@@ -188,7 +163,29 @@
     `;
 
     buildCharts(trade);
-    wireFeedbackWidgets(content);
+
+    const copyBtn = document.getElementById("copy-verdict-btn");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", () => {
+        const label = document.getElementById("copy-verdict-label");
+        const text = trade.verdict || "";
+        const done = () => { label.textContent = "Copied!"; setTimeout(() => (label.textContent = "Copy"), 1500); };
+        const fail = () => { label.textContent = "Couldn't copy"; setTimeout(() => (label.textContent = "Copy"), 1500); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, fail);
+        } else {
+          // Fallback for browsers without the async Clipboard API.
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand("copy"); done(); } catch (e) { fail(); }
+          document.body.removeChild(ta);
+        }
+      });
+    }
   }
 
   function rrStrip(trade) {
@@ -200,7 +197,7 @@
     </div>`;
   }
 
-  function betterRow(label, b, tradeId, field) {
+  function betterRow(label, b) {
     if (!b || !b.price) return "";
     const how = b.how_to_know
       ? `<div class="how-to-know" style="font-size:11px; opacity:.65; margin-top:2px;">How you'd know: ${escapeHtml(b.how_to_know)}</div>`
@@ -211,12 +208,11 @@
         <div class="price-line" style="font-size:12.5px; font-weight:600;">$${Number(b.price).toFixed(2)}${b.time ? ` @ ${escapeHtml(String(b.time).split("T").pop())}` : ""}</div>
         ${b.reason ? `<div class="reason" style="font-size:11.5px; opacity:.75; margin-top:1px;">${escapeHtml(b.reason)}</div>` : ""}
         ${how}
-        ${tradeId ? feedbackWidget(tradeId, field) : ""}
       </div>
     </div>`;
   }
 
-  function lessonItem(l, tradeId, i) {
+  function lessonItem(l) {
     if (typeof l === "string") return `<li style="margin-bottom:6px; font-size:12.5px;">${escapeHtml(l)}</li>`;
     const how = l.how_to_know
       ? `<div style="font-size:11px; opacity:.65; margin-top:2px;">How you'd know: ${escapeHtml(l.how_to_know)}</div>`
@@ -224,7 +220,7 @@
     const tagBadge = l.tag
       ? `<span class="lesson-tag" style="display:inline-block; font-size:10px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; padding:1px 6px; border-radius:3px; background:rgba(91,147,240,.15); color:#5b93f0; margin-left:6px; vertical-align:middle;">${escapeHtml(String(l.tag).replace(/_/g, " "))}</span>`
       : "";
-    return `<li style="margin-bottom:8px; font-size:12.5px;">${escapeHtml(l.lesson || l.text || "")}${tagBadge}${how}${tradeId ? feedbackWidget(tradeId, "lesson_" + i) : ""}</li>`;
+    return `<li style="margin-bottom:8px; font-size:12.5px;">${escapeHtml(l.lesson || l.text || "")}${tagBadge}${how}</li>`;
   }
 
   function buildCharts(trade) {
@@ -461,5 +457,26 @@
       candleChart.applyOptions({ width: candleEl.clientWidth });
       macdChart.applyOptions({ width: macdEl.clientWidth });
     });
+
+    const exportBtn = document.getElementById("export-chart-btn");
+    if (exportBtn) {
+      exportBtn.addEventListener("click", () => {
+        // takeScreenshot() renders the chart's current view (whatever
+        // zoom/pan the user has it at) to a canvas -- export what they're
+        // actually looking at, not a fixed default view.
+        const canvas = candleChart.takeScreenshot();
+        canvas.toBlob((blob) => {
+          if (!blob) return;
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${trade.symbol}-${trade.trade_date}-${(trade.id || "chart")}.png`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        });
+      });
+    }
   }
 })();

@@ -65,6 +65,12 @@
     document.getElementById("highlight-pair").innerHTML = "";
     document.getElementById("report-symbol").innerHTML = '<div class="empty-state small">No data yet.</div>';
     document.getElementById("report-dow").innerHTML = '<div class="empty-state small">No data yet.</div>';
+    document.getElementById("report-timeofday").innerHTML = '<div class="empty-state small">No data yet.</div>';
+    document.getElementById("report-duration").innerHTML = '<div class="empty-state small">No data yet.</div>';
+    document.getElementById("report-most-traded").innerHTML = '<div class="empty-state small">No data yet.</div>';
+    document.getElementById("report-most-profitable").innerHTML = '<div class="empty-state small">No data yet.</div>';
+    document.getElementById("report-sector").innerHTML = '<div class="empty-state small">No data yet.</div>';
+    document.getElementById("report-country").innerHTML = '<div class="empty-state small">No data yet.</div>';
   }
 
   function escapeHtml(s) {
@@ -500,6 +506,10 @@
     renderHighlights();
     renderSymbolBreakdown();
     renderDowBreakdown();
+    renderTimeOfDayBreakdown();
+    renderDurationBreakdown();
+    renderLeaderboards();
+    renderSectorCountryBreakdown();
   }
 
   function renderStreaks() {
@@ -554,8 +564,9 @@
       const winRate = (e.trades.filter((t) => t.win).length / e.trades.length) * 100;
       const pct = (Math.abs(e.net) / maxAbs) * 100;
       const color = e.net >= 0 ? "var(--green)" : "var(--red)";
+      const smallSample = e.trades.length < 3;
       return `<tr>
-        <td style="font-weight:600;">${escapeHtml(sym)}</td>
+        <td style="font-weight:600;">${escapeHtml(sym)}${smallSample ? ` <span class="pill" style="font-size:9.5px; padding:1px 6px;" title="Fewer than 3 trades — win rate isn't meaningful yet.">n=${e.trades.length}</span>` : ""}</td>
         <td class="mono dim">${e.trades.length}</td>
         <td class="mono">${winRate.toFixed(0)}%</td>
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${e.net >= 0 ? "up" : "down"}">${fmtMoney(e.net)}</span></td>
@@ -592,5 +603,185 @@
     }).join("");
 
     document.getElementById("report-dow").innerHTML = `<table class="report-table"><thead><tr><th>Day</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table>`;
+  }
+
+  // ================================================================
+  // REPORTS — time of day
+  // ================================================================
+  // Buckets by ENTRY time, on the theory that when you got in is the
+  // habit worth watching (chasing the open, forcing trades at lunch, etc).
+  // Times are "HH:MM:SS" strings, which sort/compare correctly as text.
+  const TOD_BUCKETS = [
+    { label: "Open (9:30–9:45)", from: "09:30:00", to: "09:44:59" },
+    { label: "Early (9:45–10:30)", from: "09:45:00", to: "10:29:59" },
+    { label: "Mid-morning (10:30–11:30)", from: "10:30:00", to: "11:29:59" },
+    { label: "Midday (11:30–14:00)", from: "11:30:00", to: "13:59:59" },
+    { label: "Power hour (14:00–15:30)", from: "14:00:00", to: "15:29:59" },
+    { label: "Close (15:30–16:00)", from: "15:30:00", to: "16:00:00" },
+  ];
+
+  function renderTimeOfDayBreakdown() {
+    const buckets = TOD_BUCKETS.map((b) => ({ ...b, trades: [] }));
+    const other = [];
+    trades.forEach((t) => {
+      const bucket = buckets.find((b) => t.entry_time >= b.from && t.entry_time <= b.to);
+      if (bucket) bucket.trades.push(t);
+      else other.push(t);
+    });
+    const present = buckets.filter((b) => b.trades.length);
+    const maxAbs = Math.max(1, ...present.map((b) => Math.abs(b.trades.reduce((s, t) => s + t.pnl_after_comm, 0))));
+
+    const rows = present.map((b) => {
+      const net = b.trades.reduce((s, t) => s + t.pnl_after_comm, 0);
+      const winRate = (b.trades.filter((t) => t.win).length / b.trades.length) * 100;
+      const pct = (Math.abs(net) / maxAbs) * 100;
+      const color = net >= 0 ? "var(--green)" : "var(--red)";
+      return `<tr>
+        <td style="font-weight:600;">${b.label}</td>
+        <td class="mono dim">${b.trades.length}</td>
+        <td class="mono">${winRate.toFixed(0)}%</td>
+        <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</span></td>
+      </tr>`;
+    }).join("");
+
+    const el = document.getElementById("report-timeofday");
+    if (!rows) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
+    el.innerHTML = `<table class="report-table"><thead><tr><th>Session</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  // ================================================================
+  // REPORTS — trade duration
+  // ================================================================
+  // Duration comes from entry_time/exit_time (both "HH:MM:SS" on the
+  // same trade_date), not a separate field -- the index doesn't carry
+  // time_in_trade, so it's computed here the same way the detail page
+  // would show it.
+  function durationMinutes(t) {
+    const toSec = (s) => { const [h, m, sec] = s.split(":").map(Number); return h * 3600 + m * 60 + (sec || 0); };
+    const diff = toSec(t.exit_time) - toSec(t.entry_time);
+    return diff > 0 ? diff / 60 : null;
+  }
+
+  const DURATION_BUCKETS = [
+    { label: "< 5 min", max: 5 },
+    { label: "5–15 min", max: 15 },
+    { label: "15–30 min", max: 30 },
+    { label: "30–60 min", max: 60 },
+    { label: "> 60 min", max: Infinity },
+  ];
+
+  function renderDurationBreakdown() {
+    const buckets = DURATION_BUCKETS.map((b) => ({ ...b, trades: [] }));
+    trades.forEach((t) => {
+      const mins = durationMinutes(t);
+      if (mins === null) return;
+      const bucket = buckets.find((b) => mins <= b.max);
+      (bucket || buckets[buckets.length - 1]).trades.push(t);
+    });
+    const maxCount = Math.max(1, ...buckets.map((b) => b.trades.length));
+
+    const rows = buckets.filter((b) => b.trades.length).map((b) => {
+      const winRate = (b.trades.filter((t) => t.win).length / b.trades.length) * 100;
+      const pct = (b.trades.length / maxCount) * 100;
+      return `<div class="bar-row">
+        <div class="bar-label">${b.label}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(0)}%;"></div></div>
+        <div class="bar-count">${b.trades.length}x</div>
+        <div style="width:52px; text-align:right; flex-shrink:0; color:${winRate >= 50 ? "var(--green)" : "var(--red)"};">${winRate.toFixed(0)}%</div>
+      </div>`;
+    }).join("");
+
+    const el = document.getElementById("report-duration");
+    el.innerHTML = rows || `<div class="empty-state small">No data yet.</div>`;
+  }
+
+  // ================================================================
+  // REPORTS — leaderboards
+  // ================================================================
+  function symbolAgg() {
+    const map = new Map();
+    trades.forEach((t) => {
+      if (!map.has(t.symbol)) map.set(t.symbol, { trades: [], net: 0 });
+      const e = map.get(t.symbol);
+      e.trades.push(t);
+      e.net += t.pnl_after_comm;
+    });
+    return map;
+  }
+
+  function leaderboardRows(entries, valueFn, valueCls) {
+    return entries.map(([sym, e]) => `
+      <div class="bar-row">
+        <div class="bar-label" style="width:70px;">${escapeHtml(sym)}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${e._pct}%;"></div></div>
+        <div style="width:70px; text-align:right; flex-shrink:0;" class="${valueCls(e)}">${valueFn(e)}</div>
+      </div>`).join("");
+  }
+
+  function renderLeaderboards() {
+    const map = symbolAgg();
+    const entries = Array.from(map.entries());
+
+    const byCount = entries.slice().sort((a, b) => b[1].trades.length - a[1].trades.length).slice(0, 5);
+    const maxCount = Math.max(1, ...byCount.map(([, e]) => e.trades.length));
+    byCount.forEach(([, e]) => (e._pct = Math.round((e.trades.length / maxCount) * 100)));
+    document.getElementById("report-most-traded").innerHTML =
+      leaderboardRows(byCount, (e) => `${e.trades.length}x`, () => "dim") || `<div class="empty-state small">No data yet.</div>`;
+
+    const byNet = entries.slice().sort((a, b) => b[1].net - a[1].net).slice(0, 5);
+    const maxAbsNet = Math.max(1, ...byNet.map(([, e]) => Math.abs(e.net)));
+    byNet.forEach(([, e]) => (e._pct = Math.round((Math.abs(e.net) / maxAbsNet) * 100)));
+    document.getElementById("report-most-profitable").innerHTML =
+      leaderboardRows(byNet, (e) => fmtMoney(e.net), (e) => (e.net >= 0 ? "up" : "down")) || `<div class="empty-state small">No data yet.</div>`;
+  }
+
+  // ================================================================
+  // REPORTS — sector / country
+  // ================================================================
+  // sector/country aren't in the documented index schema today (only
+  // trade detail files carry symbol_info) -- this reads them from the
+  // index row IF the publish step has been extended to copy them over
+  // (same pattern as setup_type/lesson_tags), and just shows an empty
+  // state otherwise rather than fetching every detail file to fill the
+  // gap, which would defeat the whole point of the index existing.
+  function groupByField(field) {
+    const map = new Map();
+    let anyPresent = false;
+    trades.forEach((t) => {
+      if (!t[field]) return;
+      anyPresent = true;
+      if (!map.has(t[field])) map.set(t[field], { trades: [], net: 0 });
+      const e = map.get(t[field]);
+      e.trades.push(t);
+      e.net += t.pnl_after_comm;
+    });
+    return anyPresent ? map : null;
+  }
+
+  function renderBreakdownTable(elId, map, colLabel) {
+    const el = document.getElementById(elId);
+    if (!map) {
+      el.innerHTML = `<div class="empty-state small">No ${escapeHtml(colLabel.toLowerCase())} data on these trades yet.</div>`;
+      return;
+    }
+    const rows = Array.from(map.entries()).sort((a, b) => b[1].net - a[1].net);
+    const maxAbs = Math.max(1, ...rows.map(([, e]) => Math.abs(e.net)));
+    const html = rows.map(([key, e]) => {
+      const winRate = (e.trades.filter((t) => t.win).length / e.trades.length) * 100;
+      const pct = (Math.abs(e.net) / maxAbs) * 100;
+      const color = e.net >= 0 ? "var(--green)" : "var(--red)";
+      return `<tr>
+        <td style="font-weight:600;">${escapeHtml(key)}</td>
+        <td class="mono dim">${e.trades.length}</td>
+        <td class="mono">${winRate.toFixed(0)}%</td>
+        <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${e.net >= 0 ? "up" : "down"}">${fmtMoney(e.net)}</span></td>
+      </tr>`;
+    }).join("");
+    el.innerHTML = `<table class="report-table"><thead><tr><th>${colLabel}</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table>`;
+  }
+
+  function renderSectorCountryBreakdown() {
+    renderBreakdownTable("report-sector", groupByField("sector"), "Sector");
+    renderBreakdownTable("report-country", groupByField("country"), "Country");
   }
 })();

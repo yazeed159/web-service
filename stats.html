@@ -69,11 +69,10 @@
         <span class="nav-label">Patterns</span>
       </a>
 
-      <button class="nav-item disabled" disabled title="Coming soon">
+      <a class="nav-item" href="playbooks.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
         <span class="nav-label">Playbooks</span>
-        <span class="soon-tag">Soon</span>
-      </button>
+      </a>
     </nav>
 
     <div class="sidebar-bottom">
@@ -112,7 +111,6 @@
   "use strict";
 
   const content = document.getElementById("stats-content");
-  const FEEDBACK_PREFIX = "journal-feedback:";
 
   fetch("data/trades.json")
     .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
@@ -180,10 +178,16 @@
         <div id="slippage-breakdown"></div>
       </div>
 
-      <div class="panel-box">
-        <div class="panel-box-head"><span class="title">Grading Accuracy (this browser)</span></div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Tally of the 👍/👎 you've left on better-entry/exit calls and lessons across trades. Stored locally — not synced across devices.</p>
-        <div id="feedback-tally"></div>
+      <div class="panel-box" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Slippage Trend</span></div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Cumulative money left on the table over time — climbing means it's getting worse, flattening means fills are getting closer to the suggested price.</p>
+        <div id="slippage-trend-chart" style="height:220px;"></div>
+      </div>
+
+      <div class="panel-box" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Slippage by Setup</span></div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Which setups are costing the most in chased entries and early/late exits.</p>
+        <div id="slippage-by-setup"></div>
       </div>
     `;
 
@@ -191,7 +195,8 @@
     renderStreak(sorted);
     renderSetupBreakdown(sorted);
     renderSlippage(sorted);
-    renderFeedbackTally();
+    renderSlippageTrend(sorted);
+    renderSlippageBySetup(sorted);
   }
 
   function avg(arr) {
@@ -312,32 +317,84 @@
     `;
   }
 
-  function renderFeedbackTally() {
-    const el = document.getElementById("feedback-tally");
-    let good = 0, bad = 0;
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.indexOf(FEEDBACK_PREFIX) === 0) {
-          const v = localStorage.getItem(k);
-          if (v === "good") good += 1;
-          else if (v === "bad") bad += 1;
-        }
-      }
-    } catch (_) {}
-    const total = good + bad;
-    if (!total) {
-      el.innerHTML = `<div class="empty-state small" style="padding:10px 0;">No feedback left yet — use the 👍/👎 on any trade's better-entry/exit or lessons.</div>`;
+  // Per-trade slippage cost, same sign convention as renderSlippage's
+  // aggregate entrySlip/exitSlip: positive = money left on the table
+  // (actual fill was worse than the LLM's suggested better price).
+  // Trades with no better_entry_price/better_exit_price flagged contribute 0.
+  function tradeSlipCost(r) {
+    const sign = (r.side === "short") ? -1 : 1;
+    let cost = 0;
+    if (typeof r.better_entry_price === "number") cost += (r.entry_price - r.better_entry_price) * r.shares * sign;
+    if (typeof r.better_exit_price === "number") cost += (r.better_exit_price - r.exit_price) * r.shares * sign;
+    return cost;
+  }
+  function hasFlagged(r) {
+    return typeof r.better_entry_price === "number" || typeof r.better_exit_price === "number";
+  }
+
+  function renderSlippageTrend(sorted) {
+    const el = document.getElementById("slippage-trend-chart");
+    const flagged = sorted.filter(hasFlagged);
+    if (!flagged.length) {
+      el.innerHTML = `<div class="empty-state small">No better-entry/exit flags yet.</div>`;
       return;
     }
-    const pct = Math.round((good / total) * 100);
-    el.innerHTML = `<div class="bar-row">
-      <div class="bar-label">Rated useful</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:var(--green);"></div></div>
-      <div class="bar-count">${pct}%</div>
-      <div style="width:90px; text-align:right; flex-shrink:0; color:var(--text-faint);">${good}👍 ${bad}👎</div>
-    </div>`;
+    const chart = LightweightCharts.createChart(el, {
+      width: el.clientWidth,
+      height: 220,
+      layout: { background: { color: "transparent" }, textColor: "#8b8fa3" },
+      grid: { vertLines: { color: "#1b1e26" }, horzLines: { color: "#1b1e26" } },
+      rightPriceScale: { borderColor: "#262a34" },
+      timeScale: { borderColor: "#262a34" },
+    });
+    const series = chart.addAreaSeries({
+      lineColor: "#e8a94c", topColor: "rgba(232,169,76,0.25)", bottomColor: "rgba(232,169,76,0.02)", lineWidth: 2,
+    });
+    // Same day-collapsing approach as the equity curve: lightweight-charts
+    // needs one strictly-increasing time key, and several trades can share
+    // a trade_date.
+    let running = 0;
+    const byDate = new Map();
+    for (const r of sorted) {
+      running += -tradeSlipCost(r); // display convention: positive = money captured, not lost
+      byDate.set(r.trade_date, running);
+    }
+    const data = Array.from(byDate.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([time, value]) => ({ time, value }));
+    series.setData(data);
+    chart.timeScale().fitContent();
+    window.addEventListener("resize", () => chart.applyOptions({ width: el.clientWidth }));
   }
+
+  function renderSlippageBySetup(sorted) {
+    const el = document.getElementById("slippage-by-setup");
+    const flagged = sorted.filter(hasFlagged);
+    if (!flagged.length) {
+      el.innerHTML = `<div class="empty-state small">No better-entry/exit flags yet.</div>`;
+      return;
+    }
+    const groups = {};
+    for (const r of flagged) {
+      const key = r.setup_type || "unlabeled";
+      groups[key] = groups[key] || [];
+      groups[key].push(r);
+    }
+    const entries = Object.entries(groups)
+      .map(([setup, rows]) => [setup, rows, rows.reduce((s, r) => s + tradeSlipCost(r), 0)])
+      .sort((a, b) => b[2] - a[2]); // worst (most left on the table) first
+    const maxAbs = Math.max(1, ...entries.map(([, , cost]) => Math.abs(cost)));
+
+    el.innerHTML = entries.map(([setup, rows, cost]) => {
+      const pct = Math.round((Math.abs(cost) / maxAbs) * 100);
+      const color = cost <= 0 ? "var(--green)" : "var(--red)";
+      return `<div class="bar-row">
+        <div class="bar-label">${escapeHtml(setup.replace(/_/g, " "))}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${color};"></div></div>
+        <div style="width:70px; text-align:right; flex-shrink:0; color:${color};">${fmtMoney(-cost)}</div>
+        <div style="width:60px; text-align:right; flex-shrink:0; color:var(--text-faint);">${rows.length}x</div>
+      </div>`;
+    }).join("");
+  }
+
 })();
 </script>
 <script>
