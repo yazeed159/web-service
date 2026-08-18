@@ -106,8 +106,8 @@
             <span class="legend-item"><span class="legend-swatch" style="background:#5b93f0"></span>EMA20</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#2fd08a"></span>entry</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#f2555a"></span>exit</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:rgba(47,208,138,0.55)"></span>better entry</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:rgba(242,85,90,0.55)"></span>better exit</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#8b7cf6"></span>better entry</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#ec6cad"></span>better exit</span>
           </div>
           <div style="display:flex; align-items:center; gap:12px;">
             <span>Scroll to zoom · drag to pan</span>
@@ -238,7 +238,12 @@
     const commonOpts = {
       layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
       grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
-      rightPriceScale: { borderColor: "#232830" },
+      // minimumWidth guarantees room for the widest axis label we ever put
+      // up -- "BETTER ENTRY" / "BETTER EXIT" plus the price -- so those
+      // price-line titles render in full instead of being squeezed by an
+      // axis width that would otherwise auto-size to shorter labels like
+      // the plain numeric entry/exit prices.
+      rightPriceScale: { borderColor: "#232830", minimumWidth: 92 },
       timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     };
@@ -295,7 +300,9 @@
     // its own price line the way the old label system could. Hover it for
     // the exact price/time -- and for the "better" markers, the full
     // reason + how_to_know text, so nothing has to be crammed into the
-    // on-chart tag (which stays short so it never gets clipped).
+    // on-chart tag (which stays short so it never gets clipped). Hover
+    // doesn't work on touchscreens though, so "better" markers also get a
+    // tappable "i" badge (buildInfoIcon, below) with the same text.
     function buildPointer(tooltipText) {
       const wrap = candleEl;
       wrap.style.position = "relative";
@@ -317,6 +324,57 @@
       return el;
     }
 
+    // A tiny "i" badge next to a better-entry/exit pointer, tap/click to
+    // reveal its reason + how_to_know text in a small popover. This is
+    // extra to (not instead of) the pointer's own native hover tooltip --
+    // hover works great with a mouse, but does nothing on a touchscreen, so
+    // the badge gives touch users an explicit, discoverable way to get the
+    // same reasoning without needing to hover.
+    // Appended to `wrap` directly (not the pointer overlay, which clips its
+    // contents to the chart's bounds) so the popover is never cut off.
+    function buildInfoIcon(html, color) {
+      const wrap = candleEl;
+      wrap.style.position = "relative";
+      const icon = document.createElement("div");
+      icon.className = "better-info-icon";
+      icon.textContent = "i";
+      icon.style.cssText = `
+        position:absolute; display:none; width:14px; height:14px; border-radius:50%;
+        background:${color}; color:#0b0d10; font: 800 10px/14px var(--sans, sans-serif);
+        text-align:center; cursor:pointer; user-select:none; z-index:4;
+        box-shadow:0 0 0 1.5px #0b0d10;
+      `;
+      const popover = document.createElement("div");
+      popover.className = "better-info-popover";
+      popover.dataset.open = "0";
+      popover.style.cssText = `
+        position:absolute; display:none; width:220px; max-width:60vw;
+        background:#181b22; border:1px solid ${color}; border-radius:8px;
+        padding:10px 12px; font-size:12px; line-height:1.5; color:#eceef2;
+        box-shadow:0 6px 20px rgba(0,0,0,.45); z-index:5;
+      `;
+      popover.innerHTML = html;
+      popover.addEventListener("click", (e) => e.stopPropagation());
+      wrap.appendChild(popover);
+      wrap.appendChild(icon);
+      icon.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const willOpen = popover.dataset.open !== "1";
+        wrap.querySelectorAll(".better-info-popover").forEach((p) => { p.dataset.open = "0"; p.style.display = "none"; });
+        if (willOpen) {
+          popover.dataset.open = "1";
+          popover.style.display = "block";
+          repositionPointers();
+        }
+      });
+      return { icon, popover };
+    }
+    // Any click outside a popover closes whichever one is open -- otherwise
+    // an opened popover would just sit there covering the chart.
+    document.addEventListener("click", () => {
+      candleEl.querySelectorAll(".better-info-popover").forEach((p) => { p.dataset.open = "0"; p.style.display = "none"; });
+    });
+
     const POINTER_H = 9; // triangle height in px -- also used to correct the tip offset in repositionPointers()
 
     const entryBar = barAt(toUnix(`${trade.trade_date} ${trade.entry_time}`));
@@ -337,23 +395,44 @@
       { time: toUnix(exitBar.t), price: trade.exit_price, color: "#f2555a", above: false,
         el: buildPointer(`EXIT $${trade.exit_price.toFixed(2)}`) },
     ];
-    // Better entry/exit get their own pointers, in the same translucent
-    // colors as their legend swatches and dotted price lines below -- so
-    // color alone ties a triangle to the right line without reading labels.
-    // Each snaps to the bar its own suggested time falls on (falling back to
-    // the actual entry/exit bar if no time was given) rather than reusing
-    // the actual fill's x-position.
+    // Better entry/exit get their own pointers, in colors that match their
+    // legend swatches and dotted price lines below -- so color alone ties a
+    // triangle to the right line without reading labels. These are their
+    // own distinct hues (purple / pink) rather than a faded green/red, so a
+    // "better" pointer never reads as just a dimmer copy of the actual
+    // entry/exit pointer -- the two are unmistakably different markers even
+    // at a glance. Each snaps to the bar its own suggested time falls on
+    // (falling back to the actual entry/exit bar if no time was given)
+    // rather than reusing the actual fill's x-position.
+    const BETTER_ENTRY_COLOR = "#8b7cf6"; // purple
+    const BETTER_EXIT_COLOR = "#ec6cad"; // pink
+
+    // { time, price, above, icon, popover } for each better-entry/exit info
+    // badge, repositioned alongside their pointers in repositionPointers().
+    const infoMarkers = [];
+    function addBetterInfo(kind, b, time, above) {
+      if (!b.reason && !b.how_to_know) return; // nothing to reveal, skip the badge
+      const color = kind === "entry" ? BETTER_ENTRY_COLOR : BETTER_EXIT_COLOR;
+      const parts = [];
+      if (b.reason) parts.push(`<div>${escapeHtml(b.reason)}</div>`);
+      if (b.how_to_know) parts.push(`<div style="margin-top:6px; opacity:.75;"><b>How you'd know:</b> ${escapeHtml(b.how_to_know)}</div>`);
+      const { icon, popover } = buildInfoIcon(parts.join(""), color);
+      infoMarkers.push({ time, price: Number(b.price), above, icon, popover });
+    }
+
     if (trade.better_entry && trade.better_entry.price) {
       const b = trade.better_entry;
       const bar = b.time ? barAt(toUnix(b.time)) : entryBar;
-      pointers.push({ time: toUnix(bar.t), price: Number(b.price), color: "rgba(47,208,138,0.55)", above: true,
+      pointers.push({ time: toUnix(bar.t), price: Number(b.price), color: BETTER_ENTRY_COLOR, above: true,
         el: buildPointer(betterTooltip("entry", b)) });
+      addBetterInfo("entry", b, toUnix(bar.t), true);
     }
     if (trade.better_exit && trade.better_exit.price) {
       const b = trade.better_exit;
       const bar = b.time ? barAt(toUnix(b.time)) : exitBar;
-      pointers.push({ time: toUnix(bar.t), price: Number(b.price), color: "rgba(242,85,90,0.55)", above: false,
+      pointers.push({ time: toUnix(bar.t), price: Number(b.price), color: BETTER_EXIT_COLOR, above: false,
         el: buildPointer(betterTooltip("exit", b)) });
+      addBetterInfo("exit", b, toUnix(bar.t), false);
     }
 
     // A zero-size div with only border-bottom set renders a triangle whose
@@ -387,6 +466,28 @@
         p.el.style.top = `${p.above ? y - POINTER_H : y}px`;
         p.el.style.transform = "translateX(-50%)";
       });
+      infoMarkers.forEach((m) => {
+        const x = candleChart.timeScale().timeToCoordinate(m.time);
+        const y = candleSeries.priceToCoordinate(m.price);
+        if (x === null || y === null) {
+          m.icon.style.display = "none";
+          m.popover.style.display = "none";
+          m.popover.dataset.open = "0";
+          return;
+        }
+        // Offset to the side of the pointer's own triangle -- above-left of
+        // it for "above" markers, below-left for "below" ones -- so the
+        // badge never sits on top of the triangle it belongs to.
+        const iconTop = m.above ? y - POINTER_H - 16 : y + POINTER_H + 2;
+        m.icon.style.display = "block";
+        m.icon.style.left = `${x + 8}px`;
+        m.icon.style.top = `${iconTop}px`;
+        if (m.popover.dataset.open === "1") {
+          m.popover.style.left = `${x + 8}px`;
+          m.popover.style.top = `${m.above ? iconTop - 8 : iconTop + 18}px`;
+          m.popover.style.transform = m.above ? "translateY(-100%)" : "none";
+        }
+      });
     }
 
     candleChart.timeScale().subscribeVisibleLogicalRangeChange(repositionPointers);
@@ -415,15 +516,18 @@
       title: "",
     });
 
-    // Fainter dotted lines for the LLM's suggested better entry/exit. The
-    // on-chart tag is a short, fixed label so it never gets clipped by the
-    // price-axis label area -- the full reason + how_to_know text lives in
-    // the matching pointer's native hover tooltip (built above) and in the
-    // "What you should've done" card for anyone who wants it without hovering.
+    // Dotted lines for the LLM's suggested better entry/exit, in the same
+    // purple/pink as their pointers above -- distinct from the actual
+    // entry/exit green/red so the two pairs never get confused. The full
+    // reason + how_to_know text lives in the matching pointer's native
+    // hover tooltip (built above) and in the "What you should've done" card
+    // for anyone who wants it without hovering; the on-chart tag itself now
+    // gets guaranteed room to show in full (see the rightPriceScale
+    // minimumWidth set above) instead of being squeezed by the axis.
     if (trade.better_entry && trade.better_entry.price) {
       candleSeries.createPriceLine({
         price: Number(trade.better_entry.price),
-        color: "rgba(47,208,138,0.55)",
+        color: BETTER_ENTRY_COLOR,
         lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.Dotted,
         axisLabelVisible: true,
@@ -433,7 +537,7 @@
     if (trade.better_exit && trade.better_exit.price) {
       candleSeries.createPriceLine({
         price: Number(trade.better_exit.price),
-        color: "rgba(242,85,90,0.55)",
+        color: BETTER_EXIT_COLOR,
         lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.Dotted,
         axisLabelVisible: true,

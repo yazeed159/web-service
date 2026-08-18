@@ -611,16 +611,17 @@ def _render_chart_locked(df, symbol, entry_dt, exit_dt, entry_price, exit_price,
         bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="red", alpha=0.9),
     )
 
-    # No arrow shaft at all -- just a tiny triangle glyph hovering a few points
-    # above the exact price, tip pointing straight down at it.
+    # No arrow shaft at all -- just a tiny triangle glyph, tip resting
+    # exactly on the price (no hover gap: va="bottom" anchors the bottom of
+    # the glyph's own bounding box -- which is where a down-pointing
+    # triangle's tip sits -- directly at xy, same principle as the
+    # interactive chart's pointer markers).
     price_ax.annotate(
         "\u25bc", xy=(entry_x, entry_price), xycoords="data",
-        xytext=(0, 5), textcoords="offset points",
         ha="center", va="bottom", fontsize=9, color="green",
     )
     price_ax.annotate(
         "\u25bc", xy=(exit_x, exit_price), xycoords="data",
-        xytext=(0, 5), textcoords="offset points",
         ha="center", va="bottom", fontsize=9, color="red",
     )
 
@@ -638,23 +639,36 @@ def _render_chart_locked(df, symbol, entry_dt, exit_dt, entry_price, exit_price,
                            fontsize=7.5, color="#1a7a4c")
 
     # Better entry/exit — where the trade SHOULD have been taken, per the
-    # review verdict. Blue, drawn beneath the actual entry/exit labels so
-    # both are readable on the same image. Position was already computed
-    # above (and folded into the ylim headroom) -- just draw it here.
+    # review verdict. Colored purple/pink -- distinct from the actual entry
+    # (green) / exit (red) rather than a same-hue shade of them, so a
+    # "better" marker never reads as a faded copy of the actual fill marker
+    # -- and a thin reference line at each price, in the same color, so
+    # there's an actual line for the marker to sit on (same idea as the
+    # actual entry/exit axhlines above). Kept in sync with the purple/pink
+    # used for the interactive chart's better-entry/exit pointers in
+    # trade.js. Position was already computed above (and folded into the
+    # ylim headroom) -- just draw it here.
+    BETTER_COLOR = {"entry": "#8b7cf6", "exit": "#ec6cad"}
+
     def _mark_better(pos, price_val, kind):
         if pos is None or price_val is None:
             return
         x, y = pos
+        color = BETTER_COLOR[kind]
+        price_ax.axhline(price_val, color=color, linestyle=":", linewidth=0.8, alpha=0.45)
         price_ax.annotate(
             f"BETTER {kind.upper()}\n${price_val:.2f}",
             xy=(x, y), xycoords="data",
-            color="#2f6fed", fontweight="bold", fontsize=8, ha="center", va="center",
-            bbox=dict(boxstyle="round,pad=0.22", fc="white", ec="#2f6fed", alpha=0.92),
+            color=color, fontweight="bold", fontsize=8, ha="center", va="center",
+            bbox=dict(boxstyle="round,pad=0.22", fc="white", ec=color, alpha=0.92),
         )
+        # Tip resting exactly on the price, same principle as the actual
+        # entry/exit markers above: va="top" anchors the top of the glyph's
+        # own bounding box -- where an up-pointing triangle's tip sits --
+        # directly at xy, with no manual hover-gap offset.
         price_ax.annotate(
             "\u25b2", xy=(x, price_val), xycoords="data",
-            xytext=(0, -5), textcoords="offset points",
-            ha="center", va="top", fontsize=9, color="#2f6fed",
+            ha="center", va="top", fontsize=9, color=color,
         )
 
     if better_entry:
