@@ -373,11 +373,11 @@
     }
 
     // A tiny "i" badge next to a better-entry/exit pointer, tap/click to
-    // reveal its reason + how_to_know text in a small popover. This is
-    // extra to (not instead of) the pointer's own native hover tooltip --
-    // hover works great with a mouse, but does nothing on a touchscreen, so
-    // the badge gives touch users an explicit, discoverable way to get the
-    // same reasoning without needing to hover.
+    // reveal the full how_to_know text in a small popover -- the touch
+    // equivalent of the pointer's own hover tooltip (which shows the same
+    // signal, truncated). Hover works great with a mouse but does nothing
+    // on a touchscreen, so the badge gives touch users an explicit,
+    // discoverable way to get it without hovering.
     // Appended to `wrap` directly (not the pointer overlay, which clips its
     // contents to the chart's bounds) so the popover is never cut off.
     function buildInfoIcon(html, color) {
@@ -428,10 +428,21 @@
     const entryBar = barAt(toUnix(`${trade.trade_date} ${trade.entry_time}`));
     const exitBar = barAt(toUnix(`${trade.trade_date} ${trade.exit_time}`));
 
+    // Chart-only text: marker + price + the how_to_know signal, truncated.
+    // This mirrors the older version of this file -- the chart shows *why*
+    // to act (the observable signal), while the "What you should've done"
+    // card (betterRow) carries the full reason + how_to_know prose. Using
+    // how_to_know here (not reason) is what keeps the chart's wording
+    // genuinely different from the card's, rather than a shorter copy of it.
+    function truncate(s, n) {
+      if (!s) return "";
+      return s.length > n ? s.slice(0, n - 1) + "…" : s;
+    }
+
     function betterTooltip(kind, b) {
       const bits = [`BETTER ${kind.toUpperCase()} $${Number(b.price).toFixed(2)}`];
-      if (b.reason) bits.push(b.reason);
-      if (b.how_to_know) bits.push(`How you'd know: ${b.how_to_know}`);
+      const signal = truncate(b.how_to_know, 60);
+      if (signal) bits.push(signal);
       return bits.join(" — ");
     }
 
@@ -459,12 +470,10 @@
     // badge, repositioned alongside their pointers in repositionPointers().
     const infoMarkers = [];
     function addBetterInfo(kind, b, time, above) {
-      if (!b.reason && !b.how_to_know) return; // nothing to reveal, skip the badge
+      if (!b.how_to_know) return; // nothing to reveal, skip the badge
       const color = kind === "entry" ? BETTER_ENTRY_COLOR : BETTER_EXIT_COLOR;
-      const parts = [];
-      if (b.reason) parts.push(`<div>${escapeHtml(b.reason)}</div>`);
-      if (b.how_to_know) parts.push(`<div style="margin-top:6px; opacity:.75;"><b>How you'd know:</b> ${escapeHtml(b.how_to_know)}</div>`);
-      const { icon, popover } = buildInfoIcon(parts.join(""), color);
+      const html = `<div><b>How you'd know:</b> ${escapeHtml(b.how_to_know)}</div>`;
+      const { icon, popover } = buildInfoIcon(html, color);
       infoMarkers.push({ time, price: Number(b.price), above, icon, popover });
     }
 
@@ -568,12 +577,12 @@
 
     // Dotted lines for the LLM's suggested better entry/exit, in the same
     // purple/pink as their pointers above -- distinct from the actual
-    // entry/exit green/red so the two pairs never get confused. The full
-    // reason + how_to_know text lives in the matching pointer's native
-    // hover tooltip (built above) and in the "What you should've done" card
-    // for anyone who wants it without hovering; the on-chart tag itself now
-    // gets guaranteed room to show in full (see the rightPriceScale
-    // minimumWidth set above) instead of being squeezed by the axis.
+    // entry/exit green/red so the two pairs never get confused. The axis
+    // label stays a short, static "BETTER ENTRY"/"BETTER EXIT" tag -- the
+    // how_to_know signal (truncated) lives on the pointer's hover tooltip
+    // instead (see betterTooltip above), and the full reason + how_to_know
+    // text lives in the "What you should've done" card and the info-icon
+    // popover.
     if (trade.better_entry && trade.better_entry.price) {
       candleSeries.createPriceLine({
         price: Number(trade.better_entry.price),
