@@ -1,9 +1,23 @@
 (function () {
   "use strict";
 
+  // Webhook for the optional "Support & Resistance (AI)" box below --
+  // fires an n8n workflow that reads the symbol's prior daily bars and
+  // returns support/resistance levels. Only ever called when the person
+  // clicks the button on a trade page; never runs automatically, so it
+  // never spends API tokens on its own. Point this at your own n8n
+  // instance the same way #import-trades-link in trade.html is pointed at
+  // its form URL.
+  const SR_ANALYSIS_URL = "https://YOUR-N8N-SUBDOMAIN.app.n8n.cloud/webhook/support-resistance";
+
   const params = new URLSearchParams(window.location.search);
   const id = params.get("id");
   const content = document.getElementById("trade-content");
+
+  // Set once buildCharts() creates the candlestick chart, so the S/R
+  // button (added further down, after the chart already exists on the
+  // page) can draw price lines onto it without re-plumbing chart creation.
+  let srCandleSeries = null;
 
   // Sibling (prev/next) nav needs the full index, sorted the same way the
   // publish pipeline sorts it (trade_date + entry_time). Fetching it is
@@ -53,6 +67,27 @@
   }
   function toUnix(t) {
     return Math.floor(new Date(t.replace(" ", "T") + "").getTime() / 1000);
+  }
+  // Compact share-count formatting for the About card -- 18,500,000 -> "18.5M".
+  function fmtShares(n) {
+    if (n === null || n === undefined) return null;
+    const v = Number(n);
+    if (!Number.isFinite(v)) return null;
+    if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
+    if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
+    if (v >= 1e3) return (v / 1e3).toFixed(0) + "K";
+    return String(v);
+  }
+  const TAG_LABELS = {
+    avgvol_under_500k: "Avg vol < 500K", avgvol_500k_1m: "Avg vol 500K–1M",
+    avgvol_1m_5m: "Avg vol 1M–5M", avgvol_5m_20m: "Avg vol 5M–20M", avgvol_20m_plus: "Avg vol 20M+",
+    rvol_under_1x: "RVol < 1x", rvol_1x_2x: "RVol 1x–2x", rvol_2x_5x: "RVol 2x–5x",
+    rvol_5x_10x: "RVol 5x–10x", rvol_10x_plus: "RVol 10x+",
+    float_micro_under_10m: "Float < 10M", float_low_10m_20m: "Float 10M–20M",
+    float_mid_20m_50m: "Float 20M–50M", float_large_50m_200m: "Float 50M–200M", float_mega_200m_plus: "Float 200M+",
+  };
+  function tagLabel(tag) {
+    return TAG_LABELS[tag] || String(tag).replace(/_/g, " ");
   }
 
   function siblingNav(trade, siblings) {
@@ -166,9 +201,24 @@
           <div class="sym-meta-row">
             ${trade.symbol_info.country ? `<span class="pill">${escapeHtml(trade.symbol_info.country)}</span>` : ""}
             ${trade.symbol_info.sector ? `<span class="pill">${escapeHtml(trade.symbol_info.sector)}</span>` : ""}
+            ${volumeFloatPills(trade)}
           </div>
           <div class="sym-desc">${escapeHtml(trade.symbol_info.description || "")}</div>
         </div>` : ""}
+
+        <div class="card sr-box" style="grid-column: 1 / -1;">
+          <div class="sr-head">
+            <div>
+              <h2 style="margin:0;">Support &amp; Resistance <span style="opacity:.6; text-transform:none; letter-spacing:0;">(AI)</span></h2>
+              <div class="sr-sub">Reads this symbol's prior daily bars (before this trade) and draws support/resistance lines on the chart above. Off by default — runs only when you click, so it never spends API tokens on its own.</div>
+            </div>
+            <button class="sr-run-btn" id="sr-run-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.4 8.6 12 15l-3-3-4 4"></path></svg>
+              Analyze support/resistance
+            </button>
+          </div>
+          <div id="sr-result"></div>
+        </div>
       </div>
     `;
 
@@ -196,6 +246,95 @@
         }
       });
     }
+
+    const srBtn = document.getElementById("sr-run-btn");
+    if (srBtn) {
+      srBtn.addEventListener("click", () => runSupportResistance(trade, srBtn));
+    }
+  }
+
+  // Manual, on-demand only -- fires the SR_ANALYSIS_URL webhook, which
+  // reads the symbol's prior daily bars and (optionally) an LLM call to
+  // pick out support/resistance levels. Nothing here runs unless the
+  // person clicks the button, so a page view alone never costs an API call.
+  let srRequestInFlight = false;
+  function runSupportResistance(trade, btn) {
+    if (srRequestInFlight) return;
+    srRequestInFlight = true;
+    const resultEl = document.getElementById("sr-result");
+    const originalLabel = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = "Analyzing…";
+    resultEl.innerHTML = `<div class="sr-status">Reading ${escapeHtml(trade.symbol)}'s prior daily bars and asking the LLM for levels — this calls out to n8n, so it can take a few seconds…</div>`;
+
+    fetch(SR_ANALYSIS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol: trade.symbol, trade_date: trade.trade_date, lookback_days: 40 }),
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then((data) => {
+        renderSrResult(data);
+        drawSrLevelsOnChart(data);
+      })
+      .catch((err) => {
+        resultEl.innerHTML = `<div class="sr-status error">Couldn't get support/resistance levels (${escapeHtml(String(err.message))}). If SR_ANALYSIS_URL at the top of trade.js still says YOUR-N8N-SUBDOMAIN, point it at your own n8n webhook first.</div>`;
+      })
+      .finally(() => {
+        srRequestInFlight = false;
+        btn.disabled = false;
+        btn.innerHTML = originalLabel;
+      });
+  }
+
+  function renderSrResult(data) {
+    const resultEl = document.getElementById("sr-result");
+    const support = Array.isArray(data.support) ? data.support : [];
+    const resistance = Array.isArray(data.resistance) ? data.resistance : [];
+    if (!support.length && !resistance.length) {
+      resultEl.innerHTML = `<div class="sr-status">No clear levels came back for this symbol.</div>`;
+      return;
+    }
+    const levelRow = (lv) => `<div class="lvl-row"><span>$${Number(lv.price).toFixed(2)}</span><span class="note">${escapeHtml(lv.label || (lv.touches ? lv.touches + "x touched" : ""))}</span></div>`;
+    resultEl.innerHTML = `
+      ${data.summary ? `<div class="sr-summary">${escapeHtml(data.summary)}</div>` : ""}
+      <div class="sr-levels">
+        <div class="col">
+          <div class="col-label resistance">Resistance</div>
+          ${resistance.length ? resistance.map(levelRow).join("") : `<div class="lvl-row"><span class="note">None found</span></div>`}
+        </div>
+        <div class="col">
+          <div class="col-label support">Support</div>
+          ${support.length ? support.map(levelRow).join("") : `<div class="lvl-row"><span class="note">None found</span></div>`}
+        </div>
+      </div>
+      ${data.source === "computed_fallback" ? `<div class="sr-status">Showing computer-detected pivot levels (the LLM read didn't come back cleanly).</div>` : ""}
+    `;
+  }
+
+  // Drawn as solid price lines on the same candlestick series used for the
+  // entry/exit/better-entry markers, distinct colors from those (green/red
+  // dashed = actual fills, purple/pink dotted = LLM's better fill) so all
+  // four line types stay visually distinguishable on one chart.
+  function drawSrLevelsOnChart(data) {
+    if (!srCandleSeries) return;
+    const support = Array.isArray(data.support) ? data.support : [];
+    const resistance = Array.isArray(data.resistance) ? data.resistance : [];
+    resistance.forEach((lv) => {
+      srCandleSeries.createPriceLine({
+        price: Number(lv.price), color: "#f2555a", lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true, title: "resistance",
+      });
+    });
+    support.forEach((lv) => {
+      srCandleSeries.createPriceLine({
+        price: Number(lv.price), color: "#2fd08a", lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true, title: "support",
+      });
+    });
   }
 
   function rrStrip(trade) {
@@ -220,6 +359,25 @@
         ${how}
       </div>
     </div>`;
+  }
+
+  // Float / avg-volume / relative-volume pills for the About card. Reads
+  // from trade.indicators (see chart_service.py compute_volume_float_stats
+  // -- these fields land there via /generate-chart, not on a separate
+  // top-level key) and shows raw numbers alongside the bucketed tag label.
+  function volumeFloatPills(trade) {
+    const ind = trade.indicators || {};
+    const parts = [];
+    if (ind.float_shares) {
+      parts.push(`<span class="pill floattag" title="Shares outstanding (float proxy)">Float ${fmtShares(ind.float_shares)}</span>`);
+    }
+    if (ind.avg_volume_30d) {
+      parts.push(`<span class="pill avgvol" title="30-day average daily volume">Avg vol ${fmtShares(ind.avg_volume_30d)}</span>`);
+    }
+    if (typeof ind.relative_volume === "number") {
+      parts.push(`<span class="pill rvol" title="Entry-day volume vs. 30-day average">RVol ${ind.relative_volume.toFixed(2)}x</span>`);
+    }
+    return parts.join("\n");
   }
 
   function lessonItem(l) {
@@ -264,6 +422,7 @@
       wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
     });
     candleSeries.setData(candleData);
+    srCandleSeries = candleSeries;
 
     // The right price scale autoscales to candle highs/lows only. As you
     // zoom in, the visible range tightens around just the candles in view,

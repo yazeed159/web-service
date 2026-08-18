@@ -54,6 +54,51 @@ Indicator accuracy notes:
     a proper warm-up period before the display window, instead of being
     seeded artificially at the first bar of the chart.
 
+indicators also now carries (best-effort -- see VOLUME_FLOAT_STATS below):
+  "volume_on_entry_day": 8213400,   # that trading day's TOTAL volume (not
+                                     # just the minute-window shown on chart)
+  "avg_volume_30d": 2140335.2,      # mean daily volume over the ~30 trading
+                                     # days strictly before trade_date
+  "relative_volume": 3.84,          # volume_on_entry_day / avg_volume_30d
+  "float_shares": 18500000,         # share_class_shares_outstanding from
+                                     # Polygon's ticker reference data -- a
+                                     # commonly-used float PROXY, not an
+                                     # exact tradable-float figure
+  "avg_volume_tag": "avgvol_1m_5m", # bucketed tags, see classify_* below --
+  "rvol_tag": "rvol_2x_5x",         # these are what the publish step copies
+  "float_tag": "float_low_10m_20m"  # onto data/trades.json for journal filters
+
+Any of the four volume_float fields/tags can be null if Polygon's ticker
+reference/daily-aggs calls fail or the plan doesn't include them -- this
+never fails the whole /generate-chart call.
+
+POST /generate-daily-chart
+{
+  "symbol": "AAPL",
+  "trade_date": "2026-08-12",     # only days STRICTLY BEFORE this date are
+                                   # returned -- what the trader could have
+                                   # actually seen going into the trade
+  "lookback_days": 40             # optional, default 40 trading days
+}
+
+Returns:
+{
+  "symbol": "AAPL",
+  "trade_date": "2026-08-12",
+  "bars": [ { "t": "2026-06-10", "o": ..., "h": ..., "l": ..., "c": ..., "v": ... }, ... ],
+  "computed_levels": {              # cheap, no-LLM pivot-cluster S/R --
+    "support": [ { "price": 228.40, "touches": 3 }, ... ],   # a fallback/
+    "resistance": [ { "price": 235.90, "touches": 2 }, ... ] # sanity check
+  },
+  "image_base64": "..."             # daily candlestick+volume PNG, in case
+                                     # a caller wants a real vision read
+}
+
+This endpoint is never called by the automatic daily pipeline -- it only
+exists for the trade site's optional "Support & Resistance (AI)" button, so
+reviewing a trade never spends an extra Polygon/LLM call unless you
+explicitly ask for one.
+
 Env vars:
   POLYGON_API_KEY          - your Polygon.io API key
   CHART_WINDOW_BEFORE_MIN  - minutes of context before entry (default 90)
@@ -66,6 +111,16 @@ Env vars:
                               i.e. Polygon's 60s/5-call window plus buffer)
   POLYGON_BATCH_MIN_GAP_S  - minimum stagger between calls within one batch
                               (default 2.0)
+  ENABLE_VOLUME_FLOAT_STATS - "true"/"false" (default "true"). Each chart
+                              generation costs 1 extra Polygon call for
+                              float (cached indefinitely per symbol) and 1
+                              for the 30-day daily-volume window (cached per
+                              symbol+date) -- set to "false" to skip both
+                              and keep /generate-chart to its original
+                              single Polygon call, if you're on the free
+                              tier and the extra pacing wait is too slow.
+  VOLUME_STATS_LOOKBACK_DAYS - trading days of daily volume averaged for
+                              avg_volume_30d / relative_volume (default 30)
 """
 
 import os
@@ -119,6 +174,9 @@ POLYGON_API_KEY = os.environ["POLYGON_API_KEY"]
 WINDOW_BEFORE = int(os.environ.get("CHART_WINDOW_BEFORE_MIN", 90))
 WINDOW_AFTER = int(os.environ.get("CHART_WINDOW_AFTER_MIN", 30))
 LOOKBACK_DAYS = int(os.environ.get("CHART_LOOKBACK_DAYS", 5))
+ENABLE_VOLUME_FLOAT_STATS = os.environ.get("ENABLE_VOLUME_FLOAT_STATS", "true").lower() not in ("false", "0", "no")
+VOLUME_STATS_LOOKBACK_DAYS = int(os.environ.get("VOLUME_STATS_LOOKBACK_DAYS", 30))
+SR_LOOKBACK_DAYS_DEFAULT = int(os.environ.get("SR_LOOKBACK_DAYS_DEFAULT", 40))
 
 # Polygon's free tier allows 5 API calls/minute. The n8n workflow itself
 # already sends requests to this endpoint one-at-a-time, spaced 13s apart
@@ -195,6 +253,18 @@ _polygon_limiter = _PolygonBatchLimiter(POLYGON_BATCH_SIZE, POLYGON_BATCH_WINDOW
 _BARS_CACHE_MAX = 200
 _bars_cache = {}
 _bars_cache_lock = threading.Lock()
+
+# Float (share count) practically never changes -- cache it per symbol for
+# the life of the process, no eviction needed at any realistic symbol count.
+_float_cache = {}
+_float_cache_lock = threading.Lock()
+
+# Daily bars are used both for the 30d-avg-volume/rvol stat on the normal
+# /generate-chart call AND for the optional /generate-daily-chart
+# support/resistance button. Same FIFO-capped-cache pattern as _bars_cache.
+_DAILY_BARS_CACHE_MAX = 200
+_daily_bars_cache = {}
+_daily_bars_cache_lock = threading.Lock()
 
 
 def fetch_bars(symbol: str, trade_date: str, entry_dt: datetime, exit_dt: datetime):
@@ -338,6 +408,220 @@ def _fill_intraday_gaps(df: pd.DataFrame) -> pd.DataFrame:
         day_df["vwap_bar"] = day_df["vwap_bar"].fillna(day_df["Close"])
         filled.append(day_df)
     return pd.concat(filled).sort_index()
+
+
+def _fetch_daily_bars_from_polygon(symbol: str, start_date: date, end_date: date) -> pd.DataFrame:
+    """Daily OHLCV bars for [start_date, end_date] inclusive. Cached per
+    (symbol, start_date, end_date) -- callers should ask for a window wide
+    enough to cover what they need rather than re-requesting slightly
+    different ranges, so the cache actually gets reused."""
+    cache_key = (symbol, start_date, end_date)
+    with _daily_bars_cache_lock:
+        cached = _daily_bars_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    url = f"https://api.polygon.io/v2/aggs/ticker/{symbol}/range/1/day/{start_date}/{end_date}"
+    params = {"adjusted": "true", "sort": "asc", "limit": 5000, "apiKey": POLYGON_API_KEY}
+
+    _polygon_limiter.wait_turn()
+    resp = requests.get(url, params=params, timeout=15)
+    if resp.status_code == 429:
+        raise ValueError(f"Polygon rate-limited the daily-bars call for {symbol}")
+    resp.raise_for_status()
+    payload = resp.json()
+    if payload.get("status") not in ("OK", "DELAYED") and not payload.get("results"):
+        raise ValueError(f"Polygon returned status={payload.get('status')} for daily bars of {symbol}: {payload.get('error') or payload.get('message')}")
+
+    results = payload.get("results") or []
+    df = pd.DataFrame(results)
+    if df.empty:
+        df = pd.DataFrame(columns=["t", "Open", "High", "Low", "Close", "Volume"]).set_index("t")
+    else:
+        df["t"] = pd.to_datetime(df["t"], unit="ms", utc=True).dt.tz_convert(ET).dt.date
+        df = df.rename(columns={"o": "Open", "h": "High", "l": "Low", "c": "Close", "v": "Volume"})
+        df = df.set_index("t")[["Open", "High", "Low", "Close", "Volume"]].sort_index()
+
+    with _daily_bars_cache_lock:
+        if len(_daily_bars_cache) >= _DAILY_BARS_CACHE_MAX:
+            _daily_bars_cache.pop(next(iter(_daily_bars_cache)))
+        _daily_bars_cache[cache_key] = df
+    return df
+
+
+def _fetch_float_shares(symbol: str):
+    """share_class_shares_outstanding from Polygon's ticker reference data --
+    a commonly-used proxy for float in retail scanners. Not the same as a
+    precise tradable float (which would need to exclude insider/locked-up
+    shares a data vendor like this doesn't expose), so it's presented to the
+    user as an approximation. Returns None on any failure -- this must never
+    break /generate-chart."""
+    with _float_cache_lock:
+        if symbol in _float_cache:
+            return _float_cache[symbol]
+
+    url = f"https://api.polygon.io/v3/reference/tickers/{symbol}"
+    params = {"apiKey": POLYGON_API_KEY}
+    _polygon_limiter.wait_turn()
+    resp = requests.get(url, params=params, timeout=15)
+    resp.raise_for_status()
+    payload = resp.json()
+    results = payload.get("results") or {}
+    shares = results.get("share_class_shares_outstanding") or results.get("weighted_shares_outstanding")
+    shares = int(shares) if shares else None
+
+    with _float_cache_lock:
+        _float_cache[symbol] = shares
+    return shares
+
+
+def classify_float(shares) -> str:
+    if not shares:
+        return "float_unknown"
+    if shares < 10_000_000:
+        return "float_micro_under_10m"
+    if shares < 20_000_000:
+        return "float_low_10m_20m"
+    if shares < 50_000_000:
+        return "float_mid_20m_50m"
+    if shares < 200_000_000:
+        return "float_large_50m_200m"
+    return "float_mega_200m_plus"
+
+
+def classify_avg_volume(avg_vol) -> str:
+    if not avg_vol:
+        return "avgvol_unknown"
+    if avg_vol < 500_000:
+        return "avgvol_under_500k"
+    if avg_vol < 1_000_000:
+        return "avgvol_500k_1m"
+    if avg_vol < 5_000_000:
+        return "avgvol_1m_5m"
+    if avg_vol < 20_000_000:
+        return "avgvol_5m_20m"
+    return "avgvol_20m_plus"
+
+
+def classify_relative_volume(rvol) -> str:
+    if rvol is None:
+        return "rvol_unknown"
+    if rvol < 1:
+        return "rvol_under_1x"
+    if rvol < 2:
+        return "rvol_1x_2x"
+    if rvol < 5:
+        return "rvol_2x_5x"
+    if rvol < 10:
+        return "rvol_5x_10x"
+    return "rvol_10x_plus"
+
+
+def compute_volume_float_stats(symbol: str, trade_date_obj: date) -> dict:
+    """Best-effort. Fetches ~VOLUME_STATS_LOOKBACK_DAYS+buffer calendar days
+    of daily bars ending on trade_date (so it includes the entry day itself
+    for volume_on_entry_day), computes the 30d average from the days
+    STRICTLY BEFORE trade_date (excluding entry day so rvol doesn't measure
+    a day against itself), and fetches float shares separately. Any failure
+    here degrades to nulls/unknown tags rather than raising -- this must
+    never take down a /generate-chart call over a secondary stat."""
+    empty = {
+        "volume_on_entry_day": None, "avg_volume_30d": None, "relative_volume": None,
+        "float_shares": None, "avg_volume_tag": "avgvol_unknown",
+        "rvol_tag": "rvol_unknown", "float_tag": "float_unknown",
+    }
+    if not ENABLE_VOLUME_FLOAT_STATS:
+        return empty
+
+    try:
+        # Weekends/holidays mean N trading days needs a wider calendar
+        # window -- 1.6x plus a week of slack comfortably covers it.
+        calendar_lookback = int(VOLUME_STATS_LOOKBACK_DAYS * 1.6) + 10
+        start_date = trade_date_obj - timedelta(days=calendar_lookback)
+        daily = _fetch_daily_bars_from_polygon(symbol, start_date, trade_date_obj)
+        if daily.empty:
+            return empty
+
+        prior = daily.loc[daily.index < trade_date_obj].tail(VOLUME_STATS_LOOKBACK_DAYS)
+        avg_volume_30d = float(prior["Volume"].mean()) if len(prior) else None
+
+        volume_on_entry_day = None
+        if trade_date_obj in daily.index:
+            volume_on_entry_day = float(daily.loc[trade_date_obj, "Volume"])
+
+        relative_volume = (
+            round(volume_on_entry_day / avg_volume_30d, 3)
+            if volume_on_entry_day is not None and avg_volume_30d
+            else None
+        )
+
+        float_shares = None
+        try:
+            float_shares = _fetch_float_shares(symbol)
+        except Exception as e:
+            log.warning("Float lookup failed for %s: %s", symbol, e)
+
+        return {
+            "volume_on_entry_day": int(volume_on_entry_day) if volume_on_entry_day is not None else None,
+            "avg_volume_30d": round(avg_volume_30d, 1) if avg_volume_30d else None,
+            "relative_volume": relative_volume,
+            "float_shares": float_shares,
+            "avg_volume_tag": classify_avg_volume(avg_volume_30d),
+            "rvol_tag": classify_relative_volume(relative_volume),
+            "float_tag": classify_float(float_shares),
+        }
+    except Exception as e:
+        log.warning("Volume/float stats failed for %s on %s: %s", symbol, trade_date_obj, e)
+        return empty
+
+
+def _find_pivot_levels(daily: pd.DataFrame, window: int = 3, cluster_pct: float = 0.015, max_levels: int = 4) -> dict:
+    """Cheap, no-LLM support/resistance: a bar is a pivot high/low if its
+    High/Low is the extreme within +/-window bars either side, then nearby
+    pivots (within cluster_pct of each other) are merged into one level
+    weighted by how many times price touched that zone. This exists as a
+    fast fallback the /generate-daily-chart endpoint always returns, and as
+    a sanity check alongside whatever the LLM step comes back with -- it
+    doesn't cost an API call."""
+    if daily.empty or len(daily) < window * 2 + 1:
+        return {"support": [], "resistance": []}
+
+    highs = daily["High"].values
+    lows = daily["Low"].values
+    closes = daily["Close"].values
+    last_close = float(closes[-1])
+    n = len(daily)
+
+    pivot_highs, pivot_lows = [], []
+    for i in range(window, n - window):
+        wl, wh = i - window, i + window + 1
+        if highs[i] == highs[wl:wh].max():
+            pivot_highs.append(float(highs[i]))
+        if lows[i] == lows[wl:wh].min():
+            pivot_lows.append(float(lows[i]))
+
+    def cluster(prices):
+        if not prices:
+            return []
+        prices = sorted(prices)
+        clusters = [[prices[0]]]
+        for p in prices[1:]:
+            if abs(p - clusters[-1][-1]) / clusters[-1][-1] <= cluster_pct:
+                clusters[-1].append(p)
+            else:
+                clusters.append([p])
+        levels = [{"price": round(sum(c) / len(c), 2), "touches": len(c)} for c in clusters]
+        levels.sort(key=lambda lv: lv["touches"], reverse=True)
+        return levels[:max_levels]
+
+    resistance = [lv for lv in cluster(pivot_highs) if lv["price"] >= last_close]
+    support = [lv for lv in cluster(pivot_lows) if lv["price"] <= last_close]
+    # A pivot cluster can land on the "wrong" side of the last close (e.g. an
+    # old high the price has since blown through) -- that's fine to drop
+    # since it's no longer a live level to watch going forward.
+    resistance.sort(key=lambda lv: lv["price"])
+    support.sort(key=lambda lv: lv["price"], reverse=True)
+    return {"support": support, "resistance": resistance}
 
 
 def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -752,12 +1036,109 @@ def _build_chart_response(body, start):
         "display_price_high": round(float(display_bars["High"].max()), 4),
     }
 
+    # Best-effort, never fatal -- see compute_volume_float_stats' own
+    # try/except. Adds up to 2 extra Polygon calls (float + daily bars),
+    # each paced through the same rate limiter as the minute-bar fetch.
+    indicators.update(compute_volume_float_stats(symbol, datetime.strptime(trade_date, "%Y-%m-%d").date()))
+
     log.info("Done: %s in %.1fs", symbol, time.monotonic() - start)
     return {
         "image_base64": base64.b64encode(png_bytes).decode("utf-8"),
         "indicators": indicators,
         "bars": serialize_bars(display_bars),
     }
+
+
+def render_daily_chart(daily: pd.DataFrame, symbol: str, levels: dict) -> bytes:
+    """Simple daily candlestick + volume PNG with the computed S/R clusters
+    drawn as horizontal lines -- used only by /generate-daily-chart, which
+    is only ever called from the trade site's optional button, never the
+    automatic pipeline."""
+    with RENDER_LOCK:
+        plot_df = daily.rename(columns={"Open": "Open", "High": "High", "Low": "Low", "Close": "Close", "Volume": "Volume"})
+        plot_df.index = pd.to_datetime(plot_df.index)
+
+        mc = mpf.make_marketcolors(up="#2fd08a", down="#f2555a", edge="inherit", wick="inherit", volume="inherit")
+        style = mpf.make_mpf_style(base_mpf_style="nightclouds", marketcolors=mc,
+                                    facecolor="#0d1117", edgecolor="#232830", gridcolor="#1c2127")
+
+        hlines = [lv["price"] for lv in levels.get("support", [])] + [lv["price"] for lv in levels.get("resistance", [])]
+        hcolors = (["#2fd08a"] * len(levels.get("support", []))) + (["#f2555a"] * len(levels.get("resistance", [])))
+
+        buf = io.BytesIO()
+        fig, _ = mpf.plot(
+            plot_df, type="candle", volume=True, style=style,
+            title=f"\n{symbol} — {len(plot_df)} prior trading days",
+            hlines=dict(hlines=hlines, colors=hcolors, linestyle="--", linewidths=0.9) if hlines else None,
+            returnfig=True, figsize=(10, 6),
+        )
+        fig.savefig(buf, format="png", dpi=130, bbox_inches="tight", facecolor=fig.get_facecolor())
+        plt.close(fig)
+        return buf.getvalue()
+
+
+def _build_daily_chart_response(body: dict) -> dict:
+    symbol = body["symbol"]
+    trade_date = body["trade_date"]
+    lookback_days = int(body.get("lookback_days") or SR_LOOKBACK_DAYS_DEFAULT)
+    trade_date_obj = datetime.strptime(trade_date, "%Y-%m-%d").date()
+
+    calendar_lookback = int(lookback_days * 1.6) + 10
+    start_date = trade_date_obj - timedelta(days=calendar_lookback)
+    # end_date is trade_date itself so the Polygon call can be reused via
+    # the same cache key as compute_volume_float_stats' own daily-bars
+    # fetch when both happen to be requested for the same symbol/day -- but
+    # only bars strictly before trade_date are actually used below, so the
+    # trader never sees a level informed by the trade day itself.
+    daily = _fetch_daily_bars_from_polygon(symbol, start_date, trade_date_obj)
+    daily = daily.loc[daily.index < trade_date_obj].tail(lookback_days)
+
+    if daily.empty:
+        raise ValueError(f"No prior daily bars found for {symbol} before {trade_date} -- check the ticker and lookback_days")
+
+    levels = _find_pivot_levels(daily)
+    png_bytes = render_daily_chart(daily, symbol, levels)
+
+    bars = [
+        {"t": ts.strftime("%Y-%m-%d"), "o": round(float(r["Open"]), 4), "h": round(float(r["High"]), 4),
+         "l": round(float(r["Low"]), 4), "c": round(float(r["Close"]), 4), "v": int(r["Volume"])}
+        for ts, r in daily.iterrows()
+    ]
+
+    return {
+        "symbol": symbol,
+        "trade_date": trade_date,
+        "bars": bars,
+        "computed_levels": levels,
+        "image_base64": base64.b64encode(png_bytes).decode("utf-8"),
+    }
+
+
+@app.route("/generate-daily-chart", methods=["POST"])
+def generate_daily_chart():
+    """Optional, on-demand only -- the trade site's 'Support & Resistance
+    (AI)' button calls this (via the n8n webhook that also does the LLM
+    read), never the automatic daily pipeline. See module docstring."""
+    start = time.monotonic()
+    try:
+        body = request.get_json(force=True)
+        if body is None or not body.get("symbol") or not body.get("trade_date"):
+            return jsonify({"error": "symbol and trade_date are required"}), 400
+
+        future = _request_pool.submit(_build_daily_chart_response, body)
+        try:
+            result = future.result(timeout=REQUEST_HARD_TIMEOUT_S)
+        except FutureTimeoutError:
+            log.error("Hard timeout after %.1fs for daily chart %s", time.monotonic() - start, body.get("symbol"))
+            return jsonify({"error": f"generate-daily-chart exceeded the {REQUEST_HARD_TIMEOUT_S}s hard timeout"}), 504
+
+        return jsonify(result)
+    except ValueError as e:
+        log.warning("ValueError in generate-daily-chart after %.1fs: %s", time.monotonic() - start, e)
+        return jsonify({"error": str(e)}), 422
+    except Exception as e:
+        log.error("Unhandled error in generate-daily-chart after %.1fs: %s", time.monotonic() - start, e)
+        return jsonify({"error": f"{type(e).__name__}: {e}", "traceback": traceback.format_exc()}), 500
 
 
 @app.route("/generate-chart", methods=["POST"])

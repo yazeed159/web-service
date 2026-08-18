@@ -28,15 +28,20 @@ as-is on GitHub Pages (or any static host).
   suggested better entry/exit), a synced MACD panel, entry/exit
   markers, the LLM's verdict, a one-click "Copy" button on the verdict
   text, a "PNG" button that exports the chart's current zoom/pan view as
-  a downloadable image, prev/next sibling navigation between trades, and
-  inline 👍/👎 feedback buttons on each better-entry/exit call and lesson
-  (stored in `localStorage`, per browser — not synced anywhere, just
-  tallied on the Performance page).
+  a downloadable image, prev/next sibling navigation between trades, an
+  "About `<symbol>`" card with float / 30-day avg volume / relative-volume
+  pills alongside sector/country, a **Support & Resistance (AI)** box
+  (off by default — see below), and inline 👍/👎 feedback buttons on each
+  better-entry/exit call and lesson (stored in `localStorage`, per
+  browser — not synced anywhere, just tallied on the Performance page).
 - **`journal.html`** — the full trade log as one filterable, sortable
   table: symbol search, date range, entry time-of-day range, setup type,
-  win/loss, and a "has better entry/exit flagged" checkbox. Deep-linkable
-  from a Playbooks card via `?setup=<setup_type>`, which pre-selects that
-  setup's filter. Same sidebar shell as the rest of the site.
+  win/loss, relative volume, 30-day average volume, float, and a "has
+  better entry/exit flagged" checkbox. Each row also shows the trade's
+  rel-volume / avg-volume / float tags as color-coded pills in a Tags
+  column. Deep-linkable from a Playbooks card via `?setup=<setup_type>`,
+  which pre-selects that setup's filter. Same sidebar shell as the rest
+  of the site.
 - **`stats.html`** ("Performance" in the nav) — net P&L, win rate,
   avg win/loss, current/longest streaks, an interactive equity curve,
   win rate by setup, a "money left on the table" slippage estimate
@@ -52,6 +57,69 @@ as-is on GitHub Pages (or any static host).
   count (flagged if under 5), net P&L, average P&L per trade, and the
   most common `lesson_tags` entry logged against that setup. Click a
   card to jump to `journal.html` pre-filtered to just that setup.
+
+## Volume / relative volume / float
+
+`chart_service.py`'s `/generate-chart` now also computes, best-effort,
+alongside the existing VWAP/EMA/MACD indicators:
+
+- `volume_on_entry_day` — that trading day's total volume (not just the
+  minute-window shown on the chart)
+- `avg_volume_30d` — mean daily volume over the ~30 trading days strictly
+  before the trade date
+- `relative_volume` — `volume_on_entry_day / avg_volume_30d`
+- `float_shares` — Polygon's `share_class_shares_outstanding`, a common
+  proxy for float (not an exact tradable-float figure — see the caveat in
+  `chart_service.py`'s docstring)
+- `avg_volume_tag` / `rvol_tag` / `float_tag` — bucketed classifications of
+  the three numbers above (see `classify_avg_volume` /
+  `classify_relative_volume` / `classify_float` in `chart_service.py` for
+  the exact thresholds)
+
+These land in `indicators` on the trade detail JSON automatically (nothing
+publish-side needs to change for that), and the three `*_tag` fields plus
+`relative_volume` are additionally copied flat onto each `data/trades.json`
+index row — same reasoning as `sector`/`country` above — so `journal.html`
+can filter and show them as pills without fetching every detail file.
+`trade.html`'s "About `<symbol>`" card reads the raw numbers straight off
+`indicators`. Any of it can come back `null`/`"*_unknown"` if the extra
+Polygon calls fail — the whole chart generation still succeeds either way.
+Set `ENABLE_VOLUME_FLOAT_STATS=false` to skip these calls entirely.
+
+## Support & Resistance (AI) — optional, on-demand
+
+`trade.html` has a "Support & Resistance (AI)" box that's **off by
+default**: nothing runs when the page loads. Clicking "Analyze
+support/resistance" POSTs `{symbol, trade_date, lookback_days}` to an n8n
+webhook (`SR_ANALYSIS_URL` at the top of `trade.js` — point it at your own
+n8n instance the same way `#import-trades-link` in `trade.html` is pointed
+at its form URL), which:
+
+1. Calls `chart_service.py`'s new `POST /generate-daily-chart` endpoint,
+   which fetches the symbol's daily bars for the `lookback_days` (default
+   40) trading days **strictly before** `trade_date` (never the trade day
+   itself — only what the trader could have actually seen going in), plus
+   a cheap no-LLM pivot-cluster support/resistance guess computed straight
+   from the bars (`computed_levels`).
+2. Sends a compact text summary of those daily bars (dates + OHLCV, not an
+   image) to Gemini, asking for up to 4 support and 4 resistance levels —
+   text-only to keep each click's token cost small; the endpoint still
+   returns a rendered daily chart image (`image_base64`) if you'd rather
+   wire up a real vision read instead.
+3. Falls back to the computed pivot levels if the LLM response doesn't
+   parse.
+
+The response draws solid dashed price lines directly on the trade's
+existing interactive candlestick chart — green for support, red for
+resistance — distinct from the entry/exit (solid dashed green/red) and
+better-entry/exit (dotted purple/pink) lines already on it.
+
+This is implemented as its own small n8n sub-workflow (`SR Webhook
+Trigger` → `SR: Fetch Daily Chart` → `SR: Summarize Daily Bars` → `SR:
+Vision LLM Analysis` → `SR: Parse Levels` → `SR: Respond`), completely
+separate from the daily 8PM pipeline — reviewing or even publishing a
+trade never triggers it. It only runs, and only spends a Polygon +
+Gemini call, when you explicitly click the button on that trade's page.
 
 The color system lives in `style.css` as CSS variables (`--primary` is
 the indigo/violet accent, `--green`/`--red` are win/loss) — swap those to
@@ -149,6 +217,13 @@ straight from the IBKR Flex report (not a recomputed percentage):
   fields above: the Reports tab's sector/country breakdown reads only the
   index, not every detail file). Not required — the breakdown just shows
   an empty state until the publish step starts copying these over.
+- `avg_volume_tag` / `rvol_tag` / `float_tag` / `relative_volume` —
+  optional flat copies of `indicators.avg_volume_tag` /
+  `indicators.rvol_tag` / `indicators.float_tag` /
+  `indicators.relative_volume` from the detail file, same
+  reasoning/pattern as `sector`/`country`. See "Volume / relative volume /
+  float" below for what produces them and their possible values. Omitted
+  (not just empty) when the underlying stat couldn't be computed.
 
 ### `data/trades/<id>.json` — the detail record
 

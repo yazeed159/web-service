@@ -106,6 +106,9 @@
           <option value="win">Wins only</option>
           <option value="loss">Losses only</option>
         </select>
+        <select id="f-rvol" title="Relative volume on the trade day"><option value="">All rel. volume</option></select>
+        <select id="f-avgvol" title="30-day average daily volume"><option value="">All avg. volume</option></select>
+        <select id="f-float" title="Float (shares outstanding, approx.)"><option value="">All float</option></select>
         <label title="Filter by entry time of day">
           <input type="time" id="f-time-from" style="width:96px;"> – <input type="time" id="f-time-to" style="width:96px;">
         </label>
@@ -135,11 +138,33 @@
     to: document.getElementById("f-to"),
     setup: document.getElementById("f-setup"),
     result: document.getElementById("f-result"),
+    rvol: document.getElementById("f-rvol"),
+    avgvol: document.getElementById("f-avgvol"),
+    float: document.getElementById("f-float"),
     flagged: document.getElementById("f-flagged"),
     timeFrom: document.getElementById("f-time-from"),
     timeTo: document.getElementById("f-time-to"),
   };
   Object.values(els).forEach((el) => el.addEventListener("input", applyFilters));
+
+  // Human-readable labels for the volume/rvol/float tags chart_service.py
+  // buckets trades into (see classify_avg_volume / classify_relative_volume
+  // / classify_float there) -- falls back to a de-slugged version of the
+  // raw tag for anything not in this map, so a new bucket added later still
+  // shows up instead of being silently hidden.
+  const TAG_LABELS = {
+    avgvol_under_500k: "Avg vol < 500K", avgvol_500k_1m: "Avg vol 500K–1M",
+    avgvol_1m_5m: "Avg vol 1M–5M", avgvol_5m_20m: "Avg vol 5M–20M", avgvol_20m_plus: "Avg vol 20M+",
+    avgvol_unknown: "Avg vol unknown",
+    rvol_under_1x: "RVol < 1x", rvol_1x_2x: "RVol 1x–2x", rvol_2x_5x: "RVol 2x–5x",
+    rvol_5x_10x: "RVol 5x–10x", rvol_10x_plus: "RVol 10x+", rvol_unknown: "RVol unknown",
+    float_micro_under_10m: "Float < 10M", float_low_10m_20m: "Float 10M–20M",
+    float_mid_20m_50m: "Float 20M–50M", float_large_50m_200m: "Float 50M–200M",
+    float_mega_200m_plus: "Float 200M+", float_unknown: "Float unknown",
+  };
+  function tagLabel(tag) {
+    return TAG_LABELS[tag] || String(tag).replace(/_/g, " ");
+  }
 
   fetch("data/trades.json")
     .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
@@ -151,6 +176,19 @@
         opt.value = s;
         opt.textContent = s.replace(/_/g, " ");
         els.setup.appendChild(opt);
+      }
+      // Same pattern as the setup filter above, one per volume/rvol/float
+      // field, skipping the "unknown" bucket in the dropdown (nothing to
+      // usefully filter by) but still showing it as a pill in the table.
+      const tagFilterFields = [["avg_volume_tag", els.avgvol], ["rvol_tag", els.rvol], ["float_tag", els.float]];
+      for (const [field, select] of tagFilterFields) {
+        const tags = Array.from(new Set(allRows.map((r) => r[field]).filter((t) => t && !t.endsWith("_unknown")))).sort();
+        for (const t of tags) {
+          const opt = document.createElement("option");
+          opt.value = t;
+          opt.textContent = tagLabel(t);
+          select.appendChild(opt);
+        }
       }
       // Deep link from playbooks.html ("View in Journal" on a setup card)
       // pre-selects that setup's filter instead of landing on the unfiltered table.
@@ -177,6 +215,9 @@
     const to = els.to.value;
     const setup = els.setup.value;
     const result = els.result.value;
+    const rvol = els.rvol.value;
+    const avgvol = els.avgvol.value;
+    const floatTag = els.float.value;
     const flaggedOnly = els.flagged.checked;
     const timeFrom = els.timeFrom.value; // "HH:MM" or ""
     const timeTo = els.timeTo.value;
@@ -188,6 +229,9 @@
       if (setup && r.setup_type !== setup) return false;
       if (result === "win" && !r.win) return false;
       if (result === "loss" && r.win) return false;
+      if (rvol && r.rvol_tag !== rvol) return false;
+      if (avgvol && r.avg_volume_tag !== avgvol) return false;
+      if (floatTag && r.float_tag !== floatTag) return false;
       if (flaggedOnly && !(r.better_entry_price || r.better_exit_price)) return false;
       // entry_time is "HH:MM:SS"; time inputs give "HH:MM" -- string
       // comparison on the HH:MM prefix is enough for a same-day range.
@@ -222,6 +266,20 @@
       ["pnl_after_comm", "Net P&L"],
       ["win", "Result"],
     ];
+    const GRID_COLS = "100px 90px 130px 80px 80px 100px 80px 1fr";
+
+    // Volume/rvol/float pills for one row -- skips "_unknown" tags rather
+    // than showing an empty-looking badge for trades published before this
+    // data existed, or ones where chart_service.py's Polygon calls failed.
+    function volumePills(r) {
+      const tags = [
+        [r.rvol_tag, "rvol"],
+        [r.avg_volume_tag, "avgvol"],
+        [r.float_tag, "floattag"],
+      ].filter(([t]) => t && !t.endsWith("_unknown"));
+      if (!tags.length) return "";
+      return tags.map(([t, cls]) => `<span class="pill ${cls}">${escapeHtml(tagLabel(t))}</span>`).join(" ");
+    }
 
     content.innerHTML = `
       <p style="color:var(--text-faint); font-size:12.5px; margin:0 0 10px;">
@@ -231,12 +289,13 @@
         <table class="data-table">
           <thead><tr>
             ${cols.map(([key, label]) => `<th data-sort="${key}" class="${sortKey === key ? "sorted " + sortDir : ""}">${label}</th>`).join("")}
+            <th>Tags</th>
           </tr></thead>
           <tbody>
             ${sorted.map((r) => `
               <tr>
-                <td colspan="7" style="padding:0;">
-                  <a class="row-link" href="trade.html?id=${encodeURIComponent(r.id)}" style="display:grid; grid-template-columns: 100px 90px 130px 80px 80px 100px 80px; padding:8px 10px;">
+                <td colspan="8" style="padding:0;">
+                  <a class="row-link" href="trade.html?id=${encodeURIComponent(r.id)}" style="display:grid; grid-template-columns: ${GRID_COLS}; align-items:center; padding:8px 10px; gap:6px;">
                     <span>${escapeHtml(r.trade_date)}</span>
                     <span>${escapeHtml(r.symbol)}</span>
                     <span>${escapeHtml((r.setup_type || "—").replace(/_/g, " "))}</span>
@@ -244,6 +303,7 @@
                     <span>$${Number(r.exit_price).toFixed(2)}</span>
                     <span class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</span>
                     <span class="pill ${r.win ? "win" : "loss"}">${r.win ? "WIN" : "LOSS"}</span>
+                    <span style="display:flex; flex-wrap:wrap; gap:4px;">${volumePills(r)}</span>
                   </a>
                 </td>
               </tr>
