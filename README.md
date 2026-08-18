@@ -17,13 +17,30 @@ as-is on GitHub Pages (or any static host).
     symbol and filterable by win/loss.
   - **Reports** — win/loss streaks, best/worst trade, and breakdowns by
     symbol and day-of-week.
-  - "Notebook" and "Playbooks" appear as disabled nav items (marked
-    "Soon") for the full-app feel — they're not wired up to anything.
+  - "Playbooks" still appears as a disabled nav item (marked "Soon")
+    — it's not wired up to anything.
 - **`trade.html?id=<trade_id>`** — a per-trade page (same sidebar shell)
   with a gross/commission/net breakdown, a real interactive candlestick
   chart (zoom, pan, hover crosshair) built from that trade's actual OHLC
-  bars, VWAP/EMA9/EMA20 overlays, a synced MACD panel, entry/exit
-  markers, and the LLM's verdict.
+  bars, VWAP/EMA9/EMA20 overlays (plus dotted price lines for the LLM's
+  suggested better entry/exit), a synced MACD panel, entry/exit
+  markers, the LLM's verdict, prev/next sibling navigation between
+  trades, and inline 👍/👎 feedback buttons on each better-entry/exit
+  call and lesson (stored in `localStorage`, per browser — not synced
+  anywhere, just tallied on the Performance page).
+- **`journal.html`** — the full trade log as one filterable, sortable
+  table: symbol search, date range, setup type, win/loss, and a "has
+  better entry/exit flagged" checkbox. Same sidebar shell as the rest
+  of the site.
+- **`stats.html`** ("Performance" in the nav) — net P&L, win rate,
+  avg win/loss, current/longest streaks, an interactive equity curve,
+  win rate by setup, a "money left on the table" slippage estimate
+  (comparing actual fills to the LLM's suggested better entry/exit),
+  and a local tally of the 👍/👎 feedback left on trade pages.
+- **`patterns.html`** — clusters every trade's `lesson_tags` (e.g.
+  `chased_extension`, `late_exit`) by frequency so a mistake repeated
+  across many trades stands out, with an expandable list of the
+  trades behind each tag.
 
 The color system lives in `style.css` as CSS variables (`--primary` is
 the indigo/violet accent, `--green`/`--red` are win/loss) — swap those to
@@ -44,13 +61,17 @@ python3 -m http.server 8000
 
 ```
 dashboard/
-  index.html          home page
-  trade.html           per-trade page (reads ?id=... from the URL)
-  style.css            shared styles
-  app.js                home page logic
-  trade.js              trade page + chart logic
+  index.html          home page (Dashboard / Day View / Trade View / Reports tabs)
+  journal.html          filterable, sortable log of every trade
+  stats.html             "Performance" — equity curve, setup win rates, slippage, feedback tally
+  patterns.html           recurring lesson-tag clusters
+  trade.html              per-trade page (reads ?id=... from the URL)
+  style.css               shared design tokens + app-shell/sidebar layout
+  features.css              additive styles for journal/stats/patterns (filters, data table, bar rows)
+  app.js                  home page logic
+  trade.js                  trade page + chart logic
   data/
-    trades.json          index: one row per trade, feeds the home table
+    trades.json          index: one row per trade, feeds the home table and journal/stats/patterns pages
     trades/<id>.json      full detail per trade, feeds trade.html
 ```
 
@@ -81,7 +102,11 @@ straight from the IBKR Flex report (not a recomputed percentage):
   "commission": 3.20,
   "pnl_after_comm": 128.80,
   "win": true,
-  "equity_after": 412.55
+  "equity_after": 412.55,
+  "setup_type": "vwap_reclaim",
+  "lesson_tags": ["late_exit"],
+  "better_entry_price": 231.02,
+  "better_exit_price": 232.55
 }
 ```
 
@@ -96,6 +121,17 @@ straight from the IBKR Flex report (not a recomputed percentage):
   trade, in chronological order. The home page uses this directly for the
   equity curve rather than recomputing it, so the publish step owns that
   math.
+- `setup_type` / `lesson_tags` / `better_entry_price` / `better_exit_price`
+  — flat copies of fields that otherwise only live in the per-trade detail
+  file (`setup_type`, `lesson_tags`, and the `.price` of `better_entry` /
+  `better_exit`). **`journal.html`, `stats.html`, and `patterns.html` read
+  only `data/trades.json`** (never fetching every detail file, to stay
+  fast with hundreds of trades), so the publish step needs to copy these
+  four values onto the index row alongside the detail file whenever they're
+  set. Omit `better_entry_price`/`better_exit_price` when that trade has no
+  flagged better fill, and `lesson_tags` when the trade has none — all four
+  are optional and every page treats a missing value as "no data for this
+  trade" rather than an error.
 
 ### `data/trades/<id>.json` — the detail record
 

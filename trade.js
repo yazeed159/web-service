@@ -5,15 +5,30 @@
   const id = params.get("id");
   const content = document.getElementById("trade-content");
 
+  // Sibling (prev/next) nav needs the full index, sorted the same way the
+  // publish pipeline sorts it (trade_date + entry_time). Fetching it is
+  // best-effort — if it 404s or is missing, the page still renders fine
+  // without nav arrows.
+  let siblingsPromise = fetch("data/trades.json")
+    .then((r) => (r.ok ? r.json() : []))
+    .catch(() => [])
+    .then((rows) =>
+      (Array.isArray(rows) ? rows : []).slice().sort((a, b) =>
+        (a.trade_date + a.entry_time).localeCompare(b.trade_date + b.entry_time)
+      )
+    );
+
   if (!id) {
     content.innerHTML = `<div class="empty-state">No trade id in the URL — go back and pick one from the journal.</div>`;
   } else {
-    fetch(`data/trades/${encodeURIComponent(id)}.json`)
-      .then((r) => {
+    Promise.all([
+      fetch(`data/trades/${encodeURIComponent(id)}.json`).then((r) => {
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.json();
-      })
-      .then(renderTrade)
+      }),
+      siblingsPromise,
+    ])
+      .then(([trade, siblings]) => renderTrade(trade, siblings))
       .catch((err) => {
         content.innerHTML = `
           <div class="empty-state">
@@ -34,11 +49,65 @@
     return Math.floor(new Date(t.replace(" ", "T") + "").getTime() / 1000);
   }
 
-  function renderTrade(trade) {
+  // Feedback ("was this LLM call right?") is stored client-side only —
+  // there's no write-back to the published JSON, so this is a per-browser
+  // scratchpad, not a synced record. Keyed by trade id + field name so a
+  // stats page can read `journal-feedback:*` and tally accuracy.
+  const FEEDBACK_PREFIX = "journal-feedback:";
+  function getFeedback(tradeId, field) {
+    try {
+      return localStorage.getItem(FEEDBACK_PREFIX + tradeId + ":" + field) || "";
+    } catch (_) {
+      return "";
+    }
+  }
+  function setFeedback(tradeId, field, value) {
+    try {
+      localStorage.setItem(FEEDBACK_PREFIX + tradeId + ":" + field, value);
+    } catch (_) {}
+  }
+  function feedbackWidget(tradeId, field) {
+    const current = getFeedback(tradeId, field);
+    const btn = (val, glyph) => `<button type="button" class="fb-btn${current === val ? " active" : ""}" data-fb-trade="${escapeHtml(tradeId)}" data-fb-field="${field}" data-fb-value="${val}" style="all:unset; cursor:pointer; padding:2px 6px; font-size:11px; border-radius:4px; border:1px solid rgba(255,255,255,.12); ${current === val ? "background:rgba(255,255,255,.14);" : ""}">${glyph}</button>`;
+    return `<span class="fb-widget" style="display:inline-flex; gap:4px; margin-top:4px;">${btn("good", "👍")}${btn("bad", "👎")}</span>`;
+  }
+  function wireFeedbackWidgets(root) {
+    root.querySelectorAll("[data-fb-trade]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const tradeId = el.getAttribute("data-fb-trade");
+        const field = el.getAttribute("data-fb-field");
+        const value = el.getAttribute("data-fb-value");
+        const already = getFeedback(tradeId, field) === value;
+        setFeedback(tradeId, field, already ? "" : value);
+        root.querySelectorAll(`[data-fb-trade="${tradeId}"][data-fb-field="${field}"]`).forEach((b) => {
+          b.style.background = !already && b.getAttribute("data-fb-value") === value ? "rgba(255,255,255,.14)" : "";
+        });
+      });
+    });
+  }
+
+  function siblingNav(trade, siblings) {
+    if (!Array.isArray(siblings) || !siblings.length) return "";
+    const key = (t) => (t.trade_date || "") + (t.entry_time || "");
+    const idx = siblings.findIndex((r) => r.id === trade.id);
+    const prev = idx > 0 ? siblings[idx - 1] : null;
+    const next = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
+    const link = (row, label, dir) =>
+      row
+        ? `<a href="trade.html?id=${encodeURIComponent(row.id)}" class="trade-nav-link" style="color:#8b98a5; text-decoration:none; font-size:12.5px; display:flex; align-items:center; gap:4px;">${dir === "prev" ? "←" : ""}${escapeHtml(label)}${dir === "next" ? "→" : ""}</a>`
+        : `<span style="color:#3a4149; font-size:12.5px;">${dir === "prev" ? "←" : ""}${escapeHtml(label)}${dir === "next" ? "→" : ""}</span>`;
+    return `<div class="trade-sibling-nav" style="display:flex; justify-content:space-between; margin-bottom:10px;">
+      ${link(prev, prev ? `${prev.symbol} · ${prev.trade_date}` : "No earlier trade", "prev")}
+      ${link(next, next ? `${next.symbol} · ${next.trade_date}` : "No later trade", "next")}
+    </div>`;
+  }
+
+  function renderTrade(trade, siblings) {
     document.title = `${trade.symbol} — trade.log`;
     const win = trade.win;
 
     content.innerHTML = `
+      ${siblingNav(trade, siblings || [])}
       <div class="trade-head">
         <h1>
           ${trade.symbol}
@@ -74,6 +143,8 @@
             <span class="legend-item"><span class="legend-swatch" style="background:#5b93f0"></span>EMA20</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#2fd08a"></span>entry</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#f2555a"></span>exit</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:rgba(47,208,138,0.55)"></span>better entry</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:rgba(242,85,90,0.55)"></span>better exit</span>
           </div>
           <div>Scroll to zoom · drag to pan</div>
         </div>
@@ -91,15 +162,15 @@
         </div>
         <div class="card better-card" style="padding:14px 16px;">
           <h2 style="font-size:12.5px; margin:0 0 8px; text-transform:uppercase; letter-spacing:.03em; opacity:.75;">What you should've done</h2>
-          ${betterRow("Entry", trade.better_entry)}
-          ${betterRow("Exit", trade.better_exit)}
+          ${betterRow("Entry", trade.better_entry, trade.id, "better_entry")}
+          ${betterRow("Exit", trade.better_exit, trade.id, "better_exit")}
           ${!trade.better_entry && !trade.better_exit ? `<div class="no-better" style="font-size:12px; opacity:.7;">No better entry/exit flagged — this trade lined up with the plan.</div>` : ""}
         </div>
 
         <div class="card">
           <h2>Lessons from this trade</h2>
           ${Array.isArray(trade.lessons) && trade.lessons.length
-            ? `<ul class="lessons-list" style="margin:0; padding-left:18px;">${trade.lessons.map(lessonItem).join("")}</ul>`
+            ? `<ul class="lessons-list" style="margin:0; padding-left:18px;">${trade.lessons.map((l, i) => lessonItem(l, trade.id, i)).join("")}</ul>`
             : `<div class="no-better">No lessons recorded for this trade.</div>`}
         </div>
 
@@ -117,6 +188,7 @@
     `;
 
     buildCharts(trade);
+    wireFeedbackWidgets(content);
   }
 
   function rrStrip(trade) {
@@ -128,7 +200,7 @@
     </div>`;
   }
 
-  function betterRow(label, b) {
+  function betterRow(label, b, tradeId, field) {
     if (!b || !b.price) return "";
     const how = b.how_to_know
       ? `<div class="how-to-know" style="font-size:11px; opacity:.65; margin-top:2px;">How you'd know: ${escapeHtml(b.how_to_know)}</div>`
@@ -139,16 +211,20 @@
         <div class="price-line" style="font-size:12.5px; font-weight:600;">$${Number(b.price).toFixed(2)}${b.time ? ` @ ${escapeHtml(String(b.time).split("T").pop())}` : ""}</div>
         ${b.reason ? `<div class="reason" style="font-size:11.5px; opacity:.75; margin-top:1px;">${escapeHtml(b.reason)}</div>` : ""}
         ${how}
+        ${tradeId ? feedbackWidget(tradeId, field) : ""}
       </div>
     </div>`;
   }
 
-  function lessonItem(l) {
+  function lessonItem(l, tradeId, i) {
     if (typeof l === "string") return `<li style="margin-bottom:6px; font-size:12.5px;">${escapeHtml(l)}</li>`;
     const how = l.how_to_know
       ? `<div style="font-size:11px; opacity:.65; margin-top:2px;">How you'd know: ${escapeHtml(l.how_to_know)}</div>`
       : "";
-    return `<li style="margin-bottom:8px; font-size:12.5px;">${escapeHtml(l.lesson || l.text || "")}${how}</li>`;
+    const tagBadge = l.tag
+      ? `<span class="lesson-tag" style="display:inline-block; font-size:10px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; padding:1px 6px; border-radius:3px; background:rgba(91,147,240,.15); color:#5b93f0; margin-left:6px; vertical-align:middle;">${escapeHtml(String(l.tag).replace(/_/g, " "))}</span>`
+      : "";
+    return `<li style="margin-bottom:8px; font-size:12.5px;">${escapeHtml(l.lesson || l.text || "")}${tagBadge}${how}${tradeId ? feedbackWidget(tradeId, "lesson_" + i) : ""}</li>`;
   }
 
   function buildCharts(trade) {
@@ -307,6 +383,35 @@
       axisLabelVisible: true,
       title: "",
     });
+
+    // Fainter dotted lines for the LLM's suggested better entry/exit, each
+    // labeled with the how_to_know signal (truncated) so the chart itself
+    // hints at *why*, not just *where* — the full text still lives in the
+    // "What you should've done" card for anyone who wants it.
+    function truncate(s, n) {
+      if (!s) return "";
+      return s.length > n ? s.slice(0, n - 1) + "…" : s;
+    }
+    if (trade.better_entry && trade.better_entry.price) {
+      candleSeries.createPriceLine({
+        price: Number(trade.better_entry.price),
+        color: "rgba(47,208,138,0.55)",
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dotted,
+        axisLabelVisible: true,
+        title: truncate(trade.better_entry.how_to_know || "better entry", 28),
+      });
+    }
+    if (trade.better_exit && trade.better_exit.price) {
+      candleSeries.createPriceLine({
+        price: Number(trade.better_exit.price),
+        color: "rgba(242,85,90,0.55)",
+        lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dotted,
+        axisLabelVisible: true,
+        title: truncate(trade.better_exit.how_to_know || "better exit", 28),
+      });
+    }
 
     const macdEl = document.getElementById("macd-chart");
     const macdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: 110 });

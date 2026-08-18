@@ -1,0 +1,54 @@
+/* features.css
+ * Additive styles for journal.html / stats.html / patterns.html.
+ * These pages use the same app-shell/sidebar and design tokens as
+ * index.html and trade.html (style.css) — this file only adds the
+ * handful of classes that don't already exist there (filters bar,
+ * sortable data table, horizontal bar rows, tag trade lists).
+ * Load AFTER style.css.
+ */
+
+.filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; align-items: center; }
+.filters input, .filters select {
+  background: var(--panel); border: 1px solid var(--border); color: var(--text);
+  font-family: var(--sans); font-size: 12.5px; padding: 8px 11px; border-radius: var(--radius-sm);
+}
+.filters input:focus, .filters select:focus { border-color: var(--primary); outline: none; }
+.filters label { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-dim); }
+
+table.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.data-table th {
+  text-align: left; color: var(--text-faint); font-weight: 600; font-size: 10.5px;
+  text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 10px;
+  border-bottom: 1px solid var(--border-soft); cursor: pointer; user-select: none; white-space: nowrap;
+}
+table.data-table th:hover { color: var(--text); }
+table.data-table th.sorted::after { content: " \25be"; opacity: .6; }
+table.data-table th.sorted.asc::after { content: " \25b4"; }
+table.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--border-soft); }
+table.data-table tbody tr:hover { background: var(--panel-2); }
+table.data-table a.row-link { color: var(--text); text-decoration: none; display: block; }
+
+.pill.win { background: var(--green-soft); color: var(--green); border-color: rgba(47,208,138,0.3); }
+.pill.loss { background: var(--red-soft); color: var(--red); border-color: rgba(242,85,90,0.3); }
+
+.bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 12.5px; }
+.bar-row .bar-label { width: 150px; flex-shrink: 0; color: var(--text); text-transform: capitalize; }
+.bar-row .bar-track { flex: 1; height: 8px; background: var(--panel-3); border-radius: 4px; overflow: hidden; }
+.bar-row .bar-fill { height: 100%; background: var(--blue); border-radius: 4px; }
+.bar-row .bar-count { width: 36px; text-align: right; color: var(--text-faint); flex-shrink: 0; }
+
+.tag-trade-list { margin: 8px 0 18px; padding-left: 0; list-style: none; display: none; }
+.tag-trade-list.open { display: block; }
+.tag-trade-list li { padding: 5px 0; border-bottom: 1px solid var(--border-soft); }
+.tag-trade-list a { color: var(--text); text-decoration: none; font-size: 12.5px; }
+.tag-trade-list a:hover { text-decoration: underline; }
+
+.lesson-tag {
+  display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 3px; background: var(--blue-soft); color: var(--blue); margin-left: 6px; vertical-align: middle;
+}
+
+.fb-btn { transition: background .12s; }
+.fb-btn:hover { background: var(--panel-2) !important; }
+
+.trade-sibling-nav .trade-nav-link:hover { color: var(--text) !important; }
