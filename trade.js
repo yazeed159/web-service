@@ -312,6 +312,35 @@
       return toUnix(hasDate ? timeStr : `${trade.trade_date} ${timeStr}`);
     }
 
+    // The LLM's suggested time and suggested price are two independent
+    // guesses, and they don't always agree with each other: it can name a
+    // real minute that resolves to a real candle (so betterUnix/barAt above
+    // both succeed) while the *price* it gave was never actually touched
+    // in that candle -- the wick doesn't reach it. The pointer still lands
+    // on a legitimate candle, just the wrong one: the dotted price line
+    // keeps pointing at where that price really traded, while the pointer
+    // sits one or more minutes off from it. Cross-check the two: if the
+    // price isn't within [low, high] of the time-based candle, search
+    // outward in both directions (by bar index, i.e. by time) for the
+    // nearest candle whose range actually contains that price, and use
+    // that instead -- so the pointer always lands on "the one the line
+    // means" rather than wherever the LLM said. If literally no candle in
+    // the session touched that price, there's nothing better to snap to,
+    // so the time-based candle is kept as the closest available guess.
+    function barForPrice(price, candidateBar) {
+      const within = (b) => price <= b.h + 1e-6 && price >= b.l - 1e-6;
+      if (within(candidateBar)) return candidateBar;
+      const idx = bars.indexOf(candidateBar);
+      for (let d = 1; d < bars.length; d++) {
+        const before = bars[idx - d];
+        const after = bars[idx + d];
+        if (before && within(before)) return before;
+        if (after && within(after)) return after;
+        if (!before && !after) break;
+      }
+      return candidateBar;
+    }
+
     // Small, clear pointer markers instead of a label box + connector stem
     // + full-width dashed price line: just a tiny triangle sitting right on
     // the exact fill point, pointing straight at it. Nothing else on the
@@ -442,7 +471,7 @@
     if (trade.better_entry && trade.better_entry.price) {
       const b = trade.better_entry;
       const u = betterUnix(b.time);
-      const bar = Number.isFinite(u) ? barAt(u) : entryBar;
+      const bar = barForPrice(Number(b.price), Number.isFinite(u) ? barAt(u) : entryBar);
       pointers.push({ time: toUnix(bar.t), price: Number(b.price), color: BETTER_ENTRY_COLOR, above: true,
         el: buildPointer(betterTooltip("entry", b)) });
       addBetterInfo("entry", b, toUnix(bar.t), true);
@@ -450,7 +479,7 @@
     if (trade.better_exit && trade.better_exit.price) {
       const b = trade.better_exit;
       const u = betterUnix(b.time);
-      const bar = Number.isFinite(u) ? barAt(u) : exitBar;
+      const bar = barForPrice(Number(b.price), Number.isFinite(u) ? barAt(u) : exitBar);
       pointers.push({ time: toUnix(bar.t), price: Number(b.price), color: BETTER_EXIT_COLOR, above: false,
         el: buildPointer(betterTooltip("exit", b)) });
       addBetterInfo("exit", b, toUnix(bar.t), false);
