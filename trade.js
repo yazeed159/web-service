@@ -456,13 +456,27 @@
       return bits.join(" — ");
     }
 
+    // Same idea as betterTooltip below, but for the ACTUAL fill: marker +
+    // price + the entry_indicator/exit_indicator signal (truncated) -- what
+    // was actually visible in real time that justified acting at this
+    // price, not the hypothetical better one.
+    function actualTooltip(kind, price, indicator) {
+      const bits = [`${kind.toUpperCase()} $${price.toFixed(2)}`];
+      const signal = truncate(indicator, 60);
+      if (signal) bits.push(signal);
+      return bits.join(" — ");
+    }
+
+    const ACTUAL_ENTRY_COLOR = "#2fd08a"; // green, matches the entry pointer/legend
+    const ACTUAL_EXIT_COLOR = "#f2555a"; // red, matches the exit pointer/legend
+
     const pointers = [
       // Entry: triangle sits just above the fill, tip pointing down onto it.
-      { time: toUnix(entryBar.t), price: trade.entry_price, color: "#2fd08a", above: true,
-        el: buildPointer(`ENTRY $${trade.entry_price.toFixed(2)}`) },
+      { time: toUnix(entryBar.t), price: trade.entry_price, color: ACTUAL_ENTRY_COLOR, above: true,
+        el: buildPointer(actualTooltip("entry", trade.entry_price, trade.entry_indicator)) },
       // Exit: triangle sits just below the fill, tip pointing up onto it.
-      { time: toUnix(exitBar.t), price: trade.exit_price, color: "#f2555a", above: false,
-        el: buildPointer(`EXIT $${trade.exit_price.toFixed(2)}`) },
+      { time: toUnix(exitBar.t), price: trade.exit_price, color: ACTUAL_EXIT_COLOR, above: false,
+        el: buildPointer(actualTooltip("exit", trade.exit_price, trade.exit_indicator)) },
     ];
     // Better entry/exit get their own pointers, in colors that match their
     // legend swatches and dotted price lines below -- so color alone ties a
@@ -476,19 +490,27 @@
     const BETTER_ENTRY_COLOR = "#8b7cf6"; // purple
     const BETTER_EXIT_COLOR = "#ec6cad"; // pink
 
-    // { time, price, above, icon, popover } for each better-entry/exit info
-    // badge, repositioned alongside their pointers in repositionPointers().
-    // Shows the same truncated how_to_know signal as the hover tooltip
-    // (just with more room to breathe) -- the touch equivalent of hover,
-    // not a longer version of it.
+    // { time, price, above, icon, popover } for each info badge (better or
+    // actual entry/exit), repositioned alongside their pointers in
+    // repositionPointers(). Shows the same truncated signal as the matching
+    // pointer's hover tooltip (just with more room to breathe) -- the touch
+    // equivalent of hover, not a longer version of it.
     const infoMarkers = [];
-    function addBetterInfo(kind, b, time, above) {
-      if (!b.how_to_know) return; // nothing to reveal, skip the badge
-      const color = kind === "entry" ? BETTER_ENTRY_COLOR : BETTER_EXIT_COLOR;
-      const html = `<div>${escapeHtml(truncate(b.how_to_know, 100))}</div>`;
+    function addInfoBadge(color, text, time, price, above) {
+      if (!text) return; // nothing to reveal, skip the badge
+      const html = `<div>${escapeHtml(truncate(text, 100))}</div>`;
       const { icon, popover } = buildInfoIcon(html, color);
-      infoMarkers.push({ time, price: Number(b.price), above, icon, popover });
+      infoMarkers.push({ time, price, above, icon, popover });
     }
+    function addBetterInfo(kind, b, time, above) {
+      addInfoBadge(kind === "entry" ? BETTER_ENTRY_COLOR : BETTER_EXIT_COLOR, b.how_to_know, time, Number(b.price), above);
+    }
+
+    // Actual entry/exit get the same "i" badge as the better markers,
+    // showing what was actually visible in real time (entry_indicator /
+    // exit_indicator) that justified acting at the real fill price.
+    addInfoBadge(ACTUAL_ENTRY_COLOR, trade.entry_indicator, toUnix(entryBar.t), trade.entry_price, true);
+    addInfoBadge(ACTUAL_EXIT_COLOR, trade.exit_indicator, toUnix(exitBar.t), trade.exit_price, false);
 
     if (trade.better_entry && trade.better_entry.price) {
       const b = trade.better_entry;
