@@ -45,6 +45,12 @@
     const sign = v >= 0 ? "+" : "-";
     return sign + "$" + Math.abs(v).toFixed(2);
   }
+  // Net P&L per share, in cents -- e.g. $86 net on 200 shares is 43.0¢/share.
+  function centsPerShare(pnlAfterComm, shares) {
+    const cents = (pnlAfterComm / shares) * 100;
+    const sign = cents >= 0 ? "+" : "-";
+    return sign + Math.abs(cents).toFixed(1) + "¢";
+  }
   function toUnix(t) {
     return Math.floor(new Date(t.replace(" ", "T") + "").getTime() / 1000);
   }
@@ -79,7 +85,7 @@
         <div class="trade-meta">
           ${trade.trade_date} &nbsp;·&nbsp; entry ${trade.entry_time} @ $${trade.entry_price.toFixed(2)}
           &nbsp;→&nbsp; exit ${trade.exit_time} @ $${trade.exit_price.toFixed(2)}
-          &nbsp;·&nbsp; ${trade.shares} sh &nbsp;·&nbsp; held ${trade.time_in_trade || "—"}
+          &nbsp;·&nbsp; <span class="meta-standout">${trade.shares} sh</span> &nbsp;·&nbsp; held <span class="meta-standout">${trade.time_in_trade || "—"}</span>
         </div>
       </div>
 
@@ -95,6 +101,10 @@
         <div class="cell">
           <div class="label">Net P&amp;L</div>
           <div class="value ${trade.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(trade.pnl_after_comm)}</div>
+        </div>
+        <div class="cell">
+          <div class="label">&cent;/Share</div>
+          <div class="value ${trade.pnl_after_comm >= 0 ? "up" : "down"}">${trade.shares ? centsPerShare(trade.pnl_after_comm, trade.shares) : "—"}</div>
         </div>
       </div>
 

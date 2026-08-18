@@ -404,8 +404,9 @@ button { font-family: var(--sans); }
 .verdict-badge.up { background: var(--green-soft); color: var(--green); }
 .verdict-badge.down { background: var(--red-soft); color: var(--red); }
 .trade-meta { font-size: 13px; color: var(--text-dim); }
+.trade-meta .meta-standout { color: var(--text); font-weight: 700; font-family: var(--mono); }
 
-.pnl-breakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); border-radius: var(--radius); overflow: hidden; margin-bottom: 18px; }
+.pnl-breakdown { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); border-radius: var(--radius); overflow: hidden; margin-bottom: 18px; }
 .pnl-breakdown .cell { background: var(--panel); padding: 16px 20px; }
 .pnl-breakdown .cell .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin-bottom: 8px; font-weight: 600; }
 .pnl-breakdown .cell .value { font-family: var(--mono); font-size: 20px; font-weight: 700; }
@@ -475,4 +476,5 @@ button { font-family: var(--sans); }
   .content { padding: 20px 16px 70px; }
   .topbar { padding: 0 16px; }
   .topbar-left h1 { font-size: 15px; }
+  .pnl-breakdown { grid-template-columns: repeat(2, 1fr); }
 }
