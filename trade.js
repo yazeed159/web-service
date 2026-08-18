@@ -293,6 +293,25 @@
       return best;
     }
 
+    // better_entry.time / better_exit.time come from the LLM verdict step
+    // and, unlike entry_time/exit_time, are never guaranteed to include a
+    // date -- most of the time they're just "HH:MM:SS". Handing a bare time
+    // straight to toUnix()/new Date() either parses as Invalid Date (NaN),
+    // which makes barAt() silently fall through its whole loop and return
+    // bars[0] -- the FIRST candle on the chart, regardless of when the
+    // trade actually happened -- or, in engines that accept a bare time,
+    // resolves it against *today's* date instead of the trade's date,
+    // landing it off the visible range entirely. Either way the dotted
+    // price line (which only depends on price) looks right while the
+    // pointer (which depends on this) ends up nowhere near it. Detect a
+    // bare time (no "YYYY-MM-DD" in it) and explicitly prepend the trade's
+    // own date before parsing, so it always resolves against the right day.
+    function betterUnix(timeStr) {
+      if (!timeStr) return NaN;
+      const hasDate = /\d{4}-\d{2}-\d{2}/.test(timeStr);
+      return toUnix(hasDate ? timeStr : `${trade.trade_date} ${timeStr}`);
+    }
+
     // Small, clear pointer markers instead of a label box + connector stem
     // + full-width dashed price line: just a tiny triangle sitting right on
     // the exact fill point, pointing straight at it. Nothing else on the
@@ -422,14 +441,16 @@
 
     if (trade.better_entry && trade.better_entry.price) {
       const b = trade.better_entry;
-      const bar = b.time ? barAt(toUnix(b.time)) : entryBar;
+      const u = betterUnix(b.time);
+      const bar = Number.isFinite(u) ? barAt(u) : entryBar;
       pointers.push({ time: toUnix(bar.t), price: Number(b.price), color: BETTER_ENTRY_COLOR, above: true,
         el: buildPointer(betterTooltip("entry", b)) });
       addBetterInfo("entry", b, toUnix(bar.t), true);
     }
     if (trade.better_exit && trade.better_exit.price) {
       const b = trade.better_exit;
-      const bar = b.time ? barAt(toUnix(b.time)) : exitBar;
+      const u = betterUnix(b.time);
+      const bar = Number.isFinite(u) ? barAt(u) : exitBar;
       pointers.push({ time: toUnix(bar.t), price: Number(b.price), color: BETTER_EXIT_COLOR, above: false,
         el: buildPointer(betterTooltip("exit", b)) });
       addBetterInfo("exit", b, toUnix(bar.t), false);
