@@ -297,8 +297,10 @@
     // the exact fill point, pointing straight at it. Nothing else on the
     // chart competes with it for attention, and it never gets orphaned from
     // its own price line the way the old label system could. Hover it for
-    // the exact price/time (native tooltip, zero extra chart clutter).
-    function buildPointer(time, price, color, label) {
+    // the exact price/time -- and for the "better" markers, the full
+    // reason + how_to_know text, so nothing has to be crammed into the
+    // on-chart tag (which stays short so it never gets clipped).
+    function buildPointer(tooltipText) {
       const wrap = candleEl;
       wrap.style.position = "relative";
       let overlay = wrap.querySelector(".fill-pointer-overlay");
@@ -309,7 +311,7 @@
         wrap.appendChild(overlay);
       }
       const el = document.createElement("div");
-      el.title = `${label} $${price.toFixed(2)}`;
+      el.title = tooltipText;
       el.style.cssText = `
         position:absolute; width:0; height:0; pointer-events:auto;
         border-left:6px solid transparent; border-right:6px solid transparent;
@@ -319,25 +321,57 @@
       return el;
     }
 
+    const POINTER_H = 9; // triangle height in px -- also used to correct the tip offset in repositionPointers()
+
     const entryBar = barAt(toUnix(`${trade.trade_date} ${trade.entry_time}`));
     const exitBar = barAt(toUnix(`${trade.trade_date} ${trade.exit_time}`));
+
+    function betterTooltip(kind, b) {
+      const bits = [`BETTER ${kind.toUpperCase()} $${Number(b.price).toFixed(2)}`];
+      if (b.reason) bits.push(b.reason);
+      if (b.how_to_know) bits.push(`How you'd know: ${b.how_to_know}`);
+      return bits.join(" — ");
+    }
+
     const pointers = [
       // Entry: triangle sits just above the fill, tip pointing down onto it.
-      { time: toUnix(entryBar.t), price: trade.entry_price, color: "#2fd08a", label: "ENTRY", above: true,
-        el: buildPointer(toUnix(entryBar.t), trade.entry_price, "#2fd08a", "ENTRY") },
+      { time: toUnix(entryBar.t), price: trade.entry_price, color: "#2fd08a", above: true,
+        el: buildPointer(`ENTRY $${trade.entry_price.toFixed(2)}`) },
       // Exit: triangle sits just below the fill, tip pointing up onto it.
-      { time: toUnix(exitBar.t), price: trade.exit_price, color: "#f2555a", label: "EXIT", above: false,
-        el: buildPointer(toUnix(exitBar.t), trade.exit_price, "#f2555a", "EXIT") },
+      { time: toUnix(exitBar.t), price: trade.exit_price, color: "#f2555a", above: false,
+        el: buildPointer(`EXIT $${trade.exit_price.toFixed(2)}`) },
     ];
+    // Better entry/exit get their own pointers, in the same translucent
+    // colors as their legend swatches and dotted price lines below -- so
+    // color alone ties a triangle to the right line without reading labels.
+    // Each snaps to the bar its own suggested time falls on (falling back to
+    // the actual entry/exit bar if no time was given) rather than reusing
+    // the actual fill's x-position.
+    if (trade.better_entry && trade.better_entry.price) {
+      const b = trade.better_entry;
+      const bar = b.time ? barAt(toUnix(b.time)) : entryBar;
+      pointers.push({ time: toUnix(bar.t), price: Number(b.price), color: "rgba(47,208,138,0.55)", above: true,
+        el: buildPointer(betterTooltip("entry", b)) });
+    }
+    if (trade.better_exit && trade.better_exit.price) {
+      const b = trade.better_exit;
+      const bar = b.time ? barAt(toUnix(b.time)) : exitBar;
+      pointers.push({ time: toUnix(bar.t), price: Number(b.price), color: "rgba(242,85,90,0.55)", above: false,
+        el: buildPointer(betterTooltip("exit", b)) });
+    }
+
     // A zero-size div with only border-bottom set renders a triangle whose
-    // TIP sits at the box edge (top) and whose flat BASE extends downward
-    // from there; border-top-only is the mirror image, tip at the box edge
-    // (bottom), base extending upward. So to get the tip -- not the base --
-    // resting on the price, "above" markers (tip pointing down) need
-    // border-top, and "below" markers (tip pointing up) need border-bottom.
+    // TIP sits at the box's OWN top edge, with the flat BASE extending
+    // downward (by POINTER_H) from there; border-top-only is the mirror
+    // image -- its tip sits POINTER_H *below* its own top edge, with the
+    // base at the top. So "below" markers (border-bottom, tip pointing up)
+    // can have their top set to the price-y directly, but "above" markers
+    // (border-top, tip pointing down) need their top shifted up by
+    // POINTER_H first, or the price ends up at the flat base instead of the
+    // tip. See repositionPointers() below, which applies that shift.
     pointers.forEach((p) => {
-      p.el.style.borderTop = p.above ? `9px solid ${p.color}` : "";
-      p.el.style.borderBottom = p.above ? "" : `9px solid ${p.color}`;
+      p.el.style.borderTop = p.above ? `${POINTER_H}px solid ${p.color}` : "";
+      p.el.style.borderBottom = p.above ? "" : `${POINTER_H}px solid ${p.color}`;
     });
 
     function repositionPointers() {
@@ -350,10 +384,11 @@
         }
         p.el.style.display = "block";
         p.el.style.left = `${x}px`;
-        // The box edge is where the triangle's tip lives (see border setup
-        // above), so putting it at y puts the tip exactly on the price; the
-        // shape itself extends 9px above (entry) or below (exit) from there.
-        p.el.style.top = `${y}px`;
+        // "above" markers (border-top) have their tip POINTER_H below their
+        // own top edge, so shift up by POINTER_H to land the tip -- not the
+        // base -- on the price. "below" markers (border-bottom) already
+        // have their tip at their own top edge, so no shift is needed.
+        p.el.style.top = `${p.above ? y - POINTER_H : y}px`;
         p.el.style.transform = "translateX(-50%)";
       });
     }
@@ -384,14 +419,11 @@
       title: "",
     });
 
-    // Fainter dotted lines for the LLM's suggested better entry/exit, each
-    // labeled with the how_to_know signal (truncated) so the chart itself
-    // hints at *why*, not just *where* — the full text still lives in the
-    // "What you should've done" card for anyone who wants it.
-    function truncate(s, n) {
-      if (!s) return "";
-      return s.length > n ? s.slice(0, n - 1) + "…" : s;
-    }
+    // Fainter dotted lines for the LLM's suggested better entry/exit. The
+    // on-chart tag is a short, fixed label so it never gets clipped by the
+    // price-axis label area -- the full reason + how_to_know text lives in
+    // the matching pointer's native hover tooltip (built above) and in the
+    // "What you should've done" card for anyone who wants it without hovering.
     if (trade.better_entry && trade.better_entry.price) {
       candleSeries.createPriceLine({
         price: Number(trade.better_entry.price),
@@ -399,7 +431,7 @@
         lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.Dotted,
         axisLabelVisible: true,
-        title: truncate(trade.better_entry.how_to_know || "better entry", 28),
+        title: "BETTER ENTRY",
       });
     }
     if (trade.better_exit && trade.better_exit.price) {
@@ -409,7 +441,7 @@
         lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.Dotted,
         axisLabelVisible: true,
-        title: truncate(trade.better_exit.how_to_know || "better exit", 28),
+        title: "BETTER EXIT",
       });
     }
 
