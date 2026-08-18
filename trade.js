@@ -355,13 +355,21 @@
     // + full-width dashed price line: just a tiny triangle sitting right on
     // the exact fill point, pointing straight at it. Nothing else on the
     // chart competes with it for attention, and it never gets orphaned from
-    // its own price line the way the old label system could. Hover it for
-    // the exact price/time -- and for the "better" markers, the full
-    // reason + how_to_know text, so nothing has to be crammed into the
-    // on-chart tag (which stays short so it never gets clipped). Hover
-    // doesn't work on touchscreens though, so "better" markers also get a
-    // tappable "i" badge (buildInfoIcon, below) with the same text.
-    function buildPointer(tooltipText) {
+    // its own price line the way the old label system could.
+    //
+    // The pointer itself owns its tooltip -- a styled box (not the native
+    // title attribute, which can't be styled and is easy to misread as
+    // "cut off" since it wraps awkwardly at narrow widths) showing the
+    // FULL price/time plus, for "better" markers, the full reason +
+    // how_to_know text -- nothing truncated, so nothing has to be crammed
+    // into the short on-chart tag. It opens on hover for mouse users and on
+    // tap for touch users (hover doesn't fire on touchscreens), so there's
+    // no separate "i" badge competing for space on the chart.
+    //
+    // Appended to `wrap` directly (not the pointer overlay, which clips its
+    // contents to the chart's bounds via overflow:hidden) so the tooltip is
+    // never cut off at the pane edge.
+    function buildPointer(tooltipHtml, color) {
       const wrap = candleEl;
       wrap.style.position = "relative";
       let overlay = wrap.querySelector(".fill-pointer-overlay");
@@ -372,65 +380,50 @@
         wrap.appendChild(overlay);
       }
       const el = document.createElement("div");
-      el.title = tooltipText;
       el.style.cssText = `
         position:absolute; width:0; height:0; pointer-events:auto;
         border-left:6px solid transparent; border-right:6px solid transparent;
         filter: drop-shadow(0 0 1.5px #0b0d10) drop-shadow(0 0 1.5px #0b0d10);
       `;
       overlay.appendChild(el);
-      return el;
+
+      let tooltip = null;
+      if (tooltipHtml) {
+        tooltip = document.createElement("div");
+        tooltip.className = "pointer-tooltip";
+        tooltip.dataset.open = "0";
+        tooltip.style.cssText = `
+          position:absolute; display:none; width:220px; max-width:60vw;
+          background:#181b22; border:1px solid ${color}; border-radius:8px;
+          padding:10px 12px; font-size:12px; line-height:1.5; color:#eceef2;
+          box-shadow:0 6px 20px rgba(0,0,0,.45); z-index:5; pointer-events:none;
+        `;
+        tooltip.innerHTML = tooltipHtml;
+        wrap.appendChild(tooltip);
+
+        const openTooltip = () => {
+          wrap.querySelectorAll(".pointer-tooltip").forEach((t) => { t.dataset.open = "0"; t.style.display = "none"; });
+          tooltip.dataset.open = "1";
+          tooltip.style.display = "block";
+          repositionPointers();
+        };
+        const closeTooltip = () => { tooltip.dataset.open = "0"; tooltip.style.display = "none"; };
+        el.addEventListener("mouseenter", openTooltip);
+        el.addEventListener("mouseleave", closeTooltip);
+        // Tap-to-toggle so touch users (no mouseenter) can still reach it.
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (tooltip.dataset.open === "1") closeTooltip(); else openTooltip();
+        });
+      }
+      return { el, tooltip };
     }
 
-    // A tiny "i" badge next to a better-entry/exit pointer, tap/click to
-    // reveal the full how_to_know text in a small popover -- the touch
-    // equivalent of the pointer's own hover tooltip (which shows the same
-    // signal, truncated). Hover works great with a mouse but does nothing
-    // on a touchscreen, so the badge gives touch users an explicit,
-    // discoverable way to get it without hovering.
-    // Appended to `wrap` directly (not the pointer overlay, which clips its
-    // contents to the chart's bounds) so the popover is never cut off.
-    function buildInfoIcon(html, color) {
-      const wrap = candleEl;
-      wrap.style.position = "relative";
-      const icon = document.createElement("div");
-      icon.className = "better-info-icon";
-      icon.textContent = "i";
-      icon.style.cssText = `
-        position:absolute; display:none; width:14px; height:14px; border-radius:50%;
-        background:${color}; color:#0b0d10; font: 800 10px/14px var(--sans, sans-serif);
-        text-align:center; cursor:pointer; user-select:none; z-index:4;
-        box-shadow:0 0 0 1.5px #0b0d10;
-      `;
-      const popover = document.createElement("div");
-      popover.className = "better-info-popover";
-      popover.dataset.open = "0";
-      popover.style.cssText = `
-        position:absolute; display:none; width:220px; max-width:60vw;
-        background:#181b22; border:1px solid ${color}; border-radius:8px;
-        padding:10px 12px; font-size:12px; line-height:1.5; color:#eceef2;
-        box-shadow:0 6px 20px rgba(0,0,0,.45); z-index:5;
-      `;
-      popover.innerHTML = html;
-      popover.addEventListener("click", (e) => e.stopPropagation());
-      wrap.appendChild(popover);
-      wrap.appendChild(icon);
-      icon.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const willOpen = popover.dataset.open !== "1";
-        wrap.querySelectorAll(".better-info-popover").forEach((p) => { p.dataset.open = "0"; p.style.display = "none"; });
-        if (willOpen) {
-          popover.dataset.open = "1";
-          popover.style.display = "block";
-          repositionPointers();
-        }
-      });
-      return { icon, popover };
-    }
-    // Any click outside a popover closes whichever one is open -- otherwise
-    // an opened popover would just sit there covering the chart.
+    // Any click outside a pointer tooltip closes whichever one is pinned
+    // open -- otherwise a tapped-open tooltip would just sit there covering
+    // the chart. (Hover-opened tooltips already close on mouseleave.)
     document.addEventListener("click", () => {
-      candleEl.querySelectorAll(".better-info-popover").forEach((p) => { p.dataset.open = "0"; p.style.display = "none"; });
+      candleEl.querySelectorAll(".pointer-tooltip").forEach((t) => { t.dataset.open = "0"; t.style.display = "none"; });
     });
 
     const POINTER_H = 9; // triangle height in px -- also used to correct the tip offset in repositionPointers()
@@ -438,45 +431,50 @@
     const entryBar = barAt(toUnix(`${trade.trade_date} ${trade.entry_time}`));
     const exitBar = barAt(toUnix(`${trade.trade_date} ${trade.exit_time}`));
 
-    // Chart-only text: marker + price + the how_to_know signal, truncated.
-    // This mirrors the older version of this file -- the chart shows *why*
-    // to act (the observable signal), while the "What you should've done"
-    // card (betterRow) carries the full reason + how_to_know prose. Using
-    // how_to_know here (not reason) is what keeps the chart's wording
-    // genuinely different from the card's, rather than a shorter copy of it.
-    function truncate(s, n) {
-      if (!s) return "";
-      return s.length > n ? s.slice(0, n - 1) + "…" : s;
+    // Chart-only tooltip content: marker + price + the how_to_know signal,
+    // in full -- nothing truncated. This mirrors the older version of this
+    // file -- the chart shows *why* to act (the observable signal), while
+    // the "What you should've done" card (betterRow) carries the full
+    // reason + how_to_know prose too. Using how_to_know here (not reason)
+    // is what keeps the chart's wording genuinely different from the
+    // card's, rather than a shorter copy of it. Returns HTML (escaped)
+    // since it's dropped straight into the tooltip's innerHTML.
+    function tooltipHtml(head, signal) {
+      const headLine = `<div style="font-weight:700;${signal ? " margin-bottom:4px;" : ""}">${escapeHtml(head)}</div>`;
+      return headLine + (signal ? `<div>${escapeHtml(signal)}</div>` : "");
     }
 
     function betterTooltip(kind, b) {
-      const bits = [`better ${kind} $${Number(b.price).toFixed(2)}`];
-      const signal = truncate(b.how_to_know, 60);
-      if (signal) bits.push(signal);
-      return bits.join(" — ");
+      return tooltipHtml(`better ${kind} $${Number(b.price).toFixed(2)}`, b.how_to_know || "");
     }
 
-    // Same idea as betterTooltip below, but for the ACTUAL fill: marker +
-    // price + the entry_indicator/exit_indicator signal (truncated) -- what
-    // was actually visible in real time that justified acting at this
-    // price, not the hypothetical better one.
+    // Same idea as betterTooltip, but for the ACTUAL fill: marker + price +
+    // the entry_indicator/exit_indicator signal -- what was actually
+    // visible in real time that justified acting at this price, not the
+    // hypothetical better one.
     function actualTooltip(kind, price, indicator) {
-      const bits = [`${kind.toUpperCase()} $${price.toFixed(2)}`];
-      const signal = truncate(indicator, 60);
-      if (signal) bits.push(signal);
-      return bits.join(" — ");
+      return tooltipHtml(`${kind.toUpperCase()} $${price.toFixed(2)}`, indicator || "");
     }
 
     const ACTUAL_ENTRY_COLOR = "#2fd08a"; // green, matches the entry pointer/legend
     const ACTUAL_EXIT_COLOR = "#f2555a"; // red, matches the exit pointer/legend
 
+    // buildPointer returns { el, tooltip } -- el is the triangle marker,
+    // tooltip is its hover/tap popup (null if there's no text to show).
+    // mkPointer flattens that into one entry for the `pointers` array,
+    // which repositionPointers() below reads by both el and tooltip.
+    function mkPointer(time, price, color, above, tooltipHtmlText) {
+      const { el, tooltip } = buildPointer(tooltipHtmlText, color);
+      return { time, price, color, above, el, tooltip };
+    }
+
     const pointers = [
       // Entry: triangle sits just above the fill, tip pointing down onto it.
-      { time: toUnix(entryBar.t), price: trade.entry_price, color: ACTUAL_ENTRY_COLOR, above: true,
-        el: buildPointer(actualTooltip("entry", trade.entry_price, trade.entry_indicator)) },
+      mkPointer(toUnix(entryBar.t), trade.entry_price, ACTUAL_ENTRY_COLOR, true,
+        actualTooltip("entry", trade.entry_price, trade.entry_indicator)),
       // Exit: triangle sits just below the fill, tip pointing up onto it.
-      { time: toUnix(exitBar.t), price: trade.exit_price, color: ACTUAL_EXIT_COLOR, above: false,
-        el: buildPointer(actualTooltip("exit", trade.exit_price, trade.exit_indicator)) },
+      mkPointer(toUnix(exitBar.t), trade.exit_price, ACTUAL_EXIT_COLOR, false,
+        actualTooltip("exit", trade.exit_price, trade.exit_indicator)),
     ];
     // Better entry/exit get their own pointers, in colors that match their
     // legend swatches and dotted price lines below -- so color alone ties a
@@ -490,43 +488,17 @@
     const BETTER_ENTRY_COLOR = "#8b7cf6"; // purple
     const BETTER_EXIT_COLOR = "#ec6cad"; // pink
 
-    // { time, price, above, icon, popover } for each info badge (better or
-    // actual entry/exit), repositioned alongside their pointers in
-    // repositionPointers(). Shows the same truncated signal as the matching
-    // pointer's hover tooltip (just with more room to breathe) -- the touch
-    // equivalent of hover, not a longer version of it.
-    const infoMarkers = [];
-    function addInfoBadge(color, text, time, price, above) {
-      if (!text) return; // nothing to reveal, skip the badge
-      const html = `<div>${escapeHtml(truncate(text, 100))}</div>`;
-      const { icon, popover } = buildInfoIcon(html, color);
-      infoMarkers.push({ time, price, above, icon, popover });
-    }
-    function addBetterInfo(kind, b, time, above) {
-      addInfoBadge(kind === "entry" ? BETTER_ENTRY_COLOR : BETTER_EXIT_COLOR, b.how_to_know, time, Number(b.price), above);
-    }
-
-    // Actual entry/exit get the same "i" badge as the better markers,
-    // showing what was actually visible in real time (entry_indicator /
-    // exit_indicator) that justified acting at the real fill price.
-    addInfoBadge(ACTUAL_ENTRY_COLOR, trade.entry_indicator, toUnix(entryBar.t), trade.entry_price, true);
-    addInfoBadge(ACTUAL_EXIT_COLOR, trade.exit_indicator, toUnix(exitBar.t), trade.exit_price, false);
-
     if (trade.better_entry && trade.better_entry.price) {
       const b = trade.better_entry;
       const u = betterUnix(b.time);
       const bar = barForPrice(Number(b.price), Number.isFinite(u) ? barAt(u) : entryBar);
-      pointers.push({ time: toUnix(bar.t), price: Number(b.price), color: BETTER_ENTRY_COLOR, above: true,
-        el: buildPointer(betterTooltip("entry", b)) });
-      addBetterInfo("entry", b, toUnix(bar.t), true);
+      pointers.push(mkPointer(toUnix(bar.t), Number(b.price), BETTER_ENTRY_COLOR, true, betterTooltip("entry", b)));
     }
     if (trade.better_exit && trade.better_exit.price) {
       const b = trade.better_exit;
       const u = betterUnix(b.time);
       const bar = barForPrice(Number(b.price), Number.isFinite(u) ? barAt(u) : exitBar);
-      pointers.push({ time: toUnix(bar.t), price: Number(b.price), color: BETTER_EXIT_COLOR, above: false,
-        el: buildPointer(betterTooltip("exit", b)) });
-      addBetterInfo("exit", b, toUnix(bar.t), false);
+      pointers.push(mkPointer(toUnix(bar.t), Number(b.price), BETTER_EXIT_COLOR, false, betterTooltip("exit", b)));
     }
 
     // A zero-size div with only border-bottom set renders a triangle whose
@@ -549,6 +521,7 @@
         const y = candleSeries.priceToCoordinate(p.price);
         if (x === null || y === null) {
           p.el.style.display = "none";
+          if (p.tooltip) { p.tooltip.style.display = "none"; p.tooltip.dataset.open = "0"; }
           return;
         }
         p.el.style.display = "block";
@@ -557,29 +530,17 @@
         // own top edge, so shift up by POINTER_H to land the tip -- not the
         // base -- on the price. "below" markers (border-bottom) already
         // have their tip at their own top edge, so no shift is needed.
-        p.el.style.top = `${p.above ? y - POINTER_H : y}px`;
+        const pointerTop = p.above ? y - POINTER_H : y;
+        p.el.style.top = `${pointerTop}px`;
         p.el.style.transform = "translateX(-50%)";
-      });
-      infoMarkers.forEach((m) => {
-        const x = candleChart.timeScale().timeToCoordinate(m.time);
-        const y = candleSeries.priceToCoordinate(m.price);
-        if (x === null || y === null) {
-          m.icon.style.display = "none";
-          m.popover.style.display = "none";
-          m.popover.dataset.open = "0";
-          return;
-        }
-        // Offset to the side of the pointer's own triangle -- above-left of
-        // it for "above" markers, below-left for "below" ones -- so the
-        // badge never sits on top of the triangle it belongs to.
-        const iconTop = m.above ? y - POINTER_H - 16 : y + POINTER_H + 2;
-        m.icon.style.display = "block";
-        m.icon.style.left = `${x + 8}px`;
-        m.icon.style.top = `${iconTop}px`;
-        if (m.popover.dataset.open === "1") {
-          m.popover.style.left = `${x + 8}px`;
-          m.popover.style.top = `${m.above ? iconTop - 8 : iconTop + 18}px`;
-          m.popover.style.transform = m.above ? "translateY(-100%)" : "none";
+        // The tooltip only needs positioning while it's actually open --
+        // offset to the side of the triangle (above-left for "above"
+        // markers, below-left for "below" ones) so it never sits on top of
+        // the marker it belongs to.
+        if (p.tooltip && p.tooltip.dataset.open === "1") {
+          p.tooltip.style.left = `${x + 8}px`;
+          p.tooltip.style.top = `${p.above ? pointerTop - 8 : pointerTop + POINTER_H + 8}px`;
+          p.tooltip.style.transform = p.above ? "translateY(-100%)" : "none";
         }
       });
     }
@@ -614,10 +575,10 @@
     // purple/pink as their pointers above -- distinct from the actual
     // entry/exit green/red so the two pairs never get confused. The axis
     // label stays a short, static "better entry"/"better exit" tag,
-    // lowercase to match the legend -- the how_to_know signal (truncated)
-    // lives on the pointer's hover tooltip instead (see betterTooltip
-    // above), and the full reason + how_to_know text lives in the "What
-    // you should've done" card and the info-icon popover.
+    // lowercase to match the legend -- the full how_to_know signal lives on
+    // the pointer's own hover/tap tooltip instead (see betterTooltip
+    // above), and the full reason + how_to_know text also lives in the
+    // "What you should've done" card.
     if (trade.better_entry && trade.better_entry.price) {
       candleSeries.createPriceLine({
         price: Number(trade.better_entry.price),
