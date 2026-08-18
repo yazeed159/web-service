@@ -249,7 +249,7 @@
       layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
       grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
       // minimumWidth guarantees room for the widest axis label we ever put
-      // up -- "BETTER ENTRY" / "BETTER EXIT" plus the price -- so those
+      // up -- "better entry" / "better exit" plus the price -- so those
       // price-line titles render in full instead of being squeezed by an
       // axis width that would otherwise auto-size to shorter labels like
       // the plain numeric entry/exit prices.
@@ -450,7 +450,7 @@
     }
 
     function betterTooltip(kind, b) {
-      const bits = [`BETTER ${kind.toUpperCase()} $${Number(b.price).toFixed(2)}`];
+      const bits = [`better ${kind} $${Number(b.price).toFixed(2)}`];
       const signal = truncate(b.how_to_know, 60);
       if (signal) bits.push(signal);
       return bits.join(" — ");
@@ -478,11 +478,14 @@
 
     // { time, price, above, icon, popover } for each better-entry/exit info
     // badge, repositioned alongside their pointers in repositionPointers().
+    // Shows the same truncated how_to_know signal as the hover tooltip
+    // (just with more room to breathe) -- the touch equivalent of hover,
+    // not a longer version of it.
     const infoMarkers = [];
     function addBetterInfo(kind, b, time, above) {
       if (!b.how_to_know) return; // nothing to reveal, skip the badge
       const color = kind === "entry" ? BETTER_ENTRY_COLOR : BETTER_EXIT_COLOR;
-      const html = `<div><b>How you'd know:</b> ${escapeHtml(b.how_to_know)}</div>`;
+      const html = `<div>${escapeHtml(truncate(b.how_to_know, 100))}</div>`;
       const { icon, popover } = buildInfoIcon(html, color);
       infoMarkers.push({ time, price: Number(b.price), above, icon, popover });
     }
@@ -588,11 +591,11 @@
     // Dotted lines for the LLM's suggested better entry/exit, in the same
     // purple/pink as their pointers above -- distinct from the actual
     // entry/exit green/red so the two pairs never get confused. The axis
-    // label stays a short, static "BETTER ENTRY"/"BETTER EXIT" tag -- the
-    // how_to_know signal (truncated) lives on the pointer's hover tooltip
-    // instead (see betterTooltip above), and the full reason + how_to_know
-    // text lives in the "What you should've done" card and the info-icon
-    // popover.
+    // label stays a short, static "better entry"/"better exit" tag,
+    // lowercase to match the legend -- the how_to_know signal (truncated)
+    // lives on the pointer's hover tooltip instead (see betterTooltip
+    // above), and the full reason + how_to_know text lives in the "What
+    // you should've done" card and the info-icon popover.
     if (trade.better_entry && trade.better_entry.price) {
       candleSeries.createPriceLine({
         price: Number(trade.better_entry.price),
@@ -600,7 +603,7 @@
         lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.Dotted,
         axisLabelVisible: true,
-        title: "BETTER ENTRY",
+        title: "better entry",
       });
     }
     if (trade.better_exit && trade.better_exit.price) {
@@ -610,7 +613,7 @@
         lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.Dotted,
         axisLabelVisible: true,
-        title: "BETTER EXIT",
+        title: "better exit",
       });
     }
 
