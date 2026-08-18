@@ -253,9 +253,15 @@
       { time: toUnix(exitBar.t), price: trade.exit_price, color: "#f2555a", label: "EXIT", above: false,
         el: buildPointer(toUnix(exitBar.t), trade.exit_price, "#f2555a", "EXIT") },
     ];
+    // A zero-size div with only border-bottom set renders a triangle whose
+    // TIP sits at the box edge (top) and whose flat BASE extends downward
+    // from there; border-top-only is the mirror image, tip at the box edge
+    // (bottom), base extending upward. So to get the tip -- not the base --
+    // resting on the price, "above" markers (tip pointing down) need
+    // border-top, and "below" markers (tip pointing up) need border-bottom.
     pointers.forEach((p) => {
-      p.el.style.borderBottom = p.above ? `9px solid ${p.color}` : "";
-      p.el.style.borderTop = p.above ? "" : `9px solid ${p.color}`;
+      p.el.style.borderTop = p.above ? `9px solid ${p.color}` : "";
+      p.el.style.borderBottom = p.above ? "" : `9px solid ${p.color}`;
     });
 
     function repositionPointers() {
@@ -268,9 +274,10 @@
         }
         p.el.style.display = "block";
         p.el.style.left = `${x}px`;
-        // Tip of the triangle sits exactly on the price; the shape itself
-        // extends 9px above (entry) or below (exit) from there.
-        p.el.style.top = p.above ? `${y - 9}px` : `${y}px`;
+        // The box edge is where the triangle's tip lives (see border setup
+        // above), so putting it at y puts the tip exactly on the price; the
+        // shape itself extends 9px above (entry) or below (exit) from there.
+        p.el.style.top = `${y}px`;
         p.el.style.transform = "translateX(-50%)";
       });
     }
