@@ -6,6 +6,7 @@
 <title>trade.log — journal</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="features.css">
 </head>
 <body>
 
@@ -193,7 +194,105 @@
 
       <!-- ===================== REPORTS TAB ===================== -->
       <section class="tab-panel" id="tab-reports">
-        <div class="section-label">Streaks</div>
+        <div class="section-label">Detailed stats</div>
+        <div class="stat-table-grid" id="detailed-stat-grid">
+          <div class="loading-line">Loading…</div>
+        </div>
+
+        <div class="subtab-bar" id="detailed-subtabs">
+          <button class="subtab-btn active" data-subtab="days-times">Days/Times</button>
+          <button class="subtab-btn" data-subtab="price-volume">Price/Volume</button>
+          <button class="subtab-btn" data-subtab="instrument">Instrument</button>
+          <button class="subtab-btn" data-subtab="market-behavior">Market Behavior</button>
+          <button class="subtab-btn" data-subtab="win-loss-expectation">Win/Loss/Expectation</button>
+          <button class="subtab-btn" data-subtab="liquidity">Liquidity</button>
+        </div>
+
+        <div class="subtab-panel active" id="subtab-days-times">
+          <div class="report-grid">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">By day of week</span></div>
+              <div id="detail-dow"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">By hour of day (entry)</span></div>
+              <div id="detail-hour"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="subtab-panel" id="subtab-price-volume">
+          <div class="report-grid">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">By entry price</span></div>
+              <div id="detail-price"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">By position size (shares)</span></div>
+              <div id="detail-size"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="subtab-panel" id="subtab-instrument">
+          <div class="report-grid">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">By symbol (top 10 by trade count)</span></div>
+              <div id="detail-symbol"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">By side</span></div>
+              <div id="detail-side"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="subtab-panel" id="subtab-market-behavior">
+          <div class="report-grid">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">By setup</span></div>
+              <div id="detail-setup"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Top lesson tags</span></div>
+              <div id="detail-lessons"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="subtab-panel" id="subtab-win-loss-expectation">
+          <div class="report-grid">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">P&amp;L distribution</span></div>
+              <div id="detail-distribution"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Expectancy</span></div>
+              <div id="detail-expectancy"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="subtab-panel" id="subtab-liquidity">
+          <div class="report-grid">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">By relative volume</span></div>
+              <div id="detail-rvol"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">By 30-day avg volume</span></div>
+              <div id="detail-avgvol"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+          <div class="report-grid" style="margin-top:18px;">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">By float</span></div>
+              <div id="detail-float"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-label" style="margin-top:32px;">Streaks</div>
         <div class="streak-strip" id="streak-strip"></div>
 
         <div class="section-label">Best &amp; worst trade</div>

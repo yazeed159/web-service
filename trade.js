@@ -290,6 +290,13 @@
       });
   }
 
+  // Shared with drawSrLevelsOnChart so the on-chart label matches the
+  // "from" text shown in the card below (e.g. "3x touched", or whatever
+  // label the LLM/webhook gave the level).
+  function srLevelNote(lv) {
+    return lv.label || (lv.touches ? lv.touches + "x touched" : "");
+  }
+
   function renderSrResult(data) {
     const resultEl = document.getElementById("sr-result");
     const support = Array.isArray(data.support) ? data.support : [];
@@ -298,7 +305,7 @@
       resultEl.innerHTML = `<div class="sr-status">No clear levels came back for this symbol.</div>`;
       return;
     }
-    const levelRow = (lv) => `<div class="lvl-row"><span>$${Number(lv.price).toFixed(2)}</span><span class="note">${escapeHtml(lv.label || (lv.touches ? lv.touches + "x touched" : ""))}</span></div>`;
+    const levelRow = (lv) => `<div class="lvl-row"><span>$${Number(lv.price).toFixed(2)}</span><span class="note">${escapeHtml(srLevelNote(lv))}</span></div>`;
     resultEl.innerHTML = `
       ${data.summary ? `<div class="sr-summary">${escapeHtml(data.summary)}</div>` : ""}
       <div class="sr-levels">
@@ -324,15 +331,19 @@
     const support = Array.isArray(data.support) ? data.support : [];
     const resistance = Array.isArray(data.resistance) ? data.resistance : [];
     resistance.forEach((lv) => {
+      const note = srLevelNote(lv);
       srCandleSeries.createPriceLine({
         price: Number(lv.price), color: "#f2555a", lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true, title: "resistance",
+        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true,
+        title: note ? `resistance (${note})` : "resistance",
       });
     });
     support.forEach((lv) => {
+      const note = srLevelNote(lv);
       srCandleSeries.createPriceLine({
         price: Number(lv.price), color: "#2fd08a", lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true, title: "support",
+        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true,
+        title: note ? `support (${note})` : "support",
       });
     });
   }

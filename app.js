@@ -71,6 +71,12 @@
     document.getElementById("report-most-profitable").innerHTML = '<div class="empty-state small">No data yet.</div>';
     document.getElementById("report-sector").innerHTML = '<div class="empty-state small">No data yet.</div>';
     document.getElementById("report-country").innerHTML = '<div class="empty-state small">No data yet.</div>';
+    document.getElementById("detailed-stat-grid").innerHTML = "";
+    [
+      "detail-dow", "detail-hour", "detail-price", "detail-size", "detail-symbol", "detail-side",
+      "detail-setup", "detail-lessons", "detail-distribution", "detail-expectancy",
+      "detail-rvol", "detail-avgvol", "detail-float",
+    ].forEach((id) => (document.getElementById(id).innerHTML = '<div class="empty-state small">No data yet.</div>'));
   }
 
   function escapeHtml(s) {
@@ -111,6 +117,14 @@
   });
   document.getElementById("mobile-nav-btn").addEventListener("click", () => {
     document.getElementById("sidebar").classList.toggle("mobile-open");
+  });
+
+  // Reports → Detailed stats sub-tabs (separate from the main sidebar tabs)
+  document.querySelectorAll(".subtab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".subtab-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      document.querySelectorAll(".subtab-panel").forEach((p) => p.classList.toggle("active", p.id === "subtab-" + btn.dataset.subtab));
+    });
   });
 
   // ================================================================
@@ -502,6 +516,8 @@
   // REPORTS
   // ================================================================
   function renderReports() {
+    renderDetailedStats();
+    renderDetailSubtabs();
     renderStreaks();
     renderHighlights();
     renderSymbolBreakdown();
@@ -783,5 +799,333 @@
   function renderSectorCountryBreakdown() {
     renderBreakdownTable("report-sector", groupByField("sector"), "Sector");
     renderBreakdownTable("report-country", groupByField("country"), "Country");
+  }
+
+  // ================================================================
+  // REPORTS — Detailed stats grid (Tradervue-style "Reports > Detailed")
+  // ================================================================
+  // Small stats helpers shared by the grid below.
+  function stdev(arr) {
+    if (arr.length < 2) return 0;
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    const variance = arr.reduce((s, v) => s + (v - mean) ** 2, 0) / (arr.length - 1);
+    return Math.sqrt(variance);
+  }
+  // Abramowitz-Stegun erf approximation, used only to turn a t-stat into
+  // an approximate two-tailed p-value (normal approximation — fine for the
+  // ballpark "how likely is this by chance" figure, not a rigorous test).
+  function erf(x) {
+    const sign = x < 0 ? -1 : 1;
+    x = Math.abs(x);
+    const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741, a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+    const t = 1 / (1 + p * x);
+    const y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+    return sign * y;
+  }
+  function normalCdf(z) { return 0.5 * (1 + erf(z / Math.SQRT2)); }
+
+  function fmtDuration(mins) {
+    if (mins == null || isNaN(mins)) return "—";
+    const total = Math.round(mins);
+    const h = Math.floor(total / 60), m = total % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
+
+  // Regression slope / standard-error-of-slope of the equity curve against
+  // trade index — a rough, un-annualized "consistency of the equity curve"
+  // figure in the same spirit as a K-Ratio, computed straight off
+  // equity_after (nothing else in the schema tracks daily equity).
+  function computeKRatio() {
+    const y = trades.map((t) => t.equity_after);
+    const n = y.length;
+    if (n < 3) return null;
+    const xMean = (n - 1) / 2;
+    const yMean = y.reduce((s, v) => s + v, 0) / n;
+    let sxy = 0, sxx = 0;
+    for (let i = 0; i < n; i++) { sxy += (i - xMean) * (y[i] - yMean); sxx += (i - xMean) ** 2; }
+    if (sxx === 0) return null;
+    const slope = sxy / sxx;
+    let ssRes = 0;
+    for (let i = 0; i < n; i++) { const pred = yMean + slope * (i - xMean); ssRes += (y[i] - pred) ** 2; }
+    const df = n - 2;
+    if (df <= 0) return null;
+    const se = Math.sqrt(ssRes / df);
+    const seSlope = se / Math.sqrt(sxx);
+    return seSlope === 0 ? null : slope / seSlope;
+  }
+
+  function computeDetailedStats() {
+    const s = computeStats();
+    const n = trades.length;
+    const pnls = trades.map((t) => t.pnl_after_comm);
+    const largestGain = Math.max(...pnls);
+    const largestLoss = Math.min(...pnls);
+    const avgDailyGainLoss = s.dayCount ? s.netPnl / s.dayCount : 0;
+    const avgTradeGainLoss = n ? s.netPnl / n : 0;
+
+    const perShare = trades.filter((t) => t.shares).map((t) => t.pnl_after_comm / t.shares);
+    const avgPerShare = perShare.length ? perShare.reduce((a, b) => a + b, 0) / perShare.length : null;
+
+    const scratch = trades.filter((t) => t.pnl_after_comm === 0);
+    const avgOf = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
+    const holdWinAvg = avgOf(s.wins.map(durationMinutes).filter((v) => v != null));
+    const holdLossAvg = avgOf(s.losses.map(durationMinutes).filter((v) => v != null));
+    const holdScratchAvg = avgOf(scratch.map(durationMinutes).filter((v) => v != null));
+
+    let bestWin = 0, bestLoss = 0, curWin = 0, curLoss = 0;
+    trades.forEach((t) => {
+      if (t.win) { curWin++; curLoss = 0; bestWin = Math.max(bestWin, curWin); }
+      else { curLoss++; curWin = 0; bestLoss = Math.max(bestLoss, curLoss); }
+    });
+
+    const sd = stdev(pnls);
+    const mean = n ? pnls.reduce((a, b) => a + b, 0) / n : 0;
+    const sqn = n && sd ? Math.sqrt(n) * (mean / sd) : null;
+    const tstat = n && sd ? mean / (sd / Math.sqrt(n)) : null;
+    const pRandom = tstat != null ? 2 * (1 - normalCdf(Math.abs(tstat))) : null;
+
+    const R = s.avgLoss !== 0 ? s.avgWin / Math.abs(s.avgLoss) : null;
+    const winFrac = n ? s.wins.length / n : 0;
+    const kelly = R ? (winFrac - (1 - winFrac) / R) * 100 : null;
+
+    const kr = computeKRatio();
+
+    return {
+      ...s, n, largestGain, largestLoss, avgDailyGainLoss, avgTradeGainLoss, avgPerShare,
+      scratchCount: scratch.length, holdWinAvg, holdLossAvg, holdScratchAvg,
+      bestWin, bestLoss, sd, sqn, pRandom, kelly, kr,
+    };
+  }
+
+  function moneyCell(v) {
+    return `<span class="v mono ${v >= 0 ? "up" : "down"}">${fmtMoney(v)}</span>`;
+  }
+  function naCell(title) {
+    return `<span class="v na" title="${escapeHtml(title)}">—</span>`;
+  }
+
+  function renderDetailedStats() {
+    const d = computeDetailedStats();
+    const winPct = d.n ? (d.wins.length / d.n) * 100 : 0;
+    const lossPct = d.n ? (d.losses.length / d.n) * 100 : 0;
+
+    const rows = [
+      ["Total Gain/Loss", moneyCell(d.netPnl)],
+      ["Largest Gain", moneyCell(d.largestGain)],
+      ["Largest Loss", moneyCell(d.largestLoss)],
+      ["Average Daily Gain/Loss", moneyCell(d.avgDailyGainLoss)],
+      ["Average Daily Volume", naCell("Needs each symbol's daily market volume flattened onto data/trades.json — not in the schema yet.")],
+      ["Average Per-share Gain/Loss", d.avgPerShare != null ? moneyCell(d.avgPerShare) : naCell("No trades with a share count.")],
+      ["Average Trade Gain/Loss", moneyCell(d.avgTradeGainLoss)],
+      ["Average Winning Trade", moneyCell(d.avgWin)],
+      ["Average Losing Trade", moneyCell(d.avgLoss)],
+      ["Total Number of Trades", `<span class="v">${d.n}</span>`],
+      ["Number of Winning Trades", `<span class="v up">${d.wins.length} (${winPct.toFixed(1)}%)</span>`],
+      ["Number of Losing Trades", `<span class="v down">${d.losses.length} (${lossPct.toFixed(1)}%)</span>`],
+      ["Average Hold Time (scratch trades)", `<span class="v mono">${fmtDuration(d.holdScratchAvg)}</span>`],
+      ["Average Hold Time (winning trades)", `<span class="v mono">${fmtDuration(d.holdWinAvg)}</span>`],
+      ["Average Hold Time (losing trades)", `<span class="v mono">${fmtDuration(d.holdLossAvg)}</span>`],
+      ["Number of Scratch Trades", `<span class="v">${d.scratchCount}</span>`],
+      ["Max Consecutive Wins", `<span class="v up">${d.bestWin}</span>`],
+      ["Max Consecutive Losses", `<span class="v down">${d.bestLoss}</span>`],
+      ["Trade P&amp;L Standard Deviation", `<span class="v mono">$${d.sd.toFixed(2)}</span>`],
+      ["System Quality Number (SQN)", d.sqn != null ? `<span class="v mono" title="PnL-based SQN, not R-multiple-based.">${d.sqn.toFixed(2)}</span>` : naCell("Not enough trades yet.")],
+      ["Probability of Random Chance", d.pRandom != null ? `<span class="v mono" title="Approximate — normal-approximation two-tailed p-value.">${(d.pRandom * 100).toFixed(1)}%</span>` : naCell("Not enough trades yet.")],
+      ["Kelly Percentage", d.kelly != null ? `<span class="v mono">${d.kelly.toFixed(1)}%</span>` : naCell("Needs both wins and losses to compute.")],
+      ["K-Ratio", d.kr != null ? `<span class="v mono" title="Trade-level, un-annualized.">${d.kr.toFixed(2)}</span>` : naCell("Not enough trades yet.")],
+      ["Profit Factor", `<span class="v mono">${d.profitFactor === Infinity ? "∞" : d.profitFactor.toFixed(2)}</span>`],
+      ["Total Commissions", `<span class="v mono">$${d.totalComm.toFixed(2)}</span>`],
+      ["Total Fees", naCell("Only commission is tracked in the current schema — no separate fees field.")],
+      ["Average Position MAE", naCell("Needs intrabar adverse-excursion tracking not in the current schema.")],
+      ["Average Position MFE", naCell("Needs intrabar favorable-excursion tracking not in the current schema.")],
+    ];
+
+    document.getElementById("detailed-stat-grid").innerHTML = rows
+      .map(([k, v]) => `<div class="stat-line"><span class="k">${k}</span>${v}</div>`)
+      .join("");
+  }
+
+  // ---------------------------------------------------------------
+  // Shared bucket → report-table renderer for the sub-tabs below.
+  // Takes [{label, trades:[...]}] and renders the same money/win%
+  // table style as the existing symbol/day-of-week reports.
+  // ---------------------------------------------------------------
+  function bucketBreakdownTableHtml(buckets, labelHeader) {
+    const present = buckets.filter((b) => b.trades.length);
+    if (!present.length) return `<div class="empty-state small">No data yet.</div>`;
+    const maxAbs = Math.max(1, ...present.map((b) => Math.abs(b.trades.reduce((s, t) => s + t.pnl_after_comm, 0))));
+    const rows = present.map((b) => {
+      const net = b.trades.reduce((s, t) => s + t.pnl_after_comm, 0);
+      const winRate = (b.trades.filter((t) => t.win).length / b.trades.length) * 100;
+      const pct = (Math.abs(net) / maxAbs) * 100;
+      const color = net >= 0 ? "var(--green)" : "var(--red)";
+      return `<tr>
+        <td style="font-weight:600;">${escapeHtml(b.label)}</td>
+        <td class="mono dim">${b.trades.length}</td>
+        <td class="mono">${winRate.toFixed(0)}%</td>
+        <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</span></td>
+      </tr>`;
+    }).join("");
+    return `<table class="report-table"><thead><tr><th>${escapeHtml(labelHeader)}</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function renderDetailSubtabs() {
+    renderDetailDow();
+    renderDetailHour();
+    renderDetailPrice();
+    renderDetailSize();
+    renderDetailSymbolTable();
+    renderDetailSide();
+    renderDetailSetup();
+    renderDetailLessons();
+    renderDetailDistribution();
+    renderDetailExpectancy();
+    renderBreakdownTable("detail-rvol", groupByField("rvol_tag"), "Relative volume");
+    renderBreakdownTable("detail-avgvol", groupByField("avg_volume_tag"), "Avg volume");
+    renderBreakdownTable("detail-float", groupByField("float_tag"), "Float");
+  }
+
+  // ---- Days/Times ----
+  function renderDetailDow() {
+    const byDow = new Map();
+    trades.forEach((t) => {
+      const dow = new Date(t.trade_date + "T12:00:00").getDay();
+      if (!byDow.has(dow)) byDow.set(dow, { label: DOW[dow], trades: [] });
+      byDow.get(dow).trades.push(t);
+    });
+    const order = [1, 2, 3, 4, 5, 0, 6];
+    const buckets = order.filter((d) => byDow.has(d)).map((d) => byDow.get(d));
+    document.getElementById("detail-dow").innerHTML = bucketBreakdownTableHtml(buckets, "Day");
+  }
+
+  function renderDetailHour() {
+    const map = new Map();
+    trades.forEach((t) => {
+      const label = t.entry_time.slice(0, 2) + ":00";
+      if (!map.has(label)) map.set(label, { label, trades: [] });
+      map.get(label).trades.push(t);
+    });
+    const buckets = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+    document.getElementById("detail-hour").innerHTML = bucketBreakdownTableHtml(buckets, "Hour");
+  }
+
+  // ---- Price/Volume ----
+  const PRICE_BUCKETS = [
+    { label: "< $5", max: 5 }, { label: "$5–20", max: 20 }, { label: "$20–50", max: 50 },
+    { label: "$50–100", max: 100 }, { label: "$100–200", max: 200 }, { label: "> $200", max: Infinity },
+  ];
+  function renderDetailPrice() {
+    const buckets = PRICE_BUCKETS.map((b) => ({ ...b, trades: [] }));
+    trades.forEach((t) => {
+      const bucket = buckets.find((b) => t.entry_price <= b.max);
+      (bucket || buckets[buckets.length - 1]).trades.push(t);
+    });
+    document.getElementById("detail-price").innerHTML = bucketBreakdownTableHtml(buckets, "Entry price");
+  }
+
+  const SIZE_BUCKETS = [
+    { label: "< 100 sh", max: 100 }, { label: "100–300 sh", max: 300 }, { label: "300–1,000 sh", max: 1000 },
+    { label: "1,000–5,000 sh", max: 5000 }, { label: "> 5,000 sh", max: Infinity },
+  ];
+  function renderDetailSize() {
+    const buckets = SIZE_BUCKETS.map((b) => ({ ...b, trades: [] }));
+    trades.forEach((t) => {
+      const bucket = buckets.find((b) => t.shares <= b.max);
+      (bucket || buckets[buckets.length - 1]).trades.push(t);
+    });
+    document.getElementById("detail-size").innerHTML = bucketBreakdownTableHtml(buckets, "Position size");
+  }
+
+  // ---- Instrument ----
+  function renderDetailSymbolTable() {
+    const map = symbolAgg();
+    const buckets = Array.from(map.entries())
+      .map(([sym, e]) => ({ label: sym, trades: e.trades }))
+      .sort((a, b) => b.trades.length - a.trades.length)
+      .slice(0, 10);
+    document.getElementById("detail-symbol").innerHTML = bucketBreakdownTableHtml(buckets, "Symbol");
+  }
+
+  function renderDetailSide() {
+    const map = new Map();
+    trades.forEach((t) => {
+      const side = t.side || "unknown";
+      if (!map.has(side)) map.set(side, { label: side, trades: [] });
+      map.get(side).trades.push(t);
+    });
+    document.getElementById("detail-side").innerHTML = bucketBreakdownTableHtml(Array.from(map.values()), "Side");
+  }
+
+  // ---- Market Behavior ----
+  function renderDetailSetup() {
+    const map = new Map();
+    trades.forEach((t) => {
+      if (!t.setup_type) return;
+      if (!map.has(t.setup_type)) map.set(t.setup_type, { label: t.setup_type, trades: [] });
+      map.get(t.setup_type).trades.push(t);
+    });
+    const buckets = Array.from(map.values()).sort((a, b) => b.trades.length - a.trades.length);
+    document.getElementById("detail-setup").innerHTML = bucketBreakdownTableHtml(buckets, "Setup");
+  }
+
+  function renderDetailLessons() {
+    const counts = new Map();
+    trades.forEach((t) => (t.lesson_tags || []).forEach((tag) => counts.set(tag, (counts.get(tag) || 0) + 1)));
+    const entries = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const el = document.getElementById("detail-lessons");
+    if (!entries.length) { el.innerHTML = `<div class="empty-state small">No lesson tags logged yet.</div>`; return; }
+    const maxCount = Math.max(...entries.map(([, c]) => c));
+    el.innerHTML = entries.map(([tag, c]) => `
+      <div class="bar-row">
+        <div class="bar-label">${escapeHtml(tag.replace(/_/g, " "))}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${((c / maxCount) * 100).toFixed(0)}%;"></div></div>
+        <div class="bar-count">${c}x</div>
+      </div>`).join("");
+  }
+
+  // ---- Win/Loss/Expectation ----
+  const PNL_BUCKETS = [
+    { label: "< -$500", neg: true, test: (v) => v < -500 },
+    { label: "-$500 to -$200", neg: true, test: (v) => v >= -500 && v < -200 },
+    { label: "-$200 to -$50", neg: true, test: (v) => v >= -200 && v < -50 },
+    { label: "-$50 to $0", neg: true, test: (v) => v >= -50 && v < 0 },
+    { label: "$0 to $50", neg: false, test: (v) => v >= 0 && v < 50 },
+    { label: "$50 to $200", neg: false, test: (v) => v >= 50 && v < 200 },
+    { label: "$200 to $500", neg: false, test: (v) => v >= 200 && v < 500 },
+    { label: "> $500", neg: false, test: (v) => v >= 500 },
+  ];
+  function renderDetailDistribution() {
+    const buckets = PNL_BUCKETS.map((b) => ({ ...b, count: 0 }));
+    trades.forEach((t) => {
+      const b = buckets.find((b) => b.test(t.pnl_after_comm));
+      if (b) b.count++;
+    });
+    const present = buckets.filter((b) => b.count);
+    const el = document.getElementById("detail-distribution");
+    if (!present.length) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
+    const maxCount = Math.max(...present.map((b) => b.count));
+    el.innerHTML = present.map((b) => `
+      <div class="bar-row">
+        <div class="bar-label" style="width:130px;">${b.label}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${((b.count / maxCount) * 100).toFixed(0)}%;background:${b.neg ? "var(--red)" : "var(--green)"};"></div></div>
+        <div class="bar-count">${b.count}x</div>
+      </div>`).join("");
+  }
+
+  function renderDetailExpectancy() {
+    const d = computeDetailedStats();
+    const el = document.getElementById("detail-expectancy");
+    if (!d.n) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
+    const winRateFrac = d.wins.length / d.n;
+    const lossRateFrac = d.losses.length / d.n;
+    const expectancy = winRateFrac * d.avgWin + lossRateFrac * d.avgLoss;
+    const ratio = d.avgLoss !== 0 ? d.avgWin / Math.abs(d.avgLoss) : null;
+    const rows = [
+      ["Win rate", (winRateFrac * 100).toFixed(1) + "%"],
+      ["Avg win / avg loss ratio", ratio != null ? ratio.toFixed(2) : "—"],
+      ["Expectancy per trade", fmtMoney(expectancy)],
+      ["Kelly percentage", d.kelly != null ? d.kelly.toFixed(1) + "%" : "—"],
+    ];
+    el.innerHTML = `<div class="kv-list">${rows.map(([k, v]) => `<div class="kv-row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join("")}</div>`;
   }
 })();
