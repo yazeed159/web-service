@@ -72,6 +72,16 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
         <span class="nav-label">Playbooks</span>
       </a>
+
+      <a class="nav-item" href="calculator.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="12" x2="8.01" y2="12"></line><line x1="12" y1="12" x2="12.01" y2="12"></line><line x1="16" y1="12" x2="16.01" y2="12"></line><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg>
+        <span class="nav-label">Calculator</span>
+      </a>
+
+      <a class="nav-item active" href="backtesting.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.5 15a9 9 0 1 0 2-9.5L1 10"></path></svg>
+        <span class="nav-label">Backtesting</span>
+      </a>
     </nav>
 
     <div class="sidebar-bottom">
@@ -118,6 +128,17 @@
           <label>To</label>
           <input type="date" class="filter-input" id="bt-to">
         </div>
+        <div class="filter-field">
+          <label>Day of week</label>
+          <select class="filter-input" id="bt-dow">
+            <option value="">All</option>
+            <option value="1">Monday</option>
+            <option value="2">Tuesday</option>
+            <option value="3">Wednesday</option>
+            <option value="4">Thursday</option>
+            <option value="5">Friday</option>
+          </select>
+        </div>
         <button class="btn-advanced" id="bt-run">Run backtest</button>
       </div>
 
@@ -130,6 +151,9 @@
 
       <div class="section-label">Matching trades</div>
       <div id="bt-trade-list" class="checklist-box"></div>
+
+      <div class="section-label">Compare all setups</div>
+      <div id="bt-setup-compare"></div>
     </div>
 
     <div class="footer">trade.log — backtests run against data/trades.json</div>
@@ -176,6 +200,7 @@
     const side = document.getElementById("bt-side").value;
     const from = document.getElementById("bt-from").value;
     const to = document.getElementById("bt-to").value;
+    const dow = document.getElementById("bt-dow").value;
 
     return rows.filter((r) => {
       if (setup && r.setup_type !== setup) return false;
@@ -183,6 +208,10 @@
       if (side && (r.side || "").toLowerCase() !== side) return false;
       if (from && r.trade_date < from) return false;
       if (to && r.trade_date > to) return false;
+      if (dow) {
+        const d = new Date(r.trade_date + "T00:00:00");
+        if (String(d.getDay()) !== dow) return false;
+      }
       return true;
     });
   }
@@ -194,6 +223,35 @@
     renderResults(filtered);
     renderEquity(filtered);
     renderTradeList(filtered);
+    renderSetupCompare(allTrades);
+  }
+
+  function computeR(r) {
+    if (typeof r.entry_price !== "number" || typeof r.stop_price !== "number" || typeof r.exit_price !== "number") return null;
+    const riskPerShare = Math.abs(r.entry_price - r.stop_price);
+    if (!riskPerShare) return null;
+    const dir = (r.side || "").toLowerCase() === "short" ? -1 : 1;
+    return ((r.exit_price - r.entry_price) * dir) / riskPerShare;
+  }
+
+  function maxDrawdown(rows) {
+    let running = 0, peak = 0, maxDd = 0;
+    for (const r of rows) {
+      running += r.pnl_after_comm || 0;
+      peak = Math.max(peak, running);
+      maxDd = Math.min(maxDd, running - peak);
+    }
+    return maxDd;
+  }
+
+  function streaks(rows) {
+    let curWin = 0, curLoss = 0, maxWin = 0, maxLoss = 0;
+    for (const r of rows) {
+      if (r.win) { curWin++; curLoss = 0; } else { curLoss++; curWin = 0; }
+      maxWin = Math.max(maxWin, curWin);
+      maxLoss = Math.max(maxLoss, curLoss);
+    }
+    return { maxWin, maxLoss };
   }
 
   function renderResults(rows) {
@@ -214,11 +272,44 @@
     const profitFactor = grossLoss > 0 ? grossWin / grossLoss : (grossWin > 0 ? Infinity : 0);
     const fmt = (n) => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
 
+    const rVals = rows.map(computeR).filter((v) => v !== null);
+    const avgR = rVals.length ? rVals.reduce((s, v) => s + v, 0) / rVals.length : null;
+    const dd = maxDrawdown(rows);
+    const { maxWin, maxLoss } = streaks(rows);
+    const best = rows.reduce((a, b) => (pnl(b) > pnl(a) ? b : a));
+    const worst = rows.reduce((a, b) => (pnl(b) < pnl(a) ? b : a));
+
     box.innerHTML = `
       <div class="checklist-box">
         <label>${rows.length} matching trades · Win rate: <strong style="color:${winRate >= 50 ? "#2ecc71" : "#e74c3c"}">${winRate.toFixed(1)}%</strong></label>
         <label>Net P&amp;L: <strong style="color:${netPnl >= 0 ? "#2ecc71" : "#e74c3c"}">${fmt(netPnl)}</strong> · Profit factor: <strong>${profitFactor === Infinity ? "∞" : profitFactor.toFixed(2)}</strong></label>
-        <label>Avg win: <strong style="color:#2ecc71">${fmt(avgWin)}</strong> · Avg loss: <strong style="color:#e74c3c">-${fmt(avgLoss)}</strong></label>
+        <label>Avg win: <strong style="color:#2ecc71">${fmt(avgWin)}</strong> · Avg loss: <strong style="color:#e74c3c">-${fmt(avgLoss)}</strong>${avgR !== null ? ` · Avg R: <strong>${avgR.toFixed(2)}R</strong>` : ""}</label>
+        <label>Max drawdown: <strong style="color:#e74c3c">${fmt(dd)}</strong> · Longest win streak: <strong>${maxWin}</strong> · Longest loss streak: <strong>${maxLoss}</strong></label>
+        <label>Best trade: <strong style="color:#2ecc71">${escapeHtml(best.symbol || "?")} ${fmt(pnl(best))}</strong> · Worst trade: <strong style="color:#e74c3c">${escapeHtml(worst.symbol || "?")} ${fmt(pnl(worst))}</strong></label>
+      </div>
+    `;
+  }
+
+  function renderSetupCompare(rows) {
+    const el = document.getElementById("bt-setup-compare");
+    const groups = {};
+    for (const r of rows) {
+      const key = r.setup_type || "other";
+      (groups[key] = groups[key] || []).push(r);
+    }
+    const entries = Object.entries(groups);
+    if (!entries.length) { el.innerHTML = `<div class="empty-state">No trades yet.</div>`; return; }
+    const pnl = (r) => (typeof r.pnl_after_comm === "number" ? r.pnl_after_comm : 0);
+    const fmt = (n) => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+    el.innerHTML = `
+      <div class="watch-table">
+        <div class="watch-row watch-head"><span>Setup</span><span>Trades</span><span>Win rate</span><span>Net P&amp;L</span></div>
+        ${entries.map(([setup, trs]) => {
+          const wins = trs.filter((r) => r.win).length;
+          const wr = (wins / trs.length) * 100;
+          const net = trs.reduce((s, r) => s + pnl(r), 0);
+          return `<div class="watch-row"><span>${escapeHtml(setup)}</span><span>${trs.length}</span><span class="${wr >= 50 ? "pos" : "neg"}">${wr.toFixed(1)}%</span><span class="${net >= 0 ? "pos" : "neg"}">${fmt(net)}</span></div>`;
+        }).join("")}
       </div>
     `;
   }
