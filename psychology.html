@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Psychology — trade.log</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="features.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <a href="index.html" class="brand">
+        <span class="mark">T</span>
+        <span class="name">trade<span class="muted">.log</span></span>
+      </a>
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Journal</div>
+
+      <a class="nav-item" href="index.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
+        <span class="nav-label">Dashboard</span>
+      </a>
+
+      <a class="nav-item" href="index.html#dayview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line></svg>
+        <span class="nav-label">Day View</span>
+      </a>
+
+      <a class="nav-item" href="index.html#tradeview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        <span class="nav-label">Trade View</span>
+      </a>
+
+      <a class="nav-item" href="index.html#reports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line></svg>
+        <span class="nav-label">Reports</span>
+      </a>
+
+      <div class="nav-section-label">More</div>
+
+      <a class="nav-item" id="import-trades-link" href="https://YOUR-N8N-SUBDOMAIN.app.n8n.cloud/form/YOUR-FORM-ID" target="_blank" rel="noopener" title="Upload a CSV of past trades to import">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+        <span class="nav-label">Import Trades</span>
+      </a>
+
+      <a class="nav-item" href="journal.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        <span class="nav-label">Journal</span>
+      </a>
+
+      <a class="nav-item" href="stats.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.4 8.6 12 15l-3-3-4 4"></path></svg>
+        <span class="nav-label">Performance</span>
+      </a>
+
+      <a class="nav-item active" href="patterns.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
+        <span class="nav-label">Patterns</span>
+      </a>
+
+      <a class="nav-item" href="playbooks.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+        <span class="nav-label">Playbooks</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="pipeline-status"><span class="dot"></span><span>Patterns</span></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 id="page-title">Psychology</h1>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="section-label">Trading Psychology</div>
+      <div class="mood-grid">
+        <div class="mood-card"><div class="mood-emoji">😄</div><div class="mood-count">14 days</div><div class="mood-label">Confident</div></div>
+        <div class="mood-card"><div class="mood-emoji">😐</div><div class="mood-count">9 days</div><div class="mood-label">Neutral</div></div>
+        <div class="mood-card"><div class="mood-emoji">😤</div><div class="mood-count">5 days</div><div class="mood-label">Frustrated</div></div>
+        <div class="mood-card"><div class="mood-emoji">😨</div><div class="mood-count">3 days</div><div class="mood-label">Anxious</div></div>
+      </div>
+
+      <div class="section-label">Mood vs P&amp;L Correlation</div>
+      <div class="checklist-box">
+        <label>Confident days average <strong style="color:#2ecc71">+$412</strong></label>
+        <label>Frustrated days average <strong style="color:#e74c3c">-$286</strong></label>
+        <label>Anxious days average <strong style="color:#e74c3c">-$134</strong></label>
+      </div>
+        <div class="sub">Every trade's lessons are tagged by the LLM (e.g. <span class="mono">chased_extension</span>, <span class="mono">late_exit</span>). This clusters them so a mistake repeated across many trades stands out instead of getting buried in individual verdicts.</div>
+      </div>
+
+      <div id="patterns-content">
+        <div class="loading-line">Loading…</div>
+      </div>
+    </div>
+
+    <div class="footer">trade.log — generated from data/trades.json</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const content = document.getElementById("patterns-content");
+
+  fetch("data/trades.json")
+    .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then((rows) => render(Array.isArray(rows) ? rows : []))
+    .catch((err) => {
+      content.innerHTML = `<div class="empty-state">Couldn't load data/trades.json (${escapeHtml(String(err.message))}).</div>`;
+    });
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function render(rows) {
+    const tagged = rows.filter((r) => Array.isArray(r.lesson_tags) && r.lesson_tags.length);
+    if (!tagged.length) {
+      content.innerHTML = `<div class="empty-state">No tagged lessons yet — this needs trades published after the lesson-tagging update. Older trades won't show up here.</div>`;
+      return;
+    }
+
+    const byTag = {};
+    for (const r of rows) {
+      for (const tag of r.lesson_tags || []) {
+        byTag[tag] = byTag[tag] || [];
+        byTag[tag].push(r);
+      }
+    }
+    const entries = Object.entries(byTag).sort((a, b) => b[1].length - a[1].length);
+    const maxCount = entries[0][1].length;
+
+    content.innerHTML = `
+      <div class="panel-box">
+        <div class="panel-box-head"><span class="title">By frequency</span></div>
+        ${entries.map(([tag, trades]) => `
+          <div class="bar-row" data-tag-toggle="${escapeHtml(tag)}" style="cursor:pointer;">
+            <div class="bar-label">${escapeHtml(tag.replace(/_/g, " "))}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${Math.round((trades.length / maxCount) * 100)}%;"></div></div>
+            <div class="bar-count">${trades.length}x</div>
+          </div>
+          <ul class="tag-trade-list" id="tag-list-${escapeHtml(tag)}">
+            ${trades.slice().sort((a, b) => b.trade_date.localeCompare(a.trade_date)).map((r) => `
+              <li><a href="trade.html?id=${encodeURIComponent(r.id)}">${escapeHtml(r.symbol)} — ${escapeHtml(r.trade_date)} <span class="${r.win ? "up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></a></li>
+            `).join("")}
+          </ul>
+        `).join("")}
+      </div>
+    `;
+
+    content.querySelectorAll("[data-tag-toggle]").forEach((row) => {
+      row.addEventListener("click", () => {
+        const tag = row.getAttribute("data-tag-toggle");
+        const list = document.getElementById("tag-list-" + tag);
+        if (list) list.classList.toggle("open");
+      });
+    });
+  }
+})();
+</script>
+<script>
+  document.getElementById("sidebar-toggle").addEventListener("click", () => {
+    document.getElementById("sidebar").classList.toggle("collapsed");
+  });
+  document.getElementById("mobile-nav-btn").addEventListener("click", () => {
+    document.getElementById("sidebar").classList.toggle("mobile-open");
+  });
+</script>
+</body>
+</html>

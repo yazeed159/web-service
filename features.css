@@ -130,3 +130,43 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .kv-list .kv-row:last-child { border-bottom: none; }
 .kv-list .kv-row .k { color: var(--text-dim); }
 .kv-list .kv-row .v { font-family: var(--mono); font-weight: 600; }
+
+/* Notebook */
+.notebook-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:24px;}
+.notebook-card{background:#161c27;border:1px solid #2c3546;border-radius:10px;padding:14px;}
+.notebook-tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:12px;margin-bottom:8px;}
+.notebook-tag.mistake{background:rgba(231,76,60,.15);color:#e74c3c;}
+.notebook-tag.lesson{background:rgba(46,204,113,.15);color:#2ecc71;}
+.notebook-title{font-size:14px;color:#e6e9ef;margin-bottom:6px;}
+.notebook-meta{font-size:12px;color:#8a94a6;}
+.checklist-box{background:#161c27;border:1px solid #2c3546;border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px;}
+.checklist-box label{font-size:13px;color:#c7ccd6;display:flex;align-items:center;gap:8px;}
+
+/* Goals */
+.goals-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
+.goal-card{background:#161c27;border:1px solid #2c3546;border-radius:10px;padding:16px;}
+.goal-title{font-size:14px;color:#e6e9ef;margin-bottom:10px;}
+.goal-progress-bar{background:#232b3a;border-radius:6px;height:8px;overflow:hidden;margin-bottom:8px;}
+.goal-progress-fill{background:#2ecc71;height:100%;}
+.goal-meta{font-size:12px;color:#8a94a6;}
+
+/* Psychology */
+.mood-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px;margin-bottom:24px;}
+.mood-card{background:#161c27;border:1px solid #2c3546;border-radius:10px;padding:16px;text-align:center;}
+.mood-emoji{font-size:28px;margin-bottom:8px;}
+.mood-count{font-size:16px;color:#e6e9ef;font-weight:600;}
+.mood-label{font-size:12px;color:#8a94a6;margin-top:2px;}
+
+/* Calculator */
+.calc-box{background:#161c27;border:1px solid #2c3546;border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px;max-width:360px;margin-bottom:24px;}
+.calc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.calc-row label{font-size:13px;color:#8a94a6;}
+.calc-result{font-size:13px;color:#e6e9ef;border-top:1px solid #2c3546;padding-top:10px;}
+
+/* Watchlist */
+.watch-table{background:#161c27;border:1px solid #2c3546;border-radius:10px;overflow:hidden;max-width:520px;}
+.watch-row{display:grid;grid-template-columns:1fr 1fr 1fr 1.4fr;padding:10px 14px;font-size:13px;color:#c7ccd6;border-bottom:1px solid #232b3a;}
+.watch-row:last-child{border-bottom:none;}
+.watch-head{color:#8a94a6;font-size:11px;text-transform:uppercase;}
+.watch-row .pos{color:#2ecc71;}
+.watch-row .neg{color:#e74c3c;}
