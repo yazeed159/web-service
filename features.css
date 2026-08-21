@@ -136,11 +136,4 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .calc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .calc-row label{font-size:13px;color:#8a94a6;}
 .calc-result{font-size:13px;color:#e6e9ef;border-top:1px solid #2c3546;padding-top:10px;}
-
-
-/* Backtesting */
-.bt-filter-bar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:20px;}
-#bt-trade-list label{display:flex;justify-content:space-between;gap:10px;}
-#bt-trade-list a{color:#c7ccd6;text-decoration:none;}
-#bt-trade-list a:hover{color:#5b93f0;}
 .empty-state{color:#8a94a6;font-size:13px;padding:14px 0;}

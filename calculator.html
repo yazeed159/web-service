@@ -77,11 +77,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="12" x2="8.01" y2="12"></line><line x1="12" y1="12" x2="12.01" y2="12"></line><line x1="16" y1="12" x2="16.01" y2="12"></line><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg>
         <span class="nav-label">Calculator</span>
       </a>
-
-      <a class="nav-item" href="backtesting.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.5 15a9 9 0 1 0 2-9.5L1 10"></path></svg>
-        <span class="nav-label">Backtesting</span>
-      </a>
     </nav>
 
     <div class="sidebar-bottom">
@@ -102,7 +97,6 @@
     </header>
 
     <div class="content">
-      <div class="section-label">Position Size Calculator</div>
       <div class="calc-box">
         <div class="calc-row"><label>Account size</label><input type="text" class="filter-input" value="$25,000"></div>
         <div class="calc-row"><label>Risk per trade</label><input type="text" class="filter-input" value="1%"></div>
@@ -116,79 +110,12 @@
         <label>1R target = risk amount ($250)</label>
         <label>2R target = $500 · 3R target = $750</label>
       </div>
-        <div class="sub">Every trade's lessons are tagged by the LLM (e.g. <span class="mono">chased_extension</span>, <span class="mono">late_exit</span>). This clusters them so a mistake repeated across many trades stands out instead of getting buried in individual verdicts.</div>
-      </div>
-
-      <div id="patterns-content">
-        <div class="loading-line">Loading…</div>
-      </div>
     </div>
 
-    <div class="footer">trade.log — generated from data/trades.json</div>
+    <div class="footer">trade.log</div>
   </div>
 </div>
 
-<script>
-(function () {
-  "use strict";
-  const content = document.getElementById("patterns-content");
-
-  fetch("data/trades.json")
-    .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then((rows) => render(Array.isArray(rows) ? rows : []))
-    .catch((err) => {
-      content.innerHTML = `<div class="empty-state">Couldn't load data/trades.json (${escapeHtml(String(err.message))}).</div>`;
-    });
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-
-  function render(rows) {
-    const tagged = rows.filter((r) => Array.isArray(r.lesson_tags) && r.lesson_tags.length);
-    if (!tagged.length) {
-      content.innerHTML = `<div class="empty-state">No tagged lessons yet — this needs trades published after the lesson-tagging update. Older trades won't show up here.</div>`;
-      return;
-    }
-
-    const byTag = {};
-    for (const r of rows) {
-      for (const tag of r.lesson_tags || []) {
-        byTag[tag] = byTag[tag] || [];
-        byTag[tag].push(r);
-      }
-    }
-    const entries = Object.entries(byTag).sort((a, b) => b[1].length - a[1].length);
-    const maxCount = entries[0][1].length;
-
-    content.innerHTML = `
-      <div class="panel-box">
-        <div class="panel-box-head"><span class="title">By frequency</span></div>
-        ${entries.map(([tag, trades]) => `
-          <div class="bar-row" data-tag-toggle="${escapeHtml(tag)}" style="cursor:pointer;">
-            <div class="bar-label">${escapeHtml(tag.replace(/_/g, " "))}</div>
-            <div class="bar-track"><div class="bar-fill" style="width:${Math.round((trades.length / maxCount) * 100)}%;"></div></div>
-            <div class="bar-count">${trades.length}x</div>
-          </div>
-          <ul class="tag-trade-list" id="tag-list-${escapeHtml(tag)}">
-            ${trades.slice().sort((a, b) => b.trade_date.localeCompare(a.trade_date)).map((r) => `
-              <li><a href="trade.html?id=${encodeURIComponent(r.id)}">${escapeHtml(r.symbol)} — ${escapeHtml(r.trade_date)} <span class="${r.win ? "up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></a></li>
-            `).join("")}
-          </ul>
-        `).join("")}
-      </div>
-    `;
-
-    content.querySelectorAll("[data-tag-toggle]").forEach((row) => {
-      row.addEventListener("click", () => {
-        const tag = row.getAttribute("data-tag-toggle");
-        const list = document.getElementById("tag-list-" + tag);
-        if (list) list.classList.toggle("open");
-      });
-    });
-  }
-})();
-</script>
 <script>
   document.getElementById("sidebar-toggle").addEventListener("click", () => {
     document.getElementById("sidebar").classList.toggle("collapsed");
