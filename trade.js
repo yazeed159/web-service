@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  // Webhook for the optional "Support & Resistance (AI)" box below --
+  // Webhook for the optional "Support & Resistance" box below --
   // fires an n8n workflow that reads the symbol's prior daily bars and
   // returns support/resistance levels. Only ever called when the person
   // clicks the button on a trade page; never runs automatically, so it
@@ -209,7 +209,7 @@
         <div class="card sr-box" style="grid-column: 1 / -1;">
           <div class="sr-head">
             <div>
-              <h2 style="margin:0;">Support &amp; Resistance <span style="opacity:.6; text-transform:none; letter-spacing:0;">(AI)</span></h2>
+              <h2 style="margin:0;">Support &amp; Resistance</h2>
               <div class="sr-sub">Reads this symbol's prior daily bars (before this trade) and draws support/resistance lines on the chart above. Off by default — runs only when you click, so it never spends API tokens on its own.</div>
             </div>
             <button class="sr-run-btn" id="sr-run-btn">
@@ -265,7 +265,7 @@
     const originalLabel = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = "Analyzing…";
-    resultEl.innerHTML = `<div class="sr-status">Reading ${escapeHtml(trade.symbol)}'s prior daily bars and asking the LLM for levels — this calls out to n8n, so it can take a few seconds…</div>`;
+    resultEl.innerHTML = `<div class="sr-status">Reading ${escapeHtml(trade.symbol)}'s prior daily bars and computing levels — this calls out to n8n, so it can take a few seconds…</div>`;
 
     fetch(SR_ANALYSIS_URL, {
       method: "POST",
@@ -318,7 +318,7 @@
           ${support.length ? support.map(levelRow).join("") : `<div class="lvl-row"><span class="note">None found</span></div>`}
         </div>
       </div>
-      ${data.source === "computed_fallback" ? `<div class="sr-status">Showing computer-detected pivot levels (the LLM read didn't come back cleanly).</div>` : ""}
+      ${data.source === "computed_fallback" ? `<div class="sr-status">Showing computer-detected pivot levels (the level read didn't come back cleanly).</div>` : ""}
     `;
   }
 

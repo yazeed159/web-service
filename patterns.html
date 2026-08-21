@@ -98,7 +98,7 @@
 
     <div class="content">
       <div class="panel-head">
-        <div class="sub">Every trade's lessons are tagged by the LLM (e.g. <span class="mono">chased_extension</span>, <span class="mono">late_exit</span>). This clusters them so a mistake repeated across many trades stands out instead of getting buried in individual verdicts.</div>
+        <div class="sub">Every trade's lessons are tagged (e.g. <span class="mono">chased_extension</span>, <span class="mono">late_exit</span>). This clusters them so a mistake repeated across many trades stands out instead of getting buried in individual verdicts.</div>
       </div>
 
       <div id="patterns-content">
@@ -172,8 +172,20 @@
 })();
 </script>
 <script>
+  const sidebarBackdrop = document.createElement("div");
+  sidebarBackdrop.className = "sidebar-backdrop";
+  document.body.appendChild(sidebarBackdrop);
+  function closeMobileNav() { document.getElementById("sidebar").classList.remove("mobile-open"); }
+  sidebarBackdrop.addEventListener("click", closeMobileNav);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMobileNav(); });
+
   document.getElementById("sidebar-toggle").addEventListener("click", () => {
-    document.getElementById("sidebar").classList.toggle("collapsed");
+    const sidebar = document.getElementById("sidebar");
+    if (window.innerWidth <= 760 && sidebar.classList.contains("mobile-open")) {
+      closeMobileNav();
+    } else {
+      sidebar.classList.toggle("collapsed");
+    }
   });
   document.getElementById("mobile-nav-btn").addEventListener("click", () => {
     document.getElementById("sidebar").classList.toggle("mobile-open");

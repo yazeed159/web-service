@@ -77,6 +77,11 @@
       "detail-setup", "detail-lessons", "detail-distribution", "detail-expectancy",
       "detail-rvol", "detail-avgvol", "detail-float",
     ].forEach((id) => (document.getElementById(id).innerHTML = '<div class="empty-state small">No data yet.</div>'));
+    [
+      "wld-summary", "wld-top-win", "wld-top-loss", "dd-summary", "dd-periods",
+      "compare-a", "compare-b", "tagb-setup", "tagb-lessons",
+    ].forEach((id) => (document.getElementById(id).innerHTML = '<div class="empty-state small">No data yet.</div>'));
+    document.getElementById("advanced-grid").innerHTML = "";
   }
 
   function escapeHtml(s) {
@@ -112,8 +117,20 @@
     btn.addEventListener("click", () => setTab(btn.dataset.goto));
   });
 
+  const sidebarBackdrop = document.createElement("div");
+  sidebarBackdrop.className = "sidebar-backdrop";
+  document.body.appendChild(sidebarBackdrop);
+  function closeMobileNav() { document.getElementById("sidebar").classList.remove("mobile-open"); }
+  sidebarBackdrop.addEventListener("click", closeMobileNav);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMobileNav(); });
+
   document.getElementById("sidebar-toggle").addEventListener("click", () => {
-    document.getElementById("sidebar").classList.toggle("collapsed");
+    const sidebar = document.getElementById("sidebar");
+    if (window.innerWidth <= 760 && sidebar.classList.contains("mobile-open")) {
+      closeMobileNav();
+    } else {
+      sidebar.classList.toggle("collapsed");
+    }
   });
   document.getElementById("mobile-nav-btn").addEventListener("click", () => {
     document.getElementById("sidebar").classList.toggle("mobile-open");
@@ -125,6 +142,23 @@
       document.querySelectorAll(".subtab-btn").forEach((b) => b.classList.toggle("active", b === btn));
       document.querySelectorAll(".subtab-panel").forEach((p) => p.classList.toggle("active", p.id === "subtab-" + btn.dataset.subtab));
     });
+  });
+
+  // Reports → top-level tabs (Overview / Detailed / Win vs Loss Days / Drawdown / Compare / Tag Breakdown / Advanced)
+  document.querySelectorAll(".toptab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".toptab-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      document.querySelectorAll(".toptab-panel").forEach((p) => p.classList.toggle("active", p.id === "toptab-" + btn.dataset.toptab));
+    });
+  });
+
+  // Reports → Compare tab controls (not gated behind trades having loaded —
+  // periodStats() just returns an empty result until data arrives)
+  const cmpApplyBtn = document.getElementById("cmp-apply");
+  if (cmpApplyBtn) cmpApplyBtn.addEventListener("click", updateCompare);
+  ["cmp-a-start", "cmp-a-end", "cmp-b-start", "cmp-b-end"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("change", updateCompare);
   });
 
   // ================================================================
@@ -325,7 +359,7 @@
     const recent = trades.slice(-5).reverse();
     const rows = recent.map(tradeRowHtml).join("");
     const el = document.getElementById("recent-trades");
-    el.innerHTML = `<table class="trade-table"><thead><tr><th>Symbol</th><th>Date</th><th>Entry</th><th>Price</th><th>Shares</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table>`;
+    el.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Date</th><th>Entry</th><th>Price</th><th>Shares</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     bindTradeRows(el);
   }
 
@@ -388,14 +422,14 @@
             </div>
             <span class="day-pnl ${dayNet >= 0 ? "up" : "down"}">${fmtMoney(dayNet)}</span>
           </div>
-          <table class="trade-table">
+          <div class="table-scroll"><table class="trade-table">
             <thead>
               <tr>
                 <th>Symbol</th><th>Entry</th><th>Exit</th><th>Price</th><th>Shares</th><th>Comm.</th><th>Net P&amp;L</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
-          </table>
+          </table></div>
         </div>`;
       })
       .join("");
@@ -489,7 +523,7 @@
         <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
       </tr>`).join("");
     const body = document.getElementById("day-detail-body");
-    body.innerHTML = `<table class="trade-table"><thead><tr><th>Symbol</th><th>Entry</th><th>Exit</th><th>Price</th><th>Shares</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table>`;
+    body.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Entry</th><th>Exit</th><th>Price</th><th>Shares</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     bindTradeRows(body);
     panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
@@ -526,6 +560,11 @@
     renderDurationBreakdown();
     renderLeaderboards();
     renderSectorCountryBreakdown();
+    renderWinLossDays();
+    renderDrawdown();
+    renderCompare();
+    renderTagBreakdown();
+    renderAdvanced();
   }
 
   function renderStreaks() {
@@ -589,7 +628,7 @@
       </tr>`;
     }).join("");
 
-    document.getElementById("report-symbol").innerHTML = `<table class="report-table"><thead><tr><th>Symbol</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table>`;
+    document.getElementById("report-symbol").innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Symbol</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
   }
 
   function renderDowBreakdown() {
@@ -618,7 +657,7 @@
       </tr>`;
     }).join("");
 
-    document.getElementById("report-dow").innerHTML = `<table class="report-table"><thead><tr><th>Day</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table>`;
+    document.getElementById("report-dow").innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Day</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
   }
 
   // ================================================================
@@ -662,7 +701,7 @@
 
     const el = document.getElementById("report-timeofday");
     if (!rows) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
-    el.innerHTML = `<table class="report-table"><thead><tr><th>Session</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table>`;
+    el.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Session</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
   // ================================================================
@@ -793,12 +832,262 @@
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${e.net >= 0 ? "up" : "down"}">${fmtMoney(e.net)}</span></td>
       </tr>`;
     }).join("");
-    el.innerHTML = `<table class="report-table"><thead><tr><th>${colLabel}</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table>`;
+    el.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>${colLabel}</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
   }
 
   function renderSectorCountryBreakdown() {
     renderBreakdownTable("report-sector", groupByField("sector"), "Sector");
     renderBreakdownTable("report-country", groupByField("country"), "Country");
+  }
+
+  // ================================================================
+  // REPORTS — Win vs Loss Days
+  // ================================================================
+  function dailyAgg() {
+    const map = new Map();
+    trades.forEach((t) => {
+      if (!map.has(t.trade_date)) map.set(t.trade_date, { trades: [], net: 0 });
+      const e = map.get(t.trade_date);
+      e.trades.push(t);
+      e.net += t.pnl_after_comm;
+    });
+    return map;
+  }
+
+  function dayTableHtml(days) {
+    if (!days.length) return `<div class="empty-state small">No data yet.</div>`;
+    const rows = days.map((d) => `<tr>
+        <td style="font-weight:600;">${d.date}</td>
+        <td class="mono dim">${d.count}</td>
+        <td class="mono ${d.net >= 0 ? "up" : "down"}">${fmtMoney(d.net)}</td>
+      </tr>`).join("");
+    return `<div class="table-scroll"><table class="report-table"><thead><tr><th>Date</th><th>Trades</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  function renderWinLossDays() {
+    const map = dailyAgg();
+    const days = Array.from(map.entries()).map(([date, e]) => ({ date, net: e.net, count: e.trades.length }));
+    const summaryEl = document.getElementById("wld-summary");
+    if (!days.length) {
+      summaryEl.innerHTML = `<div class="empty-state small">No data yet.</div>`;
+      document.getElementById("wld-top-win").innerHTML = `<div class="empty-state small">No data yet.</div>`;
+      document.getElementById("wld-top-loss").innerHTML = `<div class="empty-state small">No data yet.</div>`;
+      return;
+    }
+    const winDays = days.filter((d) => d.net > 0);
+    const lossDays = days.filter((d) => d.net < 0);
+    const avg = (arr) => (arr.length ? arr.reduce((s, d) => s + d.net, 0) / arr.length : 0);
+
+    summaryEl.innerHTML = `
+      <div class="streak-strip" style="grid-template-columns:repeat(4,1fr);">
+        <div class="cell"><div class="label">Winning days</div><div class="value up">${winDays.length} (${((winDays.length / days.length) * 100).toFixed(0)}%)</div></div>
+        <div class="cell"><div class="label">Losing days</div><div class="value down">${lossDays.length} (${((lossDays.length / days.length) * 100).toFixed(0)}%)</div></div>
+        <div class="cell"><div class="label">Avg win day</div><div class="value up">${fmtMoney(avg(winDays))}</div></div>
+        <div class="cell"><div class="label">Avg loss day</div><div class="value down">${fmtMoney(avg(lossDays))}</div></div>
+      </div>`;
+
+    document.getElementById("wld-top-win").innerHTML = dayTableHtml(winDays.slice().sort((a, b) => b.net - a.net).slice(0, 8));
+    document.getElementById("wld-top-loss").innerHTML = dayTableHtml(lossDays.slice().sort((a, b) => a.net - b.net).slice(0, 8));
+  }
+
+  // ================================================================
+  // REPORTS — Drawdown
+  // ================================================================
+  // Walks the equity curve (equity_after, already chronological) tracking
+  // the running peak. A drawdown "period" runs from the last new high to
+  // the next new high (or to the end of the data if it hasn't recovered).
+  function computeDrawdownStats() {
+    if (!trades.length) return null;
+    let runPeak = trades[0].equity_after;
+    let runPeakTrade = trades[0];
+    let runTroughTrade = trades[0];
+    let inDD = false;
+    const periods = [];
+    let maxDD = 0, maxDDPeak = trades[0], maxDDTrough = trades[0];
+
+    trades.forEach((t) => {
+      if (t.equity_after >= runPeak) {
+        if (inDD) {
+          periods.push({ peak: runPeakTrade, trough: runTroughTrade, recover: t });
+          inDD = false;
+        }
+        runPeak = t.equity_after;
+        runPeakTrade = t;
+        runTroughTrade = t;
+      } else {
+        inDD = true;
+        if (t.equity_after < runTroughTrade.equity_after) runTroughTrade = t;
+      }
+      const dd = t.equity_after - runPeak;
+      if (dd < maxDD) { maxDD = dd; maxDDPeak = runPeakTrade; maxDDTrough = t; }
+    });
+    if (inDD) periods.push({ peak: runPeakTrade, trough: runTroughTrade, recover: null });
+
+    const last = trades[trades.length - 1];
+    const currentDD = last.equity_after - runPeak;
+    const maxDDPct = maxDDPeak.equity_after !== 0 ? (maxDD / Math.abs(maxDDPeak.equity_after)) * 100 : null;
+
+    periods.forEach((p) => (p.size = p.trough.equity_after - p.peak.equity_after));
+    periods.sort((a, b) => a.size - b.size);
+
+    return { maxDD, maxDDPct, maxDDPeak, maxDDTrough, currentDD, periods };
+  }
+
+  function renderDrawdown() {
+    const d = computeDrawdownStats();
+    const summaryEl = document.getElementById("dd-summary");
+    const periodsEl = document.getElementById("dd-periods");
+    if (!d) {
+      summaryEl.innerHTML = `<div class="empty-state small">No data yet.</div>`;
+      periodsEl.innerHTML = `<div class="empty-state small">No data yet.</div>`;
+      return;
+    }
+    summaryEl.innerHTML = `
+      <div class="streak-strip" style="grid-template-columns:repeat(3,1fr);">
+        <div class="cell"><div class="label">Max drawdown</div><div class="value down">${fmtMoney(d.maxDD)}${d.maxDDPct != null ? ` (${d.maxDDPct.toFixed(1)}%)` : ""}</div></div>
+        <div class="cell"><div class="label">Current drawdown</div><div class="value ${d.currentDD < 0 ? "down" : ""}">${d.currentDD < 0 ? fmtMoney(d.currentDD) : "At peak"}</div></div>
+        <div class="cell"><div class="label">Drawdown periods</div><div class="value">${d.periods.length}</div></div>
+      </div>`;
+
+    if (!d.periods.length) {
+      periodsEl.innerHTML = `<div class="empty-state small">No drawdown periods — equity has only made new highs.</div>`;
+      return;
+    }
+    const rows = d.periods.slice(0, 10).map((p) => `<tr>
+        <td>${p.peak.trade_date} <span class="dim" style="font-size:11px;">(${fmtMoney(p.peak.equity_after)})</span></td>
+        <td>${p.trough.trade_date} <span class="dim" style="font-size:11px;">(${fmtMoney(p.trough.equity_after)})</span></td>
+        <td class="mono down">${fmtMoney(p.size)}</td>
+        <td>${p.recover ? p.recover.trade_date : `<span class="dim">Ongoing</span>`}</td>
+      </tr>`).join("");
+    periodsEl.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Peak</th><th>Trough</th><th>Drawdown</th><th>Recovered</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  // ================================================================
+  // REPORTS — Compare periods
+  // ================================================================
+  function periodStats(startDate, endDate) {
+    if (!startDate || !endDate) return null;
+    const subset = trades.filter((t) => t.trade_date >= startDate && t.trade_date <= endDate);
+    if (!subset.length) return null;
+    const wins = subset.filter((t) => t.win);
+    const losses = subset.filter((t) => !t.win);
+    const net = subset.reduce((s, t) => s + t.pnl_after_comm, 0);
+    const winRate = (wins.length / subset.length) * 100;
+    const avgWin = wins.length ? wins.reduce((s, t) => s + t.pnl_after_comm, 0) / wins.length : 0;
+    const avgLoss = losses.length ? losses.reduce((s, t) => s + t.pnl_after_comm, 0) / losses.length : 0;
+    const grossWinSum = wins.reduce((s, t) => s + t.pnl_after_comm, 0);
+    const grossLossSum = Math.abs(losses.reduce((s, t) => s + t.pnl_after_comm, 0));
+    const profitFactor = grossLossSum > 0 ? grossWinSum / grossLossSum : (grossWinSum > 0 ? Infinity : 0);
+    return { n: subset.length, net, winRate, avgWin, avgLoss, profitFactor };
+  }
+
+  function periodStatsHtml(s) {
+    if (!s) return `<div class="empty-state small">No trades in this range.</div>`;
+    const pf = s.profitFactor === Infinity ? "∞" : s.profitFactor.toFixed(2);
+    const rows = [
+      ["Trades", s.n],
+      ["Net P&amp;L", `<span class="${s.net >= 0 ? "up" : "down"}">${fmtMoney(s.net)}</span>`],
+      ["Win rate", s.winRate.toFixed(0) + "%"],
+      ["Avg win", fmtMoney(s.avgWin)],
+      ["Avg loss", fmtMoney(s.avgLoss)],
+      ["Profit factor", pf],
+    ];
+    return `<div class="kv-list">${rows.map(([k, v]) => `<div class="kv-row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join("")}</div>`;
+  }
+
+  function updateCompare() {
+    const aEl = document.getElementById("compare-a");
+    const bEl = document.getElementById("compare-b");
+    if (!aEl || !bEl) return;
+    const aS = document.getElementById("cmp-a-start").value, aE = document.getElementById("cmp-a-end").value;
+    const bS = document.getElementById("cmp-b-start").value, bE = document.getElementById("cmp-b-end").value;
+    aEl.innerHTML = periodStatsHtml(periodStats(aS, aE));
+    bEl.innerHTML = periodStatsHtml(periodStats(bS, bE));
+  }
+
+  function renderCompare() {
+    if (!trades.length) { updateCompare(); return; }
+    const aStartEl = document.getElementById("cmp-a-start");
+    // Only seed defaults once — don't clobber a range the person already picked.
+    if (aStartEl && !aStartEl.value) {
+      const first = trades[0].trade_date, last = trades[trades.length - 1].trade_date;
+      const midDate = trades[Math.floor(trades.length / 2)].trade_date;
+      aStartEl.value = first;
+      document.getElementById("cmp-a-end").value = midDate;
+      document.getElementById("cmp-b-start").value = midDate;
+      document.getElementById("cmp-b-end").value = last;
+    }
+    updateCompare();
+  }
+
+  // ================================================================
+  // REPORTS — Tag breakdown
+  // ================================================================
+  function groupByTagArray(field) {
+    const map = new Map();
+    let any = false;
+    trades.forEach((t) => {
+      const tags = t[field];
+      if (!tags || !tags.length) return;
+      any = true;
+      tags.forEach((tag) => {
+        if (!map.has(tag)) map.set(tag, { trades: [], net: 0 });
+        const e = map.get(tag);
+        e.trades.push(t);
+        e.net += t.pnl_after_comm;
+      });
+    });
+    return any ? map : null;
+  }
+
+  function renderTagBreakdown() {
+    renderBreakdownTable("tagb-setup", groupByField("setup_type"), "Setup");
+    renderBreakdownTable("tagb-lessons", groupByTagArray("lesson_tags"), "Lesson tag");
+  }
+
+  // ================================================================
+  // REPORTS — Advanced
+  // ================================================================
+  function computeAdvancedStats() {
+    if (!trades.length) return null;
+    const s = computeStats();
+    const n = trades.length;
+    const commPctOfGross = s.grossPnl !== 0 ? (s.totalComm / Math.abs(s.grossPnl)) * 100 : null;
+    const tradesPerDay = s.dayCount ? n / s.dayCount : null;
+
+    const dayVals = Array.from(dailyAgg().values()).map((e) => e.net);
+    const dayMean = dayVals.reduce((a, b) => a + b, 0) / dayVals.length;
+    const daySd = stdev(dayVals);
+    const dailySharpe = daySd ? dayMean / daySd : null;
+
+    let curSign = 0, curStreakSum = 0, bestWinStreakSum = 0, worstLossStreakSum = 0;
+    trades.forEach((t) => {
+      const sign = t.pnl_after_comm >= 0 ? 1 : -1;
+      if (sign === curSign) curStreakSum += t.pnl_after_comm;
+      else { curSign = sign; curStreakSum = t.pnl_after_comm; }
+      if (curSign === 1) bestWinStreakSum = Math.max(bestWinStreakSum, curStreakSum);
+      else worstLossStreakSum = Math.min(worstLossStreakSum, curStreakSum);
+    });
+
+    const allHold = trades.map(durationMinutes).filter((v) => v != null);
+    const avgHoldAll = allHold.length ? allHold.reduce((a, b) => a + b, 0) / allHold.length : null;
+
+    return { commPctOfGross, tradesPerDay, dailySharpe, bestWinStreakSum, worstLossStreakSum, avgHoldAll };
+  }
+
+  function renderAdvanced() {
+    const d = computeAdvancedStats();
+    const el = document.getElementById("advanced-grid");
+    if (!d) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
+    const rows = [
+      ["Commissions as % of Gross P&amp;L", d.commPctOfGross != null ? `<span class="v mono">${d.commPctOfGross.toFixed(1)}%</span>` : naCell("No gross P&L to compare against.")],
+      ["Avg Trades per Trading Day", d.tradesPerDay != null ? `<span class="v mono">${d.tradesPerDay.toFixed(1)}</span>` : naCell("No trading days recorded.")],
+      ["Daily Sharpe (un-annualized)", d.dailySharpe != null ? `<span class="v mono" title="Mean divided by standard deviation of daily net P&amp;L — not annualized, not risk-free-rate adjusted.">${d.dailySharpe.toFixed(2)}</span>` : naCell("Not enough trading days yet.")],
+      ["Best Win Streak ($)", `<span class="v up mono">${fmtMoney(d.bestWinStreakSum)}</span>`],
+      ["Worst Loss Streak ($)", `<span class="v down mono">${fmtMoney(d.worstLossStreakSum)}</span>`],
+      ["Average Hold Time (all trades)", `<span class="v mono">${fmtDuration(d.avgHoldAll)}</span>`],
+    ];
+    el.innerHTML = rows.map(([k, v]) => `<div class="stat-line"><span class="k">${k}</span>${v}</div>`).join("");
   }
 
   // ================================================================
@@ -966,7 +1255,7 @@
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</span></td>
       </tr>`;
     }).join("");
-    return `<table class="report-table"><thead><tr><th>${escapeHtml(labelHeader)}</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table>`;
+    return `<div class="table-scroll"><table class="report-table"><thead><tr><th>${escapeHtml(labelHeader)}</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
   function renderDetailSubtabs() {

@@ -113,6 +113,14 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .stat-line .v.down { color: var(--red); }
 .stat-line .v.na { color: var(--text-faint); font-weight: 500; cursor: help; border-bottom: 1px dotted var(--text-faint); }
 
+.toptab-panel { display: none; }
+.toptab-panel.active { display: block; }
+
+.compare-controls { display: flex; align-items: flex-end; gap: 18px; flex-wrap: wrap; margin-bottom: 16px; }
+.compare-period { display: flex; align-items: center; gap: 8px; }
+.compare-period-title { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-right: 4px; }
+.compare-to { font-size: 12px; color: var(--text-faint); }
+
 .subtab-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 20px 0 16px; }
 .subtab-btn {
   padding: 7px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--panel-2);
@@ -137,3 +145,20 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .calc-row label{font-size:13px;color:#8a94a6;}
 .calc-result{font-size:13px;color:#e6e9ef;border-top:1px solid #2c3546;padding-top:10px;}
 .empty-state{color:#8a94a6;font-size:13px;padding:14px 0;}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 760px) {
+  .calc-box { max-width: none; }
+  .bar-row { flex-wrap: wrap; }
+  .bar-row .bar-label { width: 100%; }
+  .bar-row .bar-track { min-width: 0; }
+  .playbook-grid { grid-template-columns: 1fr; }
+  .filters, .reports-filter-bar { flex-direction: column; align-items: stretch; gap: 10px; }
+  .filter-field, .filters label { width: 100%; }
+  .filter-input, .filters input, .filters select { min-width: 0; width: 100%; }
+  .date-range .filter-input { min-width: 0; }
+  .compare-controls { gap: 12px; }
+  .report-toptabs { gap: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+  .toptab-btn { white-space: nowrap; }
+  .subtab-bar { gap: 6px; }
+}

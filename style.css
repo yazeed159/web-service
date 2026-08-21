@@ -169,10 +169,13 @@ button { font-family: var(--sans); }
 .icon-btn {
   width: 34px; height: 34px; border-radius: var(--radius-sm);
   background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim);
-  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  display: none; align-items: center; justify-content: center; cursor: pointer;
 }
 .icon-btn svg { width: 16px; height: 16px; }
 .icon-btn:hover { color: var(--text); border-color: var(--text-dim); }
+@media (max-width: 760px) {
+  .icon-btn { display: flex; }
+}
 
 .content { padding: 26px 28px 90px; max-width: 1320px; width: 100%; margin: 0 auto; }
 
@@ -469,14 +472,76 @@ button { font-family: var(--sans); }
 
 .loading-line { color: var(--text-faint); font-size: 13px; padding: 24px 0; }
 
+/* ---------- Horizontal scroll wrapper for wide tables ---------- */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll table { min-width: 100%; }
+
+/* ---------- Mobile nav backdrop ---------- */
+.sidebar-backdrop {
+  display: none;
+  position: fixed; inset: 0; z-index: 15;
+  background: rgba(0,0,0,0.5);
+}
+body:has(.sidebar.mobile-open) .sidebar-backdrop { display: block; }
+body:has(.sidebar.mobile-open) { overflow: hidden; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 760px) {
   .sidebar { position: fixed; left: 0; height: 100vh; transform: translateX(-100%); box-shadow: 20px 0 40px rgba(0,0,0,0.4); }
   .sidebar.mobile-open { transform: translateX(0); }
-  .content { padding: 20px 16px 70px; }
-  .topbar { padding: 0 16px; }
+  .content { padding: 18px 14px 80px; }
+  .topbar { padding: 0 14px; }
+  .icon-btn { width: 40px; height: 40px; }
   .topbar-left h1 { font-size: 15px; }
+  .date-range-pill { display: none; }
   .pnl-breakdown { grid-template-columns: repeat(2, 1fr); }
+
+  /* Tighter tables so more of each row fits before the scroll kicks in */
+  .trade-table td, .trade-table th { padding: 8px 10px; }
+  .report-table td, .report-table th { padding: 7px 6px; }
+  table.data-table th, table.data-table td { padding: 7px 8px; }
+
+  /* Trader score: stack the gauge above the breakdown instead of side-by-side */
+  .score-wrap { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .score-breakdown { width: 100%; }
+
+  /* Charts: shorter so they don't dominate a phone screen */
+  #candle-chart { height: 280px; }
+  #macd-chart { height: 80px; }
+  .equity-panel #equity-svg { height: 110px; }
+
+  /* Cut down the empty vertical space in the day calendar cells */
+  .cal-cell { min-height: 62px; padding: 6px 8px; }
+  .cal-grid { gap: 5px; }
+  .cal-toolbar { flex-wrap: wrap; gap: 10px; }
+  .cal-month-label { min-width: 0; }
+
+  /* Panels: reclaim padding on narrow screens */
+  .panel-box { padding: 16px; }
+  .card { padding: 14px 16px; }
+  .pnl-breakdown .cell, .streak-strip .cell, .cal-summary-strip .cell { padding: 12px 14px; }
+
+  .controls { gap: 8px; }
+  .search-box { max-width: none; }
+}
+
+@media (max-width: 480px) {
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .stat .value { font-size: 18px; }
+  .pnl-breakdown { grid-template-columns: 1fr 1fr; }
+  .streak-strip { grid-template-columns: 1fr; }
+  .cal-summary-strip { flex-direction: column; }
+  .highlight-pair { grid-template-columns: 1fr; }
+  .indicator-grid { grid-template-columns: 1fr; }
+  .trade-head h1 { font-size: 21px; }
+  .better-row { flex-direction: column; gap: 4px; }
+  .better-row .tag { width: auto; }
+  .rr-strip { gap: 12px 20px; }
+  .cal-grid { gap: 3px; }
+  .cal-cell { min-height: 46px; padding: 4px 5px; }
+  .cal-cell .date-num { font-size: 10px; }
+  .cal-cell .cell-pnl { font-size: 10px; margin-top: 2px; }
+  .cal-cell .cell-count { display: none; }
 }
 
 /* Reports filter bar + top tabs */

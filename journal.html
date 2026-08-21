@@ -290,7 +290,8 @@
       <p style="color:var(--text-faint); font-size:12.5px; margin:0 0 10px;">
         ${sorted.length} trade${sorted.length === 1 ? "" : "s"} · net <span class="${totalPnl >= 0 ? "up" : "down"}">${fmtMoney(totalPnl)}</span>
       </p>
-      <div class="panel-box" style="padding:0; overflow-x:auto;">
+      <div class="panel-box" style="padding:0;">
+        <div class="table-scroll">
         <table class="data-table">
           <thead><tr>
             ${cols.map(([key, label]) => `<th data-sort="${key}" class="${sortKey === key ? "sorted " + sortDir : ""}">${label}</th>`).join("")}
@@ -315,6 +316,7 @@
             `).join("")}
           </tbody>
         </table>
+        </div>
       </div>
     `;
 
@@ -330,8 +332,20 @@
 })();
 </script>
 <script>
+  const sidebarBackdrop = document.createElement("div");
+  sidebarBackdrop.className = "sidebar-backdrop";
+  document.body.appendChild(sidebarBackdrop);
+  function closeMobileNav() { document.getElementById("sidebar").classList.remove("mobile-open"); }
+  sidebarBackdrop.addEventListener("click", closeMobileNav);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMobileNav(); });
+
   document.getElementById("sidebar-toggle").addEventListener("click", () => {
-    document.getElementById("sidebar").classList.toggle("collapsed");
+    const sidebar = document.getElementById("sidebar");
+    if (window.innerWidth <= 760 && sidebar.classList.contains("mobile-open")) {
+      closeMobileNav();
+    } else {
+      sidebar.classList.toggle("collapsed");
+    }
   });
   document.getElementById("mobile-nav-btn").addEventListener("click", () => {
     document.getElementById("sidebar").classList.toggle("mobile-open");

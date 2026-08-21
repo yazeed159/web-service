@@ -98,17 +98,17 @@
 
     <div class="content">
       <div class="calc-box">
-        <div class="calc-row"><label>Account size</label><input type="text" class="filter-input" value="$25,000"></div>
-        <div class="calc-row"><label>Risk per trade</label><input type="text" class="filter-input" value="1%"></div>
-        <div class="calc-row"><label>Entry price</label><input type="text" class="filter-input" value="$54.20"></div>
-        <div class="calc-row"><label>Stop price</label><input type="text" class="filter-input" value="$53.50"></div>
-        <div class="calc-result">Max shares: <strong>357</strong> · Risk amount: <strong>$250</strong></div>
+        <div class="calc-row"><label>Account size</label><input type="text" class="filter-input" id="calc-account" value="$25,000"></div>
+        <div class="calc-row"><label>Risk per trade</label><input type="text" class="filter-input" id="calc-risk" value="1%"></div>
+        <div class="calc-row"><label>Entry price</label><input type="text" class="filter-input" id="calc-entry" value="$54.20"></div>
+        <div class="calc-row"><label>Stop price</label><input type="text" class="filter-input" id="calc-stop" value="$53.50"></div>
+        <div class="calc-result" id="calc-result">Max shares: <strong id="calc-max-shares">—</strong> · Risk amount: <strong id="calc-risk-amount">—</strong></div>
       </div>
 
       <div class="section-label">R-Multiple Reference</div>
       <div class="checklist-box">
-        <label>1R target = risk amount ($250)</label>
-        <label>2R target = $500 · 3R target = $750</label>
+        <label id="calc-r1">1R target = risk amount (—)</label>
+        <label id="calc-r23">2R target = — · 3R target = —</label>
       </div>
     </div>
 
@@ -117,12 +117,87 @@
 </div>
 
 <script>
+  const sidebarBackdrop = document.createElement("div");
+  sidebarBackdrop.className = "sidebar-backdrop";
+  document.body.appendChild(sidebarBackdrop);
+  function closeMobileNav() { document.getElementById("sidebar").classList.remove("mobile-open"); }
+  sidebarBackdrop.addEventListener("click", closeMobileNav);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMobileNav(); });
+
   document.getElementById("sidebar-toggle").addEventListener("click", () => {
-    document.getElementById("sidebar").classList.toggle("collapsed");
+    const sidebar = document.getElementById("sidebar");
+    if (window.innerWidth <= 760 && sidebar.classList.contains("mobile-open")) {
+      closeMobileNav();
+    } else {
+      sidebar.classList.toggle("collapsed");
+    }
   });
   document.getElementById("mobile-nav-btn").addEventListener("click", () => {
     document.getElementById("sidebar").classList.toggle("mobile-open");
   });
+
+  (function () {
+    "use strict";
+
+    const accountEl = document.getElementById("calc-account");
+    const riskEl = document.getElementById("calc-risk");
+    const entryEl = document.getElementById("calc-entry");
+    const stopEl = document.getElementById("calc-stop");
+    const maxSharesEl = document.getElementById("calc-max-shares");
+    const riskAmountEl = document.getElementById("calc-risk-amount");
+    const r1El = document.getElementById("calc-r1");
+    const r23El = document.getElementById("calc-r23");
+    const resultEl = document.getElementById("calc-result");
+
+    function parseNumber(str) {
+      if (!str) return NaN;
+      const cleaned = String(str).replace(/[^0-9.\-]/g, "");
+      return cleaned === "" ? NaN : parseFloat(cleaned);
+    }
+    function fmtUsd(v) {
+      return "$" + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function calculate() {
+      const account = parseNumber(accountEl.value);
+      const riskPct = parseNumber(riskEl.value);
+      const entry = parseNumber(entryEl.value);
+      const stop = parseNumber(stopEl.value);
+
+      const perShareRisk = (isFinite(entry) && isFinite(stop)) ? Math.abs(entry - stop) : NaN;
+      const riskAmount = (isFinite(account) && isFinite(riskPct)) ? account * (riskPct / 100) : NaN;
+
+      if (!isFinite(riskAmount) || riskAmount <= 0) {
+        maxSharesEl.textContent = "—";
+        riskAmountEl.textContent = "—";
+        r1El.textContent = "1R target = risk amount (—)";
+        r23El.textContent = "2R target = — · 3R target = —";
+        resultEl.classList.remove("calc-error");
+        return;
+      }
+
+      riskAmountEl.textContent = fmtUsd(riskAmount);
+
+      if (!isFinite(perShareRisk) || perShareRisk <= 0) {
+        maxSharesEl.textContent = "—";
+        r1El.textContent = `1R target = risk amount (${fmtUsd(riskAmount)})`;
+        r23El.textContent = `2R target = ${fmtUsd(riskAmount * 2)} · 3R target = ${fmtUsd(riskAmount * 3)}`;
+        return;
+      }
+
+      const maxShares = Math.floor(riskAmount / perShareRisk);
+      maxSharesEl.textContent = maxShares.toLocaleString();
+      r1El.textContent = `1R target = risk amount (${fmtUsd(riskAmount)})`;
+      r23El.textContent = `2R target = ${fmtUsd(riskAmount * 2)} · 3R target = ${fmtUsd(riskAmount * 3)}`;
+    }
+
+    [accountEl, riskEl, entryEl, stopEl].forEach((el) => {
+      el.addEventListener("input", calculate);
+      el.addEventListener("blur", calculate);
+    });
+
+    calculate();
+  })();
 </script>
 </body>
 </html>

@@ -235,6 +235,7 @@
           <button class="toptab-btn" data-toptab="advanced">Advanced</button>
         </div>
 
+        <div class="toptab-panel active" id="toptab-detailed">
         <div class="section-label">Detailed stats</div>
         <div class="stat-table-grid" id="detailed-stat-grid">
           <div class="loading-line">Loading…</div>
@@ -332,7 +333,9 @@
             </div>
           </div>
         </div>
+        </div>
 
+        <div class="toptab-panel" id="toptab-overview">
         <div class="section-label" style="margin-top:32px;">Streaks</div>
         <div class="streak-strip" id="streak-strip"></div>
 
@@ -384,6 +387,83 @@
           <div class="panel-box">
             <div class="panel-box-head"><span class="title">By country</span></div>
             <div id="report-country"><div class="loading-line">Loading…</div></div>
+          </div>
+        </div>
+        </div>
+
+        <div class="toptab-panel" id="toptab-win-loss-days">
+          <div class="section-label">Win vs loss days</div>
+          <div id="wld-summary"><div class="loading-line">Loading…</div></div>
+
+          <div class="report-grid" style="margin-top:18px;">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Top winning days</span></div>
+              <div id="wld-top-win"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Top losing days</span></div>
+              <div id="wld-top-loss"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="toptab-panel" id="toptab-drawdown">
+          <div class="section-label">Drawdown</div>
+          <div id="dd-summary"><div class="loading-line">Loading…</div></div>
+
+          <div class="section-label" style="margin-top:24px;">Drawdown periods</div>
+          <div class="panel-box">
+            <div id="dd-periods"><div class="loading-line">Loading…</div></div>
+          </div>
+        </div>
+
+        <div class="toptab-panel" id="toptab-compare">
+          <div class="section-label">Compare periods</div>
+          <div class="compare-controls" id="compare-controls">
+            <div class="compare-period">
+              <div class="compare-period-title">Period A</div>
+              <input type="date" class="filter-input" id="cmp-a-start" />
+              <span class="compare-to">to</span>
+              <input type="date" class="filter-input" id="cmp-a-end" />
+            </div>
+            <div class="compare-period">
+              <div class="compare-period-title">Period B</div>
+              <input type="date" class="filter-input" id="cmp-b-start" />
+              <span class="compare-to">to</span>
+              <input type="date" class="filter-input" id="cmp-b-end" />
+            </div>
+            <button class="btn-advanced" id="cmp-apply">Compare</button>
+          </div>
+          <div class="report-grid">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Period A</span></div>
+              <div id="compare-a"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Period B</span></div>
+              <div id="compare-b"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="toptab-panel" id="toptab-tag-breakdown">
+          <div class="section-label">Tag breakdown</div>
+          <div class="report-grid">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">By setup type</span></div>
+              <div id="tagb-setup"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">By lesson tag</span></div>
+              <div id="tagb-lessons"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="toptab-panel" id="toptab-advanced">
+          <div class="section-label">Advanced</div>
+          <div class="stat-table-grid" id="advanced-grid">
+            <div class="loading-line">Loading…</div>
           </div>
         </div>
       </section>
