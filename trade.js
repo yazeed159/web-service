@@ -7,8 +7,9 @@
   // clicks the button on a trade page; never runs automatically, so it
   // never spends API tokens on its own. Point this at your own n8n
   // instance the same way #import-trades-link in trade.html is pointed at
-  // its form URL.
-  const SR_ANALYSIS_URL = "https://yazeed103.app.n8n.cloud/webhook/support-resistance";
+  // its form URL. The actual URL lives in config.js (window.N8N_SR_URL) so
+  // it only has to be set in one place.
+  const SR_ANALYSIS_URL = window.N8N_SR_URL || "";
 
   const params = new URLSearchParams(window.location.search);
   const id = params.get("id");
