@@ -48,6 +48,7 @@
     minDollarVolume: document.getElementById("bt-min-dollar-volume"),
     minGapPct: document.getElementById("bt-min-gap-pct"),
     positionSize: document.getElementById("bt-position-size"),
+    sessionStart: document.getElementById("bt-session-start"),
     flattenTime: document.getElementById("bt-flatten-time"),
     entryMode: document.getElementById("bt-entry-mode"),
     orbMinutes: document.getElementById("bt-orb-minutes"),
@@ -67,6 +68,7 @@
     givebackArmCents: document.getElementById("bt-giveback-arm-cents"),
     stallExit: document.getElementById("bt-stall-exit"),
     runBtn: document.getElementById("bt-run-btn"),
+    cancelBtn: document.getElementById("bt-cancel-btn"),
     runStatus: document.getElementById("bt-run-status"),
     progressBox: document.getElementById("bt-progress-box"),
     progressFill: document.getElementById("bt-progress-fill"),
@@ -117,6 +119,7 @@
       min_dollar_volume: Number(els.minDollarVolume.value) || 0,
       min_gap_pct: Number(els.minGapPct.value) || 0,
       position_size: Number(els.positionSize.value) || 0,
+      session_start: els.sessionStart.value || "09:30",
       flatten_time: els.flattenTime.value || "15:55",
 
       entry_mode: els.entryMode.value,
@@ -154,6 +157,7 @@
     set(els.minDollarVolume, p.min_dollar_volume);
     set(els.minGapPct, p.min_gap_pct);
     set(els.positionSize, p.position_size);
+    set(els.sessionStart, p.session_start);
     set(els.flattenTime, p.flatten_time);
     set(els.entryMode, p.entry_mode);
     set(els.orbMinutes, p.orb_minutes);
@@ -172,7 +176,11 @@
     set(els.givebackPct, p.giveback_pct);
     set(els.givebackArmCents, p.giveback_arm_cents);
     setChk(els.stallExit, p.stall_exit);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    // Note: no scroll call here on purpose. flashFormSections() (called
+    // right after this by backtester-ai.js) does the scrolling -- having
+    // both fire in the same tick made the page jump to two different
+    // targets and land on whichever won the race, which looked like the
+    // just-filled form had vanished.
   }
 
   // Exposed so backtester-ai.js (the "Configure with AI" panel) can read
@@ -185,8 +193,30 @@
     runBtn: () => els.runBtn,
   };
 
+  // Persist the running job's id (+ which API it's on) so a page refresh
+  // -- or just closing the tab and coming back -- doesn't lose track of a
+  // backtest that's still going server-side. A multi-day scan can take a
+  // long time; the browser tab is just a viewer into it, not what's
+  // actually running it.
+  const JOB_STORAGE_KEY = "bt_active_job";
   let running = false;
   let pollTimer = null;
+  let currentJobId = null;
+
+  function saveActiveJob(jobId) {
+    try { localStorage.setItem(JOB_STORAGE_KEY, JSON.stringify({ jobId, api: API() })); } catch (e) { /* ignore */ }
+  }
+  function clearActiveJob() {
+    try { localStorage.removeItem(JOB_STORAGE_KEY); } catch (e) { /* ignore */ }
+  }
+  function loadActiveJob() {
+    try {
+      const raw = localStorage.getItem(JOB_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed && parsed.jobId && parsed.api === API() ? parsed.jobId : null;
+    } catch (e) { return null; }
+  }
 
   els.runBtn.addEventListener("click", () => {
     if (running) return;
@@ -199,14 +229,8 @@
       return;
     }
 
-    running = true;
-    els.runBtn.disabled = true;
-    els.runBtn.textContent = "Starting…";
-    els.runStatus.textContent = "";
+    startRunningUi();
     els.results.innerHTML = "";
-    els.progressBox.style.display = "";
-    els.progressFill.style.width = "0%";
-    els.progressLabel.textContent = "Scanning for gappers…";
 
     fetch(`${API()}/backtest/start`, {
       method: "POST",
@@ -214,20 +238,50 @@
       body: JSON.stringify(buildPayload()),
     })
       .then((r) => r.json().then((j) => { if (!r.ok) throw new Error(j.error || "HTTP " + r.status); return j; }))
-      .then((j) => pollJob(j.job_id))
+      .then((j) => { saveActiveJob(j.job_id); pollJob(j.job_id); })
       .catch((err) => {
         finishRun();
         els.runStatus.textContent = "Couldn't start backtest: " + err.message;
       });
   });
 
+  if (els.cancelBtn) {
+    els.cancelBtn.addEventListener("click", () => {
+      if (!currentJobId) return;
+      els.cancelBtn.disabled = true;
+      els.cancelBtn.textContent = "Cancelling…";
+      fetch(`${API()}/backtest/cancel/${currentJobId}`, { method: "POST", headers: FETCH_HEADERS })
+        .catch(() => { /* status poll will surface any real problem */ });
+    });
+  }
+
+  function startRunningUi() {
+    running = true;
+    els.runBtn.disabled = true;
+    els.runBtn.textContent = "Starting…";
+    els.runStatus.textContent = "";
+    if (els.cancelBtn) { els.cancelBtn.style.display = ""; els.cancelBtn.disabled = false; els.cancelBtn.textContent = "Cancel"; }
+    els.progressBox.style.display = "";
+    els.progressFill.style.width = "0%";
+    els.progressLabel.textContent = "Scanning for gappers…";
+  }
+
   function pollJob(jobId) {
+    currentJobId = jobId;
     els.runBtn.textContent = "Running…";
     clearTimeout(pollTimer);
     const tick = () => {
       fetch(`${API()}/backtest/status/${jobId}`, { headers: FETCH_HEADERS })
         .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
         .then((job) => {
+          // A job in progress already carries partial trades/stats (updated
+          // after every completed day) -- show them as they come in instead
+          // of making the person wait for the whole range to finish before
+          // seeing anything.
+          if (job.stats && job.stats.num_trades) {
+            renderResults(job.stats, job.trades || [], /*partial=*/ job.status === "running");
+          }
+
           if (job.status === "running") {
             if (job.total) {
               const pct = Math.round((job.current / job.total) * 100);
@@ -242,10 +296,17 @@
             els.runStatus.textContent = "Backtest failed: " + job.error;
             return;
           }
+          if (job.status === "cancelled") {
+            els.progressLabel.textContent = "Cancelled.";
+            els.runStatus.textContent = `Cancelled — showing results through day ${job.current}/${job.total || "?"}.`;
+            renderResults(job.stats, job.trades || [], false);
+            finishRun();
+            return;
+          }
           // done
           els.progressFill.style.width = "100%";
           els.progressLabel.textContent = "Done.";
-          renderResults(job.stats, job.trades || []);
+          renderResults(job.stats, job.trades || [], false);
           loadHistory();
           finishRun();
         })
@@ -259,18 +320,47 @@
 
   function finishRun() {
     running = false;
+    currentJobId = null;
+    clearActiveJob();
     els.runBtn.disabled = false;
     els.runBtn.textContent = "Run Backtest";
+    if (els.cancelBtn) els.cancelBtn.style.display = "none";
     setTimeout(() => { els.progressBox.style.display = "none"; }, 800);
   }
 
-  function renderResults(stats, trades) {
+  // On load, if a job was left running (refresh, tab reopened, etc.),
+  // reattach to it instead of showing a blank "Run Backtest" button that
+  // implies nothing is happening -- the job itself is untouched, only the
+  // browser's polling loop was lost.
+  (function resumeActiveJobIfAny() {
+    const jobId = loadActiveJob();
+    if (!jobId) return;
+    fetch(`${API()}/backtest/status/${jobId}`, { headers: FETCH_HEADERS })
+      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then((job) => {
+        if (job.status === "running") {
+          startRunningUi();
+          pollJob(jobId);
+        } else {
+          clearActiveJob();
+        }
+      })
+      .catch(() => clearActiveJob());
+  })();
+
+  function renderResults(stats, trades, partial) {
     if (!stats || !stats.num_trades) {
+      if (partial) return; // still running, just hasn't produced a trade yet -- don't flash an empty-state
       els.results.innerHTML = `<div class="empty-state">No trades matched this config over that date range — try loosening the filters or widening the dates.</div>`;
       return;
     }
 
+    const partialBanner = partial
+      ? `<div class="empty-state small" style="margin-bottom:14px;">Backtest still running — showing results through the last completed day. This updates as more days finish.</div>`
+      : "";
+
     els.results.innerHTML = `
+      ${partialBanner}
       <div class="stat-grid" style="margin-bottom:18px;">
         <div class="stat">
           <div class="label-row"><span class="label">Net P&amp;L</span></div>

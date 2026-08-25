@@ -62,6 +62,7 @@
     min_dollar_volume: { type: "float", label: "Min $ volume" },
     min_gap_pct: { type: "float", label: "Min gap %" },
     position_size: { type: "float", label: "Position size ($)" },
+    session_start: { type: "time", label: "Session start (ET)" },
     flatten_time: { type: "time", label: "Force-exit time (ET)" },
     entry_mode: {
       type: "enum", label: "Entry style",
@@ -218,6 +219,7 @@
     if (draft.min_dollar_volume !== undefined) session.push(["Min $ volume", money(draft.min_dollar_volume)]);
     if (draft.min_gap_pct !== undefined) session.push(["Min gap", pct(draft.min_gap_pct)]);
     if (draft.position_size !== undefined) session.push(["Position size", money(draft.position_size)]);
+    if (draft.session_start) session.push(["Session start (ET)", draft.session_start]);
     if (draft.flatten_time) session.push(["Force-exit (ET)", draft.flatten_time]);
     if (session.length) groups.push(["Scan & Session", session]);
 

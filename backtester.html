@@ -172,6 +172,7 @@
           <div class="bt-field"><label class="bt-label" for="bt-min-dollar-volume" title="Today's open x volume must clear this">Min $ volume</label><input type="number" id="bt-min-dollar-volume" value="5000000" min="0" step="500000"></div>
           <div class="bt-field"><label class="bt-label" for="bt-min-gap-pct" title="Minimum overnight gap to qualify">Min gap %</label><input type="number" id="bt-min-gap-pct" value="5" min="0" step="1"></div>
           <div class="bt-field"><label class="bt-label" for="bt-position-size">Position size $</label><input type="number" id="bt-position-size" value="2000" min="0" step="100"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-session-start" title="When the scan/entry window opens (ET). Use a pre-market time like 07:00 to trade the pre-market/early session instead of waiting for the 09:30 open.">Session start (ET)</label><input type="time" id="bt-session-start" value="09:30"></div>
           <div class="bt-field"><label class="bt-label" for="bt-flatten-time">Force-exit (ET)</label><input type="time" id="bt-flatten-time" value="15:55"></div>
         </div>
       </div>
@@ -247,6 +248,7 @@
 
       <div class="bt-run-row">
         <button class="btn-confirm" id="bt-run-btn" style="padding:10px 20px; font-weight:600;">Run Backtest</button>
+        <button class="filter-btn" id="bt-cancel-btn" style="padding:10px 16px; display:none;">Cancel</button>
         <span id="bt-run-status" style="font-size:12.5px; color:var(--text-faint);"></span>
       </div>
 
