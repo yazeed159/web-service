@@ -74,6 +74,7 @@
     min_dollar_volume: { type: "float", label: "Min $ volume" },
     min_gap_pct: { type: "float", label: "Min gap %" },
     position_size: { type: "float", label: "Position size ($)" },
+    include_commissions: { type: "bool", label: "Estimate commissions (IBKR tiered)" },
     session_start: { type: "time", label: "Session start (ET)" },
     flatten_time: { type: "time", label: "Force-exit time (ET)" },
     entry_mode: {

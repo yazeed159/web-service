@@ -48,6 +48,7 @@
     minDollarVolume: document.getElementById("bt-min-dollar-volume"),
     minGapPct: document.getElementById("bt-min-gap-pct"),
     positionSize: document.getElementById("bt-position-size"),
+    includeCommissions: document.getElementById("bt-include-commissions"),
     sessionStart: document.getElementById("bt-session-start"),
     flattenTime: document.getElementById("bt-flatten-time"),
     notes: document.getElementById("bt-notes"),
@@ -120,6 +121,7 @@
       min_dollar_volume: Number(els.minDollarVolume.value) || 0,
       min_gap_pct: Number(els.minGapPct.value) || 0,
       position_size: Number(els.positionSize.value) || 0,
+      include_commissions: els.includeCommissions ? !!els.includeCommissions.checked : true,
       session_start: els.sessionStart.value || "09:30",
       flatten_time: els.flattenTime.value || "15:55",
       // Not read or acted on by the engine -- just carried through to
@@ -164,6 +166,7 @@
     set(els.minDollarVolume, p.min_dollar_volume);
     set(els.minGapPct, p.min_gap_pct);
     set(els.positionSize, p.position_size);
+    setChk(els.includeCommissions, p.include_commissions !== false);
     set(els.sessionStart, p.session_start);
     set(els.flattenTime, p.flatten_time);
     set(els.notes, p.notes);
@@ -444,6 +447,10 @@
           <div class="label-row"><span class="label">Streaks (W/L)</span></div>
           <div class="value">${stats.longest_win_streak} / ${stats.longest_loss_streak}</div>
         </div>
+        <div class="stat" title="Estimated round-trip commissions (IBKR tiered-style), already netted out of Net P&amp;L above">
+          <div class="label-row"><span class="label">Est. Commissions</span></div>
+          <div class="value down">-$${Number(stats.total_commissions_dollars || 0).toFixed(2)}</div>
+        </div>
       </div>
 
       <div class="panel-box" style="margin-bottom:18px;">
@@ -463,7 +470,7 @@
           <table class="data-table">
             <thead><tr>
               <th>Date</th><th>Symbol</th><th>Gap %</th><th>Entry</th><th>Entry $</th>
-              <th>Exit</th><th>Exit $</th><th>Reason</th><th>Shares</th><th>P&amp;L $</th><th>R</th>
+              <th>Exit</th><th>Exit $</th><th>Reason</th><th>Shares</th><th>Comm. $</th><th>P&amp;L $</th><th>R</th>
             </tr></thead>
             <tbody>${trades.map(tradeRow).join("")}</tbody>
           </table>
@@ -503,7 +510,9 @@
 
   const TRADE_COLUMNS = [
     "date", "symbol", "gap_pct", "entry_time", "entry_price",
-    "exit_time", "exit_price", "exit_reason", "shares", "pnl_dollars", "r_multiple", "win",
+    "exit_time", "exit_price", "exit_reason", "shares",
+    "pnl_dollars_gross", "commission_entry", "commission_exit", "commission_total",
+    "pnl_dollars", "r_multiple", "win",
   ];
 
   function csvEscape(v) {
@@ -544,6 +553,7 @@
       <td>$${Number(t.exit_price).toFixed(2)}</td>
       <td>${escapeHtml(t.exit_reason)}</td>
       <td>${t.shares}</td>
+      <td>${t.commission_total ? "$" + Number(t.commission_total).toFixed(2) : "—"}</td>
       <td><span class="pill ${pillClass}">${fmtMoney(t.pnl_dollars)}</span></td>
       <td>${fmtR(t.r_multiple)}</td>
     </tr>`;
