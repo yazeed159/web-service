@@ -228,26 +228,31 @@
         <div class="reports-filter-bar">
           <div class="filter-field">
             <label>Symbol</label>
-            <input type="text" placeholder="Symbol" class="filter-input" />
+            <input type="text" placeholder="Any symbol" class="filter-input" id="report-filter-symbol" />
           </div>
-          <div class="filter-field">
+          <div class="filter-field tags-field">
             <label>Tags</label>
-            <select class="filter-input"><option>1 Selected</option></select>
+            <button type="button" class="filter-input tags-toggle" id="report-filter-tags-toggle">All tags</button>
+            <div class="tags-panel" id="report-filter-tags-panel"></div>
           </div>
           <div class="filter-field">
             <label>Side</label>
-            <select class="filter-input"><option>All</option></select>
+            <select class="filter-input" id="report-filter-side"><option value="all">All</option></select>
           </div>
           <div class="filter-field">
             <label>Duration</label>
-            <select class="filter-input"><option>All</option></select>
+            <select class="filter-input" id="report-filter-duration"><option value="all">All</option></select>
+          </div>
+          <div class="filter-field">
+            <label>Setup</label>
+            <select class="filter-input" id="report-filter-setup"><option value="all">All</option></select>
           </div>
           <div class="filter-field date-range">
             <input type="text" class="filter-input" value="Jan/01/26 - Aug/07/26" readonly />
           </div>
           <button class="btn-advanced">Advanced</button>
-          <button class="btn-icon" title="Clear filters">🗑</button>
-          <button class="btn-icon btn-confirm" title="Apply">✓</button>
+          <button class="btn-icon" id="report-filter-clear" title="Clear filters">🗑</button>
+          <button class="btn-icon btn-confirm" id="report-filter-apply" title="Apply">✓</button>
         </div>
 
         <div class="report-toptabs" id="report-toptabs">

@@ -60,14 +60,22 @@
       var el = e.target.closest(selector);
       if (!el) return;
       var rect = el.getBoundingClientRect();
-      var size = Math.max(rect.width, rect.height);
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+      // Radius reaches the button's farthest corner from the click point.
+      // Using rect.width/height directly (the old approach) blew the
+      // ripple way past the button on wide, short controls like the
+      // report tab bar -- the circle ballooned way beyond the button.
+      var radius = Math.sqrt(Math.pow(Math.max(x, rect.width - x), 2) + Math.pow(Math.max(y, rect.height - y), 2));
+      var size = radius * 2;
       var span = document.createElement('span');
       span.className = 'ripple';
       span.style.width = span.style.height = size + 'px';
-      span.style.left = (e.clientX - rect.left - size / 2) + 'px';
-      span.style.top = (e.clientY - rect.top - size / 2) + 'px';
+      span.style.left = (x - radius) + 'px';
+      span.style.top = (y - radius) + 'px';
       var prevPos = getComputedStyle(el).position;
       if (prevPos === 'static') el.style.position = 'relative';
+      if (getComputedStyle(el).overflow === 'visible') el.style.overflow = 'hidden';
       el.appendChild(span);
       span.addEventListener('animationend', function () { span.remove(); });
     }, true);

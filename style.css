@@ -368,7 +368,7 @@ button { font-family: var(--sans); }
 /* =====================================================
    REPORTS TAB
 ===================================================== */
-.report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
 @media (max-width: 900px) { .report-grid { grid-template-columns: 1fr; } }
 
 .report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -553,6 +553,14 @@ body:has(.sidebar.mobile-open) { overflow: hidden; }
 .btn-advanced{background:#1b2230;border:1px solid #2c3546;color:#e6e9ef;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer;}
 .btn-icon{background:#1b2230;border:1px solid #2c3546;color:#e6e9ef;border-radius:6px;width:34px;height:34px;cursor:pointer;}
 .btn-confirm{background:#2ecc71;border-color:#2ecc71;color:#0b0f16;}
+.tags-field{position:relative;}
+.tags-toggle{cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tags-panel{display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:40;background:#1b2230;border:1px solid #2c3546;border-radius:8px;padding:8px;min-width:220px;max-height:260px;overflow-y:auto;box-shadow:0 12px 28px rgba(0,0,0,0.4);}
+.tags-panel.open{display:block;}
+.tags-panel label{display:flex;align-items:center;gap:8px;padding:6px;border-radius:6px;font-size:13px;color:#e6e9ef;cursor:pointer;}
+.tags-panel label:hover{background:#232b3a;}
+.tags-panel input[type="checkbox"]{accent-color:#2ecc71;}
+.tags-panel-empty{color:#8a94a6;font-size:12.5px;padding:6px;}
 .report-toptabs{display:flex;gap:22px;border-bottom:1px solid #2c3546;margin-bottom:18px;}
 .toptab-btn{background:none;border:none;color:#8a94a6;padding:10px 2px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;}
 .toptab-btn.active{color:#2ecc71;border-bottom-color:#2ecc71;}

@@ -159,7 +159,7 @@ body::before {
 
 /* ripple */
 .ripple { position: absolute; border-radius: 50%; pointer-events: none; background: rgba(255,255,255,0.35); transform: scale(0); animation: rippleAnim 0.55s ease-out; }
-@keyframes rippleAnim { to { transform: scale(2.6); opacity: 0; } }
+@keyframes rippleAnim { to { transform: scale(1); opacity: 0; } }
 
 /* ---------- Table rows ---------- */
 .trade-table tbody tr, table.data-table tbody tr {

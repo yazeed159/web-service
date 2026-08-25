@@ -4,6 +4,7 @@
   let trades = [];
   let activeFilter = "all";
   let searchTerm = "";
+  let reportFilters = { symbol: "", tags: [], side: "all", duration: "all", setup: "all" };
   let calYear = null;
   let calMonth = null; // 0-indexed
   let selectedDay = null;
@@ -41,7 +42,8 @@
       renderRecentTrades();
       renderGroups();
       renderCalendar();
-      renderReports();
+      initReportFilters();
+      applyReportFiltersAndRender();
     })
     .catch((err) => {
       const msg = `Couldn't load data/trades.json (${escapeHtml(String(err.message))}). Make sure you're serving this folder, not opening index.html via file://.`;
@@ -545,6 +547,112 @@
     document.getElementById("day-detail-panel").style.display = "none";
     renderCalendar();
   });
+
+  // ================================================================
+  // REPORTS — filter bar
+  // ================================================================
+  function prettifyTag(s) {
+    return String(s).replace(/_/g, " ");
+  }
+
+  function durationBucketIndex(mins) {
+    if (mins === null) return -1;
+    for (let i = 0; i < DURATION_BUCKETS.length; i++) {
+      if (mins <= DURATION_BUCKETS[i].max) return i;
+    }
+    return DURATION_BUCKETS.length - 1;
+  }
+
+  function matchesReportFilters(t) {
+    if (reportFilters.symbol && !t.symbol.toLowerCase().includes(reportFilters.symbol.toLowerCase())) return false;
+    if (reportFilters.side !== "all" && t.side !== reportFilters.side) return false;
+    if (reportFilters.setup !== "all" && t.setup_type !== reportFilters.setup) return false;
+    if (reportFilters.tags.length) {
+      const tags = t.lesson_tags || [];
+      if (!reportFilters.tags.some((tag) => tags.includes(tag))) return false;
+    }
+    if (reportFilters.duration !== "all") {
+      const mins = durationMinutes(t);
+      if (mins === null || durationBucketIndex(mins) !== Number(reportFilters.duration)) return false;
+    }
+    return true;
+  }
+
+  // renderReports() (and everything it calls) reads the closured `trades`
+  // variable. Rather than threading a filtered list through ~20 functions,
+  // swap `trades` for the filtered subset for the duration of that
+  // (synchronous) render pass, then restore it. Safe because nothing in
+  // the reports render chain does anything async.
+  function applyReportFiltersAndRender() {
+    const fullTrades = trades;
+    trades = fullTrades.filter(matchesReportFilters);
+    renderReports();
+    trades = fullTrades;
+  }
+
+  function initReportFilters() {
+    const symbolInput = document.getElementById("report-filter-symbol");
+    const sideSel = document.getElementById("report-filter-side");
+    const setupSel = document.getElementById("report-filter-setup");
+    const durSel = document.getElementById("report-filter-duration");
+    const tagsToggle = document.getElementById("report-filter-tags-toggle");
+    const tagsPanel = document.getElementById("report-filter-tags-panel");
+    if (!symbolInput || !sideSel || !setupSel || !durSel || !tagsToggle || !tagsPanel) return;
+
+    const sides = Array.from(new Set(trades.map((t) => t.side).filter(Boolean))).sort();
+    sideSel.innerHTML =
+      '<option value="all">All</option>' +
+      sides.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s.charAt(0).toUpperCase() + s.slice(1))}</option>`).join("");
+
+    const setups = Array.from(new Set(trades.map((t) => t.setup_type).filter(Boolean))).sort();
+    setupSel.innerHTML =
+      '<option value="all">All</option>' +
+      setups.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(prettifyTag(s))}</option>`).join("");
+
+    durSel.innerHTML =
+      '<option value="all">All</option>' +
+      DURATION_BUCKETS.map((b, i) => `<option value="${i}">${escapeHtml(b.label)}</option>`).join("");
+
+    const tagSet = new Set();
+    trades.forEach((t) => (t.lesson_tags || []).forEach((tag) => tagSet.add(tag)));
+    const tags = Array.from(tagSet).sort();
+    tagsPanel.innerHTML = tags.length
+      ? tags.map((tag) => `<label><input type="checkbox" value="${escapeHtml(tag)}"> ${escapeHtml(prettifyTag(tag))}</label>`).join("")
+      : '<div class="tags-panel-empty">No tags logged yet.</div>';
+
+    symbolInput.addEventListener("input", (e) => { reportFilters.symbol = e.target.value.trim(); });
+    sideSel.addEventListener("change", (e) => { reportFilters.side = e.target.value; });
+    setupSel.addEventListener("change", (e) => { reportFilters.setup = e.target.value; });
+    durSel.addEventListener("change", (e) => { reportFilters.duration = e.target.value; });
+
+    tagsToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      tagsPanel.classList.toggle("open");
+    });
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".tags-field")) tagsPanel.classList.remove("open");
+    });
+    tagsPanel.addEventListener("change", () => {
+      const checked = Array.from(tagsPanel.querySelectorAll("input:checked")).map((cb) => cb.value);
+      reportFilters.tags = checked;
+      tagsToggle.textContent = checked.length ? `${checked.length} selected` : "All tags";
+    });
+
+    const clearBtn = document.getElementById("report-filter-clear");
+    if (clearBtn) clearBtn.addEventListener("click", () => {
+      reportFilters = { symbol: "", tags: [], side: "all", duration: "all", setup: "all" };
+      symbolInput.value = "";
+      sideSel.value = "all";
+      setupSel.value = "all";
+      durSel.value = "all";
+      tagsPanel.querySelectorAll("input:checked").forEach((cb) => (cb.checked = false));
+      tagsToggle.textContent = "All tags";
+      applyReportFiltersAndRender();
+    });
+
+    const applyBtn = document.getElementById("report-filter-apply");
+    if (applyBtn) applyBtn.addEventListener("click", () => applyReportFiltersAndRender());
+  }
 
   // ================================================================
   // REPORTS
