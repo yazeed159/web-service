@@ -191,7 +191,7 @@ server-rendered form):
 - `DELETE /backtest/history/<job_id>` — removes one past run
 - `GET /backtest/defaults` — the strategy's default parameter values, so the form doesn't hardcode a second copy
 
-**Setup:** point `window.BACKTESTER_API_URL` in `config.js` at whatever
+**Setup:** point `window.CHART_SERVICE_URL` in `config.js` at whatever
 ngrok prints when you run `start_chart_service.ps1` (same server the chart
 pipeline uses — `POLYGON_API_KEY` just needs to already be set for it, which
 it is if `/generate-chart` already works). Free-tier ngrok URLs change every
@@ -223,6 +223,27 @@ webhook (`n8n/chat-workflow.json` in this repo is the workflow export —
 import it into n8n and grab the webhook URL it generates). This is a
 separate n8n workflow from the trade-pipeline one and from the
 Support/Resistance webhook — same pattern as `N8N_SR_URL` in `trade.js`.
+
+**Chart data:** if a message names a symbol that's actually in the
+journal (e.g. "how'd the AAPL trade go"), `chat.js` resolves it to that
+symbol's most recent logged trade (or an exact date match if the message
+names one), fetches that trade's indicators — VWAP/EMA/MACD at entry,
+computed stop/target, volume & float context — from `chart_service.py`'s
+existing `/generate-chart` route (same Polygon-backed pipeline the
+Backtester tab uses), and includes just that small JSON block as extra
+context in the *same* request to n8n. It never sends the chart image or
+the full per-minute bar series (both are in `/generate-chart`'s response
+but would add a lot of tokens for little benefit in a text chat), and it
+never triggers a second LLM call. This only covers symbols you've actually
+logged a trade for — it's not a general "look up any ticker" lookup.
+Needs `window.CHART_SERVICE_URL` set (see the Backtester section above);
+if it's unset, unreachable, or the message doesn't match a logged trade,
+chat just falls back to the journal text alone.
+
+⚠️ **Before sharing or committing `n8n/chat-workflow.json` anywhere:** the
+export as-is has a live Gemini API key hardcoded in the "Chat: LLM
+Analysis" node's query parameters. Rotate/remove it (move it to an n8n
+credential instead) before this file leaves your machine.
 
 ## Data schema
 

@@ -8,6 +8,7 @@
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="features.css">
+<link rel="stylesheet" href="polish.css">
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -115,37 +116,72 @@
         <div class="sub">Scans top gap-gainers over a date range and simulates an intraday breakout strategy against real Polygon minute bars. Runs against your own chart-service backend (see config.js).</div>
       </div>
 
-      <div class="panel-box" style="margin-bottom:18px;">
-        <div class="panel-box-head"><span class="title">Scan &amp; Session</span></div>
-        <div class="filters" style="margin-bottom:14px;">
-          <input type="text" id="bt-label" placeholder="Run label (optional)" style="width:220px;">
-          <label>From <input type="date" id="bt-start"></label>
-          <label>To <input type="date" id="bt-end"></label>
-          <label title="How many top gappers to backtest per day">Top N <input type="number" id="bt-top-n" value="5" min="1" step="1" style="width:64px;"></label>
-          <label>Min price <input type="number" id="bt-min-price" value="1" min="0" step="0.5" style="width:74px;"></label>
-          <label>Max price <input type="number" id="bt-max-price" value="50" min="0" step="1" style="width:74px;"></label>
-          <label title="Today's open x volume must clear this">Min $ volume <input type="number" id="bt-min-dollar-volume" value="5000000" min="0" step="500000" style="width:110px;"></label>
-          <label title="Minimum overnight gap to qualify">Min gap % <input type="number" id="bt-min-gap-pct" value="5" min="0" step="1" style="width:64px;"></label>
-          <label>Position size $ <input type="number" id="bt-position-size" value="2000" min="0" step="100" style="width:90px;"></label>
-          <label>Force-exit (ET) <input type="time" id="bt-flatten-time" value="15:55"></label>
+      <div class="panel-box bt-section ai-cfg-panel" style="margin-bottom:18px;">
+        <div class="panel-box-head">
+          <span class="bt-section-icon ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 5.8L20 10l-6.1 2.2L12 18l-1.9-5.8L4 10l6.1-2.2z"></path></svg></span>
+          <span class="title">Configure with AI</span>
+          <button type="button" class="link" id="ai-cfg-reset">New conversation</button>
+        </div>
+
+        <div class="chat-shell ai-cfg-shell">
+          <div class="chat-messages" id="ai-cfg-messages"></div>
+
+          <div class="chat-chips" id="ai-cfg-chips"></div>
+
+          <form class="chat-input-row" id="ai-cfg-form">
+            <input
+              type="text"
+              id="ai-cfg-input"
+              class="chat-input"
+              placeholder="Describe the strategy you want to test…"
+              autocomplete="off"
+            >
+            <button type="submit" class="chat-send-btn" id="ai-cfg-send-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+          </form>
         </div>
       </div>
 
-      <div class="panel-box" style="margin-bottom:18px;">
-        <div class="panel-box-head"><span class="title">Entry</span></div>
-        <div class="filters" style="margin-bottom:8px;">
-          <select id="bt-entry-mode" style="min-width:280px;">
-            <option value="orb_breakout">Opening range breakout</option>
-            <option value="red_candle_break">Break of previous red candle's high</option>
-            <option value="donchian_break">Break of highest high in last N bars (Donchian)</option>
-            <option value="inside_bar_break">Break of inside-bar high</option>
-            <option value="vwap_reclaim">VWAP reclaim</option>
-          </select>
-          <label>Opening range (min) <input type="number" id="bt-orb-minutes" value="5" min="1" step="1" style="width:64px;"></label>
-          <label title="For non-ORB entry styles: only look for the pattern after the opening range window closes">
+      <div class="panel-box bt-section" style="margin-bottom:18px;">
+        <div class="panel-box-head">
+          <span class="bt-section-icon scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
+          <span class="title">Scan &amp; Session</span>
+        </div>
+        <div class="bt-field-grid">
+          <div class="bt-field span2"><label class="bt-label" for="bt-label">Run label</label><input type="text" id="bt-label" placeholder="Optional"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-start">From</label><input type="date" id="bt-start"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-end">To</label><input type="date" id="bt-end"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-top-n" title="How many top gappers to backtest per day">Top N</label><input type="number" id="bt-top-n" value="5" min="1" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-min-price">Min price</label><input type="number" id="bt-min-price" value="1" min="0" step="0.5"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-max-price">Max price</label><input type="number" id="bt-max-price" value="50" min="0" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-min-dollar-volume" title="Today's open x volume must clear this">Min $ volume</label><input type="number" id="bt-min-dollar-volume" value="5000000" min="0" step="500000"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-min-gap-pct" title="Minimum overnight gap to qualify">Min gap %</label><input type="number" id="bt-min-gap-pct" value="5" min="0" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-position-size">Position size $</label><input type="number" id="bt-position-size" value="2000" min="0" step="100"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-flatten-time">Force-exit (ET)</label><input type="time" id="bt-flatten-time" value="15:55"></div>
+        </div>
+      </div>
+
+      <div class="panel-box bt-section" style="margin-bottom:18px;">
+        <div class="panel-box-head">
+          <span class="bt-section-icon entry"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 6"></polyline><polyline points="15 6 21 6 21 12"></polyline></svg></span>
+          <span class="title">Entry</span>
+        </div>
+        <div class="bt-field-grid wide">
+          <div class="bt-field span2"><label class="bt-label" for="bt-entry-mode">Entry style</label>
+            <select id="bt-entry-mode">
+              <option value="orb_breakout">Opening range breakout</option>
+              <option value="red_candle_break">Break of previous red candle's high</option>
+              <option value="donchian_break">Break of highest high in last N bars (Donchian)</option>
+              <option value="inside_bar_break">Break of inside-bar high</option>
+              <option value="vwap_reclaim">VWAP reclaim</option>
+            </select>
+          </div>
+          <div class="bt-field"><label class="bt-label" for="bt-orb-minutes">Opening range (min)</label><input type="number" id="bt-orb-minutes" value="5" min="1" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-donchian-lookback">Donchian lookback (bars)</label><input type="number" id="bt-donchian-lookback" value="10" min="2" step="1"></div>
+          <label class="bt-check" title="For non-ROB entry styles: only look for the pattern after the opening range window closes">
             <input type="checkbox" id="bt-entry-after-orb" checked> Wait for opening range first
           </label>
-          <label>Donchian lookback (bars) <input type="number" id="bt-donchian-lookback" value="10" min="2" step="1" style="width:64px;"></label>
         </div>
         <p class="hint-text">
           <b>Opening range breakout:</b> buys the first bar above the high of the first N minutes.
@@ -156,38 +192,46 @@
         </p>
       </div>
 
-      <div class="panel-box" style="margin-bottom:18px;">
-        <div class="panel-box-head"><span class="title">Stop Loss</span></div>
-        <div class="filters" style="margin-bottom:8px;">
-          <select id="bt-stop-mode" style="min-width:260px;">
-            <option value="pattern">Pattern-based (whatever entry style implies)</option>
-            <option value="fixed_cents">Fixed cents below entry</option>
-            <option value="fixed_pct">Fixed % below entry</option>
-            <option value="prior_bar_low">Low of the bar before entry</option>
-            <option value="atr_multiple">ATR multiple below entry</option>
-          </select>
-          <label>Fixed ¢ <input type="number" id="bt-fixed-stop-cents" value="5" min="0" step="0.5" style="width:64px;"></label>
-          <label>Fixed % <input type="number" id="bt-fixed-stop-pct" value="1" min="0" step="0.1" style="width:64px;"></label>
-          <label>ATR period <input type="number" id="bt-atr-period" value="14" min="2" step="1" style="width:64px;"></label>
-          <label>ATR mult <input type="number" id="bt-atr-mult" value="1.5" min="0" step="0.1" style="width:64px;"></label>
-          <label title="Once armed, stop ratchets up to entry price and stays there">Breakeven after ¢ (0=off) <input type="number" id="bt-breakeven-after-cents" value="0" min="0" step="0.5" style="width:74px;"></label>
+      <div class="panel-box bt-section" style="margin-bottom:18px;">
+        <div class="panel-box-head">
+          <span class="bt-section-icon stop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="7" y1="12" x2="17" y2="12"></line></svg></span>
+          <span class="title">Stop Loss</span>
+        </div>
+        <div class="bt-field-grid wide">
+          <div class="bt-field span2"><label class="bt-label" for="bt-stop-mode">Stop style</label>
+            <select id="bt-stop-mode">
+              <option value="pattern">Pattern-based (whatever entry style implies)</option>
+              <option value="fixed_cents">Fixed cents below entry</option>
+              <option value="fixed_pct">Fixed % below entry</option>
+              <option value="prior_bar_low">Low of the bar before entry</option>
+              <option value="atr_multiple">ATR multiple below entry</option>
+            </select>
+          </div>
+          <div class="bt-field"><label class="bt-label" for="bt-fixed-stop-cents">Fixed ¢</label><input type="number" id="bt-fixed-stop-cents" value="5" min="0" step="0.5"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-fixed-stop-pct">Fixed %</label><input type="number" id="bt-fixed-stop-pct" value="1" min="0" step="0.1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-atr-period">ATR period</label><input type="number" id="bt-atr-period" value="14" min="2" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-atr-mult">ATR mult</label><input type="number" id="bt-atr-mult" value="1.5" min="0" step="0.1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-breakeven-after-cents" title="Once armed, stop ratchets up to entry price and stays there">Breakeven after ¢ (0=off)</label><input type="number" id="bt-breakeven-after-cents" value="0" min="0" step="0.5"></div>
         </div>
       </div>
 
-      <div class="panel-box" style="margin-bottom:18px;">
-        <div class="panel-box-head"><span class="title">Profit Exits</span></div>
-        <div class="filters" style="margin-bottom:8px;">
-          <label>Target (× risk, 0=off) <input type="number" id="bt-target-r" value="2" min="0" step="0.1" style="width:64px;"></label>
-          <label>Time stop (min, 0=off) <input type="number" id="bt-time-stop-minutes" value="0" min="0" step="1" style="width:64px;"></label>
-          <label>…unless gained ¢ <input type="number" id="bt-time-stop-min-gain-cents" value="0" min="0" step="0.5" style="width:64px;"></label>
-          <label>Giveback ¢ off peak (0=off) <input type="number" id="bt-giveback-cents" value="0" min="0" step="0.5" style="width:74px;"></label>
-          <label>Giveback % of gain (0=off) <input type="number" id="bt-giveback-pct" value="0" min="0" max="100" step="5" style="width:70px;"></label>
-          <label>Arm giveback after ¢ <input type="number" id="bt-giveback-arm-cents" value="0" min="0" step="0.5" style="width:64px;"></label>
-          <label><input type="checkbox" id="bt-stall-exit"> Exit on momentum stall</label>
+      <div class="panel-box bt-section" style="margin-bottom:18px;">
+        <div class="panel-box-head">
+          <span class="bt-section-icon exits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"></path><path d="M17 7l-5-5-5 5"></path><path d="M17 17l-5 5-5-5"></path></svg></span>
+          <span class="title">Profit Exits</span>
+        </div>
+        <div class="bt-field-grid">
+          <div class="bt-field"><label class="bt-label" for="bt-target-r">Target (× risk, 0=off)</label><input type="number" id="bt-target-r" value="2" min="0" step="0.1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-time-stop-minutes">Time stop (min, 0=off)</label><input type="number" id="bt-time-stop-minutes" value="0" min="0" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-time-stop-min-gain-cents">…unless gained ¢</label><input type="number" id="bt-time-stop-min-gain-cents" value="0" min="0" step="0.5"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-giveback-cents">Giveback ¢ off peak (0=off)</label><input type="number" id="bt-giveback-cents" value="0" min="0" step="0.5"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-giveback-pct">Giveback % of gain (0=off)</label><input type="number" id="bt-giveback-pct" value="0" min="0" max="100" step="5"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-giveback-arm-cents">Arm giveback after ¢</label><input type="number" id="bt-giveback-arm-cents" value="0" min="0" step="0.5"></div>
+          <label class="bt-check"><input type="checkbox" id="bt-stall-exit"> Exit on momentum stall</label>
         </div>
       </div>
 
-      <div style="display:flex; align-items:center; gap:12px; margin-bottom:22px;">
+      <div class="bt-run-row">
         <button class="btn-confirm" id="bt-run-btn" style="padding:10px 20px; font-weight:600;">Run Backtest</button>
         <span id="bt-run-status" style="font-size:12.5px; color:var(--text-faint);"></span>
       </div>
@@ -211,6 +255,7 @@
 </div>
 
 <script src="backtester.js"></script>
+<script src="backtester-ai.js"></script>
 <script>
   const sidebarBackdrop = document.createElement("div");
   sidebarBackdrop.className = "sidebar-backdrop";

@@ -4,6 +4,17 @@
 // conversation to the CHAT_URL webhook on every message. Nothing here runs
 // until the person actually sends a message, and each turn re-sends the
 // full context, so the n8n side (and the LLM) never has to hold state.
+//
+// If the message looks like it's asking about a specific logged trade
+// (mentions a symbol that's actually in the journal), this also pulls that
+// trade's indicators (VWAP/EMA/MACD at entry, S/R levels, volume/float)
+// straight from chart_service.py -- same Polygon-backed pipeline the
+// Backtester tab and /generate-chart already use -- and includes just that
+// small numeric block as extra context. It deliberately does NOT forward
+// the chart image or the full per-minute bar series (both are in the
+// /generate-chart response but would burn a lot of tokens for little
+// benefit in a text chat), and it never triggers a second LLM call -- the
+// fetch happens client-side, before the single request to n8n goes out.
 (function () {
   "use strict";
 
@@ -46,10 +57,18 @@
       .join("");
   }
 
+  const AI_AVATAR_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 5.8L20 10l-6.1 2.2L12 18l-1.9-5.8L4 10l6.1-2.2z"></path></svg>`;
+
+  function avatarHtml(role) {
+    return role === "user"
+      ? `<div class="chat-avatar user">Y</div>`
+      : `<div class="chat-avatar ai">${AI_AVATAR_SVG}</div>`;
+  }
+
   function addBubble(role, html) {
     const wrap = document.createElement("div");
     wrap.className = "chat-msg " + (role === "user" ? "chat-msg-user" : "chat-msg-ai");
-    wrap.innerHTML = `<div class="chat-bubble">${html}</div>`;
+    wrap.innerHTML = `${avatarHtml(role)}<div class="chat-bubble">${html}</div>`;
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return wrap;
@@ -58,7 +77,7 @@
   function addTypingBubble() {
     const wrap = document.createElement("div");
     wrap.className = "chat-msg chat-msg-ai";
-    wrap.innerHTML = `<div class="chat-bubble chat-typing"><span></span><span></span><span></span></div>`;
+    wrap.innerHTML = `${avatarHtml("ai")}<div class="chat-bubble chat-typing"><span></span><span></span><span></span></div>`;
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return wrap;
@@ -98,9 +117,11 @@
     }
   }
 
+  const CHIP_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 5.8L20 10l-6.1 2.2L12 18l-1.9-5.8L4 10l6.1-2.2z"></path></svg>`;
+
   function renderChips() {
     chipsEl.innerHTML = STARTER_PROMPTS.map(
-      (p) => `<button type="button" class="chat-chip">${escapeHtml(p)}</button>`
+      (p) => `<button type="button" class="chat-chip">${CHIP_ICON}${escapeHtml(p)}</button>`
     ).join("");
     chipsEl.querySelectorAll(".chat-chip").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -189,6 +210,71 @@
     return lines;
   }
 
+  // ---- chart data lookup (chart_service.py, on demand) -----------------
+
+  // Finds the single logged trade a message is most likely asking about --
+  // only matches symbols that actually appear in the journal (so "how do
+  // I..." or other capitalized words never false-match), and picks the
+  // most recent trade for that symbol unless the message contains another
+  // trade's exact date.
+  function findRelevantTrade(text) {
+    if (!trades.length) return null;
+    const symbols = Array.from(new Set(trades.map((t) => t.symbol).filter(Boolean)));
+    if (!symbols.length) return null;
+
+    const upper = text.toUpperCase();
+    const matchedSymbol = symbols.find((sym) => new RegExp(`\\b${sym}\\b`).test(upper));
+    if (!matchedSymbol) return null;
+
+    const candidates = trades
+      .filter((t) => t.symbol === matchedSymbol)
+      .sort((a, b) => (a.trade_date + (a.entry_time || "")).localeCompare(b.trade_date + (b.entry_time || "")));
+
+    const dateMatch = candidates.find((t) => t.trade_date && text.includes(t.trade_date));
+    return dateMatch || candidates[candidates.length - 1] || null;
+  }
+
+  // Pulls just the numeric indicators for one trade from chart_service.py
+  // -- never the chart image, never the full bar series, so this stays a
+  // small, cheap addition to the prompt. Silent no-op (returns null) if
+  // CHART_SERVICE_URL isn't set, isn't reachable, or the trade is missing
+  // fields /generate-chart needs -- chat still works fine off the journal
+  // text alone either way.
+  function fetchChartContext(trade) {
+    const base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
+    if (!base || base.includes("YOUR-NGROK-SUBDOMAIN")) return Promise.resolve(null);
+    if (!trade.entry_time || !trade.exit_time || trade.entry_price == null || trade.exit_price == null) {
+      return Promise.resolve(null);
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+
+    return fetch(`${base}/generate-chart`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "1" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        symbol: trade.symbol,
+        trade_date: trade.trade_date,
+        entry_time: trade.entry_time,
+        exit_time: trade.exit_time,
+        entry_price: trade.entry_price,
+        exit_price: trade.exit_price,
+        side: trade.side || "long",
+      }),
+    })
+      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then((data) => (data && data.indicators
+        ? { symbol: trade.symbol, trade_date: trade.trade_date, indicators: data.indicators }
+        : null))
+      .catch((err) => {
+        console.warn("chat.js: chart_service lookup skipped —", err.message);
+        return null;
+      })
+      .finally(() => clearTimeout(timeout));
+  }
+
   // ---- sending messages ----------------------------------------------
 
   formEl.addEventListener("submit", (e) => {
@@ -218,16 +304,25 @@
     setInputEnabled(false);
     const typingBubble = addTypingBubble();
 
-    fetch(CHAT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: text,
-        history: history.slice(0, -1).slice(-12),
-        trades_summary: buildTradesSummary(trades),
-        trades_compact: buildTradesCompact(trades),
-      }),
-    })
+    // Resolved before the single request to n8n goes out -- if it matches a
+    // logged trade, chart_context rides along in the same payload; nothing
+    // here adds a second LLM call either way.
+    const relevantTrade = findRelevantTrade(text);
+    const chartContextPromise = relevantTrade ? fetchChartContext(relevantTrade) : Promise.resolve(null);
+
+    chartContextPromise.then((chartContext) =>
+      fetch(CHAT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text,
+          history: history.slice(0, -1).slice(-12),
+          trades_summary: buildTradesSummary(trades),
+          trades_compact: buildTradesCompact(trades),
+          chart_context: chartContext,
+        }),
+      })
+    )
       .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then((data) => {
         const reply = (data && data.reply) || "Didn't get a usable reply back -- try again?";

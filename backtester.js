@@ -4,13 +4,13 @@
 // completion (/backtest/status/<id>), and renders stats + an equity curve +
 // a trades table. Also lists/reloads/deletes past runs (/backtest/history).
 //
-// Talks directly to chart_service.py's ngrok URL (window.BACKTESTER_API_URL
+// Talks directly to chart_service.py's ngrok URL (window.CHART_SERVICE_URL
 // in config.js) -- not through n8n, since this is a start-job/poll-status
 // flow rather than one request/response.
 (function () {
   "use strict";
 
-  const API = () => (window.BACKTESTER_API_URL || "").replace(/\/+$/, "");
+  const API = () => (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
   const FETCH_HEADERS = {
     "Content-Type": "application/json",
     // Free-tier ngrok shows an HTML "you're about to visit..." interstitial
@@ -90,7 +90,7 @@
   function checkApi() {
     if (placeholderNotSet()) {
       els.apiPill.textContent = "API not configured";
-      els.apiPill.title = "Set window.BACKTESTER_API_URL in config.js to your ngrok URL";
+      els.apiPill.title = "Set window.CHART_SERVICE_URL in config.js to your ngrok URL";
       return;
     }
     fetch(`${API()}/backtest/defaults`, { headers: FETCH_HEADERS })
@@ -175,13 +175,23 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  // Exposed so backtester-ai.js (the "Configure with AI" panel) can read
+  // the current form state and write a finished config back into it
+  // without duplicating every field mapping above. Nothing else on this
+  // page depends on this global.
+  window.BacktesterForm = {
+    build: buildPayload,
+    apply: applyPayload,
+    runBtn: () => els.runBtn,
+  };
+
   let running = false;
   let pollTimer = null;
 
   els.runBtn.addEventListener("click", () => {
     if (running) return;
     if (placeholderNotSet()) {
-      els.runStatus.textContent = "Set window.BACKTESTER_API_URL in config.js to your ngrok URL first.";
+      els.runStatus.textContent = "Set window.CHART_SERVICE_URL in config.js to your ngrok URL first.";
       return;
     }
     if (!els.start.value || !els.end.value) {
@@ -356,7 +366,7 @@
 
   function loadHistory() {
     if (placeholderNotSet()) {
-      els.history.innerHTML = `<div class="empty-state small">Set window.BACKTESTER_API_URL in config.js to see past runs.</div>`;
+      els.history.innerHTML = `<div class="empty-state small">Set window.CHART_SERVICE_URL in config.js to see past runs.</div>`;
       return;
     }
     fetch(`${API()}/backtest/history`, { headers: FETCH_HEADERS })
