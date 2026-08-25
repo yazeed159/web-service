@@ -175,7 +175,7 @@
     addBubble(
       "ai",
       formatReply(
-        "Tell me what you want to test — an entry style, symbols/price range, stop, target, whatever you've got. I'll ask about anything important you leave out, then show you a summary to confirm before it touches the form below."
+        "Tell me what you want to test — an entry style, symbols/price range, stop, target, whatever you've got. I'll ask about anything important you leave out, then show you a summary right here to confirm before running it."
       )
     );
     renderChips();
@@ -287,15 +287,16 @@
       <div class="chat-bubble ai-summary-bubble">
         ${groupsHtml || `<p class="dim">Nothing resolved yet.</p>`}
         <div class="ai-summary-actions">
-          <button type="button" class="btn-confirm ai-summary-confirm">Looks good — fill the form</button>
+          <button type="button" class="btn-confirm ai-summary-confirm">Run backtest with this config</button>
           <button type="button" class="filter-btn ai-summary-adjust">Keep adjusting</button>
         </div>
+        <div class="ai-summary-status" style="display:none; font-size:12.5px; margin-top:8px;"></div>
       </div>
     `;
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
-    wrap.querySelector(".ai-summary-confirm").addEventListener("click", () => applyDraftToForm(wrap));
+    wrap.querySelector(".ai-summary-confirm").addEventListener("click", () => runDraftBacktest(wrap));
     wrap.querySelector(".ai-summary-adjust").addEventListener("click", () => {
       awaitingConfirmation = false;
       wrap.querySelector(".ai-summary-actions").innerHTML = `<span class="dim" style="font-size:12.5px;">Sure — what would you like to change?</span>`;
@@ -303,16 +304,71 @@
     });
   }
 
-  function applyDraftToForm(cardEl) {
+  // Runs the backtest directly off `draft` -- the config this conversation
+  // resolved -- rather than writing it into the form and depending on the
+  // form to be read back correctly. window.BacktesterForm.run() still
+  // mirrors draft into the form for visibility, but the numbers that
+  // actually get simulated are the ones agreed on right here in the chat.
+  function runDraftBacktest(cardEl) {
     if (!window.BacktesterForm) {
-      addBubble("ai", formatReply("Couldn't reach the form on this page -- try reloading."));
+      addBubble("ai", formatReply("Couldn't reach the backtest engine on this page -- try reloading."));
       return;
     }
-    window.BacktesterForm.apply(draft);
-    flashFormSections();
-    cardEl.querySelector(".ai-summary-actions").innerHTML = `<span class="up" style="font-size:12.5px; font-weight:600;">✓ Applied to the form below</span>`;
+    if (!draft.start || !draft.end) {
+      addBubble("ai", formatReply("I still need a start and end date before I can run this -- what date range?"));
+      return;
+    }
+
     awaitingConfirmation = false;
-    addBubble("ai", formatReply("Filled it in below — take a look and hit **Run Backtest** whenever you're ready. Want to tweak anything or test a different variant, just tell me."));
+    const statusEl = cardEl.querySelector(".ai-summary-status");
+    statusEl.style.display = "";
+    cardEl.querySelector(".ai-summary-actions").innerHTML = `<span class="dim" style="font-size:12.5px;">Running…</span>`;
+    statusEl.textContent = "Starting backtest…";
+
+    window.BacktesterForm.run(draft, {
+      onStatusChange: (text) => { statusEl.textContent = text; },
+      onProgress: ({ current, total, day }) => {
+        statusEl.textContent = `Running… day ${current}/${total}${day ? " — " + day : ""}`;
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      },
+      onDone: (job) => {
+        const stats = job && job.stats;
+        if (!stats || !stats.num_trades) {
+          statusEl.textContent = "";
+          addBubble("ai", formatReply("Done — no trades matched this config over that date range. Want to loosen a filter or widen the dates?"));
+          return;
+        }
+        const pnl = Number(stats.net_pnl_dollars || 0);
+        const pnlStr = (pnl >= 0 ? "+$" : "-$") + Math.abs(pnl).toFixed(2);
+        const winRate = typeof stats.win_rate === "number" ? stats.win_rate.toFixed(1) + "%" : "—";
+        const pf = stats.profit_factor != null ? stats.profit_factor.toFixed(2) : "—";
+        const avgR = typeof stats.avg_r === "number" ? stats.avg_r.toFixed(2) + "R" : "—";
+        statusEl.textContent = "";
+        addBubble(
+          "ai",
+          formatReply(
+            `**Done.** ${stats.num_trades} trade${stats.num_trades === 1 ? "" : "s"}, net P&L **${pnlStr}**, win rate ${winRate}, profit factor ${pf}, avg ${avgR}.\n\nFull trade-by-trade breakdown and the equity curve are below. Want to tweak anything or try a variant, just tell me.`
+          )
+        );
+        flashResultsSection();
+      },
+      onError: (message) => {
+        statusEl.textContent = "";
+        addBubble("ai", formatReply(`Couldn't run that: ${escapeHtml(String(message))}`));
+        cardEl.querySelector(".ai-summary-actions").innerHTML = `
+          <button type="button" class="btn-confirm ai-summary-confirm">Run backtest with this config</button>
+          <button type="button" class="filter-btn ai-summary-adjust">Keep adjusting</button>
+        `;
+        cardEl.querySelector(".ai-summary-confirm").addEventListener("click", () => runDraftBacktest(cardEl));
+        cardEl.querySelector(".ai-summary-adjust").addEventListener("click", () => {
+          awaitingConfirmation = false;
+          cardEl.querySelector(".ai-summary-actions").innerHTML = `<span class="dim" style="font-size:12.5px;">Sure — what would you like to change?</span>`;
+          inputEl.focus();
+        });
+      },
+    });
+
+    flashFormSections();
   }
 
   function flashFormSections() {
@@ -323,8 +379,11 @@
       void el.offsetWidth; // restart animation
       el.classList.add("just-applied");
     });
-    const runRow = document.querySelector(".bt-run-row");
-    if (runRow) runRow.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function flashResultsSection() {
+    const results = document.getElementById("bt-results");
+    if (results) results.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   // ---- sending messages -------------------------------------------------

@@ -199,6 +199,18 @@
     build: buildPayload,
     apply: applyPayload,
     runBtn: () => els.runBtn,
+    // Drives a run straight from a config object (e.g. the "Configure with
+    // AI" chat's resolved draft) instead of buildPayload()'s DOM read.
+    // Also mirrors the payload into the form via applyPayload() so what's
+    // on screen matches what actually ran, but that's just for display --
+    // the fetch body below is `payload` itself, so a field that fails to
+    // stick in some form control (e.g. an enum value with no matching
+    // <option>) can't silently swap in a stale/default value the way it
+    // could when the old flow filled the form and then re-read it.
+    run: (payload, hooks) => {
+      applyPayload(payload);
+      startBacktest(payload, hooks);
+    },
   };
 
   // Persist the running job's id (+ which API it's on) so a page refresh
@@ -226,32 +238,54 @@
     } catch (e) { return null; }
   }
 
-  els.runBtn.addEventListener("click", () => {
+  // Starts a job from an explicit payload (rather than always re-reading
+  // the DOM via buildPayload()) so callers like backtester-ai.js can drive
+  // a run straight from a resolved chat config -- the values that were
+  // actually agreed on in the conversation -- instead of depending on
+  // applyPayload() having round-tripped every field into the form first.
+  // /backtest/start on chart_service.py already defaults any field this
+  // payload omits (see ORB_DEFAULT_PARAMS there), so a partial payload is
+  // fine as long as start/end are present.
+  //
+  // `hooks` (all optional) lets a caller other than the run button surface
+  // progress/completion in its own UI: onStatusChange(text), onProgress({
+  // current, total, day }), onDone(job), onError(message). The normal
+  // form-driven run path below always passes no hooks, so it behaves
+  // exactly as before.
+  function startBacktest(payload, hooks) {
     if (running) return;
     if (placeholderNotSet()) {
-      els.runStatus.textContent = "Set window.CHART_SERVICE_URL in config.js to your ngrok URL first.";
+      const msg = "Set window.CHART_SERVICE_URL in config.js to your ngrok URL first.";
+      els.runStatus.textContent = msg;
+      if (hooks && hooks.onError) hooks.onError(msg);
       return;
     }
-    if (!els.start.value || !els.end.value) {
-      els.runStatus.textContent = "Pick a start and end date.";
+    if (!payload || !payload.start || !payload.end) {
+      const msg = "Pick a start and end date.";
+      els.runStatus.textContent = msg;
+      if (hooks && hooks.onError) hooks.onError(msg);
       return;
     }
 
     startRunningUi();
     els.results.innerHTML = "";
+    if (hooks && hooks.onStatusChange) hooks.onStatusChange("Starting backtest…");
 
     fetch(`${API()}/backtest/start`, {
       method: "POST",
       headers: FETCH_HEADERS,
-      body: JSON.stringify(buildPayload()),
+      body: JSON.stringify(payload),
     })
       .then((r) => r.json().then((j) => { if (!r.ok) throw new Error(j.error || "HTTP " + r.status); return j; }))
-      .then((j) => { saveActiveJob(j.job_id); pollJob(j.job_id); })
+      .then((j) => { saveActiveJob(j.job_id); pollJob(j.job_id, hooks); })
       .catch((err) => {
         finishRun();
         els.runStatus.textContent = "Couldn't start backtest: " + err.message;
+        if (hooks && hooks.onError) hooks.onError(err.message);
       });
-  });
+  }
+
+  els.runBtn.addEventListener("click", () => startBacktest(buildPayload()));
 
   if (els.cancelBtn) {
     els.cancelBtn.addEventListener("click", () => {
@@ -274,7 +308,7 @@
     els.progressLabel.textContent = "Scanning for gappers…";
   }
 
-  function pollJob(jobId) {
+  function pollJob(jobId, hooks) {
     currentJobId = jobId;
     els.runBtn.textContent = "Running…";
     clearTimeout(pollTimer);
@@ -295,6 +329,7 @@
               const pct = Math.round((job.current / job.total) * 100);
               els.progressFill.style.width = pct + "%";
               els.progressLabel.textContent = `Day ${job.current}/${job.total}${job.day ? " — " + job.day : ""}`;
+              if (hooks && hooks.onProgress) hooks.onProgress({ current: job.current, total: job.total, day: job.day });
             }
             pollTimer = setTimeout(tick, 1200);
             return;
@@ -302,6 +337,7 @@
           if (job.status === "error") {
             finishRun();
             els.runStatus.textContent = "Backtest failed: " + job.error;
+            if (hooks && hooks.onError) hooks.onError(job.error);
             return;
           }
           if (job.status === "cancelled") {
@@ -309,6 +345,7 @@
             els.runStatus.textContent = `Cancelled — showing results through day ${job.current}/${job.total || "?"}.`;
             renderResults(job.stats, job.trades || [], false);
             finishRun();
+            if (hooks && hooks.onDone) hooks.onDone(job);
             return;
           }
           // done
@@ -317,10 +354,12 @@
           renderResults(job.stats, job.trades || [], false);
           loadHistory();
           finishRun();
+          if (hooks && hooks.onDone) hooks.onDone(job);
         })
         .catch((err) => {
           finishRun();
           els.runStatus.textContent = "Lost connection while polling: " + err.message;
+          if (hooks && hooks.onError) hooks.onError(err.message);
         });
     };
     tick();
