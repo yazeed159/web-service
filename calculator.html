@@ -122,18 +122,88 @@
     </header>
 
     <div class="content">
-      <div class="calc-box">
-        <div class="calc-row"><label>Account size</label><input type="text" class="filter-input" id="calc-account" value="$25,000"></div>
-        <div class="calc-row"><label>Risk per trade</label><input type="text" class="filter-input" id="calc-risk" value="1%"></div>
-        <div class="calc-row"><label>Entry price</label><input type="text" class="filter-input" id="calc-entry" value="$54.20"></div>
-        <div class="calc-row"><label>Stop price</label><input type="text" class="filter-input" id="calc-stop" value="$53.50"></div>
-        <div class="calc-result" id="calc-result">Max shares: <strong id="calc-max-shares">—</strong> · Risk amount: <strong id="calc-risk-amount">—</strong></div>
-      </div>
+      <div class="calc-grid">
+        <div class="calc-box">
 
-      <div class="section-label">R-Multiple Reference</div>
-      <div class="checklist-box">
-        <label id="calc-r1">1R target = risk amount (—)</label>
-        <label id="calc-r23">2R target = — · 3R target = —</label>
+          <div class="calc-row">
+            <div class="calc-row-head">
+              <label>Account size</label>
+              <button type="button" class="calc-balance-edit" id="calc-balance-edit-btn">edit starting balance</button>
+            </div>
+            <div class="calc-balance-line">
+              <span class="calc-balance-val" id="calc-balance-display">—</span>
+              <span class="calc-hint" id="calc-balance-sub"></span>
+            </div>
+            <div class="calc-input-wrap" id="calc-balance-edit-wrap" style="display:none;">
+              <input type="text" class="filter-input" id="calc-starting-balance" value="$25,000">
+            </div>
+          </div>
+
+          <div class="calc-row">
+            <div class="calc-row-head"><label>Risk per trade</label></div>
+            <div class="chip-row" id="calc-risk-chips">
+              <button type="button" class="calc-chip" data-risk="0.25">0.25%</button>
+              <button type="button" class="calc-chip" data-risk="0.5">0.5%</button>
+              <button type="button" class="calc-chip active" data-risk="1">1%</button>
+              <button type="button" class="calc-chip" data-risk="1.5">1.5%</button>
+              <button type="button" class="calc-chip" data-risk="2">2%</button>
+            </div>
+          </div>
+
+          <div class="calc-row" id="calc-recent-symbols-row" style="display:none;">
+            <div class="calc-row-head"><label>Recent symbols</label><span class="calc-hint">tap to fill entry</span></div>
+            <div class="calc-symbol-list" id="calc-symbol-list"></div>
+          </div>
+
+          <div class="calc-row">
+            <div class="calc-row-head"><label>Entry price</label></div>
+            <div class="calc-input-wrap">
+              <input type="text" class="filter-input" id="calc-entry" value="">
+              <div class="calc-stepper" data-target="calc-entry"><button type="button" data-dir="1">▲</button><button type="button" data-dir="-1">▼</button></div>
+            </div>
+          </div>
+
+          <div class="calc-row">
+            <div class="calc-row-head">
+              <label>Stop</label>
+              <div class="calc-toggle" id="calc-stop-mode">
+                <button type="button" class="active" data-mode="pct">% distance</button>
+                <button type="button" data-mode="price">exact price</button>
+              </div>
+            </div>
+            <div class="chip-row" id="calc-stop-pct-chips">
+              <button type="button" class="calc-chip" data-stoppct="0.5">0.5%</button>
+              <button type="button" class="calc-chip active" data-stoppct="1">1%</button>
+              <button type="button" class="calc-chip" data-stoppct="2">2%</button>
+              <button type="button" class="calc-chip" data-stoppct="3">3%</button>
+              <button type="button" class="calc-chip" data-stoppct="5">5%</button>
+            </div>
+            <div class="calc-input-wrap" id="calc-stop-price-wrap" style="display:none;">
+              <input type="text" class="filter-input" id="calc-stop" value="">
+              <div class="calc-stepper" data-target="calc-stop"><button type="button" data-dir="1">▲</button><button type="button" data-dir="-1">▼</button></div>
+            </div>
+            <div class="calc-hint" id="calc-stop-computed"></div>
+          </div>
+
+        </div>
+
+        <div class="calc-results">
+          <div class="calc-stat-grid">
+            <div class="calc-stat"><div class="lbl">Risk amount</div><div class="val" id="calc-risk-amount">—</div></div>
+            <div class="calc-stat"><div class="lbl">Max shares</div><div class="val" id="calc-max-shares">—</div></div>
+            <div class="calc-stat"><div class="lbl">Position cost</div><div class="val" id="calc-position-cost">—</div><div class="sub" id="calc-position-pct">—</div></div>
+            <div class="calc-stat"><div class="lbl">Per-share risk</div><div class="val" id="calc-per-share-risk">—</div></div>
+          </div>
+
+          <div>
+            <div class="section-label" style="margin-bottom:8px;">R-Multiple Reference</div>
+            <div class="calc-r-table">
+              <div class="calc-r-row"><span class="r-label">1R target</span><span class="r-val" id="calc-r1">—</span></div>
+              <div class="calc-r-row"><span class="r-label">2R target</span><span class="r-val" id="calc-r2">—</span></div>
+              <div class="calc-r-row"><span class="r-label">3R target</span><span class="r-val" id="calc-r3">—</span></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -164,15 +234,42 @@
   (function () {
     "use strict";
 
-    const accountEl = document.getElementById("calc-account");
-    const riskEl = document.getElementById("calc-risk");
+    const LS_KEYS = {
+      startingBalance: "calc_starting_balance",
+      riskPct: "calc_risk_pct",
+      stopMode: "calc_stop_mode",
+      stopPct: "calc_stop_pct",
+    };
+
     const entryEl = document.getElementById("calc-entry");
     const stopEl = document.getElementById("calc-stop");
+    const startingBalanceEl = document.getElementById("calc-starting-balance");
+    const balanceDisplay = document.getElementById("calc-balance-display");
+    const balanceSub = document.getElementById("calc-balance-sub");
+    const balanceEditBtn = document.getElementById("calc-balance-edit-btn");
+    const balanceEditWrap = document.getElementById("calc-balance-edit-wrap");
+    const stopComputedEl = document.getElementById("calc-stop-computed");
+    const stopPriceWrap = document.getElementById("calc-stop-price-wrap");
+    const stopPctChipsWrap = document.getElementById("calc-stop-pct-chips");
+    const symbolRow = document.getElementById("calc-recent-symbols-row");
+    const symbolListEl = document.getElementById("calc-symbol-list");
+
     const maxSharesEl = document.getElementById("calc-max-shares");
     const riskAmountEl = document.getElementById("calc-risk-amount");
+    const positionCostEl = document.getElementById("calc-position-cost");
+    const positionPctEl = document.getElementById("calc-position-pct");
+    const perShareRiskEl = document.getElementById("calc-per-share-risk");
     const r1El = document.getElementById("calc-r1");
-    const r23El = document.getElementById("calc-r23");
-    const resultEl = document.getElementById("calc-result");
+    const r2El = document.getElementById("calc-r2");
+    const r3El = document.getElementById("calc-r3");
+    const positionCostStat = positionCostEl.closest(".calc-stat");
+
+    let riskPct = parseFloat(localStorage.getItem(LS_KEYS.riskPct)) || 1;
+    let stopMode = localStorage.getItem(LS_KEYS.stopMode) || "pct";
+    let stopPct = parseFloat(localStorage.getItem(LS_KEYS.stopPct)) || 1;
+    let startingBalance = parseFloat(localStorage.getItem(LS_KEYS.startingBalance));
+    if (!isFinite(startingBalance)) startingBalance = 25000;
+    let latestEquityAfter = 0;
 
     function parseNumber(str) {
       if (!str) return NaN;
@@ -182,46 +279,182 @@
     function fmtUsd(v) {
       return "$" + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
-
-    function calculate() {
-      const account = parseNumber(accountEl.value);
-      const riskPct = parseNumber(riskEl.value);
-      const entry = parseNumber(entryEl.value);
-      const stop = parseNumber(stopEl.value);
-
-      const perShareRisk = (isFinite(entry) && isFinite(stop)) ? Math.abs(entry - stop) : NaN;
-      const riskAmount = (isFinite(account) && isFinite(riskPct)) ? account * (riskPct / 100) : NaN;
-
-      if (!isFinite(riskAmount) || riskAmount <= 0) {
-        maxSharesEl.textContent = "—";
-        riskAmountEl.textContent = "—";
-        r1El.textContent = "1R target = risk amount (—)";
-        r23El.textContent = "2R target = — · 3R target = —";
-        resultEl.classList.remove("calc-error");
-        return;
-      }
-
-      riskAmountEl.textContent = fmtUsd(riskAmount);
-
-      if (!isFinite(perShareRisk) || perShareRisk <= 0) {
-        maxSharesEl.textContent = "—";
-        r1El.textContent = `1R target = risk amount (${fmtUsd(riskAmount)})`;
-        r23El.textContent = `2R target = ${fmtUsd(riskAmount * 2)} · 3R target = ${fmtUsd(riskAmount * 3)}`;
-        return;
-      }
-
-      const maxShares = Math.floor(riskAmount / perShareRisk);
-      maxSharesEl.textContent = maxShares.toLocaleString();
-      r1El.textContent = `1R target = risk amount (${fmtUsd(riskAmount)})`;
-      r23El.textContent = `2R target = ${fmtUsd(riskAmount * 2)} · 3R target = ${fmtUsd(riskAmount * 3)}`;
+    function currentBalance() {
+      return startingBalance + latestEquityAfter;
+    }
+    function renderBalance() {
+      balanceDisplay.textContent = fmtUsd(currentBalance());
+      balanceSub.textContent = latestEquityAfter
+        ? `${fmtUsd(startingBalance)} start ${latestEquityAfter >= 0 ? "+" : "\u2212"} ${fmtUsd(Math.abs(latestEquityAfter))} P&L`
+        : "no logged trades yet";
+      startingBalanceEl.value = fmtUsd(startingBalance);
     }
 
-    [accountEl, riskEl, entryEl, stopEl].forEach((el) => {
+    // --- Risk % chips ---
+    const riskChips = Array.from(document.querySelectorAll("#calc-risk-chips .calc-chip"));
+    function setRiskPct(v) {
+      riskPct = v;
+      localStorage.setItem(LS_KEYS.riskPct, String(v));
+      riskChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.risk) === v));
+      calculate();
+    }
+    riskChips.forEach((c) => c.addEventListener("click", () => setRiskPct(parseFloat(c.dataset.risk))));
+
+    // --- Stop mode toggle (percent distance vs exact price) ---
+    const stopModeBtns = Array.from(document.querySelectorAll("#calc-stop-mode button"));
+    function setStopMode(mode) {
+      stopMode = mode;
+      localStorage.setItem(LS_KEYS.stopMode, mode);
+      stopModeBtns.forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
+      stopPctChipsWrap.style.display = mode === "pct" ? "flex" : "none";
+      stopPriceWrap.style.display = mode === "price" ? "flex" : "none";
+      calculate();
+    }
+    stopModeBtns.forEach((b) => b.addEventListener("click", () => setStopMode(b.dataset.mode)));
+
+    // --- Stop % chips ---
+    const stopChips = Array.from(document.querySelectorAll("#calc-stop-pct-chips .calc-chip"));
+    function setStopPct(v) {
+      stopPct = v;
+      localStorage.setItem(LS_KEYS.stopPct, String(v));
+      stopChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.stoppct) === v));
+      calculate();
+    }
+    stopChips.forEach((c) => c.addEventListener("click", () => setStopPct(parseFloat(c.dataset.stoppct))));
+
+    // --- Starting balance edit ---
+    balanceEditBtn.addEventListener("click", () => {
+      const showing = balanceEditWrap.style.display !== "none";
+      balanceEditWrap.style.display = showing ? "none" : "flex";
+      balanceEditBtn.textContent = showing ? "edit starting balance" : "done";
+      if (!showing) startingBalanceEl.focus();
+    });
+    startingBalanceEl.addEventListener("input", () => {
+      const v = parseNumber(startingBalanceEl.value);
+      if (isFinite(v) && v > 0) {
+        startingBalance = v;
+        localStorage.setItem(LS_KEYS.startingBalance, String(v));
+        renderBalance();
+        calculate();
+      }
+    });
+
+    // --- Steppers (nudge entry/stop by 1 cent, or 10 cents with shift) ---
+    document.querySelectorAll(".calc-stepper").forEach((wrap) => {
+      const target = document.getElementById(wrap.dataset.target);
+      wrap.querySelectorAll("button").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const dir = parseFloat(btn.dataset.dir);
+          const cur = parseNumber(target.value) || 0;
+          const step = e.shiftKey ? 0.10 : 0.01;
+          const next = Math.max(0, cur + dir * step);
+          target.value = "$" + next.toFixed(2);
+          calculate();
+        });
+      });
+    });
+
+    function calculate() {
+      const account = currentBalance();
+      const entry = parseNumber(entryEl.value);
+      let stop;
+
+      if (stopMode === "pct") {
+        stop = isFinite(entry) ? entry * (1 - stopPct / 100) : NaN;
+        stopComputedEl.textContent = isFinite(stop)
+          ? `= stop at ${fmtUsd(stop)} (${stopPct}% below entry)`
+          : "enter an entry price to compute the stop";
+      } else {
+        stop = parseNumber(stopEl.value);
+        stopComputedEl.textContent = "";
+      }
+
+      const perShareRisk = (isFinite(entry) && isFinite(stop)) ? Math.abs(entry - stop) : NaN;
+      const riskAmount = account * (riskPct / 100);
+
+      riskAmountEl.textContent = fmtUsd(riskAmount);
+      perShareRiskEl.textContent = isFinite(perShareRisk) ? fmtUsd(perShareRisk) : "\u2014";
+
+      if (!isFinite(perShareRisk) || perShareRisk <= 0) {
+        maxSharesEl.textContent = "\u2014";
+        positionCostEl.textContent = "\u2014";
+        positionPctEl.textContent = "\u2014";
+        positionCostStat.classList.remove("warn");
+        r1El.textContent = "\u2014";
+        r2El.textContent = "\u2014";
+        r3El.textContent = "\u2014";
+        return;
+      }
+
+      let maxShares = Math.floor(riskAmount / perShareRisk);
+      const cashLimitedShares = isFinite(entry) && entry > 0 ? Math.floor(account / entry) : Infinity;
+      const cashLimited = maxShares > cashLimitedShares;
+      if (cashLimited) maxShares = Math.max(0, cashLimitedShares);
+
+      maxSharesEl.textContent = maxShares.toLocaleString();
+
+      const positionCost = isFinite(entry) ? maxShares * entry : NaN;
+      positionCostEl.textContent = isFinite(positionCost) ? fmtUsd(positionCost) : "\u2014";
+      positionCostStat.classList.toggle("warn", cashLimited);
+      positionPctEl.textContent = isFinite(positionCost) && account > 0
+        ? (cashLimited ? "capped by account size" : `${((positionCost / account) * 100).toFixed(1)}% of account`)
+        : "\u2014";
+
+      r1El.textContent = fmtUsd(riskAmount);
+      r2El.textContent = fmtUsd(riskAmount * 2);
+      r3El.textContent = fmtUsd(riskAmount * 3);
+    }
+
+    [entryEl, stopEl].forEach((el) => {
       el.addEventListener("input", calculate);
       el.addEventListener("blur", calculate);
     });
 
+    // --- Init from saved prefs ---
+    riskChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.risk) === riskPct));
+    if (!riskChips.some((c) => parseFloat(c.dataset.risk) === riskPct)) riskChips[2].classList.add("active");
+    stopChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.stoppct) === stopPct));
+    setStopMode(stopMode);
+    renderBalance();
     calculate();
+
+    // --- Pull latest equity + recent symbols from the journal so account
+    // size and quick-fill reference prices don't need to be typed in. ---
+    fetch("data/trades.json")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((trades) => {
+        if (!Array.isArray(trades) || trades.length === 0) return;
+        const last = trades[trades.length - 1];
+        if (last && isFinite(last.equity_after)) {
+          latestEquityAfter = last.equity_after;
+          renderBalance();
+          calculate();
+        }
+        const seen = new Set();
+        const recent = [];
+        for (let i = trades.length - 1; i >= 0 && recent.length < 6; i--) {
+          const t = trades[i];
+          if (!t.symbol || seen.has(t.symbol)) continue;
+          seen.add(t.symbol);
+          recent.push(t);
+        }
+        if (recent.length) {
+          symbolRow.style.display = "flex";
+          symbolListEl.innerHTML = "";
+          recent.forEach((t) => {
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "calc-symbol-chip";
+            chip.innerHTML = `<span class="sym">${t.symbol}</span><span class="px">last ${fmtUsd(t.entry_price)}</span>`;
+            chip.addEventListener("click", () => {
+              entryEl.value = fmtUsd(t.entry_price);
+              calculate();
+            });
+            symbolListEl.appendChild(chip);
+          });
+        }
+      })
+      .catch(() => { /* journal not reachable -- calculator still works standalone */ });
   })();
 </script>
 <script src="modern.js"></script>

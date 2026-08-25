@@ -1010,17 +1010,21 @@
 
   function dayTableHtml(days) {
     if (!days.length) return `<div class="empty-state small">No data yet.</div>`;
-    const rows = days.map((d) => `<tr>
+    const rows = days.map((d) => {
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `<tr class="report-row" data-trade-toggle="${uid}" style="cursor:pointer;">
         <td style="font-weight:600;">${d.date}</td>
         <td class="mono dim">${d.count}</td>
         <td class="mono ${d.net >= 0 ? "up" : "down"}">${fmtMoney(d.net)}</td>
-      </tr>`).join("");
+      </tr>
+      <tr class="report-row-detail"><td colspan="3" style="padding:0; border-bottom:none;">${tradeListHtml(d.trades, uid)}</td></tr>`;
+    }).join("");
     return `<div class="table-scroll"><table class="report-table"><thead><tr><th>Date</th><th>Trades</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
   function renderWinLossDays() {
     const map = dailyAgg();
-    const days = Array.from(map.entries()).map(([date, e]) => ({ date, net: e.net, count: e.trades.length }));
+    const days = Array.from(map.entries()).map(([date, e]) => ({ date, net: e.net, count: e.trades.length, trades: e.trades }));
     const summaryEl = document.getElementById("wld-summary");
     if (!days.length) {
       summaryEl.innerHTML = `<div class="empty-state small">No data yet.</div>`;
@@ -1040,8 +1044,12 @@
         <div class="cell"><div class="label">Avg loss day</div><div class="value down">${fmtMoney(avg(lossDays))}</div></div>
       </div>`;
 
-    document.getElementById("wld-top-win").innerHTML = dayTableHtml(winDays.slice().sort((a, b) => b.net - a.net).slice(0, 8));
-    document.getElementById("wld-top-loss").innerHTML = dayTableHtml(lossDays.slice().sort((a, b) => a.net - b.net).slice(0, 8));
+    const winEl = document.getElementById("wld-top-win");
+    winEl.innerHTML = dayTableHtml(winDays.slice().sort((a, b) => b.net - a.net).slice(0, 8));
+    bindTradeToggles(winEl);
+    const lossEl = document.getElementById("wld-top-loss");
+    lossEl.innerHTML = dayTableHtml(lossDays.slice().sort((a, b) => a.net - b.net).slice(0, 8));
+    bindTradeToggles(lossEl);
   }
 
   // ================================================================
@@ -1108,10 +1116,10 @@
       return;
     }
     const rows = d.periods.slice(0, 10).map((p) => `<tr>
-        <td>${p.peak.trade_date} <span class="dim" style="font-size:11px;">(${fmtMoney(p.peak.equity_after)})</span></td>
-        <td>${p.trough.trade_date} <span class="dim" style="font-size:11px;">(${fmtMoney(p.trough.equity_after)})</span></td>
+        <td><a href="trade.html?id=${encodeURIComponent(p.peak.id)}">${p.peak.trade_date} <span class="dim" style="font-size:11px;">(${fmtMoney(p.peak.equity_after)})</span></a></td>
+        <td><a href="trade.html?id=${encodeURIComponent(p.trough.id)}">${p.trough.trade_date} <span class="dim" style="font-size:11px;">(${fmtMoney(p.trough.equity_after)})</span></a></td>
         <td class="mono down">${fmtMoney(p.size)}</td>
-        <td>${p.recover ? p.recover.trade_date : `<span class="dim">Ongoing</span>`}</td>
+        <td>${p.recover ? `<a href="trade.html?id=${encodeURIComponent(p.recover.id)}">${p.recover.trade_date}</a>` : `<span class="dim">Ongoing</span>`}</td>
       </tr>`).join("");
     periodsEl.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Peak</th><th>Trough</th><th>Drawdown</th><th>Recovered</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
@@ -1402,14 +1410,25 @@
       const winRate = (b.trades.filter((t) => t.win).length / b.trades.length) * 100;
       const pct = (Math.abs(net) / maxAbs) * 100;
       const color = net >= 0 ? "var(--green)" : "var(--red)";
-      return `<tr>
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `<tr class="report-row" data-trade-toggle="${uid}" style="cursor:pointer;">
         <td style="font-weight:600;">${escapeHtml(b.label)}</td>
         <td class="mono dim">${b.trades.length}</td>
         <td class="mono">${winRate.toFixed(0)}%</td>
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</span></td>
-      </tr>`;
+      </tr>
+      <tr class="report-row-detail"><td colspan="4" style="padding:0; border-bottom:none;">${tradeListHtml(b.trades, uid)}</td></tr>`;
     }).join("");
     return `<div class="table-scroll"><table class="report-table"><thead><tr><th>${escapeHtml(labelHeader)}</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  // bucketBreakdownTableHtml returns markup with the toggle rows baked in,
+  // but the click handlers still need binding after each caller drops the
+  // string into the DOM via innerHTML — this wraps that so every call site
+  // gets the same treatment in one line.
+  function setBucketBreakdownHtml(elId, buckets, labelHeader) {
+    const el = document.getElementById(elId);
+    el.innerHTML = bucketBreakdownTableHtml(buckets, labelHeader);
+    bindTradeToggles(el);
   }
 
   function renderDetailSubtabs() {
@@ -1438,7 +1457,7 @@
     });
     const order = [1, 2, 3, 4, 5, 0, 6];
     const buckets = order.filter((d) => byDow.has(d)).map((d) => byDow.get(d));
-    document.getElementById("detail-dow").innerHTML = bucketBreakdownTableHtml(buckets, "Day");
+    setBucketBreakdownHtml("detail-dow", buckets, "Day");
   }
 
   function renderDetailHour() {
@@ -1449,7 +1468,7 @@
       map.get(label).trades.push(t);
     });
     const buckets = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
-    document.getElementById("detail-hour").innerHTML = bucketBreakdownTableHtml(buckets, "Hour");
+    setBucketBreakdownHtml("detail-hour", buckets, "Hour");
   }
 
   // ---- Price/Volume ----
@@ -1463,7 +1482,7 @@
       const bucket = buckets.find((b) => t.entry_price <= b.max);
       (bucket || buckets[buckets.length - 1]).trades.push(t);
     });
-    document.getElementById("detail-price").innerHTML = bucketBreakdownTableHtml(buckets, "Entry price");
+    setBucketBreakdownHtml("detail-price", buckets, "Entry price");
   }
 
   const SIZE_BUCKETS = [
@@ -1476,7 +1495,7 @@
       const bucket = buckets.find((b) => t.shares <= b.max);
       (bucket || buckets[buckets.length - 1]).trades.push(t);
     });
-    document.getElementById("detail-size").innerHTML = bucketBreakdownTableHtml(buckets, "Position size");
+    setBucketBreakdownHtml("detail-size", buckets, "Position size");
   }
 
   // ---- Instrument ----
@@ -1486,7 +1505,7 @@
       .map(([sym, e]) => ({ label: sym, trades: e.trades }))
       .sort((a, b) => b.trades.length - a.trades.length)
       .slice(0, 10);
-    document.getElementById("detail-symbol").innerHTML = bucketBreakdownTableHtml(buckets, "Symbol");
+    setBucketBreakdownHtml("detail-symbol", buckets, "Symbol");
   }
 
   function renderDetailSide() {
@@ -1496,7 +1515,7 @@
       if (!map.has(side)) map.set(side, { label: side, trades: [] });
       map.get(side).trades.push(t);
     });
-    document.getElementById("detail-side").innerHTML = bucketBreakdownTableHtml(Array.from(map.values()), "Side");
+    setBucketBreakdownHtml("detail-side", Array.from(map.values()), "Side");
   }
 
   // ---- Market Behavior ----
@@ -1508,22 +1527,32 @@
       map.get(t.setup_type).trades.push(t);
     });
     const buckets = Array.from(map.values()).sort((a, b) => b.trades.length - a.trades.length);
-    document.getElementById("detail-setup").innerHTML = bucketBreakdownTableHtml(buckets, "Setup");
+    setBucketBreakdownHtml("detail-setup", buckets, "Setup");
   }
 
   function renderDetailLessons() {
     const counts = new Map();
-    trades.forEach((t) => (t.lesson_tags || []).forEach((tag) => counts.set(tag, (counts.get(tag) || 0) + 1)));
-    const entries = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    trades.forEach((t) => (t.lesson_tags || []).forEach((tag) => {
+      if (!counts.has(tag)) counts.set(tag, { count: 0, trades: [] });
+      const e = counts.get(tag);
+      e.count++;
+      e.trades.push(t);
+    }));
+    const entries = Array.from(counts.entries()).sort((a, b) => b[1].count - a[1].count).slice(0, 8);
     const el = document.getElementById("detail-lessons");
     if (!entries.length) { el.innerHTML = `<div class="empty-state small">No lesson tags logged yet.</div>`; return; }
-    const maxCount = Math.max(...entries.map(([, c]) => c));
-    el.innerHTML = entries.map(([tag, c]) => `
-      <div class="bar-row">
+    const maxCount = Math.max(...entries.map(([, e]) => e.count));
+    el.innerHTML = entries.map(([tag, e]) => {
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `
+      <div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
         <div class="bar-label">${escapeHtml(tag.replace(/_/g, " "))}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${((c / maxCount) * 100).toFixed(0)}%;"></div></div>
-        <div class="bar-count">${c}x</div>
-      </div>`).join("");
+        <div class="bar-track"><div class="bar-fill" style="width:${((e.count / maxCount) * 100).toFixed(0)}%;"></div></div>
+        <div class="bar-count">${e.count}x</div>
+      </div>
+      ${tradeListHtml(e.trades, uid)}`;
+    }).join("");
+    bindTradeToggles(el);
   }
 
   // ---- Win/Loss/Expectation ----
@@ -1538,21 +1567,26 @@
     { label: "> $500", neg: false, test: (v) => v >= 500 },
   ];
   function renderDetailDistribution() {
-    const buckets = PNL_BUCKETS.map((b) => ({ ...b, count: 0 }));
+    const buckets = PNL_BUCKETS.map((b) => ({ ...b, count: 0, trades: [] }));
     trades.forEach((t) => {
       const b = buckets.find((b) => b.test(t.pnl_after_comm));
-      if (b) b.count++;
+      if (b) { b.count++; b.trades.push(t); }
     });
     const present = buckets.filter((b) => b.count);
     const el = document.getElementById("detail-distribution");
     if (!present.length) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
     const maxCount = Math.max(...present.map((b) => b.count));
-    el.innerHTML = present.map((b) => `
-      <div class="bar-row">
+    el.innerHTML = present.map((b) => {
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `
+      <div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
         <div class="bar-label" style="width:130px;">${b.label}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${((b.count / maxCount) * 100).toFixed(0)}%;background:${b.neg ? "var(--red)" : "var(--green)"};"></div></div>
         <div class="bar-count">${b.count}x</div>
-      </div>`).join("");
+      </div>
+      ${tradeListHtml(b.trades, uid)}`;
+    }).join("");
+    bindTradeToggles(el);
   }
 
   function renderDetailExpectancy() {
