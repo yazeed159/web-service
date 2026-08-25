@@ -24,7 +24,19 @@
 //   {
 //     reply: "<conversational text -- a follow-up question, or a wrap-up line>",
 //     config: { <any fields the model resolved this turn> },    // optional, merged into draft
-//     status: "asking" | "ready"                                // "ready" -> show the summary + Confirm
+//     status: "asking" | "ready",                               // "ready" -> show the summary + Confirm
+//     unsupported: ["<verbatim thing the person asked for that has no home in FIELD_SCHEMA>", ...]
+//     // optional. IMPORTANT: FIELD_SCHEMA is a fixed set of knobs the
+//     // Python backtest engine actually understands (see engine.py /
+//     // orb_strategy.py in chart_service.py's repo) -- it is NOT a
+//     // general strategy description language. If the person describes
+//     // something with no matching field (e.g. "only take the first 2
+//     // runners of the day", "skip anything under 10M float", "scale
+//     // out half at 1R", a multi-candle confirmation pattern), do NOT
+//     // silently drop it and do NOT force it into the closest-sounding
+//     // field -- that misrepresents the backtest. Put the person's own
+//     // words in `unsupported` instead so the UI can tell them plainly
+//     // "this won't be simulated" rather than pretending it was applied.
 //   }
 //
 // Unknown keys in `config` are ignored; known keys are coerced to the
@@ -87,6 +99,7 @@
     giveback_pct: { type: "float", label: "Giveback off peak (%)" },
     giveback_arm_cents: { type: "float", label: "Arm giveback after (¢)" },
     stall_exit: { type: "bool", label: "Exit on momentum stall" },
+    notes: { type: "string", label: "Strategy notes (not simulated)" },
   };
 
   const ENTRY_LABELS = {
@@ -253,6 +266,8 @@
     if (draft.stall_exit) exits.push(["Momentum stall exit", "On"]);
     if (exits.length) groups.push(["Profit Exits", exits]);
 
+    if (draft.notes) groups.push(["Notes (not simulated -- saved with the run for reference)", [["", draft.notes]]]);
+
     return groups;
   }
 
@@ -359,6 +374,17 @@
         mergeConfig(data && data.config);
         addBubble("ai", formatReply(reply));
         history.push({ role: "assistant", content: reply });
+
+        const unsupported = (data && Array.isArray(data.unsupported)) ? data.unsupported.filter(Boolean) : [];
+        if (unsupported.length) {
+          addBubble(
+            "ai",
+            `<div class="ai-unsupported-warning"><strong>Heads up — these won't be part of the actual simulation</strong> (no matching field in the backtester yet):<ul>${unsupported
+              .map((u) => `<li>${escapeHtml(u)}</li>`)
+              .join("")}</ul>They'll be saved as notes on the run so they're not lost, but the engine won't act on them.</div>`,
+            "ai-unsupported-bubble"
+          );
+        }
 
         if (data && data.status === "ready") {
           awaitingConfirmation = true;

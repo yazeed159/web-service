@@ -50,6 +50,7 @@
     positionSize: document.getElementById("bt-position-size"),
     sessionStart: document.getElementById("bt-session-start"),
     flattenTime: document.getElementById("bt-flatten-time"),
+    notes: document.getElementById("bt-notes"),
     entryMode: document.getElementById("bt-entry-mode"),
     orbMinutes: document.getElementById("bt-orb-minutes"),
     entryAfterOrb: document.getElementById("bt-entry-after-orb"),
@@ -121,6 +122,12 @@
       position_size: Number(els.positionSize.value) || 0,
       session_start: els.sessionStart.value || "09:30",
       flatten_time: els.flattenTime.value || "15:55",
+      // Not read or acted on by the engine -- just carried through to
+      // /backtest/start's body, which chart_service.py saves verbatim as
+      // this run's `params` in backtest_history.json, so anything the AI
+      // (or you) noted but couldn't map to a real field is at least kept
+      // on record instead of silently vanishing.
+      notes: els.notes ? els.notes.value.trim() : "",
 
       entry_mode: els.entryMode.value,
       orb_minutes: Number(els.orbMinutes.value) || 5,
@@ -159,6 +166,7 @@
     set(els.positionSize, p.position_size);
     set(els.sessionStart, p.session_start);
     set(els.flattenTime, p.flatten_time);
+    set(els.notes, p.notes);
     set(els.entryMode, p.entry_mode);
     set(els.orbMinutes, p.orb_minutes);
     setChk(els.entryAfterOrb, p.entry_after_orb !== false);
@@ -498,6 +506,7 @@
           <button class="run-card-delete" title="Delete this run" aria-label="Delete this run">&times;</button>
         </div>
         <div class="run-card-date">${escapeHtml((entry.params && entry.params.start) || "")} → ${escapeHtml((entry.params && entry.params.end) || "")}</div>
+        ${entry.params && entry.params.notes ? `<div class="run-card-date" title="${escapeHtml(entry.params.notes)}" style="margin-top:4px; font-style:italic;">📝 ${escapeHtml(entry.params.notes.slice(0, 80))}${entry.params.notes.length > 80 ? "…" : ""}</div>` : ""}
         <div class="run-card-stats" style="margin-top:10px;">
           <div><div class="pb-label">Net P&amp;L</div><div class="pb-value ${pnlClass === "up" ? "" : ""}" style="color:${pnlClass === "up" ? "var(--green)" : "var(--red)"}">${fmtMoney(s.net_pnl_dollars)}</div></div>
           <div><div class="pb-label">Win Rate</div><div class="pb-value">${fmtPct(s.win_rate)}</div></div>

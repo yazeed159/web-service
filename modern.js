@@ -24,6 +24,17 @@
     targets.forEach(function (el) {
       if (el.dataset.revealBound) return; // boot() can run more than once
       el.dataset.revealBound = '1';
+      // Elements that start (or are later toggled) display:none -- like
+      // #bt-progress-box, hidden until a backtest starts -- report a 0x0
+      // box here and can never satisfy the IntersectionObserver once
+      // they're shown, since they aren't "scrolled into view" so much as
+      // switched on by other JS. Binding them anyway meant they sat at
+      // opacity:0 (from .reveal-init) until the 1800ms safety net caught
+      // up -- so clicking "Run Backtest" soon after page load unhid an
+      // invisible box, looking like the page had emptied out. Skip
+      // reveal-on-scroll for anything not actually laid out right now;
+      // it'll just render normally (opacity:1) whenever it's shown.
+      if (getComputedStyle(el).display === 'none') return;
       // Tall content (e.g. a 300+ row table inside a panel) can be so much
       // taller than the viewport that it never satisfies an area-based
       // threshold. Only defer elements short enough to plausibly start
