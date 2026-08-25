@@ -1183,5 +1183,192 @@ def generate_chart():
         }), 500
 
 
+# ---------------------------------------------------------------------------
+# ORB / gap-gainer backtester -- powers the "Backtester" tab in the dashboard
+# (backtester.html). Runs the same standalone engine.py / orb_strategy.py /
+# polygon_client.py pipeline as the local orb-backtester-site tool, just as a
+# background job polled from the browser (start -> poll status) instead of a
+# CLI/Flask-template UI, since a multi-day scan can take a while under
+# Polygon's free-tier rate limit and we don't want to block the request.
+# ---------------------------------------------------------------------------
+import json
+import uuid
+from engine import BacktestConfig, run_backtest, compute_stats
+from orb_strategy import DEFAULT_PARAMS as ORB_DEFAULT_PARAMS
+
+BACKTEST_HISTORY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backtest_history.json")
+BACKTEST_HISTORY_MAX = 100  # keep the file from growing forever
+
+_backtest_jobs = {}
+_backtest_jobs_lock = threading.Lock()
+
+
+@app.after_request
+def _add_cors_headers(resp):
+    # This service is called directly from the browser (backtester.js) as
+    # well as from n8n -- CORS only matters for the browser calls, and is a
+    # no-op for server-to-server ones, so it's safe to apply to every route.
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, ngrok-skip-browser-warning"
+    return resp
+
+
+def _backtest_history_load():
+    if not os.path.exists(BACKTEST_HISTORY_PATH):
+        return []
+    try:
+        with open(BACKTEST_HISTORY_PATH) as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def _backtest_history_save(entries):
+    with open(BACKTEST_HISTORY_PATH, "w") as f:
+        json.dump(entries[:BACKTEST_HISTORY_MAX], f, indent=2)
+
+
+def _run_backtest_job(job_id: str, cfg: BacktestConfig, meta: dict):
+    def progress(i, total, d):
+        with _backtest_jobs_lock:
+            _backtest_jobs[job_id]["current"] = i + 1
+            _backtest_jobs[job_id]["total"] = total
+            _backtest_jobs[job_id]["day"] = d.isoformat()
+
+    try:
+        trades = run_backtest(cfg, progress_cb=progress)
+        stats = compute_stats(trades)
+
+        with _backtest_jobs_lock:
+            _backtest_jobs[job_id]["status"] = "done"
+            _backtest_jobs[job_id]["stats"] = stats
+            _backtest_jobs[job_id]["trades"] = trades
+
+        entries = _backtest_history_load()
+        entries.insert(0, {
+            "id": job_id,
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+            "label": meta.get("label") or "(untitled run)",
+            "params": meta,
+            "stats": {
+                "num_trades": stats["num_trades"],
+                "win_rate": stats["win_rate"],
+                "profit_factor": stats["profit_factor"],
+                "net_pnl_dollars": stats["net_pnl_dollars"],
+                "avg_r": stats["avg_r"],
+                "max_drawdown_dollars": stats["max_drawdown_dollars"],
+            },
+        })
+        _backtest_history_save(entries)
+    except Exception as e:
+        log.exception("Backtest job %s failed", job_id)
+        with _backtest_jobs_lock:
+            _backtest_jobs[job_id]["status"] = "error"
+            _backtest_jobs[job_id]["error"] = str(e)
+
+
+def _num(body, name, default, cast=float):
+    v = body.get(name, default)
+    if v is None or v == "":
+        return default
+    try:
+        return cast(v)
+    except (TypeError, ValueError):
+        return default
+
+
+@app.route("/backtest/defaults", methods=["GET"])
+def backtest_defaults():
+    """So backtester.js doesn't have to hardcode a second copy of
+    orb_strategy.py's defaults -- it fetches this once to prefill the form."""
+    return jsonify(dict(ORB_DEFAULT_PARAMS))
+
+
+@app.route("/backtest/start", methods=["POST", "OPTIONS"])
+def backtest_start():
+    if request.method == "OPTIONS":
+        return "", 204
+
+    body = request.get_json(force=True, silent=True) or {}
+
+    try:
+        start = datetime.strptime(body.get("start", ""), "%Y-%m-%d").date()
+        end = datetime.strptime(body.get("end", ""), "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"error": "start/end must be YYYY-MM-DD"}), 400
+    if end < start:
+        return jsonify({"error": "end date is before start date"}), 400
+    if end > date.today():
+        return jsonify({"error": "end date can't be in the future"}), 400
+
+    defaults = ORB_DEFAULT_PARAMS
+    strategy_params = {
+        "entry_mode": body.get("entry_mode", defaults["entry_mode"]),
+        "orb_minutes": _num(body, "orb_minutes", defaults["orb_minutes"], int),
+        "entry_after_orb": bool(body.get("entry_after_orb", defaults["entry_after_orb"])),
+        "donchian_lookback": _num(body, "donchian_lookback", defaults["donchian_lookback"], int),
+        "stop_mode": body.get("stop_mode", defaults["stop_mode"]),
+        "fixed_stop_cents": _num(body, "fixed_stop_cents", defaults["fixed_stop_cents"]),
+        "fixed_stop_pct": _num(body, "fixed_stop_pct", defaults["fixed_stop_pct"]),
+        "atr_period": _num(body, "atr_period", defaults["atr_period"], int),
+        "atr_mult": _num(body, "atr_mult", defaults["atr_mult"]),
+        "breakeven_after_cents": _num(body, "breakeven_after_cents", None) or None,
+        "target_r": _num(body, "target_r", defaults["target_r"]) or None,
+        "time_stop_minutes": _num(body, "time_stop_minutes", None) or None,
+        "time_stop_min_gain_cents": _num(body, "time_stop_min_gain_cents", 0.0),
+        "giveback_cents": _num(body, "giveback_cents", None) or None,
+        "giveback_pct": _num(body, "giveback_pct", None) or None,
+        "giveback_arm_cents": _num(body, "giveback_arm_cents", 0.0),
+        "stall_exit": bool(body.get("stall_exit", False)),
+        "flatten_time": body.get("flatten_time", defaults["flatten_time"]),
+        "session_open": "09:30",
+    }
+
+    cfg = BacktestConfig(
+        start_date=start, end_date=end,
+        top_n=int(_num(body, "top_n", 5, int)),
+        min_price=_num(body, "min_price", 1.0), max_price=_num(body, "max_price", 50.0),
+        min_dollar_volume=_num(body, "min_dollar_volume", 5_000_000),
+        min_gap_pct=_num(body, "min_gap_pct", 5.0),
+        position_size_dollars=_num(body, "position_size", 2000.0),
+        strategy_params=strategy_params,
+    )
+
+    job_id = uuid.uuid4().hex[:12]
+    with _backtest_jobs_lock:
+        _backtest_jobs[job_id] = {"status": "running", "current": 0, "total": 0, "day": None}
+
+    t = threading.Thread(target=_run_backtest_job, args=(job_id, cfg, body), daemon=True)
+    t.start()
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/backtest/status/<job_id>", methods=["GET"])
+def backtest_status(job_id):
+    with _backtest_jobs_lock:
+        job = _backtest_jobs.get(job_id)
+    if job is None:
+        return jsonify({"status": "unknown"}), 404
+    return jsonify(job)
+
+
+@app.route("/backtest/history", methods=["GET"])
+def backtest_history():
+    return jsonify(_backtest_history_load())
+
+
+@app.route("/backtest/history/<job_id>", methods=["DELETE", "OPTIONS"])
+def backtest_history_delete(job_id):
+    if request.method == "OPTIONS":
+        return "", 204
+    entries = [e for e in _backtest_history_load() if e["id"] != job_id]
+    _backtest_history_save(entries)
+    with _backtest_jobs_lock:
+        _backtest_jobs.pop(job_id, None)
+    return jsonify({"deleted": job_id})
+
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, threaded=True)

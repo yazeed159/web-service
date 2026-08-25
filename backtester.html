@@ -4,10 +4,11 @@
 <script src="config.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Playbooks — trade.log</title>
+<title>Backtester — trade.log</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="features.css">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
 
@@ -69,7 +70,7 @@
         <span class="nav-label">Patterns</span>
       </a>
 
-      <a class="nav-item active" href="playbooks.html">
+      <a class="nav-item" href="playbooks.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
         <span class="nav-label">Playbooks</span>
       </a>
@@ -79,7 +80,7 @@
         <span class="nav-label">Calculator</span>
       </a>
 
-      <a class="nav-item" href="backtester.html">
+      <a class="nav-item active" href="backtester.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 6"></polyline><polyline points="15 6 21 6 21 12"></polyline></svg>
         <span class="nav-label">Backtester</span>
       </a>
@@ -91,14 +92,16 @@
     </nav>
 
     <div class="sidebar-bottom">
-      <div class="pipeline-status"><span class="dot"></span><span>Playbooks</span></div>
+      <div class="pipeline-status"><span class="dot"></span><span>Backtester</span></div>
     </div>
   </aside>
 
+  
   <div class="main">
     <header class="topbar">
       <div class="topbar-left">
-        <h1 id="page-title">Playbooks</h1>
+        <h1 id="page-title">Backtester</h1>
+        <span class="date-range-pill" id="bt-api-pill">Checking API…</span>
       </div>
       <div class="topbar-right">
         <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
@@ -109,107 +112,105 @@
 
     <div class="content">
       <div class="panel-head">
-        <div class="sub">Every <span class="mono">setup_type</span> your trades are tagged with, grouped into its own scorecard — win rate, sample size, net P&amp;L, and the most common lesson tag logged against it. Click a card to see just those trades in the Journal.</div>
+        <div class="sub">Scans top gap-gainers over a date range and simulates an intraday breakout strategy against real Polygon minute bars. Runs against your own chart-service backend (see config.js).</div>
       </div>
 
-      <div id="playbooks-content">
-        <div class="loading-line">Loading…</div>
+      <div class="panel-box" style="margin-bottom:18px;">
+        <div class="panel-box-head"><span class="title">Scan &amp; Session</span></div>
+        <div class="filters" style="margin-bottom:14px;">
+          <input type="text" id="bt-label" placeholder="Run label (optional)" style="width:220px;">
+          <label>From <input type="date" id="bt-start"></label>
+          <label>To <input type="date" id="bt-end"></label>
+          <label title="How many top gappers to backtest per day">Top N <input type="number" id="bt-top-n" value="5" min="1" step="1" style="width:64px;"></label>
+          <label>Min price <input type="number" id="bt-min-price" value="1" min="0" step="0.5" style="width:74px;"></label>
+          <label>Max price <input type="number" id="bt-max-price" value="50" min="0" step="1" style="width:74px;"></label>
+          <label title="Today's open x volume must clear this">Min $ volume <input type="number" id="bt-min-dollar-volume" value="5000000" min="0" step="500000" style="width:110px;"></label>
+          <label title="Minimum overnight gap to qualify">Min gap % <input type="number" id="bt-min-gap-pct" value="5" min="0" step="1" style="width:64px;"></label>
+          <label>Position size $ <input type="number" id="bt-position-size" value="2000" min="0" step="100" style="width:90px;"></label>
+          <label>Force-exit (ET) <input type="time" id="bt-flatten-time" value="15:55"></label>
+        </div>
       </div>
+
+      <div class="panel-box" style="margin-bottom:18px;">
+        <div class="panel-box-head"><span class="title">Entry</span></div>
+        <div class="filters" style="margin-bottom:8px;">
+          <select id="bt-entry-mode" style="min-width:280px;">
+            <option value="orb_breakout">Opening range breakout</option>
+            <option value="red_candle_break">Break of previous red candle's high</option>
+            <option value="donchian_break">Break of highest high in last N bars (Donchian)</option>
+            <option value="inside_bar_break">Break of inside-bar high</option>
+            <option value="vwap_reclaim">VWAP reclaim</option>
+          </select>
+          <label>Opening range (min) <input type="number" id="bt-orb-minutes" value="5" min="1" step="1" style="width:64px;"></label>
+          <label title="For non-ORB entry styles: only look for the pattern after the opening range window closes">
+            <input type="checkbox" id="bt-entry-after-orb" checked> Wait for opening range first
+          </label>
+          <label>Donchian lookback (bars) <input type="number" id="bt-donchian-lookback" value="10" min="2" step="1" style="width:64px;"></label>
+        </div>
+        <p class="hint-text">
+          <b>Opening range breakout:</b> buys the first bar above the high of the first N minutes.
+          <b>Red-candle break:</b> buys the first bar that breaks above the high of the last down candle.
+          <b>Donchian:</b> a rolling ORB — buys the break of the highest high in the last N bars.
+          <b>Inside-bar break:</b> buys the break of a one-bar consolidation's high.
+          <b>VWAP reclaim:</b> buys the first bar back above session VWAP after price dropped below it.
+        </p>
+      </div>
+
+      <div class="panel-box" style="margin-bottom:18px;">
+        <div class="panel-box-head"><span class="title">Stop Loss</span></div>
+        <div class="filters" style="margin-bottom:8px;">
+          <select id="bt-stop-mode" style="min-width:260px;">
+            <option value="pattern">Pattern-based (whatever entry style implies)</option>
+            <option value="fixed_cents">Fixed cents below entry</option>
+            <option value="fixed_pct">Fixed % below entry</option>
+            <option value="prior_bar_low">Low of the bar before entry</option>
+            <option value="atr_multiple">ATR multiple below entry</option>
+          </select>
+          <label>Fixed ¢ <input type="number" id="bt-fixed-stop-cents" value="5" min="0" step="0.5" style="width:64px;"></label>
+          <label>Fixed % <input type="number" id="bt-fixed-stop-pct" value="1" min="0" step="0.1" style="width:64px;"></label>
+          <label>ATR period <input type="number" id="bt-atr-period" value="14" min="2" step="1" style="width:64px;"></label>
+          <label>ATR mult <input type="number" id="bt-atr-mult" value="1.5" min="0" step="0.1" style="width:64px;"></label>
+          <label title="Once armed, stop ratchets up to entry price and stays there">Breakeven after ¢ (0=off) <input type="number" id="bt-breakeven-after-cents" value="0" min="0" step="0.5" style="width:74px;"></label>
+        </div>
+      </div>
+
+      <div class="panel-box" style="margin-bottom:18px;">
+        <div class="panel-box-head"><span class="title">Profit Exits</span></div>
+        <div class="filters" style="margin-bottom:8px;">
+          <label>Target (× risk, 0=off) <input type="number" id="bt-target-r" value="2" min="0" step="0.1" style="width:64px;"></label>
+          <label>Time stop (min, 0=off) <input type="number" id="bt-time-stop-minutes" value="0" min="0" step="1" style="width:64px;"></label>
+          <label>…unless gained ¢ <input type="number" id="bt-time-stop-min-gain-cents" value="0" min="0" step="0.5" style="width:64px;"></label>
+          <label>Giveback ¢ off peak (0=off) <input type="number" id="bt-giveback-cents" value="0" min="0" step="0.5" style="width:74px;"></label>
+          <label>Giveback % of gain (0=off) <input type="number" id="bt-giveback-pct" value="0" min="0" max="100" step="5" style="width:70px;"></label>
+          <label>Arm giveback after ¢ <input type="number" id="bt-giveback-arm-cents" value="0" min="0" step="0.5" style="width:64px;"></label>
+          <label><input type="checkbox" id="bt-stall-exit"> Exit on momentum stall</label>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:22px;">
+        <button class="btn-confirm" id="bt-run-btn" style="padding:10px 20px; font-weight:600;">Run Backtest</button>
+        <span id="bt-run-status" style="font-size:12.5px; color:var(--text-faint);"></span>
+      </div>
+
+      <div id="bt-progress-box" class="panel-box" style="margin-bottom:18px; display:none;">
+        <div class="panel-box-head"><span class="title">Running</span></div>
+        <div class="progress-track" id="bt-progress-track">
+          <div class="progress-fill" id="bt-progress-fill" style="width:0%;"></div>
+        </div>
+        <div id="bt-progress-label" style="font-size:12.5px; color:var(--text-dim);">Starting…</div>
+      </div>
+
+      <div id="bt-results"></div>
+
+      <div class="section-label">Past Runs</div>
+      <div id="bt-history"><div class="loading-line">Loading…</div></div>
     </div>
 
-    <div class="footer">trade.log — generated from data/trades.json</div>
+    <div class="footer">trade.log — backtester powered by chart_service.py</div>
   </div>
 </div>
 
-<script>
-(function () {
-  "use strict";
-  const content = document.getElementById("playbooks-content");
-
-  fetch("data/trades.json")
-    .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then((rows) => render(Array.isArray(rows) ? rows : []))
-    .catch((err) => {
-      content.innerHTML = `<div class="empty-state">Couldn't load data/trades.json (${escapeHtml(String(err.message))}).</div>`;
-    });
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-  function fmtMoney(v) {
-    const sign = v >= 0 ? "+" : "-";
-    return sign + "$" + Math.abs(v).toFixed(2);
-  }
-
-  function render(rows) {
-    const withSetup = rows.filter((r) => r.setup_type);
-    if (!withSetup.length) {
-      content.innerHTML = `<div class="empty-state">No <span class="mono">setup_type</span> data yet — this needs trades published with a setup tagged by the verdict step.</div>`;
-      return;
-    }
-
-    const bySetup = {};
-    for (const r of rows) {
-      if (!r.setup_type) continue;
-      bySetup[r.setup_type] = bySetup[r.setup_type] || [];
-      bySetup[r.setup_type].push(r);
-    }
-    const entries = Object.entries(bySetup).sort((a, b) => b[1].length - a[1].length);
-
-    content.innerHTML = `<div class="playbook-grid">${entries.map(([setup, trades]) => playbookCard(setup, trades)).join("")}</div>`;
-
-    content.querySelectorAll("[data-setup-link]").forEach((card) => {
-      card.addEventListener("click", () => {
-        window.location.href = `journal.html?setup=${encodeURIComponent(card.getAttribute("data-setup-link"))}`;
-      });
-    });
-  }
-
-  function playbookCard(setup, trades) {
-    const wins = trades.filter((t) => t.win).length;
-    const winRate = Math.round((wins / trades.length) * 1000) / 10;
-    const net = trades.reduce((s, t) => s + (t.pnl_after_comm || 0), 0);
-    const avgTrade = net / trades.length;
-    const smallSample = trades.length < 5;
-
-    // Most common lesson tag logged against trades in this setup -- the
-    // mistake most worth watching for the next time this setup sets up.
-    const tagCounts = {};
-    for (const t of trades) {
-      for (const tag of t.lesson_tags || []) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-    }
-    const topTag = Object.entries(tagCounts).sort((a, b) => b[1] - a[1])[0];
-
-    return `
-      <div class="playbook-card" data-setup-link="${escapeHtml(setup)}">
-        <div class="playbook-card-head">
-          <span class="playbook-name">${escapeHtml(setup.replace(/_/g, " "))}</span>
-          ${smallSample ? `<span class="pill" title="Fewer than 5 trades — treat this win rate as a rough signal, not a verdict.">small sample</span>` : ""}
-        </div>
-        <div class="playbook-stats">
-          <div class="pb-stat">
-            <div class="pb-label">Win rate</div>
-            <div class="pb-value ${winRate >= 50 ? "up" : "down"}">${winRate}%</div>
-          </div>
-          <div class="pb-stat">
-            <div class="pb-label">Trades</div>
-            <div class="pb-value">${trades.length}</div>
-          </div>
-          <div class="pb-stat">
-            <div class="pb-label">Net P&amp;L</div>
-            <div class="pb-value ${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</div>
-          </div>
-          <div class="pb-stat">
-            <div class="pb-label">Avg / trade</div>
-            <div class="pb-value ${avgTrade >= 0 ? "up" : "down"}">${fmtMoney(avgTrade)}</div>
-          </div>
-        </div>
-        ${topTag ? `<div class="playbook-tag-line"><span class="lesson-tag">${escapeHtml(topTag[0].replace(/_/g, " "))}</span> flagged on ${topTag[1]} of these</div>` : `<div class="playbook-tag-line dim">No recurring lesson tag on this setup.</div>`}
-        <div class="playbook-card-foot">View in Journal →</div>
-      </div>`;
-  }
-})();
-</script>
+<script src="backtester.js"></script>
 <script>
   const sidebarBackdrop = document.createElement("div");
   sidebarBackdrop.className = "sidebar-backdrop";

@@ -145,20 +145,84 @@ dashboard/
   stats.html             "Performance" — equity curve, setup win rates, slippage, feedback tally
   patterns.html           recurring lesson-tag clusters
   playbooks.html          per-setup_type scorecards, links into journal.html
+  backtester.html         ORB / gap-gainer strategy backtester (see below)
+  chat.html                AI Chat — ask questions about your trade history (see below)
   trade.html              per-trade page (reads ?id=... from the URL)
   style.css               shared design tokens + app-shell/sidebar layout
-  features.css              additive styles for journal/stats/patterns/playbooks (filters, data table, bar rows, playbook cards)
+  features.css              additive styles for journal/stats/patterns/playbooks/backtester/chat (filters, data table, bar rows, playbook cards, run cards, progress bar, chat bubbles)
   app.js                  home page logic
   trade.js                  trade page + chart logic
+  backtester.js            backtester tab logic (start job, poll status, render results/history)
+  chat.js                  AI Chat tab logic (builds trade context, talks to the n8n chat webhook)
   data/
     trades.json          index: one row per trade, feeds the home table and journal/stats/patterns/playbooks pages
     trades/<id>.json      full detail per trade, feeds trade.html
+  n8n/
+    chat-workflow.json    n8n workflow export backing the AI Chat tab (import into n8n, see below)
 ```
+
+## Backtester tab
+
+`backtester.html` runs an intraday gap-gainer breakout backtest against real
+Polygon minute bars — pick an entry style (opening range breakout, break of
+the previous red candle's high, Donchian breakout, inside-bar break, or VWAP
+reclaim), a stop style (pattern-based, fixed cents/%, prior-bar low, or ATR
+multiple), and stack any combination of profit exits (fixed R target, time
+stop, trailing giveback in cents or % of gain, momentum-stall exit, plus an
+optional breakeven ratchet on the stop). Hit **Run Backtest** and it scans
+every trading day in the range for the top-N gappers, simulates the strategy
+on each, and shows a stats row, an equity curve, and a sortable trade log.
+Past runs are listed at the bottom — click one to reload its settings into
+the form, or delete it.
+
+Unlike the other tabs (which just read `data/*.json`), this one talks
+**directly** to `chart_service.py` over HTTP — no n8n involved, since a
+multi-day scan takes a while under Polygon's free-tier rate limit and needs
+to be started then polled rather than answered in one request. It calls
+these routes, added to `chart_service.py` alongside the existing
+`/generate-chart` pipeline (implemented in `orb_strategy.py` / `engine.py` /
+`polygon_client.py`, copied in next to it — same modules as the standalone
+`orb-backtester-site` CLI tool, just wrapped in a JSON API instead of a
+server-rendered form):
+
+- `POST /backtest/start` — body is the form's config as JSON; returns `{job_id}`
+- `GET /backtest/status/<job_id>` — `{status: "running", current, total, day}` while in progress, or `{status: "done", stats, trades}` / `{status: "error", error}` when finished
+- `GET /backtest/history` — past runs (label, date range, summary stats) persisted to `backtest_history.json` next to `chart_service.py`
+- `DELETE /backtest/history/<job_id>` — removes one past run
+- `GET /backtest/defaults` — the strategy's default parameter values, so the form doesn't hardcode a second copy
+
+**Setup:** point `window.BACKTESTER_API_URL` in `config.js` at whatever
+ngrok prints when you run `start_chart_service.ps1` (same server the chart
+pipeline uses — `POLYGON_API_KEY` just needs to already be set for it, which
+it is if `/generate-chart` already works). Free-tier ngrok URLs change every
+restart, so update that line each session. These four routes also add
+permissive CORS headers (`Access-Control-Allow-Origin: *`) since, unlike
+`/generate-chart`, they're called straight from the browser — that's scoped
+to this local personal tool, not something to carry over if this backend
+ever serves untrusted traffic.
 
 `gen_sample_data.py` generated the sample data currently in `data/` (15
 synthetic trades) so you can preview the site immediately. Delete
 `data/trades.json` and `data/trades/*` and replace them with real output
 once the pipeline is publishing.
+
+## AI Chat tab
+
+`chat.html` is a conversational interface for asking questions about your
+trade history — win rates on specific setups, recurring mistakes, cost of
+late exits, walkthroughs of individual trades, and so on. It reads the same
+`data/trades.json` index that `journal.html` / `stats.html` / `patterns.html`
+already use, boils it down into an aggregate summary plus a compact
+per-trade index, and sends that (plus the running conversation) to an n8n
+webhook on every message. Nothing runs until you actually send a message,
+and each turn re-sends the full context, so the n8n side (and the LLM
+behind it) never has to hold state between turns.
+
+**Setup:** point `window.N8N_CHAT_URL` in `config.js` at your own n8n
+webhook (`n8n/chat-workflow.json` in this repo is the workflow export —
+import it into n8n and grab the webhook URL it generates). This is a
+separate n8n workflow from the trade-pipeline one and from the
+Support/Resistance webhook — same pattern as `N8N_SR_URL` in `trade.js`.
 
 ## Data schema
 

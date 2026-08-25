@@ -4,7 +4,7 @@
 <script src="config.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Playbooks — trade.log</title>
+<title>AI Chat — trade.log</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="features.css">
@@ -69,7 +69,7 @@
         <span class="nav-label">Patterns</span>
       </a>
 
-      <a class="nav-item active" href="playbooks.html">
+      <a class="nav-item" href="playbooks.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
         <span class="nav-label">Playbooks</span>
       </a>
@@ -84,21 +84,22 @@
         <span class="nav-label">Backtester</span>
       </a>
 
-      <a class="nav-item" href="chat.html">
+      <a class="nav-item active" href="chat.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
         <span class="nav-label">AI Chat</span>
       </a>
+
     </nav>
 
     <div class="sidebar-bottom">
-      <div class="pipeline-status"><span class="dot"></span><span>Playbooks</span></div>
+      <div class="pipeline-status"><span class="dot"></span><span>AI Chat</span></div>
     </div>
   </aside>
 
   <div class="main">
     <header class="topbar">
       <div class="topbar-left">
-        <h1 id="page-title">Playbooks</h1>
+        <h1 id="page-title">AI Chat</h1>
       </div>
       <div class="topbar-right">
         <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
@@ -107,13 +108,33 @@
       </div>
     </header>
 
-    <div class="content">
+    <div class="content chat-content">
       <div class="panel-head">
-        <div class="sub">Every <span class="mono">setup_type</span> your trades are tagged with, grouped into its own scorecard — win rate, sample size, net P&amp;L, and the most common lesson tag logged against it. Click a card to see just those trades in the Journal.</div>
+        <div class="sub">Ask about specific trades, setups, or patterns in your log. This reads <span class="mono">data/trades.json</span> and knows you're trading a Ross Cameron style breakout &amp; momentum strategy.</div>
       </div>
 
-      <div id="playbooks-content">
-        <div class="loading-line">Loading…</div>
+      <div class="chat-shell panel-box">
+        <div class="chat-data-status" id="chat-data-status">
+          <span class="chat-data-status-dot"></span> Loading your trade data…
+        </div>
+
+        <div class="chat-messages" id="chat-messages"></div>
+
+        <div class="chat-chips" id="chat-chips"></div>
+
+        <form class="chat-input-row" id="chat-form">
+          <input
+            type="text"
+            id="chat-input"
+            class="chat-input"
+            placeholder="Ask about a trade, setup, or your stats…"
+            autocomplete="off"
+            disabled
+          >
+          <button type="submit" class="chat-send-btn" id="chat-send-btn" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </form>
       </div>
     </div>
 
@@ -121,95 +142,7 @@
   </div>
 </div>
 
-<script>
-(function () {
-  "use strict";
-  const content = document.getElementById("playbooks-content");
-
-  fetch("data/trades.json")
-    .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then((rows) => render(Array.isArray(rows) ? rows : []))
-    .catch((err) => {
-      content.innerHTML = `<div class="empty-state">Couldn't load data/trades.json (${escapeHtml(String(err.message))}).</div>`;
-    });
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-  function fmtMoney(v) {
-    const sign = v >= 0 ? "+" : "-";
-    return sign + "$" + Math.abs(v).toFixed(2);
-  }
-
-  function render(rows) {
-    const withSetup = rows.filter((r) => r.setup_type);
-    if (!withSetup.length) {
-      content.innerHTML = `<div class="empty-state">No <span class="mono">setup_type</span> data yet — this needs trades published with a setup tagged by the verdict step.</div>`;
-      return;
-    }
-
-    const bySetup = {};
-    for (const r of rows) {
-      if (!r.setup_type) continue;
-      bySetup[r.setup_type] = bySetup[r.setup_type] || [];
-      bySetup[r.setup_type].push(r);
-    }
-    const entries = Object.entries(bySetup).sort((a, b) => b[1].length - a[1].length);
-
-    content.innerHTML = `<div class="playbook-grid">${entries.map(([setup, trades]) => playbookCard(setup, trades)).join("")}</div>`;
-
-    content.querySelectorAll("[data-setup-link]").forEach((card) => {
-      card.addEventListener("click", () => {
-        window.location.href = `journal.html?setup=${encodeURIComponent(card.getAttribute("data-setup-link"))}`;
-      });
-    });
-  }
-
-  function playbookCard(setup, trades) {
-    const wins = trades.filter((t) => t.win).length;
-    const winRate = Math.round((wins / trades.length) * 1000) / 10;
-    const net = trades.reduce((s, t) => s + (t.pnl_after_comm || 0), 0);
-    const avgTrade = net / trades.length;
-    const smallSample = trades.length < 5;
-
-    // Most common lesson tag logged against trades in this setup -- the
-    // mistake most worth watching for the next time this setup sets up.
-    const tagCounts = {};
-    for (const t of trades) {
-      for (const tag of t.lesson_tags || []) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-    }
-    const topTag = Object.entries(tagCounts).sort((a, b) => b[1] - a[1])[0];
-
-    return `
-      <div class="playbook-card" data-setup-link="${escapeHtml(setup)}">
-        <div class="playbook-card-head">
-          <span class="playbook-name">${escapeHtml(setup.replace(/_/g, " "))}</span>
-          ${smallSample ? `<span class="pill" title="Fewer than 5 trades — treat this win rate as a rough signal, not a verdict.">small sample</span>` : ""}
-        </div>
-        <div class="playbook-stats">
-          <div class="pb-stat">
-            <div class="pb-label">Win rate</div>
-            <div class="pb-value ${winRate >= 50 ? "up" : "down"}">${winRate}%</div>
-          </div>
-          <div class="pb-stat">
-            <div class="pb-label">Trades</div>
-            <div class="pb-value">${trades.length}</div>
-          </div>
-          <div class="pb-stat">
-            <div class="pb-label">Net P&amp;L</div>
-            <div class="pb-value ${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</div>
-          </div>
-          <div class="pb-stat">
-            <div class="pb-label">Avg / trade</div>
-            <div class="pb-value ${avgTrade >= 0 ? "up" : "down"}">${fmtMoney(avgTrade)}</div>
-          </div>
-        </div>
-        ${topTag ? `<div class="playbook-tag-line"><span class="lesson-tag">${escapeHtml(topTag[0].replace(/_/g, " "))}</span> flagged on ${topTag[1]} of these</div>` : `<div class="playbook-tag-line dim">No recurring lesson tag on this setup.</div>`}
-        <div class="playbook-card-foot">View in Journal →</div>
-      </div>`;
-  }
-})();
-</script>
+<script src="chat.js"></script>
 <script>
   const sidebarBackdrop = document.createElement("div");
   sidebarBackdrop.className = "sidebar-backdrop";
