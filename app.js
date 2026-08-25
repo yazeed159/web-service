@@ -93,6 +93,27 @@
     const sign = v >= 0 ? "+" : "-";
     return sign + "$" + Math.abs(v).toFixed(2);
   }
+
+  // ----------------------------------------------------------------
+  // Reports — click-to-expand trade lists (same pattern as patterns.html's
+  // tag-trade-list: click a leaderboard/breakdown row to reveal the exact
+  // trades behind it, each linking straight to trade.html?id=...).
+  // ----------------------------------------------------------------
+  let reportRowSeq = 0;
+  function tradeListHtml(rowsList, uid) {
+    const sorted = rowsList.slice().sort((a, b) => (b.trade_date || "").localeCompare(a.trade_date || ""));
+    return `<ul class="tag-trade-list" id="${uid}">
+      ${sorted.map((r) => `<li><a href="trade.html?id=${encodeURIComponent(r.id)}">${escapeHtml(r.symbol)} — ${escapeHtml(r.trade_date)} <span class="${r.win ? "up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></a></li>`).join("")}
+    </ul>`;
+  }
+  function bindTradeToggles(container) {
+    container.querySelectorAll("[data-trade-toggle]").forEach((row) => {
+      row.addEventListener("click", () => {
+        const list = document.getElementById(row.getAttribute("data-trade-toggle"));
+        if (list) list.classList.toggle("open");
+      });
+    });
+  }
   function pad2(n) { return String(n).padStart(2, "0"); }
   function dateKey(y, m, d) { return `${y}-${pad2(m + 1)}-${pad2(d)}`; }
 
@@ -699,16 +720,16 @@
     const best = trades.reduce((a, b) => (b.pnl_after_comm > a.pnl_after_comm ? b : a), trades[0]);
     const worst = trades.reduce((a, b) => (b.pnl_after_comm < a.pnl_after_comm ? b : a), trades[0]);
     document.getElementById("highlight-pair").innerHTML = `
-      <div class="highlight-card best">
+      <a class="highlight-card best" href="trade.html?id=${encodeURIComponent(best.id)}" style="text-decoration:none;">
         <div class="label">Best trade</div>
-        <div class="sym">${best.symbol} <span class="dim" style="font-weight:400;font-size:12px;">${best.trade_date}</span></div>
+        <div class="sym">${escapeHtml(best.symbol)} <span class="dim" style="font-weight:400;font-size:12px;">${escapeHtml(best.trade_date)}</span></div>
         <div class="pnl up">${fmtMoney(best.pnl_after_comm)}</div>
-      </div>
-      <div class="highlight-card worst">
+      </a>
+      <a class="highlight-card worst" href="trade.html?id=${encodeURIComponent(worst.id)}" style="text-decoration:none;">
         <div class="label">Worst trade</div>
-        <div class="sym">${worst.symbol} <span class="dim" style="font-weight:400;font-size:12px;">${worst.trade_date}</span></div>
+        <div class="sym">${escapeHtml(worst.symbol)} <span class="dim" style="font-weight:400;font-size:12px;">${escapeHtml(worst.trade_date)}</span></div>
         <div class="pnl down">${fmtMoney(worst.pnl_after_comm)}</div>
-      </div>
+      </a>
     `;
   }
 
@@ -728,15 +749,19 @@
       const pct = (Math.abs(e.net) / maxAbs) * 100;
       const color = e.net >= 0 ? "var(--green)" : "var(--red)";
       const smallSample = e.trades.length < 3;
-      return `<tr>
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `<tr class="report-row" data-trade-toggle="${uid}" style="cursor:pointer;">
         <td style="font-weight:600;">${escapeHtml(sym)}${smallSample ? ` <span class="pill" style="font-size:9.5px; padding:1px 6px;" title="Fewer than 3 trades — win rate isn't meaningful yet.">n=${e.trades.length}</span>` : ""}</td>
         <td class="mono dim">${e.trades.length}</td>
         <td class="mono">${winRate.toFixed(0)}%</td>
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${e.net >= 0 ? "up" : "down"}">${fmtMoney(e.net)}</span></td>
-      </tr>`;
+      </tr>
+      <tr class="report-row-detail"><td colspan="4" style="padding:0; border-bottom:none;">${tradeListHtml(e.trades, uid)}</td></tr>`;
     }).join("");
 
-    document.getElementById("report-symbol").innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Symbol</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
+    const symEl = document.getElementById("report-symbol");
+    symEl.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Symbol</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
+    bindTradeToggles(symEl);
   }
 
   function renderDowBreakdown() {
@@ -757,15 +782,19 @@
       const winRate = (e.trades.filter((t) => t.win).length / e.trades.length) * 100;
       const pct = (Math.abs(e.net) / maxAbs) * 100;
       const color = e.net >= 0 ? "var(--green)" : "var(--red)";
-      return `<tr>
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `<tr class="report-row" data-trade-toggle="${uid}" style="cursor:pointer;">
         <td style="font-weight:600;">${DOW[d]}</td>
         <td class="mono dim">${e.trades.length}</td>
         <td class="mono">${winRate.toFixed(0)}%</td>
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${e.net >= 0 ? "up" : "down"}">${fmtMoney(e.net)}</span></td>
-      </tr>`;
+      </tr>
+      <tr class="report-row-detail"><td colspan="4" style="padding:0; border-bottom:none;">${tradeListHtml(e.trades, uid)}</td></tr>`;
     }).join("");
 
-    document.getElementById("report-dow").innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Day</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
+    const dowEl = document.getElementById("report-dow");
+    dowEl.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Day</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
+    bindTradeToggles(dowEl);
   }
 
   // ================================================================
@@ -799,17 +828,20 @@
       const winRate = (b.trades.filter((t) => t.win).length / b.trades.length) * 100;
       const pct = (Math.abs(net) / maxAbs) * 100;
       const color = net >= 0 ? "var(--green)" : "var(--red)";
-      return `<tr>
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `<tr class="report-row" data-trade-toggle="${uid}" style="cursor:pointer;">
         <td style="font-weight:600;">${b.label}</td>
         <td class="mono dim">${b.trades.length}</td>
         <td class="mono">${winRate.toFixed(0)}%</td>
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</span></td>
-      </tr>`;
+      </tr>
+      <tr class="report-row-detail"><td colspan="4" style="padding:0; border-bottom:none;">${tradeListHtml(b.trades, uid)}</td></tr>`;
     }).join("");
 
     const el = document.getElementById("report-timeofday");
     if (!rows) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
     el.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Session</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    bindTradeToggles(el);
   }
 
   // ================================================================
@@ -846,16 +878,19 @@
     const rows = buckets.filter((b) => b.trades.length).map((b) => {
       const winRate = (b.trades.filter((t) => t.win).length / b.trades.length) * 100;
       const pct = (b.trades.length / maxCount) * 100;
-      return `<div class="bar-row">
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `<div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
         <div class="bar-label">${b.label}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(0)}%;"></div></div>
         <div class="bar-count">${b.trades.length}x</div>
         <div style="width:52px; text-align:right; flex-shrink:0; color:${winRate >= 50 ? "var(--green)" : "var(--red)"};">${winRate.toFixed(0)}%</div>
-      </div>`;
+      </div>
+      ${tradeListHtml(b.trades, uid)}`;
     }).join("");
 
     const el = document.getElementById("report-duration");
     el.innerHTML = rows || `<div class="empty-state small">No data yet.</div>`;
+    bindTradeToggles(el);
   }
 
   // ================================================================
@@ -873,12 +908,16 @@
   }
 
   function leaderboardRows(entries, valueFn, valueCls) {
-    return entries.map(([sym, e]) => `
-      <div class="bar-row">
+    return entries.map(([sym, e]) => {
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `
+      <div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
         <div class="bar-label" style="width:70px;">${escapeHtml(sym)}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${e._pct}%;"></div></div>
         <div style="width:70px; text-align:right; flex-shrink:0;" class="${valueCls(e)}">${valueFn(e)}</div>
-      </div>`).join("");
+      </div>
+      ${tradeListHtml(e.trades, uid)}`;
+    }).join("");
   }
 
   function renderLeaderboards() {
@@ -888,14 +927,18 @@
     const byCount = entries.slice().sort((a, b) => b[1].trades.length - a[1].trades.length).slice(0, 5);
     const maxCount = Math.max(1, ...byCount.map(([, e]) => e.trades.length));
     byCount.forEach(([, e]) => (e._pct = Math.round((e.trades.length / maxCount) * 100)));
-    document.getElementById("report-most-traded").innerHTML =
+    const mostTradedEl = document.getElementById("report-most-traded");
+    mostTradedEl.innerHTML =
       leaderboardRows(byCount, (e) => `${e.trades.length}x`, () => "dim") || `<div class="empty-state small">No data yet.</div>`;
+    bindTradeToggles(mostTradedEl);
 
     const byNet = entries.slice().sort((a, b) => b[1].net - a[1].net).slice(0, 5);
     const maxAbsNet = Math.max(1, ...byNet.map(([, e]) => Math.abs(e.net)));
     byNet.forEach(([, e]) => (e._pct = Math.round((Math.abs(e.net) / maxAbsNet) * 100)));
-    document.getElementById("report-most-profitable").innerHTML =
+    const mostProfitableEl = document.getElementById("report-most-profitable");
+    mostProfitableEl.innerHTML =
       leaderboardRows(byNet, (e) => fmtMoney(e.net), (e) => (e.net >= 0 ? "up" : "down")) || `<div class="empty-state small">No data yet.</div>`;
+    bindTradeToggles(mostProfitableEl);
   }
 
   // ================================================================
@@ -933,14 +976,17 @@
       const winRate = (e.trades.filter((t) => t.win).length / e.trades.length) * 100;
       const pct = (Math.abs(e.net) / maxAbs) * 100;
       const color = e.net >= 0 ? "var(--green)" : "var(--red)";
-      return `<tr>
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `<tr class="report-row" data-trade-toggle="${uid}" style="cursor:pointer;">
         <td style="font-weight:600;">${escapeHtml(key)}</td>
         <td class="mono dim">${e.trades.length}</td>
         <td class="mono">${winRate.toFixed(0)}%</td>
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${e.net >= 0 ? "up" : "down"}">${fmtMoney(e.net)}</span></td>
-      </tr>`;
+      </tr>
+      <tr class="report-row-detail"><td colspan="4" style="padding:0; border-bottom:none;">${tradeListHtml(e.trades, uid)}</td></tr>`;
     }).join("");
     el.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>${colLabel}</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
+    bindTradeToggles(el);
   }
 
   function renderSectorCountryBreakdown() {

@@ -157,6 +157,25 @@
     return sign + "$" + Math.abs(v).toFixed(2);
   }
 
+  // Click-to-expand trade lists, same pattern as patterns.html's
+  // tag-trade-list: click a breakdown row to reveal the exact trades
+  // behind it, each linking straight to trade.html?id=...
+  let reportRowSeq = 0;
+  function tradeListHtml(rowsList, uid) {
+    const sorted = rowsList.slice().sort((a, b) => (b.trade_date || "").localeCompare(a.trade_date || ""));
+    return `<ul class="tag-trade-list" id="${uid}">
+      ${sorted.map((r) => `<li><a href="trade.html?id=${encodeURIComponent(r.id)}">${escapeHtml(r.symbol)} — ${escapeHtml(r.trade_date)} <span class="${r.win ? "up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></a></li>`).join("")}
+    </ul>`;
+  }
+  function bindTradeToggles(container) {
+    container.querySelectorAll("[data-trade-toggle]").forEach((row) => {
+      row.addEventListener("click", () => {
+        const list = document.getElementById(row.getAttribute("data-trade-toggle"));
+        if (list) list.classList.toggle("open");
+      });
+    });
+  }
+
   function render(rows) {
     if (!rows.length) {
       content.innerHTML = `<div class="empty-state">No trades published yet.</div>`;
@@ -302,14 +321,17 @@
       const wins = trades.filter((r) => r.win).length;
       const rate = Math.round((wins / trades.length) * 1000) / 10;
       const pnl = trades.reduce((s, r) => s + (r.pnl_after_comm || 0), 0);
-      return `<div class="bar-row">
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `<div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
         <div class="bar-label">${escapeHtml(setup.replace(/_/g, " "))}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${rate}%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
         <div class="bar-count">${rate}%</div>
         <div style="width:90px; text-align:right; flex-shrink:0; color:${pnl >= 0 ? "var(--green)" : "var(--red)"};">${fmtMoney(pnl)}</div>
         <div style="width:60px; text-align:right; flex-shrink:0; color:var(--text-faint);">${trades.length}x</div>
-      </div>`;
+      </div>
+      ${tradeListHtml(trades, uid)}`;
     }).join("") || `<div class="empty-state small">No setup_type data yet.</div>`;
+    bindTradeToggles(el);
   }
 
   function renderSlippage(sorted) {
@@ -416,13 +438,16 @@
     el.innerHTML = entries.map(([setup, rows, cost]) => {
       const pct = Math.round((Math.abs(cost) / maxAbs) * 100);
       const color = cost <= 0 ? "var(--green)" : "var(--red)";
-      return `<div class="bar-row">
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `<div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
         <div class="bar-label">${escapeHtml(setup.replace(/_/g, " "))}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${color};"></div></div>
         <div style="width:70px; text-align:right; flex-shrink:0; color:${color};">${fmtMoney(-cost)}</div>
         <div style="width:60px; text-align:right; flex-shrink:0; color:var(--text-faint);">${rows.length}x</div>
-      </div>`;
+      </div>
+      ${tradeListHtml(rows, uid)}`;
     }).join("");
+    bindTradeToggles(el);
   }
 
 })();
