@@ -1,0 +1,210 @@
+/* =====================================================
+   modern.css — visual refresh layer
+   Loads AFTER style.css / features.css / polish.css.
+   Restyles existing classes in place — no markup changes
+   required anywhere in the site. Every rule here is additive
+   or overriding; nothing below removes functionality.
+===================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* signature duotone accent, layered on top of the existing --primary */
+  --violet: #8457ff;
+  --cyan: #22d3ee;
+  --grad-signature: linear-gradient(120deg, var(--violet), var(--cyan));
+  --glass: rgba(22, 24, 33, 0.58);
+  --glass-hi: rgba(30, 33, 45, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.07);
+  --glass-border-hi: rgba(255, 255, 255, 0.14);
+  --glow-violet: rgba(132, 87, 255, 0.35);
+  --glow-cyan: rgba(34, 211, 238, 0.28);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --display: 'Space Grotesk', var(--sans);
+}
+
+/* ---------- Ambient atmosphere ---------- */
+html, body { background: var(--bg); }
+body { position: relative; isolation: isolate; }
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(680px 480px at 8% -6%, rgba(132, 87, 255, 0.16), transparent 60%),
+    radial-gradient(620px 440px at 108% 12%, rgba(34, 211, 238, 0.11), transparent 60%),
+    radial-gradient(900px 620px at 50% 118%, rgba(47, 208, 138, 0.06), transparent 60%);
+  animation: driftGlow 26s ease-in-out infinite alternate;
+}
+@keyframes driftGlow {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-1.5%, 1.5%, 0) scale(1.04); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; }
+}
+
+/* ---------- Typography ---------- */
+.brand .name, .topbar-left h1, .panel-head h1, .trade-head h1,
+.score-gauge .num, .cal-month-label, .card h2 { font-family: var(--display); }
+.brand .name { letter-spacing: -0.01em; }
+.topbar-left h1, .panel-head h1 { letter-spacing: -0.02em; }
+
+/* ---------- Brand mark: animated gradient ---------- */
+.brand .mark {
+  background: var(--grad-signature);
+  background-size: 220% 220%;
+  animation: markShift 7s ease-in-out infinite;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 6px 20px var(--glow-violet);
+  position: relative;
+}
+@keyframes markShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+@media (prefers-reduced-motion: reduce) { .brand .mark { animation: none; } }
+
+/* ---------- Sidebar & topbar glass ---------- */
+.sidebar {
+  background: linear-gradient(180deg, rgba(13,14,19,0.92), rgba(10,11,15,0.96));
+  backdrop-filter: blur(14px);
+  border-right: 1px solid var(--glass-border);
+}
+.topbar {
+  background: rgba(10, 11, 15, 0.55);
+  backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--glass-border);
+  position: relative;
+}
+.topbar::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--violet) 20%, var(--cyan) 50%, transparent 80%);
+  background-size: 200% 100%;
+  opacity: 0.55;
+  animation: ticker 9s linear infinite;
+}
+@keyframes ticker {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) { .topbar::after { animation: none; } }
+
+.nav-item { transition: background 0.2s var(--ease), color 0.2s var(--ease), transform 0.2s var(--ease); }
+.nav-item:hover:not(.disabled) { transform: translateX(2px); }
+.nav-item.active {
+  background: linear-gradient(90deg, var(--glow-violet), transparent);
+  color: #fff;
+  box-shadow: inset 2px 0 0 0 var(--violet);
+}
+.nav-item.active svg { color: var(--cyan); filter: drop-shadow(0 0 6px var(--glow-cyan)); }
+
+.pipeline-status .dot { animation: pulseDot 2.2s ease-in-out infinite; }
+@keyframes pulseDot {
+  0%, 100% { box-shadow: 0 0 0 3px var(--green-soft); }
+  50% { box-shadow: 0 0 0 6px rgba(47,208,138,0.05); }
+}
+
+/* ---------- Glass panels / cards ---------- */
+.panel-box, .card, .chart-panel, .equity-panel, .day-group,
+.pnl-breakdown .cell, .stat, .cal-summary-strip .cell, .streak-strip .cell,
+.playbook-card, .cal-cell, table.data-table, .day-detail-panel .panel-box {
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  transition: border-color 0.25s var(--ease), transform 0.25s var(--ease), box-shadow 0.25s var(--ease), background 0.25s var(--ease);
+}
+.panel-box:hover, .card:hover, .chart-panel:hover, .equity-panel:hover,
+.playbook-card:hover {
+  border-color: var(--glass-border-hi);
+  box-shadow: 0 16px 40px -20px rgba(0,0,0,0.6), 0 0 0 1px var(--glass-border-hi);
+  transform: translateY(-2px);
+}
+.stat { background: var(--glass); }
+.stat:hover { background: var(--glass-hi); }
+
+.cal-cell.has-trades:hover { transform: translateY(-1px) scale(1.015); box-shadow: 0 10px 24px -14px rgba(0,0,0,0.55); }
+.day-group:hover { border-color: var(--glass-border-hi); }
+
+/* ---------- Score gauge: gradient + glow ---------- */
+.score-gauge svg { filter: drop-shadow(0 0 10px var(--glow-violet)); }
+.score-gauge .fill { stroke: url(#modernGaugeGradient); }
+
+/* ---------- Equity curve: gradient glow line ---------- */
+#equity-svg .equity-path { stroke: url(#modernEquityGradient); filter: drop-shadow(0 0 6px var(--glow-cyan)); }
+#equity-svg .equity-path.neg { stroke: var(--red); filter: drop-shadow(0 0 6px rgba(242,85,90,0.35)); }
+
+/* ---------- Buttons & interactive controls ---------- */
+.filter-btn, .icon-btn, .cal-nav-btn, .sidebar-toggle, .btn-advanced, .btn-icon, .sr-run-btn {
+  transition: transform 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease), box-shadow 0.15s var(--ease), background 0.15s var(--ease);
+  position: relative;
+  overflow: hidden;
+}
+.filter-btn:hover, .icon-btn:hover, .cal-nav-btn:hover, .sidebar-toggle:hover, .btn-advanced:hover, .btn-icon:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px -8px rgba(0,0,0,0.5);
+}
+.filter-btn.active {
+  box-shadow: 0 0 0 1px rgba(132,87,255,0.35), 0 0 16px var(--glow-violet);
+}
+.sr-run-btn:hover:not(:disabled) { box-shadow: 0 0 18px var(--glow-violet); }
+.filter-btn:active, .icon-btn:active, .cal-nav-btn:active, .sr-run-btn:active { transform: translateY(0) scale(0.97); }
+
+.search-box input:focus { box-shadow: 0 0 0 3px var(--glow-violet); }
+.filters input:focus, .filters select:focus { box-shadow: 0 0 0 3px var(--glow-violet); }
+
+/* ripple */
+.ripple { position: absolute; border-radius: 50%; pointer-events: none; background: rgba(255,255,255,0.35); transform: scale(0); animation: rippleAnim 0.55s ease-out; }
+@keyframes rippleAnim { to { transform: scale(2.6); opacity: 0; } }
+
+/* ---------- Table rows ---------- */
+.trade-table tbody tr, table.data-table tbody tr {
+  transition: background 0.18s var(--ease), transform 0.18s var(--ease);
+}
+.trade-table tbody tr:hover, table.data-table tbody tr:hover {
+  background: linear-gradient(90deg, var(--glow-violet), transparent 70%);
+}
+.pnl-tag, .verdict-badge, .pill { transition: transform 0.15s var(--ease), box-shadow 0.15s var(--ease); }
+.trade-table tbody tr:hover .pnl-tag { transform: scale(1.05); }
+
+/* ---------- Highlight / callout cards ---------- */
+.highlight-card, .walk-away { position: relative; overflow: hidden; }
+.highlight-card::after, .walk-away::after {
+  content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity 0.3s var(--ease);
+  background: radial-gradient(120px 60px at 20% 0%, rgba(255,255,255,0.08), transparent 70%);
+}
+.highlight-card:hover::after, .walk-away:hover::after { opacity: 1; }
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--violet), var(--cyan)); opacity: 0.6; border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, var(--cyan), var(--violet)); }
+
+/* ---------- Scroll-reveal (driven by modern.js) ---------- */
+.reveal-init { opacity: 0; transform: translateY(14px); }
+.reveal-in { animation: revealIn 0.6s var(--ease) forwards; }
+@keyframes revealIn { to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .reveal-init { opacity: 1; transform: none; }
+  .reveal-in { animation: none; }
+}
+
+/* ---------- Count-up number flash ---------- */
+.value-settled { animation: valueFlash 0.6s var(--ease); }
+@keyframes valueFlash {
+  0% { text-shadow: 0 0 14px currentColor; }
+  100% { text-shadow: none; }
+}
+
+/* ---------- Tab panel transitions ---------- */
+.tab-panel.active { animation: tabIn 0.35s var(--ease); }
+@keyframes tabIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ---------- Score breakdown bars: gradient fill ---------- */
+.score-row .fill { background: var(--grad-signature) !important; }
+
+/* ---------- Selection ---------- */
+::selection { background: rgba(132,87,255,0.35); }

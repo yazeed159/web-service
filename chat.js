@@ -181,33 +181,58 @@
     };
   }
 
-  // One compact line per trade so the payload stays small even with
-  // hundreds of trades logged -- same spirit as trade.js's daily-bar
-  // summarizer for the SR feature.
-  function buildTradesCompact(rows) {
-    const MAX_ROWS = 400;
-    const slice = rows.slice(-MAX_ROWS);
-    const lines = slice.map((r) => {
-      const tags = (r.lesson_tags || []).join(",") || "-";
-      const rvol = r.rvol_tag || "-";
-      return [
-        r.id || "-",
-        r.trade_date || "-",
-        r.symbol || "-",
-        r.side || "-",
-        r.setup_type || "-",
-        r.win ? "WIN" : "LOSS",
-        (r.pnl_after_comm != null ? r.pnl_after_comm.toFixed(2) : "-"),
-        r.shares != null ? r.shares : "-",
-        `${r.entry_price != null ? r.entry_price : "-"}->${r.exit_price != null ? r.exit_price : "-"}`,
-        tags,
-        rvol,
-      ].join(" | ");
-    });
-    if (rows.length > MAX_ROWS) {
-      lines.unshift(`(showing the ${MAX_ROWS} most recent of ${rows.length} trades)`);
+  // Single-line format shared by the curated sample and by the specific-
+  // trade lookup below, so both look identical to the model.
+  function formatTradeLine(r) {
+    const tags = (r.lesson_tags || []).join(",") || "-";
+    const rvol = r.rvol_tag || "-";
+    return [
+      r.id || "-",
+      r.trade_date || "-",
+      r.symbol || "-",
+      r.side || "-",
+      r.setup_type || "-",
+      r.win ? "WIN" : "LOSS",
+      (r.pnl_after_comm != null ? r.pnl_after_comm.toFixed(2) : "-"),
+      r.shares != null ? r.shares : "-",
+      `${r.entry_price != null ? r.entry_price : "-"}->${r.exit_price != null ? r.exit_price : "-"}`,
+      tags,
+      rvol,
+    ].join(" | ");
+  }
+
+  // NEVER sends the full journal. trades_summary (aggregates, built above)
+  // already answers "how am I doing" / "how do setups compare" / "where
+  // should I improve" style questions on its own. This adds just enough
+  // concrete, citable examples for coaching-style answers without paying
+  // for all 300+ rows on every single turn: worst losses, best wins, and
+  // the most recent trades, deduped. A specific trade the message actually
+  // asks about is looked up separately (see findRelevantTrade) and rides
+  // along on top of this, so precision on a named symbol/date never
+  // depends on it happening to land in this sample.
+  const SAMPLE_WORST = 10;
+  const SAMPLE_BEST = 5;
+  const SAMPLE_RECENT = 10;
+
+  function buildTradesSample(rows) {
+    if (!rows.length) return [];
+    const byPnl = [...rows].sort((a, b) => (a.pnl_after_comm || 0) - (b.pnl_after_comm || 0));
+    const worst = byPnl.slice(0, SAMPLE_WORST);
+    const best = byPnl.slice(-SAMPLE_BEST).reverse();
+    const recent = [...rows]
+      .sort((a, b) => (b.trade_date + (b.entry_time || "")).localeCompare(a.trade_date + (a.entry_time || "")))
+      .slice(0, SAMPLE_RECENT);
+
+    const seen = new Set();
+    const picked = [];
+    for (const r of [...worst, ...best, ...recent]) {
+      const key = r.id || `${r.symbol}-${r.trade_date}-${r.entry_time}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      picked.push(r);
     }
-    return lines;
+    picked.sort((a, b) => (a.trade_date + (a.entry_time || "")).localeCompare(b.trade_date + (b.entry_time || "")));
+    return picked.map(formatTradeLine);
   }
 
   // ---- chart data lookup (chart_service.py, on demand) -----------------
@@ -318,7 +343,12 @@
           message: text,
           history: history.slice(0, -1).slice(-12),
           trades_summary: buildTradesSummary(trades),
-          trades_compact: buildTradesCompact(trades),
+          trades_sample: buildTradesSample(trades),
+          // Only present when the message actually named a symbol/date --
+          // its own journal line (win/loss, pnl, tags), separate from the
+          // chart indicators below, so a lookup outside the sample above
+          // still gets full grounding without touching the other 300+ rows.
+          matched_trade_line: relevantTrade ? formatTradeLine(relevantTrade) : null,
           chart_context: chartContext,
         }),
       })
