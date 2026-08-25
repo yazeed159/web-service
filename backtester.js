@@ -395,12 +395,22 @@
       .catch(() => clearActiveJob());
   })();
 
+  // Last rendered run's trades + a filename-safe label, so the export
+  // buttons can serialize exactly what's on screen without re-fetching --
+  // this is a snapshot of a finished/partial run, separate from the
+  // history entries loaded via /backtest/history.
+  let lastTrades = [];
+  let lastLabel = "backtest";
+
   function renderResults(stats, trades, partial) {
     if (!stats || !stats.num_trades) {
       if (partial) return; // still running, just hasn't produced a trade yet -- don't flash an empty-state
       els.results.innerHTML = `<div class="empty-state">No trades matched this config over that date range — try loosening the filters or widening the dates.</div>`;
       return;
     }
+
+    lastTrades = trades || [];
+    lastLabel = (els.label && els.label.value.trim()) || "backtest";
 
     const partialBanner = partial
       ? `<div class="empty-state small" style="margin-bottom:14px;">Backtest still running — showing results through the last completed day. This updates as more days finish.</div>`
@@ -442,7 +452,13 @@
       </div>
 
       <div class="panel-box">
-        <div class="panel-box-head"><span class="title">Trades (${trades.length})</span></div>
+        <div class="panel-box-head">
+          <span class="title">Trades (${trades.length})</span>
+          <div style="display:flex; gap:14px;">
+            <button class="link" id="bt-export-csv" type="button">Export CSV</button>
+            <button class="link" id="bt-export-json" type="button">Export JSON</button>
+          </div>
+        </div>
         <div style="overflow-x:auto;">
           <table class="data-table">
             <thead><tr>
@@ -456,6 +472,64 @@
     `;
 
     renderEquityCurve(stats.equity_curve || []);
+
+    const csvBtn = document.getElementById("bt-export-csv");
+    const jsonBtn = document.getElementById("bt-export-json");
+    if (csvBtn) csvBtn.addEventListener("click", () => exportTrades("csv"));
+    if (jsonBtn) jsonBtn.addEventListener("click", () => exportTrades("json"));
+  }
+
+  // Filename-safe stamp + slug shared by both export formats, e.g.
+  // "orb-breakout_2026-08-25_1412.csv".
+  function exportFileBase() {
+    const slug = lastLabel.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "backtest";
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+    return `${slug}_${stamp}`;
+  }
+
+  function downloadBlob(content, mime, filename) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  const TRADE_COLUMNS = [
+    "date", "symbol", "gap_pct", "entry_time", "entry_price",
+    "exit_time", "exit_price", "exit_reason", "shares", "pnl_dollars", "r_multiple", "win",
+  ];
+
+  function csvEscape(v) {
+    if (v === null || v === undefined) return "";
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
+  function tradesToCsv(trades) {
+    const header = TRADE_COLUMNS.join(",");
+    const rows = trades.map((t) => TRADE_COLUMNS.map((c) => csvEscape(t[c])).join(","));
+    return [header, ...rows].join("\r\n");
+  }
+
+  // Exports the actual trades from this run (same array driving the table
+  // above) as a real downloadable file -- distinct from the saved-run
+  // cards in the History panel, which only store aggregate stats + the
+  // params used, not the per-trade rows.
+  function exportTrades(format) {
+    if (!lastTrades.length) return;
+    const base = exportFileBase();
+    if (format === "csv") {
+      downloadBlob(tradesToCsv(lastTrades), "text/csv;charset=utf-8;", `${base}.csv`);
+    } else {
+      downloadBlob(JSON.stringify(lastTrades, null, 2), "application/json;charset=utf-8;", `${base}.json`);
+    }
   }
 
   function tradeRow(t) {
