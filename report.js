@@ -399,6 +399,14 @@
     if (has("exit_reason")) cols.push(["exit_reason", "Reason"]);
     cols.push(["shares", "Shares"], ["commission_total", "Comm. $"], ["pnl_dollars", "P&L $"]);
     if (has("r_multiple")) cols.push(["r_multiple", "R"]);
+    // Chart column comes last and only shows up once at least one trade has
+    // been enriched with a chart_image (via the n8n journal workflow ->
+    // /backtest/history/<id>/enrich). The image itself already has the
+    // actual entry/exit price+time annotated directly on its pointer
+    // markers (see chart_service.py's render_chart) -- that's the only
+    // enriched content this page surfaces; verdict/lessons/better-entry are
+    // deliberately left out here.
+    if (has("chart_image")) cols.push(["chart_image", ""]);
     return cols;
   }
 
@@ -410,8 +418,43 @@
       case "pnl_dollars": return `<span class="pill ${t.win ? "win" : "loss"}">${fmtMoney(t.pnl_dollars)}</span>`;
       case "r_multiple": return fmtR(t.r_multiple);
       case "shares": return t.shares != null ? t.shares : "—";
+      case "chart_image": return t.chart_image
+        ? `<button type="button" class="rpt-chart-toggle" aria-label="Show chart" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button>`
+        : "";
       default: return escapeHtml(t[key] != null ? t[key] : "—");
     }
+  }
+
+  // Expands/collapses the chart-image detail row directly under a trade
+  // row. Built lazily (image only inserted into the DOM on first expand)
+  // and toggled by display afterward, so opening/closing many rows stays
+  // cheap. This is the ONLY enriched content shown on this page -- no
+  // verdict text, no lessons, no separate better-entry/exit rows -- since
+  // the chart image itself already has the actual entry/exit annotated
+  // directly on its pointer markers.
+  function wireChartToggles(trades, numCols) {
+    els.tradesBody.querySelectorAll("tr.rpt-trade-row").forEach((row) => {
+      const btn = row.querySelector(".rpt-chart-toggle");
+      if (!btn) return;
+      const idx = Number(row.dataset.idx);
+      const trade = trades[idx];
+      btn.addEventListener("click", () => {
+        let detailRow = row.nextElementSibling;
+        const isOpen = detailRow && detailRow.classList.contains("rpt-chart-row");
+        if (isOpen) {
+          detailRow.remove();
+          btn.setAttribute("aria-expanded", "false");
+          row.classList.remove("expanded");
+          return;
+        }
+        detailRow = document.createElement("tr");
+        detailRow.className = "rpt-chart-row";
+        detailRow.innerHTML = `<td colspan="${numCols}"><img class="rpt-chart-img" src="${escapeHtml(trade.chart_image)}" alt="${escapeHtml(trade.symbol || "")} ${escapeHtml(trade.date || "")} chart" loading="lazy"></td>`;
+        row.after(detailRow);
+        btn.setAttribute("aria-expanded", "true");
+        row.classList.add("expanded");
+      });
+    });
   }
 
   function renderEquityCurve(curve) {
@@ -521,9 +564,10 @@
     // trades table
     const cols = tradeColumns(trades);
     els.tradesHead.innerHTML = cols.map(([, label]) => `<th>${label}</th>`).join("");
-    els.tradesBody.innerHTML = trades.map((t) => `<tr>${cols.map(([key]) => `<td>${tradeCell(key, t)}</td>`).join("")}</tr>`).join("")
+    els.tradesBody.innerHTML = trades.map((t, i) => `<tr class="rpt-trade-row" data-idx="${i}">${cols.map(([key]) => `<td>${tradeCell(key, t)}</td>`).join("")}</tr>`).join("")
       || `<tr><td colspan="${cols.length}"><div class="empty-state small">No trades.</div></td></tr>`;
     els.tradesCount.textContent = `${trades.length} trade${trades.length === 1 ? "" : "s"}`;
+    if (trades.length) wireChartToggles(trades, cols.length);
 
     renderJournalTab(trades);
     showOnly("loaded");

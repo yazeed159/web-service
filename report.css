@@ -97,3 +97,33 @@
 @media (max-width: 760px) {
   .rpt-toolbar { gap: 8px; }
 }
+
+/* ---- per-trade chart image (from the n8n journal workflow's enrich
+   step) -- the only enriched field this page renders. ---- */
+.rpt-chart-toggle {
+  background: none;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  width: 26px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: transform .15s ease, color .15s ease, border-color .15s ease;
+}
+.rpt-chart-toggle:hover { color: var(--text); border-color: var(--text-dim); }
+.rpt-chart-toggle svg { width: 14px; height: 14px; }
+tr.rpt-trade-row.expanded .rpt-chart-toggle { transform: rotate(180deg); color: var(--text); }
+tr.rpt-chart-row td {
+  padding: 10px 12px 16px;
+  background: var(--panel);
+}
+.rpt-chart-img {
+  display: block;
+  max-width: 100%;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-soft);
+}
