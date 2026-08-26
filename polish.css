@@ -120,6 +120,7 @@
    BACKTESTER
 ===================================================== */
 .bt-section {
+  margin-bottom: 18px;
   animation: riseIn .35s ease both;
 }
 .bt-section:nth-of-type(2) { animation-delay: .04s; }
@@ -164,6 +165,13 @@
 }
 .bt-check input { accent-color: var(--primary); width: 15px; height: 15px; }
 .bt-select-desc { grid-column: 1 / -1; }
+.bt-notes {
+  width: 100%; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+  font-family: var(--sans); font-size: 13px; padding: 9px 11px; border-radius: var(--radius-sm); resize: vertical;
+}
+.bt-notes:focus {
+  outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); background: var(--panel-3);
+}
 
 .hint-text { padding: 10px 12px; background: var(--panel-2); border-radius: var(--radius-sm); border: 1px solid var(--border-soft); }
 
@@ -173,20 +181,23 @@
 }
 .bt-run-row .btn-confirm {
   position: relative; display: inline-flex; align-items: center; gap: 8px;
-  border-radius: var(--radius-sm); border: 1px solid rgba(47,208,138,0.5);
-  box-shadow: 0 4px 16px rgba(47,204,113,0.25);
-  transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  border-radius: var(--radius-sm);
+  font-size: 14px; padding: 11px 22px;
 }
-.bt-run-row .btn-confirm:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(47,204,113,0.32); }
-.bt-run-row .btn-confirm:active:not(:disabled) { transform: translateY(0); }
-.bt-run-row .btn-confirm:disabled { box-shadow: none; padding-left: 34px; }
+.bt-run-row .btn-confirm:disabled { box-shadow: none; padding-left: 36px; }
 .bt-run-row .btn-confirm:disabled::before {
-  content: ""; position: absolute; left: 12px; width: 13px; height: 13px;
-  border-radius: 50%; border: 2px solid rgba(11,15,22,0.35); border-top-color: #0b0f16;
+  content: ""; position: absolute; left: 14px; width: 13px; height: 13px;
+  border-radius: 50%; border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff;
   animation: spin .7s linear infinite;
 }
 
-#bt-progress-box { animation: popIn .25s ease both; }
+#bt-progress-box { margin-bottom: 18px; animation: popIn .25s ease both; }
+#bt-progress-label { font-size: 12.5px; color: var(--text-dim); }
+
+.bt-manual-toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+.bt-manual-toggle-row .hint-text { margin: 0; }
+.bt-cancel-btn { padding: 10px 16px; }
+#bt-run-status { font-size: 12.5px; color: var(--text-faint); }
 .progress-track { position: relative; }
 .progress-fill {
   position: relative; overflow: hidden;

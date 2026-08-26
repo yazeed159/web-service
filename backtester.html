@@ -130,7 +130,7 @@
         <div class="sub">Scans top gap-gainers over a date range and simulates an intraday breakout strategy against real Polygon minute bars. Runs against your own chart-service backend (see config.js).</div>
       </div>
 
-      <div class="panel-box bt-section ai-cfg-panel" style="margin-bottom:18px;">
+      <div class="panel-box bt-section ai-cfg-panel">
         <div class="panel-box-head">
           <span class="bt-section-icon ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 5.8L20 10l-6.1 2.2L12 18l-1.9-5.8L4 10l6.1-2.2z"></path></svg></span>
           <span class="title">Configure with AI</span>
@@ -157,27 +157,27 @@
         </div>
       </div>
 
-      <div class="bt-manual-toggle-row" style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
+      <div class="bt-manual-toggle-row">
         <button type="button" class="link" id="bt-manual-toggle">Show manual settings</button>
-        <span class="hint-text" style="margin:0;">The chat above runs backtests on its own — open this only if you'd rather set the fields by hand.</span>
+        <span class="hint-text">The chat above runs backtests on its own — open this only if you'd rather set the fields by hand.</span>
       </div>
 
       <div class="bt-run-row" id="bt-shared-run-row">
-        <button class="filter-btn" id="bt-cancel-btn" style="padding:10px 16px; display:none;">Cancel</button>
-        <span id="bt-run-status" style="font-size:12.5px; color:var(--text-faint);"></span>
+        <button class="filter-btn bt-cancel-btn" id="bt-cancel-btn" style="display:none;">Cancel</button>
+        <span id="bt-run-status"></span>
       </div>
 
-      <div id="bt-progress-box" class="panel-box" style="margin-bottom:18px; display:none;">
+      <div id="bt-progress-box" class="panel-box" style="display:none;">
         <div class="panel-box-head"><span class="title">Running</span></div>
         <div class="progress-track" id="bt-progress-track">
           <div class="progress-fill" id="bt-progress-fill" style="width:0%;"></div>
         </div>
-        <div id="bt-progress-label" style="font-size:12.5px; color:var(--text-dim);">Starting…</div>
+        <div id="bt-progress-label">Starting…</div>
       </div>
 
       <div id="bt-manual-fields" hidden>
 
-      <div class="panel-box bt-section" style="margin-bottom:18px;">
+      <div class="panel-box bt-section">
         <div class="panel-box-head">
           <span class="bt-section-icon scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
           <span class="title">Scan &amp; Session</span>
@@ -197,11 +197,11 @@
           </label>
           <div class="bt-field"><label class="bt-label" for="bt-session-start" title="When the scan/entry window opens (ET). Use a pre-market time like 07:00 to trade the pre-market/early session instead of waiting for the 09:30 open.">Session start (ET)</label><input type="time" id="bt-session-start" value="09:30"></div>
           <div class="bt-field"><label class="bt-label" for="bt-flatten-time">Force-exit (ET)</label><input type="time" id="bt-flatten-time" value="15:55"></div>
-          <div class="bt-field span2"><label class="bt-label" for="bt-notes" title="Anything the AI (or you) noted that doesn't have a matching field below -- saved with the run for reference, but NOT simulated by the engine.">Strategy notes (reference only — not simulated)</label><textarea id="bt-notes" rows="2" placeholder="e.g. 'only take the first 2 runners of the day', 'skip anything under 10M float'…" style="width:100%; background:var(--panel-2); border:1px solid var(--border); color:var(--text); font-family:var(--sans); font-size:13px; padding:9px 11px; border-radius:var(--radius-sm); resize:vertical;"></textarea></div>
+          <div class="bt-field span2"><label class="bt-label" for="bt-notes" title="Anything the AI (or you) noted that doesn't have a matching field below -- saved with the run for reference, but NOT simulated by the engine.">Strategy notes (reference only — not simulated)</label><textarea id="bt-notes" class="bt-notes" rows="2" placeholder="e.g. 'only take the first 2 runners of the day', 'skip anything under 10M float'…"></textarea></div>
         </div>
       </div>
 
-      <div class="panel-box bt-section" style="margin-bottom:18px;">
+      <div class="panel-box bt-section">
         <div class="panel-box-head">
           <span class="bt-section-icon entry"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 6"></polyline><polyline points="15 6 21 6 21 12"></polyline></svg></span>
           <span class="title">Entry</span>
@@ -231,7 +231,7 @@
         </p>
       </div>
 
-      <div class="panel-box bt-section" style="margin-bottom:18px;">
+      <div class="panel-box bt-section">
         <div class="panel-box-head">
           <span class="bt-section-icon stop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="7" y1="12" x2="17" y2="12"></line></svg></span>
           <span class="title">Stop Loss</span>
@@ -254,7 +254,7 @@
         </div>
       </div>
 
-      <div class="panel-box bt-section" style="margin-bottom:18px;">
+      <div class="panel-box bt-section">
         <div class="panel-box-head">
           <span class="bt-section-icon exits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"></path><path d="M17 7l-5-5-5 5"></path><path d="M17 17l-5 5-5-5"></path></svg></span>
           <span class="title">Profit Exits</span>
@@ -271,7 +271,7 @@
       </div>
 
       <div class="bt-run-row">
-        <button class="btn-confirm" id="bt-run-btn" style="padding:10px 20px; font-weight:600;">Run Backtest</button>
+        <button class="btn-confirm" id="bt-run-btn">Run Backtest</button>
       </div>
 
       </div><!-- /#bt-manual-fields -->
