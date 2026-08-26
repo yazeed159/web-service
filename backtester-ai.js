@@ -80,11 +80,12 @@
     flatten_time: { type: "time", label: "Force-exit time (ET)" },
     entry_mode: {
       type: "enum", label: "Entry style",
-      values: ["orb_breakout", "red_candle_break", "donchian_break", "inside_bar_break", "vwap_reclaim"],
+      values: ["orb_breakout", "red_candle_break", "donchian_break", "inside_bar_break", "vwap_reclaim", "ema9_dip"],
     },
     orb_minutes: { type: "int", label: "Opening range (min)" },
     entry_after_orb: { type: "bool", label: "Wait for opening range first" },
     donchian_lookback: { type: "int", label: "Donchian lookback (bars)" },
+    ema_period: { type: "int", label: "EMA period (bars, for 9 EMA dip)" },
     stop_mode: {
       type: "enum", label: "Stop style",
       values: ["pattern", "fixed_cents", "fixed_pct", "prior_bar_low", "atr_multiple"],
@@ -110,6 +111,7 @@
     donchian_break: "Donchian breakout",
     inside_bar_break: "Inside-bar break",
     vwap_reclaim: "VWAP reclaim",
+    ema9_dip: "9 EMA dip",
   };
   const STOP_LABELS = {
     pattern: "Pattern-based",
@@ -248,6 +250,9 @@
     }
     if (draft.entry_mode === "donchian_break" && draft.donchian_lookback !== undefined) {
       entry.push(["Donchian lookback", draft.donchian_lookback + " bars"]);
+    }
+    if (draft.entry_mode === "ema9_dip" && draft.ema_period !== undefined) {
+      entry.push(["EMA period", draft.ema_period + " bars"]);
     }
     if (draft.entry_after_orb !== undefined) entry.push(["Wait for opening range", draft.entry_after_orb ? "Yes" : "No"]);
     if (entry.length) groups.push(["Entry", entry]);

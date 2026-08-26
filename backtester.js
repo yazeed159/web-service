@@ -1,8 +1,8 @@
 // backtester.js
 // Drives the Backtester tab: builds a strategy config from the form, starts
 // a backtest job on chart_service.py (/backtest/start), polls it to
-// completion (/backtest/status/<id>), and renders stats + an equity curve +
-// a trades table. Also lists/reloads/deletes past runs (/backtest/history).
+// completion (/backtest/status/<id>), and renders a compact stats summary.
+// Also lists/reloads/deletes past runs (/backtest/history).
 //
 // Talks directly to chart_service.py's ngrok URL (window.CHART_SERVICE_URL
 // in config.js) -- not through n8n, since this is a start-job/poll-status
@@ -57,6 +57,7 @@
     orbMinutes: document.getElementById("bt-orb-minutes"),
     entryAfterOrb: document.getElementById("bt-entry-after-orb"),
     donchianLookback: document.getElementById("bt-donchian-lookback"),
+    emaPeriod: document.getElementById("bt-ema-period"),
     stopMode: document.getElementById("bt-stop-mode"),
     fixedStopCents: document.getElementById("bt-fixed-stop-cents"),
     fixedStopPct: document.getElementById("bt-fixed-stop-pct"),
@@ -137,6 +138,7 @@
       orb_minutes: Number(els.orbMinutes.value) || 5,
       entry_after_orb: !!els.entryAfterOrb.checked,
       donchian_lookback: Number(els.donchianLookback.value) || 10,
+      ema_period: Number(els.emaPeriod.value) || 9,
 
       stop_mode: els.stopMode.value,
       fixed_stop_cents: Number(els.fixedStopCents.value) || 0,
@@ -177,6 +179,7 @@
     set(els.orbMinutes, p.orb_minutes);
     setChk(els.entryAfterOrb, p.entry_after_orb !== false);
     set(els.donchianLookback, p.donchian_lookback);
+    set(els.emaPeriod, p.ema_period);
     set(els.stopMode, p.stop_mode);
     set(els.fixedStopCents, p.fixed_stop_cents);
     set(els.fixedStopPct, p.fixed_stop_pct);
@@ -412,10 +415,9 @@
   let lastJobId = null;
 
   // Compact "done" card instead of the old full inline dashboard -- the
-  // full breakdown (equity curve, trade table, CSV/JSON export, Send to
-  // Journal) now lives on its own page (report.html), one per run, so
-  // this page stays about configuring + kicking off runs rather than
-  // displaying them.
+  // full breakdown (trade table, CSV/JSON export, Send to Journal) now
+  // lives on its own page (report.html), one per run, so this page stays
+  // about configuring + kicking off runs rather than displaying them.
   function renderResults(stats, trades, partial, opts) {
     opts = opts || {};
     if (!stats || !stats.num_trades) {

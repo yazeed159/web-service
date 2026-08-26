@@ -236,10 +236,12 @@
               <option value="donchian_break">Break of highest high in last N bars (Donchian)</option>
               <option value="inside_bar_break">Break of inside-bar high</option>
               <option value="vwap_reclaim">VWAP reclaim</option>
+              <option value="ema9_dip">9 EMA dip (buy the pullback)</option>
             </select>
           </div>
           <div class="bt-field"><label class="bt-label" for="bt-orb-minutes">Opening range (min)</label><input type="number" id="bt-orb-minutes" value="5" min="1" step="1"></div>
           <div class="bt-field"><label class="bt-label" for="bt-donchian-lookback">Donchian lookback (bars)</label><input type="number" id="bt-donchian-lookback" value="10" min="2" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-ema-period" title="Length of the EMA that price must pull back to and reclaim, used by the 9 EMA dip entry style">EMA period (bars)</label><input type="number" id="bt-ema-period" value="9" min="2" step="1"></div>
           <label class="bt-check" title="For non-ROB entry styles: only look for the pattern after the opening range window closes">
             <input type="checkbox" id="bt-entry-after-orb" checked> Wait for opening range first
           </label>
@@ -250,6 +252,7 @@
           <b>Donchian:</b> a rolling ORB — buys the break of the highest high in the last N bars.
           <b>Inside-bar break:</b> buys the break of a one-bar consolidation's high.
           <b>VWAP reclaim:</b> buys the first bar back above session VWAP after price dropped below it.
+          <b>9 EMA dip:</b> buys the first bar back above the EMA after price, having traded above it, dips to or through it — the classic "buy the pullback to the 9 EMA."
         </p>
       </div>
 

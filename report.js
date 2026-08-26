@@ -401,30 +401,6 @@
     }
   }
 
-  function renderEquityCurve(curve) {
-    const el = document.getElementById("rpt-equity-chart");
-    if (!el || !window.LightweightCharts || !curve || !curve.length) {
-      if (el) el.innerHTML = `<div class="empty-state small">Not enough data for an equity curve.</div>`;
-      return;
-    }
-    el.innerHTML = "";
-    const chart = LightweightCharts.createChart(el, {
-      width: el.clientWidth, height: 260,
-      layout: { background: { color: "transparent" }, textColor: "#8b8fa3" },
-      grid: { vertLines: { color: "#1b1e26" }, horzLines: { color: "#1b1e26" } },
-      rightPriceScale: { borderColor: "#262a34" },
-      timeScale: { borderColor: "#262a34" },
-    });
-    const series = chart.addAreaSeries({ lineColor: "#5b93f0", topColor: "rgba(91,147,240,0.28)", bottomColor: "rgba(91,147,240,0.02)", lineWidth: 2 });
-    const byDate = new Map();
-    curve.forEach((p, i) => byDate.set(p.date || String(i), p.equity));
-    const data = Array.from(byDate.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([time, value]) => ({ time, value }));
-    series.setData(data);
-    chart.timeScale().fitContent();
-    window.addEventListener("resize", () => chart.applyOptions({ width: el.clientWidth }));
-  }
-
-
   function renderLoaded(report, id) {
     currentReport = report; currentId = id;
     document.getElementById("page-title").textContent = report.label || "Report";
@@ -475,8 +451,6 @@
         <div class="stat"><div class="label-row"><span class="label">Total Shares</span></div><div class="value">${d.totalShares.toLocaleString()}</div></div>
         <div class="stat"><div class="label-row"><span class="label">Symbols Traded</span></div><div class="value">${d.uniqueSymbols}</div>${d.topSymbol ? `<div class="sub-value">most: ${escapeHtml(d.topSymbol)} (${d.topSymbolCount})</div>` : ""}</div>
       </div>`;
-
-    renderEquityCurve(stats.equity_curve || []);
 
     // trades table
     const cols = tradeColumns(trades);
