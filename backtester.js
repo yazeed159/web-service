@@ -324,7 +324,7 @@
           // of making the person wait for the whole range to finish before
           // seeing anything.
           if (job.stats && job.stats.num_trades) {
-            renderResults(job.stats, job.trades || [], /*partial=*/ job.status === "running");
+            renderResults(job.stats, job.trades || [], /*partial=*/ job.status === "running", { jobId });
           }
 
           if (job.status === "running") {
@@ -346,7 +346,7 @@
           if (job.status === "cancelled") {
             els.progressLabel.textContent = "Cancelled.";
             els.runStatus.textContent = `Cancelled — showing results through day ${job.current}/${job.total || "?"}.`;
-            renderResults(job.stats, job.trades || [], false);
+            renderResults(job.stats, job.trades || [], false, { jobId });
             finishRun();
             if (hooks && hooks.onDone) hooks.onDone(job);
             return;
@@ -354,7 +354,7 @@
           // done
           els.progressFill.style.width = "100%";
           els.progressLabel.textContent = "Done.";
-          renderResults(job.stats, job.trades || [], false);
+          renderResults(job.stats, job.trades || [], false, { jobId });
           loadHistory();
           finishRun();
           if (hooks && hooks.onDone) hooks.onDone(job);
@@ -404,8 +404,10 @@
   // history entries loaded via /backtest/history.
   let lastTrades = [];
   let lastLabel = "backtest";
+  let lastJobId = null;
 
-  function renderResults(stats, trades, partial) {
+  function renderResults(stats, trades, partial, opts) {
+    opts = opts || {};
     if (!stats || !stats.num_trades) {
       if (partial) return; // still running, just hasn't produced a trade yet -- don't flash an empty-state
       els.results.innerHTML = `<div class="empty-state">No trades matched this config over that date range — try loosening the filters or widening the dates.</div>`;
@@ -413,11 +415,14 @@
     }
 
     lastTrades = trades || [];
-    lastLabel = (els.label && els.label.value.trim()) || "backtest";
+    lastLabel = opts.label || (els.label && els.label.value.trim()) || "backtest";
+    lastJobId = opts.jobId || null;
 
     const partialBanner = partial
       ? `<div class="empty-state small" style="margin-bottom:14px;">Backtest still running — showing results through the last completed day. This updates as more days finish.</div>`
-      : "";
+      : opts.historicalNote
+        ? `<div class="empty-state small" style="margin-bottom:14px;">${escapeHtml(opts.historicalNote)}</div>`
+        : "";
 
     els.results.innerHTML = `
       ${partialBanner}
@@ -462,6 +467,7 @@
         <div class="panel-box-head">
           <span class="title">Trades (${trades.length})</span>
           <div style="display:flex; gap:14px;">
+            <button class="link" id="bt-send-journal" type="button" title="Send this run's trades through your n8n trade-journal workflow (chart + vision-LLM verdict + Sheets logging), same as real fills">Send to Journal</button>
             <button class="link" id="bt-export-csv" type="button">Export CSV</button>
             <button class="link" id="bt-export-json" type="button">Export JSON</button>
           </div>
@@ -475,6 +481,7 @@
             <tbody>${trades.map(tradeRow).join("")}</tbody>
           </table>
         </div>
+        <div id="bt-journal-status" style="padding:10px 14px; font-size:12.5px; color:var(--text-faint);"></div>
       </div>
     `;
 
@@ -482,8 +489,10 @@
 
     const csvBtn = document.getElementById("bt-export-csv");
     const jsonBtn = document.getElementById("bt-export-json");
+    const journalBtn = document.getElementById("bt-send-journal");
     if (csvBtn) csvBtn.addEventListener("click", () => exportTrades("csv"));
     if (jsonBtn) jsonBtn.addEventListener("click", () => exportTrades("json"));
+    if (journalBtn) journalBtn.addEventListener("click", () => sendToJournal(journalBtn));
   }
 
   // Filename-safe stamp + slug shared by both export formats, e.g.
@@ -541,11 +550,106 @@
     }
   }
 
+  // Sends this run's trades through the n8n trade-journal workflow (the
+  // same chart-generation -> vision-LLM verdict pipeline real IBKR fills
+  // go through) so each backtest trade gets its own analysis -- but
+  // scoped entirely to THIS run's own saved report, never written into
+  // data/trades.json, the shared Google Sheet, or the main dashboard's
+  // stats. n8n should NOT write these into the main trade log at all;
+  // instead it POSTs its per-trade output back to `callback_url` below
+  // (chart_service.py's POST /backtest/history/<job_id>/enrich), which
+  // merges verdict/chart-image/lesson fields onto the matching trade
+  // inside this run's own backtest_reports/<job_id>.json. Reopening this
+  // run later (View Report) picks up whatever's been merged in, so each
+  // backtest ends up with its own self-contained mini report instead of
+  // polluting real trading stats.
+  //
+  // Request body: { run: { label, source: "backtest", job_id,
+  // callback_url, started, ended }, trades: [ {date, symbol, entry_time,
+  // entry_price, exit_time, exit_price, exit_reason, shares, pnl_dollars,
+  // pnl_dollars_gross, commission_total, r_multiple, win}, ... ] }.
+  // Expects back { imported: <n> } (or any 2xx) on success -- the actual
+  // enrichment arrives asynchronously via the callback, not in this
+  // response, since the chart+LLM pass per trade can take a while.
+  let journalSendInFlight = false;
+  function sendToJournal(btn) {
+    if (journalSendInFlight || !lastTrades.length) return;
+    const url = window.N8N_BACKTEST_IMPORT_URL || "";
+    const statusEl = document.getElementById("bt-journal-status");
+    if (!url || url.includes("YOUR-")) {
+      if (statusEl) statusEl.textContent = "Set window.N8N_BACKTEST_IMPORT_URL in config.js to your n8n webhook first.";
+      return;
+    }
+    if (!lastJobId) {
+      if (statusEl) statusEl.textContent = "This run isn't saved yet (no job id) — wait for it to finish, or reopen it from Past Runs, then try again.";
+      return;
+    }
+    journalSendInFlight = true;
+    const originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+    if (statusEl) statusEl.textContent = `Sending ${lastTrades.length} trade${lastTrades.length === 1 ? "" : "s"} through the journal workflow — this calls out to n8n, so it can take a while for a full run…`;
+
+    const payload = {
+      run: {
+        label: lastLabel,
+        source: "backtest",
+        job_id: lastJobId,
+        // Where n8n should POST its per-trade output back to -- keeps
+        // this entirely out of the shared Sheet/dashboard. See the
+        // function comment above for the full loop.
+        callback_url: `${API()}/backtest/history/${lastJobId}/enrich`,
+        started: lastTrades[0] ? lastTrades[0].date : null,
+        ended: lastTrades[lastTrades.length - 1] ? lastTrades[lastTrades.length - 1].date : null,
+      },
+      trades: lastTrades.map((t) => ({
+        date: t.date,
+        symbol: t.symbol,
+        entry_time: t.entry_time,
+        entry_price: t.entry_price,
+        exit_time: t.exit_time,
+        exit_price: t.exit_price,
+        exit_reason: t.exit_reason,
+        shares: t.shares,
+        pnl_dollars: t.pnl_dollars,
+        pnl_dollars_gross: t.pnl_dollars_gross,
+        commission_total: t.commission_total,
+        r_multiple: t.r_multiple,
+        win: t.win,
+      })),
+    };
+
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json().catch(() => ({})); })
+      .then((data) => {
+        const n = (data && data.imported) || lastTrades.length;
+        if (statusEl) statusEl.textContent = `Sent ${n} trade${n === 1 ? "" : "s"} to the journal workflow. Check your dashboard/Sheet once n8n finishes processing.`;
+      })
+      .catch((err) => {
+        if (statusEl) statusEl.textContent = `Couldn't send to journal (${err.message}). If N8N_BACKTEST_IMPORT_URL in config.js still says YOUR-N8N-SUBDOMAIN or the webhook node doesn't exist yet, that's why.`;
+      })
+      .finally(() => {
+        journalSendInFlight = false;
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+      });
+  }
+
   function tradeRow(t) {
     const pillClass = t.win ? "win" : "loss";
+    const verdictPill = t.verdict
+      ? ` <span class="pill" title="${escapeHtml(String(t.verdict).slice(0, 300))}">AI</span>`
+      : "";
+    const chartLink = t.chart_image
+      ? ` <a href="${escapeHtml(t.chart_image)}" target="_blank" rel="noopener" title="Open this trade's chart from the journal workflow" style="text-decoration:none;">📈</a>`
+      : "";
     return `<tr>
       <td>${escapeHtml(t.date)}</td>
-      <td>${escapeHtml(t.symbol)}</td>
+      <td>${escapeHtml(t.symbol)}${verdictPill}${chartLink}</td>
       <td>${Number(t.gap_pct).toFixed(1)}%</td>
       <td>${escapeHtml(t.entry_time)}</td>
       <td>$${Number(t.entry_price).toFixed(2)}</td>
@@ -602,7 +706,7 @@
           const card = document.getElementById(`bt-run-${entry.id}`);
           if (!card) return;
           card.addEventListener("click", (e) => {
-            if (e.target.closest(".run-card-delete")) return;
+            if (e.target.closest(".run-card-delete") || e.target.closest(".run-card-view")) return;
             applyPayload(entry.params);
           });
           const delBtn = card.querySelector(".run-card-delete");
@@ -610,6 +714,13 @@
             delBtn.addEventListener("click", (e) => {
               e.stopPropagation();
               deleteHistoryEntry(entry.id);
+            });
+          }
+          const viewBtn = card.querySelector(".run-card-view");
+          if (viewBtn) {
+            viewBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              viewHistoryReport(entry);
             });
           }
         });
@@ -626,7 +737,10 @@
       <div class="run-card" id="bt-run-${entry.id}" title="Click to load these settings back into the form">
         <div class="run-card-head">
           <span class="run-card-title">${escapeHtml(entry.label || "(untitled run)")}</span>
-          <button class="run-card-delete" title="Delete this run" aria-label="Delete this run">&times;</button>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <button class="link run-card-view" type="button" title="Open the full saved report for this run">View Report</button>
+            <button class="run-card-delete" title="Delete this run" aria-label="Delete this run">&times;</button>
+          </div>
         </div>
         <div class="run-card-date">${escapeHtml((entry.params && entry.params.start) || "")} → ${escapeHtml((entry.params && entry.params.end) || "")}</div>
         ${entry.params && entry.params.notes ? `<div class="run-card-date" title="${escapeHtml(entry.params.notes)}" style="margin-top:4px; font-style:italic;">📝 ${escapeHtml(entry.params.notes.slice(0, 80))}${entry.params.notes.length > 80 ? "…" : ""}</div>` : ""}
@@ -637,6 +751,33 @@
           <div><div class="pb-label">Avg R</div><div class="pb-value">${fmtR(s.avg_r)}</div></div>
         </div>
       </div>`;
+  }
+
+  // Pulls up the full saved report (every trade, full stats + equity
+  // curve) for a past run at any time -- not just the summary stats shown
+  // on its card, and not dependent on the in-memory job still existing
+  // (that's lost on a server restart; the report file on disk isn't). See
+  // GET /backtest/history/<job_id>/report on chart_service.py.
+  function viewHistoryReport(entry) {
+    els.results.innerHTML = `<div class="empty-state small">Loading saved report…</div>`;
+    els.results.scrollIntoView({ behavior: "smooth", block: "start" });
+    fetch(`${API()}/backtest/history/${entry.id}/report`, { headers: FETCH_HEADERS })
+      .then((r) => {
+        if (r.status === 404) throw new Error("No saved report for this run (it may predate this feature) — re-run it to generate one.");
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then((report) => {
+        const when = report.created_at ? new Date(report.created_at).toLocaleString() : "";
+        renderResults(report.stats, report.trades, false, {
+          label: report.label || entry.label,
+          jobId: entry.id,
+          historicalNote: `Viewing saved report${when ? " from " + when : ""} — not a live run. Hit "Run Backtest" to re-run with these settings.`,
+        });
+      })
+      .catch((err) => {
+        els.results.innerHTML = `<div class="empty-state">${escapeHtml(err.message)}</div>`;
+      });
   }
 
   function deleteHistoryEntry(id) {

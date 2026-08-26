@@ -15,6 +15,21 @@ window.N8N_CHAT_URL = "https://yazeed105.app.n8n.cloud/webhook/trade-chat";
 // existing "Chat Webhook Trigger" branch).
 window.N8N_BACKTEST_AI_URL = "https://yazeed105.app.n8n.cloud/webhook/backtest-ai";
 
+// Backtester tab's "Send to Journal" button (backtester.js). POSTs the
+// current run's trades to an n8n webhook so each trade can get the SAME
+// chart-generation + vision-LLM verdict treatment a real fill gets.
+// IMPORTANT -- this must stay isolated from your real trading journal:
+// the webhook node should NOT write these into data/trades.json or the
+// shared Google Sheet. Instead have it POST its per-trade output (chart
+// image, verdict, lessons, better-entry/exit) back to the `callback_url`
+// included in the request body -- chart_service.py's POST
+// /backtest/history/<job_id>/enrich -- which merges that onto the
+// matching trade inside THIS run's own saved report
+// (backtest_reports/<job_id>.json) only. Reopening the run later (View
+// Report) then shows it as that run's own self-contained mini report,
+// with zero effect on real trading stats/dashboards.
+window.N8N_BACKTEST_IMPORT_URL = "https://yazeed105.app.n8n.cloud/webhook/backtest-import";
+
 // Base URL for chart_service.py -- used directly (no n8n) by both:
 //  - Backtester tab (backtester.html / backtester.js), for /backtest/* routes
 //    (a multi-day scan is started + polled rather than a single request/response)
