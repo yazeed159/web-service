@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Report — trade.log</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="features.css">
+<link rel="stylesheet" href="polish.css">
+<link rel="stylesheet" href="modern.css">
+<link rel="stylesheet" href="report.css">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="modernEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <a href="index.html" class="brand">
+        <span class="mark">T</span>
+        <span class="name">trade<span class="muted">.log</span></span>
+      </a>
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Journal</div>
+
+      <a class="nav-item" href="index.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
+        <span class="nav-label">Dashboard</span>
+      </a>
+
+      <a class="nav-item" href="index.html#dayview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line></svg>
+        <span class="nav-label">Day View</span>
+      </a>
+
+      <a class="nav-item" href="index.html#tradeview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        <span class="nav-label">Trade View</span>
+      </a>
+
+      <a class="nav-item" href="index.html#reports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line></svg>
+        <span class="nav-label">Reports</span>
+      </a>
+
+      <div class="nav-section-label">More</div>
+
+      <a class="nav-item" id="import-trades-link" href="#" target="_blank" rel="noopener" title="Upload a CSV of past trades to import into your real journal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+        <span class="nav-label">Import Trades</span>
+      </a>
+
+      <a class="nav-item" href="journal.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        <span class="nav-label">Journal</span>
+      </a>
+
+      <a class="nav-item" href="stats.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.4 8.6 12 15l-3-3-4 4"></path></svg>
+        <span class="nav-label">Performance</span>
+      </a>
+
+      <a class="nav-item" href="patterns.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
+        <span class="nav-label">Patterns</span>
+      </a>
+
+      <a class="nav-item" href="playbooks.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+        <span class="nav-label">Playbooks</span>
+      </a>
+
+      <a class="nav-item" href="calculator.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="12" x2="8.01" y2="12"></line><line x1="12" y1="12" x2="12.01" y2="12"></line><line x1="16" y1="12" x2="16.01" y2="12"></line><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg>
+        <span class="nav-label">Calculator</span>
+      </a>
+
+      <a class="nav-item active" href="backtester.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 6"></polyline><polyline points="15 6 21 6 21 12"></polyline></svg>
+        <span class="nav-label">Backtester</span>
+      </a>
+
+      <a class="nav-item" href="chat.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+        <span class="nav-label">AI Chat</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="pipeline-status"><span class="dot"></span><span>Backtester</span></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <a href="backtester.html" class="rpt-back" title="Back to Backtester">&larr;</a>
+        <h1 id="page-title">Report</h1>
+        <span class="date-range-pill" id="rpt-range-pill" style="display:none;"></span>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ============== EMPTY / IMPORT STATE (no report loaded yet) ============== -->
+      <div id="rpt-import-state">
+        <div class="panel-head">
+          <div class="sub">Open a saved backtest run from the Backtester's Past Runs list, or drop in any CSV of trades below to build a one-off dashboard, trade table, and journal for it — right here, no backend required.</div>
+        </div>
+
+        <div class="panel-box" id="rpt-drop-zone">
+          <div class="panel-box-head"><span class="title">Import a CSV of trades</span></div>
+          <label class="rpt-dropzone-inner" for="rpt-csv-file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+            <div><b>Click to choose a CSV</b>, or drag one here</div>
+            <div class="hint-text">Any column names work — you'll map them in the next step. Nothing is uploaded anywhere; it's parsed right in your browser.</div>
+          </label>
+          <input type="file" id="rpt-csv-file" accept=".csv" style="display:none;">
+        </div>
+
+        <div class="section-label" id="rpt-local-label" style="display:none;">Your CSV Reports</div>
+        <div id="rpt-local-list"></div>
+      </div>
+
+      <!-- ============== COLUMN MAPPING STEP ============== -->
+      <div id="rpt-map-state" style="display:none;">
+        <div class="panel-box">
+          <div class="panel-box-head">
+            <span class="title">Match your columns</span>
+            <button type="button" class="link" id="rpt-map-cancel">Cancel</button>
+          </div>
+          <p class="hint-text">We guessed a few of these from your header row — double check them, fill in the rest, and hit Build Report. Fields marked * are required.</p>
+          <div class="bt-field-grid wide" id="rpt-map-fields"></div>
+          <div class="bt-run-row">
+            <button class="btn-confirm" id="rpt-map-build">Build Report</button>
+            <span id="rpt-map-status"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============== LOADED REPORT ============== -->
+      <div id="rpt-loaded-state" style="display:none;">
+        <div class="panel-head">
+          <div class="sub" id="rpt-subtitle"></div>
+        </div>
+
+        <div class="rpt-toolbar">
+          <button class="filter-btn" id="rpt-export-csv">Export CSV</button>
+          <button class="filter-btn" id="rpt-export-json">Export JSON</button>
+          <button class="filter-btn" id="rpt-send-journal" style="display:none;" title="Send this run's trades through your n8n trade-journal workflow (chart + vision-LLM verdict), scoped to this report only">Send to AI Journal Workflow</button>
+          <button class="filter-btn" id="rpt-replace-csv" style="display:none;" title="Load a different CSV into this same report page">Replace with new CSV</button>
+          <button class="filter-btn danger" id="rpt-delete">Delete this report</button>
+          <span id="rpt-toolbar-status" class="hint-text"></span>
+        </div>
+
+        <div class="report-toptabs" id="rpt-toptabs">
+          <button class="toptab-btn active" data-toptab="overview">Overview</button>
+          <button class="toptab-btn" data-toptab="trades">Trades</button>
+          <button class="toptab-btn" data-toptab="journal">Journal</button>
+        </div>
+
+        <div class="toptab-panel active" data-toptab-panel="overview">
+          <div class="stat-grid" id="rpt-stat-grid" style="margin-bottom:18px;"></div>
+          <div class="panel-box" id="rpt-detail-box" style="margin-bottom:18px;"></div>
+          <div class="panel-box">
+            <div class="panel-box-head"><span class="title">Equity Curve</span></div>
+            <div id="rpt-equity-chart" style="height:260px;"></div>
+          </div>
+        </div>
+
+        <div class="toptab-panel" data-toptab-panel="trades">
+          <div class="panel-box">
+            <div class="panel-box-head">
+              <span class="title">Trades</span>
+              <span class="hint-text" id="rpt-trades-count"></span>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table" id="rpt-trades-table">
+                <thead><tr id="rpt-trades-head"></tr></thead>
+                <tbody id="rpt-trades-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="toptab-panel" data-toptab-panel="journal">
+          <div class="panel-box">
+            <div class="panel-box-head">
+              <span class="title">Journal for this report</span>
+              <span class="hint-text">Notes here are saved locally in this browser, scoped only to this report — they don't touch your real trading journal.</span>
+            </div>
+            <div id="rpt-journal-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="rpt-error-state" style="display:none;">
+        <div class="empty-state" id="rpt-error-text"></div>
+      </div>
+
+    </div>
+
+    <div class="footer">trade.log — report view</div>
+  </div>
+</div>
+
+<script src="report.js"></script>
+<script>
+  const sidebarBackdrop = document.createElement("div");
+  sidebarBackdrop.className = "sidebar-backdrop";
+  document.body.appendChild(sidebarBackdrop);
+  function closeMobileNav() { document.getElementById("sidebar").classList.remove("mobile-open"); }
+  sidebarBackdrop.addEventListener("click", closeMobileNav);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMobileNav(); });
+
+  document.getElementById("sidebar-toggle").addEventListener("click", () => {
+    const sidebar = document.getElementById("sidebar");
+    if (window.innerWidth <= 760 && sidebar.classList.contains("mobile-open")) {
+      closeMobileNav();
+    } else {
+      sidebar.classList.toggle("collapsed");
+    }
+  });
+  document.getElementById("mobile-nav-btn").addEventListener("click", () => {
+    document.getElementById("sidebar").classList.toggle("mobile-open");
+  });
+</script>
+<script src="modern.js"></script>
+</body>
+</html>

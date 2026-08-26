@@ -11,6 +11,21 @@
 <link rel="stylesheet" href="polish.css">
 <link rel="stylesheet" href="modern.css">
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  /* Small additive tweaks for the decluttered backtester page. */
+  .section-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .section-label-row .link { font-size: 12px; color: var(--primary); text-decoration: none; }
+  .section-label-row .link:hover { text-decoration: underline; }
+  #bt-manual-details { margin-top: 26px; border-top: 1px solid var(--border-soft); padding-top: 16px; }
+  #bt-manual-details summary { cursor: pointer; font-size: 12.5px; color: var(--text-dim); list-style: none; }
+  #bt-manual-details summary::-webkit-details-marker { display: none; }
+  #bt-manual-details summary::before { content: "▸ "; color: var(--text-faint); }
+  #bt-manual-details[open] summary::before { content: "▾ "; }
+  #bt-manual-details #bt-manual-fields { margin-top: 16px; display: flex; flex-direction: column; gap: 16px; }
+  .rpt-view-report-link { margin-left: 10px; }
+  .run-card-view { font-size: 12px; color: var(--primary); text-decoration: none; }
+  .run-card-view:hover { text-decoration: underline; }
+</style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -157,11 +172,6 @@
         </div>
       </div>
 
-      <div class="bt-manual-toggle-row">
-        <button type="button" class="link" id="bt-manual-toggle">Show manual settings</button>
-        <span class="hint-text">The chat above runs backtests on its own — open this only if you'd rather set the fields by hand.</span>
-      </div>
-
       <div class="bt-run-row" id="bt-shared-run-row">
         <button class="filter-btn bt-cancel-btn" id="bt-cancel-btn" style="display:none;">Cancel</button>
         <span id="bt-run-status"></span>
@@ -175,7 +185,18 @@
         <div id="bt-progress-label">Starting…</div>
       </div>
 
-      <div id="bt-manual-fields" hidden>
+      <div id="bt-results"></div>
+
+      <div class="section-label-row">
+        <div class="section-label">Past Runs</div>
+        <a class="link" href="report.html" title="Build a one-off dashboard from any CSV of trades — no backend needed">+ Import a CSV report</a>
+      </div>
+      <div id="bt-history"><div class="loading-line">Loading…</div></div>
+
+      <details id="bt-manual-details">
+        <summary>Manual override <span class="hint-text">— set every field by hand instead of the chat above (rarely needed)</span></summary>
+
+      <div id="bt-manual-fields">
 
       <div class="panel-box bt-section">
         <div class="panel-box-head">
@@ -275,11 +296,7 @@
       </div>
 
       </div><!-- /#bt-manual-fields -->
-
-      <div id="bt-results"></div>
-
-      <div class="section-label">Past Runs</div>
-      <div id="bt-history"><div class="loading-line">Loading…</div></div>
+      </details>
     </div>
 
     <div class="footer">trade.log — backtester powered by chart_service.py</div>
@@ -309,14 +326,10 @@
   });
 
   (function () {
-    const toggleBtn = document.getElementById("bt-manual-toggle");
-    const fields = document.getElementById("bt-manual-fields");
-    if (!toggleBtn || !fields) return;
-    toggleBtn.addEventListener("click", () => {
-      const nowHidden = !fields.hidden;
-      fields.hidden = nowHidden;
-      toggleBtn.textContent = nowHidden ? "Show manual settings" : "Hide manual settings";
-      if (!nowHidden) fields.scrollIntoView({ behavior: "smooth", block: "start" });
+    const details = document.getElementById("bt-manual-details");
+    if (!details) return;
+    details.addEventListener("toggle", () => {
+      if (details.open) details.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   })();
 </script>

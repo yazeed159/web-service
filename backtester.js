@@ -348,6 +348,7 @@
             els.runStatus.textContent = `Cancelled — showing results through day ${job.current}/${job.total || "?"}.`;
             renderResults(job.stats, job.trades || [], false, { jobId });
             finishRun();
+            job.job_id = jobId;
             if (hooks && hooks.onDone) hooks.onDone(job);
             return;
           }
@@ -357,6 +358,7 @@
           renderResults(job.stats, job.trades || [], false, { jobId });
           loadHistory();
           finishRun();
+          job.job_id = jobId;
           if (hooks && hooks.onDone) hooks.onDone(job);
         })
         .catch((err) => {
@@ -406,55 +408,11 @@
   let lastLabel = "backtest";
   let lastJobId = null;
 
-  // Everything compute_stats() in engine.py doesn't already give us --
-  // best/worst trade, hold time, shares traded, gross P&L split out. Safe
-  // on an empty/partial trades array.
-  function computeDetailedStats(trades) {
-    if (!trades || !trades.length) return null;
-
-    let grossProfit = 0, grossLoss = 0, totalShares = 0, holdMinutesSum = 0, holdCount = 0;
-    let best = trades[0], worst = trades[0];
-    const bySymbol = new Map();
-
-    for (const t of trades) {
-      const pnl = Number(t.pnl_dollars || 0);
-      if (pnl >= 0) grossProfit += pnl; else grossLoss += pnl;
-      totalShares += Number(t.shares || 0);
-      if (pnl > Number(best.pnl_dollars || 0)) best = t;
-      if (pnl < Number(worst.pnl_dollars || 0)) worst = t;
-
-      if (t.entry_time && t.exit_time) {
-        const toSec = (s) => { const p = String(s).split(":").map(Number); return (p[0] || 0) * 3600 + (p[1] || 0) * 60 + (p[2] || 0); };
-        const mins = (toSec(t.exit_time) - toSec(t.entry_time)) / 60;
-        if (mins >= 0) { holdMinutesSum += mins; holdCount++; }
-      }
-
-      const sym = t.symbol || "?";
-      bySymbol.set(sym, (bySymbol.get(sym) || 0) + 1);
-    }
-
-    let topSymbol = null, topSymbolCount = 0;
-    for (const [sym, count] of bySymbol) {
-      if (count > topSymbolCount) { topSymbol = sym; topSymbolCount = count; }
-    }
-
-    return {
-      grossProfit, grossLoss,
-      avgTradePnl: trades.reduce((s, t) => s + Number(t.pnl_dollars || 0), 0) / trades.length,
-      totalShares,
-      avgHoldMinutes: holdCount ? holdMinutesSum / holdCount : null,
-      best, worst,
-      uniqueSymbols: bySymbol.size,
-      topSymbol, topSymbolCount,
-    };
-  }
-
-  function fmtMinutes(v) {
-    if (typeof v !== "number" || !isFinite(v)) return "—";
-    const h = Math.floor(v / 60), m = Math.round(v % 60);
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
-  }
-
+  // Compact "done" card instead of the old full inline dashboard -- the
+  // full breakdown (equity curve, trade table, journal, CSV/JSON export,
+  // Send to Journal) now lives on its own page (report.html), one per
+  // run, so this page stays about configuring + kicking off runs rather
+  // than displaying them.
   function renderResults(stats, trades, partial, opts) {
     opts = opts || {};
     if (!stats || !stats.num_trades) {
@@ -468,295 +426,42 @@
     lastJobId = opts.jobId || null;
 
     const partialBanner = partial
-      ? `<div class="empty-state small" style="margin-bottom:14px;">Backtest still running — showing results through the last completed day. This updates as more days finish.</div>`
+      ? `<div class="empty-state small" style="margin-bottom:14px;">Backtest still running — showing a live summary through the last completed day.</div>`
       : opts.historicalNote
         ? `<div class="empty-state small" style="margin-bottom:14px;">${escapeHtml(opts.historicalNote)}</div>`
         : "";
 
+    const reportHref = lastJobId ? `report.html?id=${encodeURIComponent(lastJobId)}` : null;
+
     els.results.innerHTML = `
       ${partialBanner}
-      <div class="stat-grid" style="margin-bottom:18px;">
-        <div class="stat">
-          <div class="label-row"><span class="label">Net P&amp;L</span></div>
-          <div class="value ${stats.net_pnl_dollars >= 0 ? "up" : "down"}">${fmtMoney(stats.net_pnl_dollars)}</div>
-        </div>
-        <div class="stat">
-          <div class="label-row"><span class="label">Win Rate</span></div>
-          <div class="value">${fmtPct(stats.win_rate)}</div>
-          <div class="sub-value">${stats.num_trades} trade${stats.num_trades === 1 ? "" : "s"}</div>
-        </div>
-        <div class="stat">
-          <div class="label-row"><span class="label">Profit Factor</span></div>
-          <div class="value">${stats.profit_factor != null ? stats.profit_factor.toFixed(2) : "—"}</div>
-        </div>
-        <div class="stat">
-          <div class="label-row"><span class="label">Avg R</span></div>
-          <div class="value ${stats.avg_r >= 0 ? "up" : "down"}">${fmtR(stats.avg_r)}</div>
-        </div>
-        <div class="stat">
-          <div class="label-row"><span class="label">Max Drawdown</span></div>
-          <div class="value down">-$${Number(stats.max_drawdown_dollars || 0).toFixed(2)}</div>
-        </div>
-        <div class="stat">
-          <div class="label-row"><span class="label">Streaks (W/L)</span></div>
-          <div class="value">${stats.longest_win_streak} / ${stats.longest_loss_streak}</div>
-        </div>
-        <div class="stat" title="Estimated round-trip commissions (IBKR tiered-style), already netted out of Net P&amp;L above">
-          <div class="label-row"><span class="label">Est. Commissions</span></div>
-          <div class="value down">-$${Number(stats.total_commissions_dollars || 0).toFixed(2)}</div>
-        </div>
-      </div>
-
-      ${(() => {
-        const d = computeDetailedStats(trades);
-        if (!d) return "";
-        return `
-      <div class="panel-box" style="margin-bottom:18px;">
-        <div class="panel-box-head"><span class="title">Detailed Metrics</span></div>
-        <div class="stat-grid">
-          <div class="stat"><div class="label-row"><span class="label">Avg Win</span></div><div class="value up">${fmtMoney(stats.avg_win_dollars)}</div></div>
-          <div class="stat"><div class="label-row"><span class="label">Avg Loss</span></div><div class="value down">${fmtMoney(stats.avg_loss_dollars)}</div></div>
-          <div class="stat"><div class="label-row"><span class="label">Avg Trade</span></div><div class="value ${d.avgTradePnl >= 0 ? "up" : "down"}">${fmtMoney(d.avgTradePnl)}</div></div>
-          <div class="stat"><div class="label-row"><span class="label">Gross Profit</span></div><div class="value up">${fmtMoney(d.grossProfit)}</div></div>
-          <div class="stat"><div class="label-row"><span class="label">Gross Loss</span></div><div class="value down">${fmtMoney(d.grossLoss)}</div></div>
-          <div class="stat" title="${d.best ? escapeHtml(d.best.symbol + " on " + d.best.date) : ""}"><div class="label-row"><span class="label">Best Trade</span></div><div class="value up">${d.best ? fmtMoney(d.best.pnl_dollars) : "—"}</div><div class="sub-value">${d.best ? escapeHtml(d.best.symbol) : ""}</div></div>
-          <div class="stat" title="${d.worst ? escapeHtml(d.worst.symbol + " on " + d.worst.date) : ""}"><div class="label-row"><span class="label">Worst Trade</span></div><div class="value down">${d.worst ? fmtMoney(d.worst.pnl_dollars) : "—"}</div><div class="sub-value">${d.worst ? escapeHtml(d.worst.symbol) : ""}</div></div>
-          <div class="stat"><div class="label-row"><span class="label">Avg Hold Time</span></div><div class="value">${fmtMinutes(d.avgHoldMinutes)}</div></div>
-          <div class="stat"><div class="label-row"><span class="label">Total Shares</span></div><div class="value">${d.totalShares.toLocaleString()}</div></div>
-          <div class="stat"><div class="label-row"><span class="label">Symbols Traded</span></div><div class="value">${d.uniqueSymbols}</div>${d.topSymbol ? `<div class="sub-value">most: ${escapeHtml(d.topSymbol)} (${d.topSymbolCount})</div>` : ""}</div>
-        </div>
-      </div>`;
-      })()}
-
-      <div class="panel-box" style="margin-bottom:18px;">
-        <div class="panel-box-head"><span class="title">Equity Curve</span></div>
-        <div id="bt-equity-chart" style="height:240px;"></div>
-      </div>
-
       <div class="panel-box">
         <div class="panel-box-head">
-          <span class="title">Trades (${trades.length})</span>
-          <div style="display:flex; gap:14px;">
-            <button class="link" id="bt-send-journal" type="button" title="Send this run's trades through your n8n trade-journal workflow (chart + vision-LLM verdict + Sheets logging), same as real fills">Send to Journal</button>
-            <button class="link" id="bt-export-csv" type="button">Export CSV</button>
-            <button class="link" id="bt-export-json" type="button">Export JSON</button>
+          <span class="title">${partial ? "Running…" : "Done"}</span>
+          ${reportHref && !partial ? `<a class="link" href="${reportHref}" target="_blank" rel="noopener">Open full report →</a>` : ""}
+        </div>
+        <div class="stat-grid">
+          <div class="stat">
+            <div class="label-row"><span class="label">Net P&amp;L</span></div>
+            <div class="value ${stats.net_pnl_dollars >= 0 ? "up" : "down"}">${fmtMoney(stats.net_pnl_dollars)}</div>
+          </div>
+          <div class="stat">
+            <div class="label-row"><span class="label">Win Rate</span></div>
+            <div class="value">${fmtPct(stats.win_rate)}</div>
+            <div class="sub-value">${stats.num_trades} trade${stats.num_trades === 1 ? "" : "s"}</div>
+          </div>
+          <div class="stat">
+            <div class="label-row"><span class="label">Profit Factor</span></div>
+            <div class="value">${stats.profit_factor != null ? stats.profit_factor.toFixed(2) : "—"}</div>
+          </div>
+          <div class="stat">
+            <div class="label-row"><span class="label">Avg R</span></div>
+            <div class="value ${stats.avg_r >= 0 ? "up" : "down"}">${fmtR(stats.avg_r)}</div>
           </div>
         </div>
-        <div style="overflow-x:auto;">
-          <table class="data-table">
-            <thead><tr>
-              <th>Date</th><th>Symbol</th><th>Gap %</th><th>Entry</th><th>Entry $</th>
-              <th>Exit</th><th>Exit $</th><th>Reason</th><th>Shares</th><th>Comm. $</th><th>P&amp;L $</th><th>R</th>
-            </tr></thead>
-            <tbody>${trades.map(tradeRow).join("")}</tbody>
-          </table>
-        </div>
-        <div id="bt-journal-status" style="padding:10px 14px; font-size:12.5px; color:var(--text-faint);"></div>
+        ${reportHref && !partial ? `<div class="bt-run-row" style="margin-top:16px;"><a class="btn-confirm" style="text-decoration:none; display:inline-block;" href="${reportHref}" target="_blank" rel="noopener">View Full Report</a></div>` : ""}
       </div>
     `;
-
-    renderEquityCurve(stats.equity_curve || []);
-
-    const csvBtn = document.getElementById("bt-export-csv");
-    const jsonBtn = document.getElementById("bt-export-json");
-    const journalBtn = document.getElementById("bt-send-journal");
-    if (csvBtn) csvBtn.addEventListener("click", () => exportTrades("csv"));
-    if (jsonBtn) jsonBtn.addEventListener("click", () => exportTrades("json"));
-    if (journalBtn) journalBtn.addEventListener("click", () => sendToJournal(journalBtn));
-  }
-
-  // Filename-safe stamp + slug shared by both export formats, e.g.
-  // "orb-breakout_2026-08-25_1412.csv".
-  function exportFileBase() {
-    const slug = lastLabel.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "backtest";
-    const now = new Date();
-    const pad = (n) => String(n).padStart(2, "0");
-    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
-    return `${slug}_${stamp}`;
-  }
-
-  function downloadBlob(content, mime, filename) {
-    const blob = new Blob([content], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  const TRADE_COLUMNS = [
-    "date", "symbol", "gap_pct", "entry_time", "entry_price",
-    "exit_time", "exit_price", "exit_reason", "shares",
-    "pnl_dollars_gross", "commission_entry", "commission_exit", "commission_total",
-    "pnl_dollars", "r_multiple", "win",
-  ];
-
-  function csvEscape(v) {
-    if (v === null || v === undefined) return "";
-    const s = String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  }
-
-  function tradesToCsv(trades) {
-    const header = TRADE_COLUMNS.join(",");
-    const rows = trades.map((t) => TRADE_COLUMNS.map((c) => csvEscape(t[c])).join(","));
-    return [header, ...rows].join("\r\n");
-  }
-
-  // Exports the actual trades from this run (same array driving the table
-  // above) as a real downloadable file -- distinct from the saved-run
-  // cards in the History panel, which only store aggregate stats + the
-  // params used, not the per-trade rows.
-  function exportTrades(format) {
-    if (!lastTrades.length) return;
-    const base = exportFileBase();
-    if (format === "csv") {
-      downloadBlob(tradesToCsv(lastTrades), "text/csv;charset=utf-8;", `${base}.csv`);
-    } else {
-      downloadBlob(JSON.stringify(lastTrades, null, 2), "application/json;charset=utf-8;", `${base}.json`);
-    }
-  }
-
-  // Sends this run's trades through the n8n trade-journal workflow (the
-  // same chart-generation -> vision-LLM verdict pipeline real IBKR fills
-  // go through) so each backtest trade gets its own analysis -- but
-  // scoped entirely to THIS run's own saved report, never written into
-  // data/trades.json, the shared Google Sheet, or the main dashboard's
-  // stats. n8n should NOT write these into the main trade log at all;
-  // instead it POSTs its per-trade output back to `callback_url` below
-  // (chart_service.py's POST /backtest/history/<job_id>/enrich), which
-  // merges verdict/chart-image/lesson fields onto the matching trade
-  // inside this run's own backtest_reports/<job_id>.json. Reopening this
-  // run later (View Report) picks up whatever's been merged in, so each
-  // backtest ends up with its own self-contained mini report instead of
-  // polluting real trading stats.
-  //
-  // Request body: { run: { label, source: "backtest", job_id,
-  // callback_url, started, ended }, trades: [ {date, symbol, entry_time,
-  // entry_price, exit_time, exit_price, exit_reason, shares, pnl_dollars,
-  // pnl_dollars_gross, commission_total, r_multiple, win}, ... ] }.
-  // Expects back { imported: <n> } (or any 2xx) on success -- the actual
-  // enrichment arrives asynchronously via the callback, not in this
-  // response, since the chart+LLM pass per trade can take a while.
-  let journalSendInFlight = false;
-  function sendToJournal(btn) {
-    if (journalSendInFlight || !lastTrades.length) return;
-    const url = window.N8N_BACKTEST_IMPORT_URL || "";
-    const statusEl = document.getElementById("bt-journal-status");
-    if (!url || url.includes("YOUR-")) {
-      if (statusEl) statusEl.textContent = "Set window.N8N_BACKTEST_IMPORT_URL in config.js to your n8n webhook first.";
-      return;
-    }
-    if (!lastJobId) {
-      if (statusEl) statusEl.textContent = "This run isn't saved yet (no job id) — wait for it to finish, or reopen it from Past Runs, then try again.";
-      return;
-    }
-    journalSendInFlight = true;
-    const originalLabel = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = "Sending…";
-    if (statusEl) statusEl.textContent = `Sending ${lastTrades.length} trade${lastTrades.length === 1 ? "" : "s"} through the journal workflow — this calls out to n8n, so it can take a while for a full run…`;
-
-    const payload = {
-      run: {
-        label: lastLabel,
-        source: "backtest",
-        job_id: lastJobId,
-        // Where n8n should POST its per-trade output back to -- keeps
-        // this entirely out of the shared Sheet/dashboard. See the
-        // function comment above for the full loop.
-        callback_url: `${API()}/backtest/history/${lastJobId}/enrich`,
-        started: lastTrades[0] ? lastTrades[0].date : null,
-        ended: lastTrades[lastTrades.length - 1] ? lastTrades[lastTrades.length - 1].date : null,
-      },
-      trades: lastTrades.map((t) => ({
-        date: t.date,
-        symbol: t.symbol,
-        entry_time: t.entry_time,
-        entry_price: t.entry_price,
-        exit_time: t.exit_time,
-        exit_price: t.exit_price,
-        exit_reason: t.exit_reason,
-        shares: t.shares,
-        pnl_dollars: t.pnl_dollars,
-        pnl_dollars_gross: t.pnl_dollars_gross,
-        commission_total: t.commission_total,
-        r_multiple: t.r_multiple,
-        win: t.win,
-      })),
-    };
-
-    fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    })
-      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json().catch(() => ({})); })
-      .then((data) => {
-        const n = (data && data.imported) || lastTrades.length;
-        if (statusEl) statusEl.textContent = `Sent ${n} trade${n === 1 ? "" : "s"} to the journal workflow. Check your dashboard/Sheet once n8n finishes processing.`;
-      })
-      .catch((err) => {
-        if (statusEl) statusEl.textContent = `Couldn't send to journal (${err.message}). If N8N_BACKTEST_IMPORT_URL in config.js still says YOUR-N8N-SUBDOMAIN or the webhook node doesn't exist yet, that's why.`;
-      })
-      .finally(() => {
-        journalSendInFlight = false;
-        btn.disabled = false;
-        btn.textContent = originalLabel;
-      });
-  }
-
-  function tradeRow(t) {
-    const pillClass = t.win ? "win" : "loss";
-    const verdictPill = t.verdict
-      ? ` <span class="pill" title="${escapeHtml(String(t.verdict).slice(0, 300))}">AI</span>`
-      : "";
-    const chartLink = t.chart_image
-      ? ` <a href="${escapeHtml(t.chart_image)}" target="_blank" rel="noopener" title="Open this trade's chart from the journal workflow" style="text-decoration:none;">📈</a>`
-      : "";
-    return `<tr>
-      <td>${escapeHtml(t.date)}</td>
-      <td>${escapeHtml(t.symbol)}${verdictPill}${chartLink}</td>
-      <td>${Number(t.gap_pct).toFixed(1)}%</td>
-      <td>${escapeHtml(t.entry_time)}</td>
-      <td>$${Number(t.entry_price).toFixed(2)}</td>
-      <td>${escapeHtml(t.exit_time)}</td>
-      <td>$${Number(t.exit_price).toFixed(2)}</td>
-      <td>${escapeHtml(t.exit_reason)}</td>
-      <td>${t.shares}</td>
-      <td>${t.commission_total ? "$" + Number(t.commission_total).toFixed(2) : "—"}</td>
-      <td><span class="pill ${pillClass}">${fmtMoney(t.pnl_dollars)}</span></td>
-      <td>${fmtR(t.r_multiple)}</td>
-    </tr>`;
-  }
-
-  function renderEquityCurve(curve) {
-    const el = document.getElementById("bt-equity-chart");
-    if (!el || !window.LightweightCharts) return;
-    const chart = LightweightCharts.createChart(el, {
-      width: el.clientWidth,
-      height: 240,
-      layout: { background: { color: "transparent" }, textColor: "#8b8fa3" },
-      grid: { vertLines: { color: "#1b1e26" }, horzLines: { color: "#1b1e26" } },
-      rightPriceScale: { borderColor: "#262a34" },
-      timeScale: { borderColor: "#262a34" },
-    });
-    const series = chart.addAreaSeries({
-      lineColor: "#5b93f0", topColor: "rgba(91,147,240,0.28)", bottomColor: "rgba(91,147,240,0.02)", lineWidth: 2,
-    });
-    // Collapse same-day trades to that day's final equity value --
-    // lightweight-charts needs one strictly-increasing time key per point.
-    const byDate = new Map();
-    for (const point of curve) byDate.set(point.date, point.equity);
-    const data = Array.from(byDate.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([time, value]) => ({ time, value }));
-    series.setData(data);
-    chart.timeScale().fitContent();
-    window.addEventListener("resize", () => chart.applyOptions({ width: el.clientWidth }));
   }
 
   function loadHistory() {
@@ -768,7 +473,7 @@
       .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then((entries) => {
         if (!entries.length) {
-          els.history.innerHTML = `<div class="empty-state small">No runs yet — configure a strategy above and hit Run Backtest.</div>`;
+          els.history.innerHTML = `<div class="empty-state small">No runs yet — describe a strategy in the chat above and it'll show up here once it finishes.</div>`;
           return;
         }
         els.history.innerHTML = `<div class="playbook-grid">${entries.map(historyCard).join("")}</div>`;
@@ -778,19 +483,14 @@
           card.addEventListener("click", (e) => {
             if (e.target.closest(".run-card-delete") || e.target.closest(".run-card-view")) return;
             applyPayload(entry.params);
+            const details = document.getElementById("bt-manual-details");
+            if (details) { details.open = true; details.scrollIntoView({ behavior: "smooth", block: "start" }); }
           });
           const delBtn = card.querySelector(".run-card-delete");
           if (delBtn) {
             delBtn.addEventListener("click", (e) => {
               e.stopPropagation();
               deleteHistoryEntry(entry.id);
-            });
-          }
-          const viewBtn = card.querySelector(".run-card-view");
-          if (viewBtn) {
-            viewBtn.addEventListener("click", (e) => {
-              e.stopPropagation();
-              viewHistoryReport(entry);
             });
           }
         });
@@ -804,11 +504,11 @@
     const s = entry.stats || {};
     const pnlClass = (s.net_pnl_dollars || 0) >= 0 ? "up" : "down";
     return `
-      <div class="run-card" id="bt-run-${entry.id}" title="Click to load these settings back into the form">
+      <div class="run-card" id="bt-run-${entry.id}" title="Click to load these settings back into the manual override form">
         <div class="run-card-head">
           <span class="run-card-title">${escapeHtml(entry.label || "(untitled run)")}</span>
           <div style="display:flex; align-items:center; gap:10px;">
-            <button class="link run-card-view" type="button" title="Open the full saved report for this run">View Report</button>
+            <a class="link run-card-view" href="report.html?id=${encodeURIComponent(entry.id)}" target="_blank" rel="noopener" title="Open the full saved report for this run">View Report</a>
             <button class="run-card-delete" title="Delete this run" aria-label="Delete this run">&times;</button>
           </div>
         </div>
@@ -821,33 +521,6 @@
           <div><div class="pb-label">Avg R</div><div class="pb-value">${fmtR(s.avg_r)}</div></div>
         </div>
       </div>`;
-  }
-
-  // Pulls up the full saved report (every trade, full stats + equity
-  // curve) for a past run at any time -- not just the summary stats shown
-  // on its card, and not dependent on the in-memory job still existing
-  // (that's lost on a server restart; the report file on disk isn't). See
-  // GET /backtest/history/<job_id>/report on chart_service.py.
-  function viewHistoryReport(entry) {
-    els.results.innerHTML = `<div class="empty-state small">Loading saved report…</div>`;
-    els.results.scrollIntoView({ behavior: "smooth", block: "start" });
-    fetch(`${API()}/backtest/history/${entry.id}/report`, { headers: FETCH_HEADERS })
-      .then((r) => {
-        if (r.status === 404) throw new Error("No saved report for this run (it may predate this feature) — re-run it to generate one.");
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.json();
-      })
-      .then((report) => {
-        const when = report.created_at ? new Date(report.created_at).toLocaleString() : "";
-        renderResults(report.stats, report.trades, false, {
-          label: report.label || entry.label,
-          jobId: entry.id,
-          historicalNote: `Viewing saved report${when ? " from " + when : ""} — not a live run. Hit "Run Backtest" to re-run with these settings.`,
-        });
-      })
-      .catch((err) => {
-        els.results.innerHTML = `<div class="empty-state">${escapeHtml(err.message)}</div>`;
-      });
   }
 
   function deleteHistoryEntry(id) {

@@ -131,7 +131,9 @@
   }
 
   function formatReply(text) {
-    const escaped = escapeHtml(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    const escaped = escapeHtml(text)
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
     return escaped.split(/\n{2,}/).map((para) => `<p>${para.replace(/\n/g, "<br>")}</p>`).join("");
   }
 
@@ -365,12 +367,13 @@
         }
 
         statusEl.textContent = "";
+        const reportHref = job && job.job_id ? `report.html?id=${encodeURIComponent(job.job_id)}` : null;
         addBubble(
           "ai",
           formatReply(
             `**Done.** ${stats.num_trades} trade${stats.num_trades === 1 ? "" : "s"}, net P&L **${pnlStr}**.\n\n` +
             `Win rate ${winRate}, profit factor ${pf}, avg ${avgR} per trade. Avg win ${avgWin}, avg loss ${avgLoss}, max drawdown ${maxDd}${streaks ? `, ${streaks}` : ""}.\n\n` +
-            `${verdict}\n\nThe full trade-by-trade breakdown, equity curve, and detailed metrics (best/worst trade, hold time, gross P&L, symbols traded) are below. Want to tweak anything or try a variant, just tell me.`
+            `${verdict}${reportHref ? `\n\n[Open the full report →](${reportHref}) for the equity curve, every trade, and a journal for this run.` : ""} Want to tweak anything or try a variant, just tell me.`
           )
         );
         flashResultsSection();
