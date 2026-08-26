@@ -344,11 +344,33 @@
         const winRate = typeof stats.win_rate === "number" ? stats.win_rate.toFixed(1) + "%" : "—";
         const pf = stats.profit_factor != null ? stats.profit_factor.toFixed(2) : "—";
         const avgR = typeof stats.avg_r === "number" ? stats.avg_r.toFixed(2) + "R" : "—";
+        const avgWin = typeof stats.avg_win_dollars === "number" ? "$" + stats.avg_win_dollars.toFixed(2) : "—";
+        const avgLoss = typeof stats.avg_loss_dollars === "number" ? "-$" + Math.abs(stats.avg_loss_dollars).toFixed(2) : "—";
+        const maxDd = typeof stats.max_drawdown_dollars === "number" ? "-$" + stats.max_drawdown_dollars.toFixed(2) : "—";
+        const streaks = (stats.longest_win_streak != null && stats.longest_loss_streak != null)
+          ? `${stats.longest_win_streak}W / ${stats.longest_loss_streak}L longest streaks`
+          : null;
+
+        // Quick, plain-language read on the numbers -- not just a
+        // restatement of the stat grid below.
+        let verdict;
+        if (pnl > 0 && pf !== "—" && stats.profit_factor >= 1.5) {
+          verdict = "That's a solidly profitable edge over this window.";
+        } else if (pnl > 0) {
+          verdict = "Profitable, but the edge is thin -- worth checking it holds up over a longer or different date range.";
+        } else if (pnl === 0) {
+          verdict = "Broke even -- no real edge either way here.";
+        } else {
+          verdict = "Net negative over this window -- this config isn't working as-is.";
+        }
+
         statusEl.textContent = "";
         addBubble(
           "ai",
           formatReply(
-            `**Done.** ${stats.num_trades} trade${stats.num_trades === 1 ? "" : "s"}, net P&L **${pnlStr}**, win rate ${winRate}, profit factor ${pf}, avg ${avgR}.\n\nFull trade-by-trade breakdown and the equity curve are below. Want to tweak anything or try a variant, just tell me.`
+            `**Done.** ${stats.num_trades} trade${stats.num_trades === 1 ? "" : "s"}, net P&L **${pnlStr}**.\n\n` +
+            `Win rate ${winRate}, profit factor ${pf}, avg ${avgR} per trade. Avg win ${avgWin}, avg loss ${avgLoss}, max drawdown ${maxDd}${streaks ? `, ${streaks}` : ""}.\n\n` +
+            `${verdict}\n\nThe full trade-by-trade breakdown, equity curve, and detailed metrics (best/worst trade, hold time, gross P&L, symbols traded) are below. Want to tweak anything or try a variant, just tell me.`
           )
         );
         flashResultsSection();

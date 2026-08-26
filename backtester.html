@@ -157,6 +157,26 @@
         </div>
       </div>
 
+      <div class="bt-manual-toggle-row" style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
+        <button type="button" class="link" id="bt-manual-toggle">Show manual settings</button>
+        <span class="hint-text" style="margin:0;">The chat above runs backtests on its own — open this only if you'd rather set the fields by hand.</span>
+      </div>
+
+      <div class="bt-run-row" id="bt-shared-run-row">
+        <button class="filter-btn" id="bt-cancel-btn" style="padding:10px 16px; display:none;">Cancel</button>
+        <span id="bt-run-status" style="font-size:12.5px; color:var(--text-faint);"></span>
+      </div>
+
+      <div id="bt-progress-box" class="panel-box" style="margin-bottom:18px; display:none;">
+        <div class="panel-box-head"><span class="title">Running</span></div>
+        <div class="progress-track" id="bt-progress-track">
+          <div class="progress-fill" id="bt-progress-fill" style="width:0%;"></div>
+        </div>
+        <div id="bt-progress-label" style="font-size:12.5px; color:var(--text-dim);">Starting…</div>
+      </div>
+
+      <div id="bt-manual-fields" hidden>
+
       <div class="panel-box bt-section" style="margin-bottom:18px;">
         <div class="panel-box-head">
           <span class="bt-section-icon scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
@@ -252,17 +272,9 @@
 
       <div class="bt-run-row">
         <button class="btn-confirm" id="bt-run-btn" style="padding:10px 20px; font-weight:600;">Run Backtest</button>
-        <button class="filter-btn" id="bt-cancel-btn" style="padding:10px 16px; display:none;">Cancel</button>
-        <span id="bt-run-status" style="font-size:12.5px; color:var(--text-faint);"></span>
       </div>
 
-      <div id="bt-progress-box" class="panel-box" style="margin-bottom:18px; display:none;">
-        <div class="panel-box-head"><span class="title">Running</span></div>
-        <div class="progress-track" id="bt-progress-track">
-          <div class="progress-fill" id="bt-progress-fill" style="width:0%;"></div>
-        </div>
-        <div id="bt-progress-label" style="font-size:12.5px; color:var(--text-dim);">Starting…</div>
-      </div>
+      </div><!-- /#bt-manual-fields -->
 
       <div id="bt-results"></div>
 
@@ -295,6 +307,18 @@
   document.getElementById("mobile-nav-btn").addEventListener("click", () => {
     document.getElementById("sidebar").classList.toggle("mobile-open");
   });
+
+  (function () {
+    const toggleBtn = document.getElementById("bt-manual-toggle");
+    const fields = document.getElementById("bt-manual-fields");
+    if (!toggleBtn || !fields) return;
+    toggleBtn.addEventListener("click", () => {
+      const nowHidden = !fields.hidden;
+      fields.hidden = nowHidden;
+      toggleBtn.textContent = nowHidden ? "Show manual settings" : "Hide manual settings";
+      if (!nowHidden) fields.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  })();
 </script>
 <script src="modern.js"></script>
 </body>

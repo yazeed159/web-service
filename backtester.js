@@ -406,6 +406,55 @@
   let lastLabel = "backtest";
   let lastJobId = null;
 
+  // Everything compute_stats() in engine.py doesn't already give us --
+  // best/worst trade, hold time, shares traded, gross P&L split out. Safe
+  // on an empty/partial trades array.
+  function computeDetailedStats(trades) {
+    if (!trades || !trades.length) return null;
+
+    let grossProfit = 0, grossLoss = 0, totalShares = 0, holdMinutesSum = 0, holdCount = 0;
+    let best = trades[0], worst = trades[0];
+    const bySymbol = new Map();
+
+    for (const t of trades) {
+      const pnl = Number(t.pnl_dollars || 0);
+      if (pnl >= 0) grossProfit += pnl; else grossLoss += pnl;
+      totalShares += Number(t.shares || 0);
+      if (pnl > Number(best.pnl_dollars || 0)) best = t;
+      if (pnl < Number(worst.pnl_dollars || 0)) worst = t;
+
+      if (t.entry_time && t.exit_time) {
+        const toSec = (s) => { const p = String(s).split(":").map(Number); return (p[0] || 0) * 3600 + (p[1] || 0) * 60 + (p[2] || 0); };
+        const mins = (toSec(t.exit_time) - toSec(t.entry_time)) / 60;
+        if (mins >= 0) { holdMinutesSum += mins; holdCount++; }
+      }
+
+      const sym = t.symbol || "?";
+      bySymbol.set(sym, (bySymbol.get(sym) || 0) + 1);
+    }
+
+    let topSymbol = null, topSymbolCount = 0;
+    for (const [sym, count] of bySymbol) {
+      if (count > topSymbolCount) { topSymbol = sym; topSymbolCount = count; }
+    }
+
+    return {
+      grossProfit, grossLoss,
+      avgTradePnl: trades.reduce((s, t) => s + Number(t.pnl_dollars || 0), 0) / trades.length,
+      totalShares,
+      avgHoldMinutes: holdCount ? holdMinutesSum / holdCount : null,
+      best, worst,
+      uniqueSymbols: bySymbol.size,
+      topSymbol, topSymbolCount,
+    };
+  }
+
+  function fmtMinutes(v) {
+    if (typeof v !== "number" || !isFinite(v)) return "—";
+    const h = Math.floor(v / 60), m = Math.round(v % 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
+
   function renderResults(stats, trades, partial, opts) {
     opts = opts || {};
     if (!stats || !stats.num_trades) {
@@ -457,6 +506,27 @@
           <div class="value down">-$${Number(stats.total_commissions_dollars || 0).toFixed(2)}</div>
         </div>
       </div>
+
+      ${(() => {
+        const d = computeDetailedStats(trades);
+        if (!d) return "";
+        return `
+      <div class="panel-box" style="margin-bottom:18px;">
+        <div class="panel-box-head"><span class="title">Detailed Metrics</span></div>
+        <div class="stat-grid">
+          <div class="stat"><div class="label-row"><span class="label">Avg Win</span></div><div class="value up">${fmtMoney(stats.avg_win_dollars)}</div></div>
+          <div class="stat"><div class="label-row"><span class="label">Avg Loss</span></div><div class="value down">${fmtMoney(stats.avg_loss_dollars)}</div></div>
+          <div class="stat"><div class="label-row"><span class="label">Avg Trade</span></div><div class="value ${d.avgTradePnl >= 0 ? "up" : "down"}">${fmtMoney(d.avgTradePnl)}</div></div>
+          <div class="stat"><div class="label-row"><span class="label">Gross Profit</span></div><div class="value up">${fmtMoney(d.grossProfit)}</div></div>
+          <div class="stat"><div class="label-row"><span class="label">Gross Loss</span></div><div class="value down">${fmtMoney(d.grossLoss)}</div></div>
+          <div class="stat" title="${d.best ? escapeHtml(d.best.symbol + " on " + d.best.date) : ""}"><div class="label-row"><span class="label">Best Trade</span></div><div class="value up">${d.best ? fmtMoney(d.best.pnl_dollars) : "—"}</div><div class="sub-value">${d.best ? escapeHtml(d.best.symbol) : ""}</div></div>
+          <div class="stat" title="${d.worst ? escapeHtml(d.worst.symbol + " on " + d.worst.date) : ""}"><div class="label-row"><span class="label">Worst Trade</span></div><div class="value down">${d.worst ? fmtMoney(d.worst.pnl_dollars) : "—"}</div><div class="sub-value">${d.worst ? escapeHtml(d.worst.symbol) : ""}</div></div>
+          <div class="stat"><div class="label-row"><span class="label">Avg Hold Time</span></div><div class="value">${fmtMinutes(d.avgHoldMinutes)}</div></div>
+          <div class="stat"><div class="label-row"><span class="label">Total Shares</span></div><div class="value">${d.totalShares.toLocaleString()}</div></div>
+          <div class="stat"><div class="label-row"><span class="label">Symbols Traded</span></div><div class="value">${d.uniqueSymbols}</div>${d.topSymbol ? `<div class="sub-value">most: ${escapeHtml(d.topSymbol)} (${d.topSymbolCount})</div>` : ""}</div>
+        </div>
+      </div>`;
+      })()}
 
       <div class="panel-box" style="margin-bottom:18px;">
         <div class="panel-box-head"><span class="title">Equity Curve</span></div>
