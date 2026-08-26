@@ -7,9 +7,6 @@
 //      a common trade shape, stats computed here, and cached in
 //      localStorage under a generated id (?id=local-<uuid>) so refreshing
 //      or bookmarking the URL still works. Nothing is uploaded anywhere.
-//
-// Per-trade journal notes (the "Journal" tab) are also local-only, keyed
-// by report id, and never touch the real trading journal/Sheet.
 (function () {
   "use strict";
 
@@ -108,15 +105,6 @@
     try { localStorage.removeItem(`report:${id}`); localStorage.removeItem(`journal:${id}`); } catch (e) { /* ignore */ }
     saveLocalIndex(loadLocalIndex().filter((e) => e.id !== id));
   }
-  function tradeKey(t, i) { return [t.date, t.symbol, t.entry_time, i].join("|"); }
-  function loadJournal(id) {
-    try { return JSON.parse(localStorage.getItem(`journal:${id}`) || "{}"); } catch (e) { return {}; }
-  }
-  function saveJournalNote(id, key, text) {
-    const j = loadJournal(id);
-    if (text) j[key] = text; else delete j[key];
-    try { localStorage.setItem(`journal:${id}`, JSON.stringify(j)); } catch (e) { /* ignore */ }
-  }
 
   // ---------- stats engine for CSV-derived reports (backend already sends its own) ----------
   function computeStats(trades) {
@@ -213,7 +201,6 @@
     tradesHead: document.getElementById("rpt-trades-head"),
     tradesBody: document.getElementById("rpt-trades-body"),
     tradesCount: document.getElementById("rpt-trades-count"),
-    journalList: document.getElementById("rpt-journal-list"),
     exportCsv: document.getElementById("rpt-export-csv"),
     exportJson: document.getElementById("rpt-export-json"),
     sendJournal: document.getElementById("rpt-send-journal"),
@@ -399,14 +386,6 @@
     if (has("exit_reason")) cols.push(["exit_reason", "Reason"]);
     cols.push(["shares", "Shares"], ["commission_total", "Comm. $"], ["pnl_dollars", "P&L $"]);
     if (has("r_multiple")) cols.push(["r_multiple", "R"]);
-    // Chart column comes last and only shows up once at least one trade has
-    // been enriched with a chart_image (via the n8n journal workflow ->
-    // /backtest/history/<id>/enrich). The image itself already has the
-    // actual entry/exit price+time annotated directly on its pointer
-    // markers (see chart_service.py's render_chart) -- that's the only
-    // enriched content this page surfaces; verdict/lessons/better-entry are
-    // deliberately left out here.
-    if (has("chart_image")) cols.push(["chart_image", ""]);
     return cols;
   }
 
@@ -418,43 +397,8 @@
       case "pnl_dollars": return `<span class="pill ${t.win ? "win" : "loss"}">${fmtMoney(t.pnl_dollars)}</span>`;
       case "r_multiple": return fmtR(t.r_multiple);
       case "shares": return t.shares != null ? t.shares : "—";
-      case "chart_image": return t.chart_image
-        ? `<button type="button" class="rpt-chart-toggle" aria-label="Show chart" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button>`
-        : "";
       default: return escapeHtml(t[key] != null ? t[key] : "—");
     }
-  }
-
-  // Expands/collapses the chart-image detail row directly under a trade
-  // row. Built lazily (image only inserted into the DOM on first expand)
-  // and toggled by display afterward, so opening/closing many rows stays
-  // cheap. This is the ONLY enriched content shown on this page -- no
-  // verdict text, no lessons, no separate better-entry/exit rows -- since
-  // the chart image itself already has the actual entry/exit annotated
-  // directly on its pointer markers.
-  function wireChartToggles(trades, numCols) {
-    els.tradesBody.querySelectorAll("tr.rpt-trade-row").forEach((row) => {
-      const btn = row.querySelector(".rpt-chart-toggle");
-      if (!btn) return;
-      const idx = Number(row.dataset.idx);
-      const trade = trades[idx];
-      btn.addEventListener("click", () => {
-        let detailRow = row.nextElementSibling;
-        const isOpen = detailRow && detailRow.classList.contains("rpt-chart-row");
-        if (isOpen) {
-          detailRow.remove();
-          btn.setAttribute("aria-expanded", "false");
-          row.classList.remove("expanded");
-          return;
-        }
-        detailRow = document.createElement("tr");
-        detailRow.className = "rpt-chart-row";
-        detailRow.innerHTML = `<td colspan="${numCols}"><img class="rpt-chart-img" src="${escapeHtml(trade.chart_image)}" alt="${escapeHtml(trade.symbol || "")} ${escapeHtml(trade.date || "")} chart" loading="lazy"></td>`;
-        row.after(detailRow);
-        btn.setAttribute("aria-expanded", "true");
-        row.classList.add("expanded");
-      });
-    });
   }
 
   function renderEquityCurve(curve) {
@@ -480,34 +424,6 @@
     window.addEventListener("resize", () => chart.applyOptions({ width: el.clientWidth }));
   }
 
-  function renderJournalTab(trades) {
-    const notes = loadJournal(currentId);
-    els.journalList.innerHTML = trades.map((t, i) => {
-      const key = tradeKey(t, i);
-      const val = notes[key] || "";
-      return `<div class="rpt-journal-row">
-        <div class="rpt-journal-row-head">
-          <span><b>${escapeHtml(t.symbol)}</b> — ${escapeHtml(t.date)} ${t.entry_time ? "@ " + escapeHtml(t.entry_time) : ""}</span>
-          <span class="pill ${t.win ? "win" : "loss"}">${fmtMoney(t.pnl_dollars)}</span>
-        </div>
-        <textarea data-key="${escapeHtml(key)}" placeholder="What happened on this trade? What would you do differently?">${escapeHtml(val)}</textarea>
-        <div class="rpt-journal-save-note" data-note-for="${escapeHtml(key)}"></div>
-      </div>`;
-    }).join("") || `<div class="empty-state small">No trades to journal yet.</div>`;
-
-    let saveTimer = null;
-    els.journalList.querySelectorAll("textarea[data-key]").forEach((ta) => {
-      ta.addEventListener("input", () => {
-        clearTimeout(saveTimer);
-        const key = ta.dataset.key;
-        saveTimer = setTimeout(() => {
-          saveJournalNote(currentId, key, ta.value.trim());
-          const note = els.journalList.querySelector(`[data-note-for="${CSS.escape(key)}"]`);
-          if (note) { note.textContent = "Saved."; setTimeout(() => { note.textContent = ""; }, 1200); }
-        }, 500);
-      });
-    });
-  }
 
   function renderLoaded(report, id) {
     currentReport = report; currentId = id;
@@ -534,13 +450,14 @@
 
     // stat grid
     els.statGrid.innerHTML = `
-      <div class="stat"><div class="label-row"><span class="label">Net P&amp;L</span></div><div class="value ${stats.net_pnl_dollars >= 0 ? "up" : "down"}">${fmtMoney(stats.net_pnl_dollars)}</div></div>
+      <div class="stat"><div class="label-row"><span class="label">Net P&amp;L</span></div><div class="value ${stats.net_pnl_dollars >= 0 ? "up" : "down"}">${fmtMoney(stats.net_pnl_dollars)}</div>${stats.return_pct != null ? `<div class="sub-value">${stats.return_pct >= 0 ? "+" : ""}${stats.return_pct.toFixed(2)}% of capital</div>` : ""}</div>
       <div class="stat"><div class="label-row"><span class="label">Win Rate</span></div><div class="value">${fmtPct(stats.win_rate)}</div><div class="sub-value">${stats.num_trades} trade${stats.num_trades === 1 ? "" : "s"}</div></div>
       <div class="stat"><div class="label-row"><span class="label">Profit Factor</span></div><div class="value">${stats.profit_factor != null ? stats.profit_factor.toFixed(2) : "—"}</div></div>
       <div class="stat"><div class="label-row"><span class="label">Avg R</span></div><div class="value ${(stats.avg_r || 0) >= 0 ? "up" : "down"}">${fmtR(stats.avg_r)}</div></div>
-      <div class="stat"><div class="label-row"><span class="label">Max Drawdown</span></div><div class="value down">-$${Number(stats.max_drawdown_dollars || 0).toFixed(2)}</div></div>
+      <div class="stat"><div class="label-row"><span class="label">Max Drawdown</span></div><div class="value down">-$${Number(stats.max_drawdown_dollars || 0).toFixed(2)}</div>${stats.max_drawdown_pct != null ? `<div class="sub-value">${stats.max_drawdown_pct.toFixed(2)}% of capital</div>` : ""}</div>
       <div class="stat"><div class="label-row"><span class="label">Streaks (W/L)</span></div><div class="value">${stats.longest_win_streak} / ${stats.longest_loss_streak}</div></div>
       <div class="stat" title="Already netted out of Net P&amp;L above"><div class="label-row"><span class="label">Commissions</span></div><div class="value down">-$${Number(stats.total_commissions_dollars || 0).toFixed(2)}</div></div>
+      ${stats.ending_capital != null ? `<div class="stat"><div class="label-row"><span class="label">Ending Capital</span></div><div class="value">$${Number(stats.ending_capital).toFixed(2)}</div><div class="sub-value">from $${Number(stats.starting_capital).toFixed(2)}</div></div>` : ""}
     `;
 
     const d = computeDetailedStats(trades);
@@ -564,12 +481,10 @@
     // trades table
     const cols = tradeColumns(trades);
     els.tradesHead.innerHTML = cols.map(([, label]) => `<th>${label}</th>`).join("");
-    els.tradesBody.innerHTML = trades.map((t, i) => `<tr class="rpt-trade-row" data-idx="${i}">${cols.map(([key]) => `<td>${tradeCell(key, t)}</td>`).join("")}</tr>`).join("")
+    els.tradesBody.innerHTML = trades.map((t) => `<tr>${cols.map(([key]) => `<td>${tradeCell(key, t)}</td>`).join("")}</tr>`).join("")
       || `<tr><td colspan="${cols.length}"><div class="empty-state small">No trades.</div></td></tr>`;
     els.tradesCount.textContent = `${trades.length} trade${trades.length === 1 ? "" : "s"}`;
-    if (trades.length) wireChartToggles(trades, cols.length);
 
-    renderJournalTab(trades);
     showOnly("loaded");
   }
 

@@ -140,6 +140,21 @@
     btn.addEventListener("click", () => setTab(btn.dataset.goto));
   });
 
+  // Other pages (backtester.html, journal.html, report.html, etc.) link
+  // here as index.html#reports / index.html#dayview / etc. Without this,
+  // the page always boots onto "dashboard" regardless of the hash, and
+  // the tab you actually wanted only appeared after a second, redundant
+  // click on the sidebar. Read the hash on load, and again if it changes
+  // (e.g. the user lands here, then clicks another #-link while already
+  // on this page), so the very first click always lands on the right tab.
+  const VALID_TABS = Object.keys(TAB_TITLES);
+  function tabFromHash() {
+    const h = (location.hash || "").replace(/^#/, "");
+    return VALID_TABS.includes(h) ? h : "dashboard";
+  }
+  setTab(tabFromHash());
+  window.addEventListener("hashchange", () => setTab(tabFromHash()));
+
   const sidebarBackdrop = document.createElement("div");
   sidebarBackdrop.className = "sidebar-backdrop";
   document.body.appendChild(sidebarBackdrop);

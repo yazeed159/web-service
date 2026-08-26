@@ -48,6 +48,7 @@
     minDollarVolume: document.getElementById("bt-min-dollar-volume"),
     minGapPct: document.getElementById("bt-min-gap-pct"),
     positionSize: document.getElementById("bt-position-size"),
+    capital: document.getElementById("bt-capital"),
     includeCommissions: document.getElementById("bt-include-commissions"),
     sessionStart: document.getElementById("bt-session-start"),
     flattenTime: document.getElementById("bt-flatten-time"),
@@ -121,6 +122,7 @@
       min_dollar_volume: Number(els.minDollarVolume.value) || 0,
       min_gap_pct: Number(els.minGapPct.value) || 0,
       position_size: Number(els.positionSize.value) || 0,
+      starting_capital: Number(els.capital.value) || 0,
       include_commissions: els.includeCommissions ? !!els.includeCommissions.checked : true,
       session_start: els.sessionStart.value || "09:30",
       flatten_time: els.flattenTime.value || "15:55",
@@ -166,6 +168,7 @@
     set(els.minDollarVolume, p.min_dollar_volume);
     set(els.minGapPct, p.min_gap_pct);
     set(els.positionSize, p.position_size);
+    set(els.capital, p.starting_capital);
     setChk(els.includeCommissions, p.include_commissions !== false);
     set(els.sessionStart, p.session_start);
     set(els.flattenTime, p.flatten_time);
@@ -409,10 +412,10 @@
   let lastJobId = null;
 
   // Compact "done" card instead of the old full inline dashboard -- the
-  // full breakdown (equity curve, trade table, journal, CSV/JSON export,
-  // Send to Journal) now lives on its own page (report.html), one per
-  // run, so this page stays about configuring + kicking off runs rather
-  // than displaying them.
+  // full breakdown (equity curve, trade table, CSV/JSON export, Send to
+  // Journal) now lives on its own page (report.html), one per run, so
+  // this page stays about configuring + kicking off runs rather than
+  // displaying them.
   function renderResults(stats, trades, partial, opts) {
     opts = opts || {};
     if (!stats || !stats.num_trades) {
@@ -438,12 +441,13 @@
       <div class="panel-box">
         <div class="panel-box-head">
           <span class="title">${partial ? "Running…" : "Done"}</span>
-          ${reportHref && !partial ? `<a class="link" href="${reportHref}" target="_blank" rel="noopener">Open full report →</a>` : ""}
+          ${reportHref && !partial ? `<a class="link" href="${reportHref}">Open full report →</a>` : ""}
         </div>
         <div class="stat-grid">
           <div class="stat">
             <div class="label-row"><span class="label">Net P&amp;L</span></div>
             <div class="value ${stats.net_pnl_dollars >= 0 ? "up" : "down"}">${fmtMoney(stats.net_pnl_dollars)}</div>
+            ${stats.return_pct != null ? `<div class="sub-value">${stats.return_pct >= 0 ? "+" : ""}${stats.return_pct.toFixed(2)}% of capital</div>` : ""}
           </div>
           <div class="stat">
             <div class="label-row"><span class="label">Win Rate</span></div>
@@ -458,8 +462,14 @@
             <div class="label-row"><span class="label">Avg R</span></div>
             <div class="value ${stats.avg_r >= 0 ? "up" : "down"}">${fmtR(stats.avg_r)}</div>
           </div>
+          ${stats.ending_capital != null ? `
+          <div class="stat">
+            <div class="label-row"><span class="label">Ending Capital</span></div>
+            <div class="value">$${Number(stats.ending_capital).toFixed(2)}</div>
+            <div class="sub-value">from $${Number(stats.starting_capital).toFixed(2)}</div>
+          </div>` : ""}
         </div>
-        ${reportHref && !partial ? `<div class="bt-run-row" style="margin-top:16px;"><a class="btn-confirm" style="text-decoration:none; display:inline-block;" href="${reportHref}" target="_blank" rel="noopener">View Full Report</a></div>` : ""}
+        ${reportHref && !partial ? `<div class="bt-run-row" style="margin-top:16px;"><a class="btn-confirm" style="text-decoration:none; display:inline-block;" href="${reportHref}">View Full Report</a></div>` : ""}
       </div>
     `;
   }
@@ -508,7 +518,7 @@
         <div class="run-card-head">
           <span class="run-card-title">${escapeHtml(entry.label || "(untitled run)")}</span>
           <div style="display:flex; align-items:center; gap:10px;">
-            <a class="link run-card-view" href="report.html?id=${encodeURIComponent(entry.id)}" target="_blank" rel="noopener" title="Open the full saved report for this run">View Report</a>
+            <a class="link run-card-view" href="report.html?id=${encodeURIComponent(entry.id)}" title="Open the full saved report for this run">View Report</a>
             <button class="run-card-delete" title="Delete this run" aria-label="Delete this run">&times;</button>
           </div>
         </div>
@@ -517,7 +527,9 @@
         <div class="run-card-stats" style="margin-top:10px;">
           <div><div class="pb-label">Net P&amp;L</div><div class="pb-value ${pnlClass === "up" ? "" : ""}" style="color:${pnlClass === "up" ? "var(--green)" : "var(--red)"}">${fmtMoney(s.net_pnl_dollars)}</div></div>
           <div><div class="pb-label">Win Rate</div><div class="pb-value">${fmtPct(s.win_rate)}</div></div>
-          <div><div class="pb-label">Trades</div><div class="pb-value">${s.num_trades != null ? s.num_trades : "—"}</div></div>
+          ${s.return_pct != null
+            ? `<div><div class="pb-label">Return</div><div class="pb-value" style="color:${s.return_pct >= 0 ? "var(--green)" : "var(--red)"}">${s.return_pct >= 0 ? "+" : ""}${s.return_pct.toFixed(2)}%</div></div>`
+            : `<div><div class="pb-label">Trades</div><div class="pb-value">${s.num_trades != null ? s.num_trades : "—"}</div></div>`}
           <div><div class="pb-label">Avg R</div><div class="pb-value">${fmtR(s.avg_r)}</div></div>
         </div>
       </div>`;

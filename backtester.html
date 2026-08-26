@@ -213,6 +213,7 @@
           <div class="bt-field"><label class="bt-label" for="bt-min-dollar-volume" title="Today's open x volume must clear this">Min $ volume</label><input type="number" id="bt-min-dollar-volume" value="5000000" min="0" step="500000"></div>
           <div class="bt-field"><label class="bt-label" for="bt-min-gap-pct" title="Minimum overnight gap to qualify">Min gap %</label><input type="number" id="bt-min-gap-pct" value="5" min="0" step="1"></div>
           <div class="bt-field"><label class="bt-label" for="bt-position-size">Position size $</label><input type="number" id="bt-position-size" value="2000" min="0" step="100"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-capital" title="Starting account balance, used to show return % and drawdown % alongside the dollar figures. Doesn't affect how trades are sized or simulated.">Starting capital $</label><input type="number" id="bt-capital" value="25000" min="0" step="1000"></div>
           <label class="bt-check" title="Estimates a per-order commission modeled on IBKR Pro's Tiered US-stock schedule (~$0.0035/share declining with monthly volume, $0.35 min/order, capped at 1% of trade value) plus a small pass-through fee estimate, and nets it out of each trade's P&amp;L. This is an approximation, not IBKR's actual live rates.">
             <input type="checkbox" id="bt-include-commissions" checked> Estimate commissions (IBKR tiered)
           </label>
