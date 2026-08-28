@@ -59,6 +59,7 @@
 
   const STARTER_PROMPTS = [
     "ORB breakout on gappers under $10, 2:1 target",
+    "9EMA dip on top gappers, $25k account, risk 1% per trade",
     "Tight scalp: fixed 5c stop, exit on stall",
     "VWAP reclaim with an ATR-based stop",
   ];
@@ -75,17 +76,31 @@
     min_gap_pct: { type: "float", label: "Min gap %" },
     position_size: { type: "float", label: "Position size ($)" },
     starting_capital: { type: "float", label: "Starting capital ($)" },
+    position_sizing_mode: {
+      type: "enum", label: "Position sizing mode",
+      values: ["fixed_dollars", "pct_of_capital", "risk_pct_of_capital"],
+    },
+    position_size_pct: { type: "float", label: "Position size (% of capital)" },
+    risk_pct_of_capital: { type: "float", label: "Risk per trade (% of capital)" },
     include_commissions: { type: "bool", label: "Estimate commissions (IBKR tiered)" },
     session_start: { type: "time", label: "Session start (ET)" },
     flatten_time: { type: "time", label: "Force-exit time (ET)" },
     entry_mode: {
       type: "enum", label: "Entry style",
-      values: ["orb_breakout", "red_candle_break", "donchian_break", "inside_bar_break", "vwap_reclaim", "ema9_dip"],
+      values: [
+        "orb_breakout", "red_candle_break", "donchian_break", "inside_bar_break", "vwap_reclaim",
+        "ema_dip_reclaim", "ema_reclaim", "macd_bullish_cross", "rsi_oversold_bounce",
+      ],
     },
     orb_minutes: { type: "int", label: "Opening range (min)" },
     entry_after_orb: { type: "bool", label: "Wait for opening range first" },
     donchian_lookback: { type: "int", label: "Donchian lookback (bars)" },
-    ema_period: { type: "int", label: "EMA period (bars, for 9 EMA dip)" },
+    ema_period: { type: "int", label: "EMA period (bars)" },
+    macd_fast: { type: "int", label: "MACD fast EMA (bars)" },
+    macd_slow: { type: "int", label: "MACD slow EMA (bars)" },
+    macd_signal: { type: "int", label: "MACD signal EMA (bars)" },
+    rsi_period: { type: "int", label: "RSI period (bars)" },
+    rsi_oversold: { type: "float", label: "RSI oversold level" },
     stop_mode: {
       type: "enum", label: "Stop style",
       values: ["pattern", "fixed_cents", "fixed_pct", "prior_bar_low", "atr_multiple"],
@@ -111,7 +126,15 @@
     donchian_break: "Donchian breakout",
     inside_bar_break: "Inside-bar break",
     vwap_reclaim: "VWAP reclaim",
-    ema9_dip: "9 EMA dip",
+    ema_dip_reclaim: "9 EMA dip & reclaim",
+    ema_reclaim: "EMA reclaim",
+    macd_bullish_cross: "MACD bullish cross",
+    rsi_oversold_bounce: "RSI oversold bounce",
+  };
+  const SIZING_LABELS = {
+    fixed_dollars: "Fixed $ per trade",
+    pct_of_capital: "% of capital per trade",
+    risk_pct_of_capital: "% of capital risked per trade",
   };
   const STOP_LABELS = {
     pattern: "Pattern-based",
@@ -136,7 +159,7 @@
   function formatReply(text) {
     const escaped = escapeHtml(text)
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>');
+      .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
     return escaped.split(/\n{2,}/).map((para) => `<p>${para.replace(/\n/g, "<br>")}</p>`).join("");
   }
 
@@ -237,8 +260,17 @@
     }
     if (draft.min_dollar_volume !== undefined) session.push(["Min $ volume", money(draft.min_dollar_volume)]);
     if (draft.min_gap_pct !== undefined) session.push(["Min gap", pct(draft.min_gap_pct)]);
-    if (draft.position_size !== undefined) session.push(["Position size", money(draft.position_size)]);
     if (draft.starting_capital !== undefined) session.push(["Starting capital", money(draft.starting_capital)]);
+    if (draft.position_sizing_mode) session.push(["Position sizing", SIZING_LABELS[draft.position_sizing_mode] || draft.position_sizing_mode]);
+    if ((!draft.position_sizing_mode || draft.position_sizing_mode === "fixed_dollars") && draft.position_size !== undefined) {
+      session.push(["Position size", money(draft.position_size)]);
+    }
+    if (draft.position_sizing_mode === "pct_of_capital" && draft.position_size_pct !== undefined) {
+      session.push(["Position size", pct(draft.position_size_pct) + " of capital"]);
+    }
+    if (draft.position_sizing_mode === "risk_pct_of_capital" && draft.risk_pct_of_capital !== undefined) {
+      session.push(["Risk per trade", pct(draft.risk_pct_of_capital) + " of capital"]);
+    }
     if (draft.session_start) session.push(["Session start (ET)", draft.session_start]);
     if (draft.flatten_time) session.push(["Force-exit (ET)", draft.flatten_time]);
     if (session.length) groups.push(["Scan & Session", session]);
@@ -251,8 +283,15 @@
     if (draft.entry_mode === "donchian_break" && draft.donchian_lookback !== undefined) {
       entry.push(["Donchian lookback", draft.donchian_lookback + " bars"]);
     }
-    if (draft.entry_mode === "ema9_dip" && draft.ema_period !== undefined) {
+    if ((draft.entry_mode === "ema_dip_reclaim" || draft.entry_mode === "ema_reclaim") && draft.ema_period !== undefined) {
       entry.push(["EMA period", draft.ema_period + " bars"]);
+    }
+    if (draft.entry_mode === "macd_bullish_cross") {
+      if (draft.macd_fast !== undefined) entry.push(["MACD fast/slow/signal", `${draft.macd_fast}/${draft.macd_slow !== undefined ? draft.macd_slow : "…"}/${draft.macd_signal !== undefined ? draft.macd_signal : "…"}`]);
+    }
+    if (draft.entry_mode === "rsi_oversold_bounce") {
+      if (draft.rsi_period !== undefined) entry.push(["RSI period", draft.rsi_period + " bars"]);
+      if (draft.rsi_oversold !== undefined) entry.push(["RSI oversold level", draft.rsi_oversold]);
     }
     if (draft.entry_after_orb !== undefined) entry.push(["Wait for opening range", draft.entry_after_orb ? "Yes" : "No"]);
     if (entry.length) groups.push(["Entry", entry]);

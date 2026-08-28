@@ -207,6 +207,14 @@
     replaceCsv: document.getElementById("rpt-replace-csv"),
     deleteBtn: document.getElementById("rpt-delete"),
     toolbarStatus: document.getElementById("rpt-toolbar-status"),
+    chartModal: document.getElementById("rpt-chart-modal"),
+    chartModalBackdrop: document.getElementById("rpt-chart-modal-backdrop"),
+    chartModalClose: document.getElementById("rpt-chart-modal-close"),
+    chartModalTitle: document.getElementById("rpt-chart-modal-title"),
+    chartModalSub: document.getElementById("rpt-chart-modal-sub"),
+    chartVerdict: document.getElementById("rpt-chart-verdict"),
+    chartLegendBetterEntry: document.getElementById("rpt-chart-legend-better-entry"),
+    chartLegendBetterExit: document.getElementById("rpt-chart-legend-better-exit"),
   };
 
   function showOnly(which) {
@@ -386,10 +394,14 @@
     if (has("exit_reason")) cols.push(["exit_reason", "Reason"]);
     cols.push(["shares", "Shares"], ["commission_total", "Comm. $"], ["pnl_dollars", "P&L $"]);
     if (has("r_multiple")) cols.push(["r_multiple", "R"]);
+    // Only appears once at least one trade has been enriched with bars
+    // (see sendJournal -> /enrich -> ENRICH_FIELDS in chart_service.py) --
+    // that's the raw per-minute series the interactive chart is built from.
+    if (has("bars")) cols.push(["chart", "Chart"]);
     return cols;
   }
 
-  function tradeCell(key, t) {
+  function tradeCell(key, t, idx) {
     switch (key) {
       case "gap_pct": return typeof t.gap_pct === "number" ? t.gap_pct.toFixed(1) + "%" : "—";
       case "entry_price": case "exit_price": return typeof t[key] === "number" ? "$" + t[key].toFixed(2) : "—";
@@ -397,6 +409,10 @@
       case "pnl_dollars": return `<span class="pill ${t.win ? "win" : "loss"}">${fmtMoney(t.pnl_dollars)}</span>`;
       case "r_multiple": return fmtR(t.r_multiple);
       case "shares": return t.shares != null ? t.shares : "—";
+      case "chart":
+        return Array.isArray(t.bars) && t.bars.length
+          ? `<button type="button" class="rpt-view-chart-btn" data-trade-idx="${idx}">View Chart</button>`
+          : `<button type="button" class="rpt-view-chart-btn" disabled title="Send this run to the journal workflow first to get a chart for this trade">View Chart</button>`;
       default: return escapeHtml(t[key] != null ? t[key] : "—");
     }
   }
@@ -455,7 +471,7 @@
     // trades table
     const cols = tradeColumns(trades);
     els.tradesHead.innerHTML = cols.map(([, label]) => `<th>${label}</th>`).join("");
-    els.tradesBody.innerHTML = trades.map((t) => `<tr>${cols.map(([key]) => `<td>${tradeCell(key, t)}</td>`).join("")}</tr>`).join("")
+    els.tradesBody.innerHTML = trades.map((t, idx) => `<tr>${cols.map(([key]) => `<td>${tradeCell(key, t, idx)}</td>`).join("")}</tr>`).join("")
       || `<tr><td colspan="${cols.length}"><div class="empty-state small">No trades.</div></td></tr>`;
     els.tradesCount.textContent = `${trades.length} trade${trades.length === 1 ? "" : "s"}`;
 
@@ -530,10 +546,158 @@
       .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json().catch(() => ({})); })
       .then((data) => {
         const n = (data && data.imported) || trades.length;
-        els.toolbarStatus.textContent = `Sent ${n} trade${n === 1 ? "" : "s"} to the journal workflow.`;
+        // The workflow runs async (chart render + vision-LLM pass per
+        // trade) and calls back to /enrich on its own time, so nothing
+        // new is available on THIS response -- just reload the report
+        // from the backend after a bit so the newly-enriched trades'
+        // "View Chart" buttons light up without a manual refresh.
+        els.toolbarStatus.textContent = `Sent ${n} trade${n === 1 ? "" : "s"} to the journal workflow — charts will appear here once it finishes (this page will refresh automatically).`;
+        setTimeout(() => { if (currentReport && currentReport.source === "backend") loadBackendReport(currentId); }, 20000);
       })
       .catch((err) => { els.toolbarStatus.textContent = `Couldn't send to journal (${err.message}).`; })
       .finally(() => { els.sendJournal.disabled = false; els.sendJournal.textContent = original; });
+  });
+
+  // ================= interactive per-trade chart modal =================
+  // Renders the same kind of candlestick + volume + VWAP/EMA/MACD chart
+  // with entry/exit markers that trade.js draws for real journal trades,
+  // but here it's built from a backtest trade's `bars`/`indicators` --
+  // populated by sendJournal() above once the n8n workflow's /enrich
+  // callback has run. No image is generated or shown; everything is
+  // drawn client-side from the raw bar data.
+  let rptCandleChart = null, rptMacdChart = null;
+
+  function toUnix(t) { return Math.floor(new Date(String(t).replace(" ", "T")).getTime() / 1000); }
+
+  function closeTradeChart() {
+    els.chartModal.style.display = "none";
+    els.chartModal.setAttribute("aria-hidden", "true");
+    if (rptCandleChart) { rptCandleChart.remove(); rptCandleChart = null; }
+    if (rptMacdChart) { rptMacdChart.remove(); rptMacdChart = null; }
+    document.getElementById("rpt-candle-chart").innerHTML = "";
+    document.getElementById("rpt-macd-chart").innerHTML = "";
+  }
+
+  function openTradeChart(t) {
+    if (!t || !Array.isArray(t.bars) || !t.bars.length) return;
+    els.chartModal.style.display = "";
+    els.chartModal.removeAttribute("aria-hidden");
+    els.chartModalTitle.textContent = `${t.symbol || "—"} — ${t.date || ""}`;
+    els.chartModalSub.textContent = `${t.win ? "WIN" : "LOSS"} · ${fmtMoney(t.pnl_dollars)} · entry ${t.entry_time || "—"} @ $${Number(t.entry_price).toFixed(2)} → exit ${t.exit_time || "—"} @ $${Number(t.exit_price).toFixed(2)}`;
+
+    if (t.verdict) {
+      els.chartVerdict.style.display = "";
+      els.chartVerdict.textContent = t.verdict;
+    } else {
+      els.chartVerdict.style.display = "none";
+      els.chartVerdict.textContent = "";
+    }
+    els.chartLegendBetterEntry.style.display = t.better_entry_price ? "" : "none";
+    els.chartLegendBetterExit.style.display = t.better_exit_price ? "" : "none";
+
+    buildTradeChart(t);
+  }
+
+  function buildTradeChart(trade) {
+    const bars = trade.bars;
+    const candleData = bars.map((b) => ({ time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c }));
+    const volData = bars.map((b) => ({ time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" }));
+    const vwapData = bars.map((b) => ({ time: toUnix(b.t), value: b.vwap }));
+    const ema9Data = bars.map((b) => ({ time: toUnix(b.t), value: b.ema9 }));
+    const ema20Data = bars.map((b) => ({ time: toUnix(b.t), value: b.ema20 }));
+    const macdData = bars.map((b) => ({ time: toUnix(b.t), value: b.macd }));
+    const signalData = bars.map((b) => ({ time: toUnix(b.t), value: b.macd_signal }));
+    const histData = bars.map((b) => ({ time: toUnix(b.t), value: b.macd_hist, color: b.macd_hist >= 0 ? "#2fd08a" : "#f2555a" }));
+
+    const candleEl = document.getElementById("rpt-candle-chart");
+    const macdEl = document.getElementById("rpt-macd-chart");
+    const commonOpts = {
+      layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
+      grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
+      rightPriceScale: { borderColor: "#232830", minimumWidth: 92 },
+      timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    };
+
+    rptCandleChart = LightweightCharts.createChart(candleEl, { ...commonOpts, width: candleEl.clientWidth, height: candleEl.clientHeight || 380 });
+    const candleSeries = rptCandleChart.addCandlestickSeries({
+      upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
+      wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
+    });
+    candleSeries.setData(candleData);
+    rptCandleChart.priceScale("right").applyOptions({ scaleMargins: { top: 0.14, bottom: 0.18 } });
+
+    const volSeries = rptCandleChart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol" });
+    rptCandleChart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+    volSeries.setData(volData);
+
+    rptCandleChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(vwapData);
+    rptCandleChart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema9Data);
+    rptCandleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema20Data);
+
+    // Entry/exit price lines -- solid, actual fills.
+    candleSeries.createPriceLine({ price: trade.entry_price, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "entry" });
+    candleSeries.createPriceLine({ price: trade.exit_price, color: "#f2555a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "exit" });
+
+    // The LLM verdict step (see chart_service.py's /enrich contract) only
+    // ever gives a better_entry/exit PRICE for backtest trades, no time --
+    // so unlike trade.js's real-journal chart, these can only be drawn as
+    // dotted price lines, not time-anchored pointer markers.
+    if (trade.better_entry_price) {
+      candleSeries.createPriceLine({
+        price: Number(trade.better_entry_price), color: "#8b7cf6", lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "better entry",
+      });
+    }
+    if (trade.better_exit_price) {
+      candleSeries.createPriceLine({
+        price: Number(trade.better_exit_price), color: "#ec6cad", lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "better exit",
+      });
+    }
+
+    // Small marker triangles right on the actual entry/exit fills, same
+    // visual language as trade.js's real-journal chart.
+    function barAt(unixTime) {
+      let best = bars[0];
+      for (const b of bars) { if (toUnix(b.t) <= unixTime) best = b; else break; }
+      return best;
+    }
+    const markers = [];
+    const entryBar = barAt(toUnix(`${trade.date} ${trade.entry_time}`));
+    const exitBar = barAt(toUnix(`${trade.date} ${trade.exit_time}`));
+    if (entryBar) markers.push({ time: toUnix(entryBar.t), position: "belowBar", color: "#2fd08a", shape: "arrowUp", text: `entry $${Number(trade.entry_price).toFixed(2)}` });
+    if (exitBar) markers.push({ time: toUnix(exitBar.t), position: "aboveBar", color: "#f2555a", shape: "arrowDown", text: `exit $${Number(trade.exit_price).toFixed(2)}` });
+    markers.sort((a, b) => a.time - b.time);
+    candleSeries.setMarkers(markers);
+
+    rptMacdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: macdEl.clientHeight || 100 });
+    rptMacdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } }).setData(histData);
+    rptMacdChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(macdData);
+    rptMacdChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(signalData);
+
+    rptCandleChart.timeScale().subscribeVisibleLogicalRangeChange((range) => { if (range && rptMacdChart) rptMacdChart.timeScale().setVisibleLogicalRange(range); });
+    rptMacdChart.timeScale().subscribeVisibleLogicalRangeChange((range) => { if (range && rptCandleChart) rptCandleChart.timeScale().setVisibleLogicalRange(range); });
+    rptCandleChart.timeScale().fitContent();
+    rptMacdChart.timeScale().fitContent();
+  }
+
+  els.tradesBody.addEventListener("click", (e) => {
+    const btn = e.target.closest(".rpt-view-chart-btn");
+    if (!btn || btn.disabled) return;
+    const idx = Number(btn.dataset.tradeIdx);
+    const trade = currentReport && currentReport.trades && currentReport.trades[idx];
+    if (trade) openTradeChart(trade);
+  });
+  els.chartModalBackdrop.addEventListener("click", closeTradeChart);
+  els.chartModalClose.addEventListener("click", closeTradeChart);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && els.chartModal.style.display !== "none") closeTradeChart(); });
+  window.addEventListener("resize", () => {
+    if (!rptCandleChart) return;
+    const candleEl = document.getElementById("rpt-candle-chart");
+    const macdEl = document.getElementById("rpt-macd-chart");
+    rptCandleChart.applyOptions({ width: candleEl.clientWidth });
+    if (rptMacdChart) rptMacdChart.applyOptions({ width: macdEl.clientWidth });
   });
 
   // ================= local reports list (import/empty state) =================
@@ -580,6 +744,10 @@
     }
 
     // backend job id
+    loadBackendReport(id);
+  }
+
+  function loadBackendReport(id) {
     if (!API() || API().includes("YOUR-NGROK-SUBDOMAIN")) {
       els.errorText.textContent = "Set window.CHART_SERVICE_URL in config.js to your ngrok URL to open saved backtest runs.";
       showOnly("error");

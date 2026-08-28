@@ -212,8 +212,17 @@
           <div class="bt-field"><label class="bt-label" for="bt-max-price">Max price</label><input type="number" id="bt-max-price" value="50" min="0" step="1"></div>
           <div class="bt-field"><label class="bt-label" for="bt-min-dollar-volume" title="Today's open x volume must clear this">Min $ volume</label><input type="number" id="bt-min-dollar-volume" value="5000000" min="0" step="500000"></div>
           <div class="bt-field"><label class="bt-label" for="bt-min-gap-pct" title="Minimum overnight gap to qualify">Min gap %</label><input type="number" id="bt-min-gap-pct" value="5" min="0" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-starting-capital" title="Account balance the run begins with. Always tracked and reported (ending capital = this + net P&amp;L); it only drives position sizing when 'Position sizing' below isn't 'Fixed $ per trade'.">Starting capital $</label><input type="number" id="bt-starting-capital" value="25000" min="0" step="1000"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-position-sizing-mode">Position sizing</label>
+            <select id="bt-position-sizing-mode">
+              <option value="fixed_dollars">Fixed $ per trade</option>
+              <option value="pct_of_capital">% of capital per trade (compounds)</option>
+              <option value="risk_pct_of_capital">% of capital risked per trade (compounds)</option>
+            </select>
+          </div>
           <div class="bt-field"><label class="bt-label" for="bt-position-size">Position size $</label><input type="number" id="bt-position-size" value="2000" min="0" step="100"></div>
-          <div class="bt-field"><label class="bt-label" for="bt-capital" title="Starting account balance, used to show return % and drawdown % alongside the dollar figures. Doesn't affect how trades are sized or simulated.">Starting capital $</label><input type="number" id="bt-capital" value="25000" min="0" step="1000"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-position-size-pct" title="Used when Position sizing = '% of capital per trade'">Position size (% of capital)</label><input type="number" id="bt-position-size-pct" value="10" min="0" max="100" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-risk-pct-of-capital" title="Used when Position sizing = '% of capital risked per trade'">Risk per trade (% of capital)</label><input type="number" id="bt-risk-pct-of-capital" value="1" min="0" max="100" step="0.25"></div>
           <label class="bt-check" title="Estimates a per-order commission modeled on IBKR Pro's Tiered US-stock schedule (~$0.0035/share declining with monthly volume, $0.35 min/order, capped at 1% of trade value) plus a small pass-through fee estimate, and nets it out of each trade's P&amp;L. This is an approximation, not IBKR's actual live rates.">
             <input type="checkbox" id="bt-include-commissions" checked> Estimate commissions (IBKR tiered)
           </label>
@@ -236,12 +245,20 @@
               <option value="donchian_break">Break of highest high in last N bars (Donchian)</option>
               <option value="inside_bar_break">Break of inside-bar high</option>
               <option value="vwap_reclaim">VWAP reclaim</option>
-              <option value="ema9_dip">9 EMA dip (buy the pullback)</option>
+              <option value="ema_dip_reclaim">9 EMA dip &amp; reclaim</option>
+              <option value="ema_reclaim">EMA reclaim</option>
+              <option value="macd_bullish_cross">MACD bullish cross</option>
+              <option value="rsi_oversold_bounce">RSI oversold bounce</option>
             </select>
           </div>
           <div class="bt-field"><label class="bt-label" for="bt-orb-minutes">Opening range (min)</label><input type="number" id="bt-orb-minutes" value="5" min="1" step="1"></div>
           <div class="bt-field"><label class="bt-label" for="bt-donchian-lookback">Donchian lookback (bars)</label><input type="number" id="bt-donchian-lookback" value="10" min="2" step="1"></div>
-          <div class="bt-field"><label class="bt-label" for="bt-ema-period" title="Length of the EMA that price must pull back to and reclaim, used by the 9 EMA dip entry style">EMA period (bars)</label><input type="number" id="bt-ema-period" value="9" min="2" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-ema-period" title="Used by 9 EMA dip &amp; reclaim / EMA reclaim">EMA period (bars)</label><input type="number" id="bt-ema-period" value="9" min="2" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-macd-fast" title="Used by MACD bullish cross">MACD fast (bars)</label><input type="number" id="bt-macd-fast" value="12" min="2" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-macd-slow" title="Used by MACD bullish cross">MACD slow (bars)</label><input type="number" id="bt-macd-slow" value="26" min="2" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-macd-signal" title="Used by MACD bullish cross">MACD signal (bars)</label><input type="number" id="bt-macd-signal" value="9" min="2" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-rsi-period" title="Used by RSI oversold bounce">RSI period (bars)</label><input type="number" id="bt-rsi-period" value="14" min="2" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-rsi-oversold" title="Used by RSI oversold bounce">RSI oversold level</label><input type="number" id="bt-rsi-oversold" value="30" min="1" max="50" step="1"></div>
           <label class="bt-check" title="For non-ROB entry styles: only look for the pattern after the opening range window closes">
             <input type="checkbox" id="bt-entry-after-orb" checked> Wait for opening range first
           </label>
@@ -252,7 +269,10 @@
           <b>Donchian:</b> a rolling ORB — buys the break of the highest high in the last N bars.
           <b>Inside-bar break:</b> buys the break of a one-bar consolidation's high.
           <b>VWAP reclaim:</b> buys the first bar back above session VWAP after price dropped below it.
-          <b>9 EMA dip:</b> buys the first bar back above the EMA after price, having traded above it, dips to or through it — the classic "buy the pullback to the 9 EMA."
+          <b>9 EMA dip &amp; reclaim:</b> buys the break of the last candle that dipped to/through the EMA — the classic "9EMA dip" gapper trade.
+          <b>EMA reclaim:</b> buys the first bar back above the EMA after price closed below it.
+          <b>MACD bullish cross:</b> buys the close of the bar where MACD crosses above its signal line.
+          <b>RSI oversold bounce:</b> buys the close of the first bar RSI climbs back above the oversold level.
         </p>
       </div>
 

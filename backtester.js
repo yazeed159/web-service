@@ -1,8 +1,8 @@
 // backtester.js
 // Drives the Backtester tab: builds a strategy config from the form, starts
 // a backtest job on chart_service.py (/backtest/start), polls it to
-// completion (/backtest/status/<id>), and renders a compact stats summary.
-// Also lists/reloads/deletes past runs (/backtest/history).
+// completion (/backtest/status/<id>), and renders stats + an equity curve +
+// a trades table. Also lists/reloads/deletes past runs (/backtest/history).
 //
 // Talks directly to chart_service.py's ngrok URL (window.CHART_SERVICE_URL
 // in config.js) -- not through n8n, since this is a start-job/poll-status
@@ -48,7 +48,10 @@
     minDollarVolume: document.getElementById("bt-min-dollar-volume"),
     minGapPct: document.getElementById("bt-min-gap-pct"),
     positionSize: document.getElementById("bt-position-size"),
-    capital: document.getElementById("bt-capital"),
+    startingCapital: document.getElementById("bt-starting-capital"),
+    positionSizingMode: document.getElementById("bt-position-sizing-mode"),
+    positionSizePct: document.getElementById("bt-position-size-pct"),
+    riskPctOfCapital: document.getElementById("bt-risk-pct-of-capital"),
     includeCommissions: document.getElementById("bt-include-commissions"),
     sessionStart: document.getElementById("bt-session-start"),
     flattenTime: document.getElementById("bt-flatten-time"),
@@ -58,6 +61,11 @@
     entryAfterOrb: document.getElementById("bt-entry-after-orb"),
     donchianLookback: document.getElementById("bt-donchian-lookback"),
     emaPeriod: document.getElementById("bt-ema-period"),
+    macdFast: document.getElementById("bt-macd-fast"),
+    macdSlow: document.getElementById("bt-macd-slow"),
+    macdSignal: document.getElementById("bt-macd-signal"),
+    rsiPeriod: document.getElementById("bt-rsi-period"),
+    rsiOversold: document.getElementById("bt-rsi-oversold"),
     stopMode: document.getElementById("bt-stop-mode"),
     fixedStopCents: document.getElementById("bt-fixed-stop-cents"),
     fixedStopPct: document.getElementById("bt-fixed-stop-pct"),
@@ -123,7 +131,10 @@
       min_dollar_volume: Number(els.minDollarVolume.value) || 0,
       min_gap_pct: Number(els.minGapPct.value) || 0,
       position_size: Number(els.positionSize.value) || 0,
-      starting_capital: Number(els.capital.value) || 0,
+      starting_capital: els.startingCapital ? Number(els.startingCapital.value) || 0 : undefined,
+      position_sizing_mode: els.positionSizingMode ? els.positionSizingMode.value : "fixed_dollars",
+      position_size_pct: els.positionSizePct ? Number(els.positionSizePct.value) || 0 : undefined,
+      risk_pct_of_capital: els.riskPctOfCapital ? Number(els.riskPctOfCapital.value) || 0 : undefined,
       include_commissions: els.includeCommissions ? !!els.includeCommissions.checked : true,
       session_start: els.sessionStart.value || "09:30",
       flatten_time: els.flattenTime.value || "15:55",
@@ -138,7 +149,12 @@
       orb_minutes: Number(els.orbMinutes.value) || 5,
       entry_after_orb: !!els.entryAfterOrb.checked,
       donchian_lookback: Number(els.donchianLookback.value) || 10,
-      ema_period: Number(els.emaPeriod.value) || 9,
+      ema_period: els.emaPeriod ? Number(els.emaPeriod.value) || 9 : 9,
+      macd_fast: els.macdFast ? Number(els.macdFast.value) || 12 : 12,
+      macd_slow: els.macdSlow ? Number(els.macdSlow.value) || 26 : 26,
+      macd_signal: els.macdSignal ? Number(els.macdSignal.value) || 9 : 9,
+      rsi_period: els.rsiPeriod ? Number(els.rsiPeriod.value) || 14 : 14,
+      rsi_oversold: els.rsiOversold ? Number(els.rsiOversold.value) || 30 : 30,
 
       stop_mode: els.stopMode.value,
       fixed_stop_cents: Number(els.fixedStopCents.value) || 0,
@@ -170,7 +186,10 @@
     set(els.minDollarVolume, p.min_dollar_volume);
     set(els.minGapPct, p.min_gap_pct);
     set(els.positionSize, p.position_size);
-    set(els.capital, p.starting_capital);
+    set(els.startingCapital, p.starting_capital);
+    set(els.positionSizingMode, p.position_sizing_mode);
+    set(els.positionSizePct, p.position_size_pct);
+    set(els.riskPctOfCapital, p.risk_pct_of_capital);
     setChk(els.includeCommissions, p.include_commissions !== false);
     set(els.sessionStart, p.session_start);
     set(els.flattenTime, p.flatten_time);
@@ -180,6 +199,11 @@
     setChk(els.entryAfterOrb, p.entry_after_orb !== false);
     set(els.donchianLookback, p.donchian_lookback);
     set(els.emaPeriod, p.ema_period);
+    set(els.macdFast, p.macd_fast);
+    set(els.macdSlow, p.macd_slow);
+    set(els.macdSignal, p.macd_signal);
+    set(els.rsiPeriod, p.rsi_period);
+    set(els.rsiOversold, p.rsi_oversold);
     set(els.stopMode, p.stop_mode);
     set(els.fixedStopCents, p.fixed_stop_cents);
     set(els.fixedStopPct, p.fixed_stop_pct);
@@ -415,9 +439,10 @@
   let lastJobId = null;
 
   // Compact "done" card instead of the old full inline dashboard -- the
-  // full breakdown (trade table, CSV/JSON export, Send to Journal) now
-  // lives on its own page (report.html), one per run, so this page stays
-  // about configuring + kicking off runs rather than displaying them.
+  // full breakdown (equity curve, trade table, journal, CSV/JSON export,
+  // Send to Journal) now lives on its own page (report.html), one per
+  // run, so this page stays about configuring + kicking off runs rather
+  // than displaying them.
   function renderResults(stats, trades, partial, opts) {
     opts = opts || {};
     if (!stats || !stats.num_trades) {
@@ -443,13 +468,12 @@
       <div class="panel-box">
         <div class="panel-box-head">
           <span class="title">${partial ? "Running…" : "Done"}</span>
-          ${reportHref && !partial ? `<a class="link" href="${reportHref}">Open full report →</a>` : ""}
+          ${reportHref && !partial ? `<a class="link" href="${reportHref}" target="_blank" rel="noopener">Open full report →</a>` : ""}
         </div>
         <div class="stat-grid">
           <div class="stat">
             <div class="label-row"><span class="label">Net P&amp;L</span></div>
             <div class="value ${stats.net_pnl_dollars >= 0 ? "up" : "down"}">${fmtMoney(stats.net_pnl_dollars)}</div>
-            ${stats.return_pct != null ? `<div class="sub-value">${stats.return_pct >= 0 ? "+" : ""}${stats.return_pct.toFixed(2)}% of capital</div>` : ""}
           </div>
           <div class="stat">
             <div class="label-row"><span class="label">Win Rate</span></div>
@@ -464,14 +488,8 @@
             <div class="label-row"><span class="label">Avg R</span></div>
             <div class="value ${stats.avg_r >= 0 ? "up" : "down"}">${fmtR(stats.avg_r)}</div>
           </div>
-          ${stats.ending_capital != null ? `
-          <div class="stat">
-            <div class="label-row"><span class="label">Ending Capital</span></div>
-            <div class="value">$${Number(stats.ending_capital).toFixed(2)}</div>
-            <div class="sub-value">from $${Number(stats.starting_capital).toFixed(2)}</div>
-          </div>` : ""}
         </div>
-        ${reportHref && !partial ? `<div class="bt-run-row" style="margin-top:16px;"><a class="btn-confirm" style="text-decoration:none; display:inline-block;" href="${reportHref}">View Full Report</a></div>` : ""}
+        ${reportHref && !partial ? `<div class="bt-run-row" style="margin-top:16px;"><a class="btn-confirm" style="text-decoration:none; display:inline-block;" href="${reportHref}" target="_blank" rel="noopener">View Full Report</a></div>` : ""}
       </div>
     `;
   }
@@ -520,7 +538,7 @@
         <div class="run-card-head">
           <span class="run-card-title">${escapeHtml(entry.label || "(untitled run)")}</span>
           <div style="display:flex; align-items:center; gap:10px;">
-            <a class="link run-card-view" href="report.html?id=${encodeURIComponent(entry.id)}" title="Open the full saved report for this run">View Report</a>
+            <a class="link run-card-view" href="report.html?id=${encodeURIComponent(entry.id)}" target="_blank" rel="noopener" title="Open the full saved report for this run">View Report</a>
             <button class="run-card-delete" title="Delete this run" aria-label="Delete this run">&times;</button>
           </div>
         </div>
@@ -529,9 +547,7 @@
         <div class="run-card-stats" style="margin-top:10px;">
           <div><div class="pb-label">Net P&amp;L</div><div class="pb-value ${pnlClass === "up" ? "" : ""}" style="color:${pnlClass === "up" ? "var(--green)" : "var(--red)"}">${fmtMoney(s.net_pnl_dollars)}</div></div>
           <div><div class="pb-label">Win Rate</div><div class="pb-value">${fmtPct(s.win_rate)}</div></div>
-          ${s.return_pct != null
-            ? `<div><div class="pb-label">Return</div><div class="pb-value" style="color:${s.return_pct >= 0 ? "var(--green)" : "var(--red)"}">${s.return_pct >= 0 ? "+" : ""}${s.return_pct.toFixed(2)}%</div></div>`
-            : `<div><div class="pb-label">Trades</div><div class="pb-value">${s.num_trades != null ? s.num_trades : "—"}</div></div>`}
+          <div><div class="pb-label">Trades</div><div class="pb-value">${s.num_trades != null ? s.num_trades : "—"}</div></div>
           <div><div class="pb-label">Avg R</div><div class="pb-value">${fmtR(s.avg_r)}</div></div>
         </div>
       </div>`;

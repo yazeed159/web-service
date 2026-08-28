@@ -97,3 +97,38 @@
 @media (max-width: 760px) {
   .rpt-toolbar { gap: 8px; }
 }
+
+/* ---------- interactive per-trade chart modal (see report.js openTradeChart) ---------- */
+.rpt-view-chart-btn {
+  background: none; border: 1px solid var(--border); color: var(--text-dim);
+  border-radius: 6px; padding: 3px 10px; font-size: 11.5px; cursor: pointer;
+}
+.rpt-view-chart-btn:hover { color: var(--text); border-color: var(--primary); }
+.rpt-view-chart-btn:disabled { opacity: 0.4; cursor: default; }
+.rpt-view-chart-btn:disabled:hover { color: var(--text-dim); border-color: var(--border); }
+
+.rpt-chart-modal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.rpt-chart-modal-backdrop { position: absolute; inset: 0; background: rgba(6,8,10,0.72); }
+.rpt-chart-modal-box {
+  position: relative; z-index: 1; width: min(920px, 100%); max-height: 92vh; overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px 18px; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.rpt-chart-modal-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px;
+}
+.rpt-chart-modal-head > div:first-child { display: flex; align-items: baseline; gap: 10px; font-weight: 600; font-size: 15px; }
+.rpt-chart-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 11.5px; color: var(--text-dim); margin: 6px 0 10px; }
+.rpt-chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.rpt-chart-legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+#rpt-candle-chart { width: 100%; height: 380px; position: relative; }
+#rpt-macd-chart { width: 100%; height: 100px; margin-top: 4px; }
+.rpt-chart-verdict {
+  margin-top: 14px; padding: 12px 14px; border: 1px solid var(--border-soft); border-radius: 10px;
+  font-size: 12.5px; line-height: 1.6; color: var(--text-dim); white-space: pre-wrap;
+}
+
+@media (max-width: 760px) {
+  .rpt-chart-modal { padding: 10px; }
+  #rpt-candle-chart { height: 300px; }
+}
