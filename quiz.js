@@ -48,6 +48,7 @@
     qIndex: 0,
     blind: true,
     tickMode: "sim", // "sim" (synthesized, offline) or "real" (live prints from chart_service.py)
+    playbackSpeed: 1, // 1x/2x/4x/8x/20x -- shared across the whole quiz session
     results: [],
     streak: 0,
     lastFilters: null,
@@ -165,7 +166,7 @@
       return (h >>> 0) / 4294967296;
     };
   }
-  const REPLAY_SECONDS = 30; // sub-ticks synthesized per 1-min bar
+  const REPLAY_SECONDS = 60; // one sub-tick per real second of the 1-min bar
 
   function genSecondTicks(bar, prevClose, seed) {
     const n = REPLAY_SECONDS;
@@ -290,15 +291,30 @@
     ));
   }
 
-  // Auto-plays through `ticks`, one per `tickMs`, updating a live price
-  // readout. `actions` is a list of {id, label, kbd, cls} buttons that are
-  // clickable at any point during playback; clicking one locks in the
-  // current second and price and stops playback. If nobody clicks before
-  // the ticks run out, `defaultActionId` fires automatically on the last
-  // second. Returns { stop } to let a caller tear it down early (e.g. the
-  // quiz question changes underneath it).
+  // Speed choices for the tick playback -- 1x is real time (one tick per
+  // real second), so a full 1-min bar takes 60 real seconds unless you
+  // speed it up.
+  const REPLAY_SPEEDS = [1, 2, 4, 8, 20];
+  function fmtClock(totalSeconds) {
+    const s = Math.max(0, Math.round(totalSeconds));
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return `${m}:${String(r).padStart(2, "0")}`;
+  }
+
+  // Auto-plays through `ticks` at real-time pace by default (one tick per
+  // real second at 1x -- a synthesized bar's 60 ticks take 60 real seconds
+  // unless sped up), updating a live price readout. `actions` is a list of
+  // {id, label, kbd, cls} buttons that are clickable at any point during
+  // playback; clicking one locks in the current tick's price and stops
+  // playback. If nobody clicks before the ticks run out, `opts.onExhausted`
+  // runs if given, else `defaultActionId` fires automatically. A speed
+  // picker (1x-20x) is rendered in the panel; changing it mid-playback just
+  // changes the pace of ticks still to come, it never skips any. Returns
+  // { stop } to let a caller tear it down early (e.g. the quiz question
+  // changes underneath it).
   function runSecondReplay(container, ticks, opts) {
-    const tickMs = opts.tickMs || 150;
+    const baseTickMs = opts.tickMs || 1000; // 1 tick = 1 real second at 1x
     const unitLabel = opts.unitLabel || "second";
     const tag = opts.tag || "simulated seconds";
     const tagCls = opts.tagCls ? ` ${opts.tagCls}` : "";
@@ -306,6 +322,9 @@
       <div class="quiz-replay-panel">
         <div class="quiz-replay-top">
           <span class="quiz-replay-price"></span>
+          <div class="quiz-speed-row" id="qz-replay-speeds">
+            ${REPLAY_SPEEDS.map((sp) => `<button type="button" class="quiz-speed-btn${sp === state.playbackSpeed ? " active" : ""}" data-speed="${sp}">${sp}&times;</button>`).join("")}
+          </div>
           <span class="quiz-replay-tag${tagCls}">${escapeHtml(tag)}</span>
         </div>
         ${opts.fallbackNote ? `<div class="quiz-replay-fallback">${escapeHtml(opts.fallbackNote)}</div>` : ""}
@@ -318,6 +337,7 @@
     const fillEl = container.querySelector("#qz-replay-fill");
     const secEl = container.querySelector("#qz-replay-sec");
     const actionsEl = container.querySelector("#qz-replay-actions");
+    const speedsEl = container.querySelector("#qz-replay-speeds");
     (opts.actions || []).forEach((a) => {
       const btn = document.createElement("button");
       btn.id = `qz-${a.id}`;
@@ -325,6 +345,15 @@
       btn.innerHTML = `${escapeHtml(a.label)}${a.kbd ? ` <span class="kbd">${escapeHtml(a.kbd)}</span>` : ""}`;
       btn.addEventListener("click", () => finish(a.id));
       actionsEl.appendChild(btn);
+    });
+    speedsEl.querySelectorAll(".quiz-speed-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.playbackSpeed = Number(btn.dataset.speed) || 1;
+        speedsEl.querySelectorAll(".quiz-speed-btn").forEach((b) => b.classList.toggle("active", b === btn));
+        // Re-arm the wait with the new pace right away instead of letting
+        // the slower/faster old delay run out first.
+        if (!done) { clearTimeout(timer); scheduleNext(); }
+      });
     });
 
     // If given a live chart + the raw bar being replayed, push a real
@@ -353,20 +382,36 @@
       // Seed a zero-range candle before ticking so there's room for it on
       // the timescale, then make sure that room is actually visible.
       paintCandle(0);
-      try { liveChart.chart.timeScale().fitContent(); } catch (e) {}
+      // Only snap/fit the visible range on demand (opts.autoFit === false
+      // skips it) -- doing this on every bar of a multi-bar watch session
+      // would yank the chart back to a full-fit view each time and wipe
+      // out any zoom/pan the moment a new candle starts.
+      if (opts.autoFit !== false) {
+        try { liveChart.chart.timeScale().fitContent(); } catch (e) {}
+      }
     }
 
     let i = 0, done = false, timer = null;
+    function currentTickMs() { return Math.max(20, Math.round(baseTickMs / (state.playbackSpeed || 1))); }
     function paint() {
       priceEl.textContent = "$" + fmtPrice(ticks[i]);
-      secEl.textContent = `${unitLabel} ${i + 1} of ${ticks.length}`;
+      if (unitLabel === "second") {
+        // Real-time framing: how far into the candle we are and how much
+        // is left, so it's obvious when the candle is about to close.
+        const elapsed = i + 1, remaining = ticks.length - elapsed;
+        secEl.textContent = `${fmtClock(elapsed)} elapsed \u00b7 ${fmtClock(remaining)} left on this candle`;
+      } else {
+        // Real server ticks aren't evenly spaced in time, so a plain
+        // count is more honest than a clock here.
+        secEl.textContent = `${unitLabel} ${i + 1} of ${ticks.length}`;
+      }
       fillEl.style.width = `${((i + 1) / ticks.length) * 100}%`;
       paintCandle(i);
     }
     function finish(actionId) {
       if (done) return;
       done = true;
-      clearInterval(timer);
+      clearTimeout(timer);
       actionsEl.querySelectorAll("button").forEach((b) => (b.disabled = true));
       opts.onAct && opts.onAct(actionId, i, ticks[i]);
     }
@@ -374,12 +419,10 @@
     // to finish -- used to auto-trigger a stop-loss the instant price
     // crosses it, same as it would in a real fill.
     function checkTick() { if (opts.onTick) opts.onTick(ticks[i], i); }
-    paint();
-    checkTick();
-    timer = setInterval(() => {
+    function scheduleNext() { timer = setTimeout(advance, currentTickMs()); }
+    function advance() {
       if (done) return;
       if (i >= ticks.length - 1) {
-        clearInterval(timer);
         // onExhausted lets a caller move on (e.g. to the next bar) instead
         // of forcing a default action once the tape runs out -- falls back
         // to the old auto-fire-defaultActionId behavior when not given.
@@ -390,8 +433,12 @@
       i++;
       paint();
       checkTick();
-    }, tickMs);
-    return { stop: () => { done = true; clearInterval(timer); } };
+      scheduleNext();
+    }
+    paint();
+    checkTick();
+    scheduleNext();
+    return { stop: () => { done = true; clearTimeout(timer); } };
   }
 
   function loadHistory() {
@@ -563,9 +610,12 @@
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
     volSeries.setData(volData);
 
-    chart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(vwapData);
-    chart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema9Data);
-    chart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema20Data);
+    const vwapSeries = chart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    vwapSeries.setData(vwapData);
+    const ema9Series = chart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    ema9Series.setData(ema9Data);
+    const ema20Series = chart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    ema20Series.setData(ema20Data);
 
     if (opts.markers && opts.markers.length) series.setMarkers(opts.markers);
     const priceLineRefs = {};
@@ -579,13 +629,60 @@
       ro = new ResizeObserver(() => { try { chart.applyOptions({ width: el.clientWidth }); } catch (e) {} });
       ro.observe(el);
     }
-    return { chart, series, volSeries, priceLineRefs, resizeObserver: ro };
+    return { chart, series, volSeries, vwapSeries, ema9Series, ema20Series, priceLineRefs, resizeObserver: ro };
   }
   function teardownChart(handle) {
     if (!handle) return;
     try { if (handle.resizeObserver) handle.resizeObserver.disconnect(); } catch (e) {}
     try { if (handle.pointerRo) handle.pointerRo.disconnect(); } catch (e) {}
+    try { if (handle.eodRo) handle.eodRo.disconnect(); } catch (e) {}
     try { handle.chart.remove(); } catch (e) {}
+  }
+
+  // Pushes a bar's final OHLC/volume/overlay values onto an already-built
+  // chart in place -- used when a watch-stage bar finishes playing so the
+  // just-completed candle switches from the orange "forming" look to its
+  // normal closed color without tearing down and rebuilding the chart
+  // (which is what used to reset the view every ~4.5s).
+  function finalizeBarOnChart(chartHandle, bar) {
+    if (!chartHandle) return;
+    const t = toUnix(bar.t);
+    try {
+      chartHandle.series.update({ time: t, open: bar.o, high: bar.h, low: bar.l, close: bar.c });
+      if (chartHandle.volSeries) {
+        chartHandle.volSeries.update({ time: t, value: bar.v, color: bar.c >= bar.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" });
+      }
+      if (bar.vwap != null && chartHandle.vwapSeries) chartHandle.vwapSeries.update({ time: t, value: bar.vwap });
+      if (bar.ema9 != null && chartHandle.ema9Series) chartHandle.ema9Series.update({ time: t, value: bar.ema9 });
+      if (bar.ema20 != null && chartHandle.ema20Series) chartHandle.ema20Series.update({ time: t, value: bar.ema20 });
+    } catch (e) { /* chart already torn down */ }
+  }
+
+  // Vertical marker pinned to the last bar we actually have data for, so
+  // during bar-by-bar playback it's obvious how much chart is left instead
+  // of only finding out once the question ends.
+  function attachEndOfDataLine(container, chartHandle, endTime) {
+    const { chart } = chartHandle;
+    container.style.position = container.style.position || "relative";
+    const line = document.createElement("div");
+    line.className = "quiz-eod-line";
+    line.innerHTML = `<span class="quiz-eod-label">End of data</span>`;
+    container.appendChild(line);
+    function reposition() {
+      try {
+        const x = chart.timeScale().timeToCoordinate(endTime);
+        if (x == null) { line.style.display = "none"; return; }
+        line.style.display = "block";
+        line.style.left = `${x}px`;
+      } catch (e) { line.style.display = "none"; }
+    }
+    let ro = null;
+    if (window.ResizeObserver) { ro = new ResizeObserver(reposition); ro.observe(container); }
+    chart.timeScale().subscribeVisibleLogicalRangeChange(reposition);
+    reposition();
+    requestAnimationFrame(reposition);
+    setTimeout(reposition, 0);
+    chartHandle.eodRo = ro;
   }
 
   // ---------------------------------------------------------------
@@ -857,7 +954,7 @@
           <span class="pill">${escapeHtml((trade.setup_type || "unlabeled setup").replace(/_/g, " "))}</span>
         </div>
         <span class="quiz-clock">${escapeHtml(trade.entry_time)}
-          <span class="quiz-live-badge"><span class="quiz-live-dot"></span>${secondsRemaining}s left on this candle</span>
+          <span class="quiz-live-badge"><span class="quiz-live-dot"></span>${fmtClock(secondsRemaining)} left on this candle</span>
         </span>
       </div>
       <div class="quiz-chart-wrap"><div id="quiz-candle-chart"></div></div>
@@ -1087,23 +1184,19 @@
       goToReveal();
       return;
     }
-    renderWatchBar();
+    buildWatchScreen();
   }
 
-  function renderWatchBar() {
+  // Builds the watch-stage DOM and chart exactly once per question. Bars
+  // after this are played by renderWatchBar(), which only touches the
+  // header text and the replay panel -- the chart itself is never torn
+  // down and rebuilt again, so your zoom/pan (and the tape) stay put
+  // candle after candle instead of snapping back to a full-fit view.
+  function buildWatchScreen() {
     const c = state.current;
     try {
     const trade = c.trade;
     const entryPrice = c.userEntryPrice;
-    // Everything before the bar currently playing is settled chart history;
-    // the current bar plays out second by second below instead of showing
-    // as an already-closed candle.
-    const historyBars = c.bars.slice(0, c.watchIdx);
-    const bar = c.bars[c.watchIdx];
-    const prevClose = historyBars.length ? historyBars[historyBars.length - 1].c : entryPrice;
-    const unrealized = pnlPerShare(entryPrice, prevClose, c.side);
-    const clockStr = new Date(bar.t.replace(" ", "T")).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    const minutesIn = c.watchIdx - c.entryIdx;
 
     els.card.innerHTML = `
       <div class="quiz-card-head">
@@ -1111,19 +1204,19 @@
           <span>${escapeHtml(displayLabel(trade).name)}</span>
           <span class="side-pill ${c.side}">${c.side}</span>
         </div>
-        <span class="quiz-clock">${escapeHtml(clockStr)} <span class="dim" style="font-weight:400;">· ${minutesIn} min in</span></span>
+        <span class="quiz-clock" id="qz-watch-clock"></span>
       </div>
       <div class="quiz-chart-wrap"><div id="quiz-candle-chart"></div></div>
-      <div class="quiz-prompt">
-        You're in at <b>$${fmtPrice(entryPrice)}</b>, stop at <b>$${fmtPrice(c.stopPrice)}</b>.
-        Unrealized so far: <b style="color:${unrealized >= 0 ? "var(--green)" : "var(--red)"}">${fmtSignedPerShare(unrealized)}/sh</b>.
-        Keep watching for as long as you like — <b>click Exit whenever you'd get out</b>.
-      </div>
+      <div class="quiz-prompt" id="qz-watch-prompt"></div>
       <div id="quiz-replay-slot"></div>
     `;
     c.stage = "watch";
 
     teardownChart(c.chartHandle);
+    // Everything before the bar currently playing is settled chart
+    // history; the current (and every later) bar plays out second by
+    // second instead of showing up as an already-closed candle.
+    const historyBars = c.bars.slice(0, c.watchIdx);
     const watchPriceLines = [
       { price: entryPrice, color: COLOR_YOUR_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "your entry" },
       { price: c.stopPrice, color: COLOR_YOUR_STOP, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your stop" },
@@ -1131,10 +1224,41 @@
     if (Math.abs(trade.entry_price - entryPrice) > 0.0001) {
       watchPriceLines.push({ price: trade.entry_price, color: COLOR_REAL_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "real entry" });
     }
-    c.chartHandle = buildChart(document.getElementById("quiz-candle-chart"), historyBars.length ? historyBars : c.bars.slice(0, c.watchIdx + 1), {
+    const chartEl = document.getElementById("quiz-candle-chart");
+    c.chartHandle = buildChart(chartEl, historyBars.length ? historyBars : c.bars.slice(0, c.watchIdx + 1), {
       height: 380,
       priceLines: watchPriceLines,
     });
+    // Mark the last bar you actually have data for, so it's visible at a
+    // glance how much runway is left instead of only finding out once
+    // the tape runs dry.
+    attachEndOfDataLine(chartEl, c.chartHandle, toUnix(c.bars[c.bars.length - 1].t));
+
+    renderWatchBar();
+    } catch (err) { showStageError(err); }
+  }
+
+  function renderWatchBar() {
+    const c = state.current;
+    try {
+    const trade = c.trade;
+    const entryPrice = c.userEntryPrice;
+    const historyBars = c.bars.slice(0, c.watchIdx);
+    const bar = c.bars[c.watchIdx];
+    const prevClose = historyBars.length ? historyBars[historyBars.length - 1].c : entryPrice;
+    const unrealized = pnlPerShare(entryPrice, prevClose, c.side);
+    const clockStr = new Date(bar.t.replace(" ", "T")).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const minutesIn = c.watchIdx - c.entryIdx;
+    const barsLeft = c.bars.length - 1 - c.watchIdx;
+
+    document.getElementById("qz-watch-clock").innerHTML =
+      `${escapeHtml(clockStr)} <span class="dim" style="font-weight:400;">· ${minutesIn} min in</span>` +
+      (barsLeft <= 3 ? ` <span style="color:var(--amber);">· ${barsLeft} bar${barsLeft === 1 ? "" : "s"} of data left</span>` : "");
+    document.getElementById("qz-watch-prompt").innerHTML = `
+      You're in at <b>$${fmtPrice(entryPrice)}</b>, stop at <b>$${fmtPrice(c.stopPrice)}</b>.
+      Unrealized so far: <b style="color:${unrealized >= 0 ? "var(--green)" : "var(--red)"}">${fmtSignedPerShare(unrealized)}/sh</b>.
+      Keep watching for as long as you like — <b>click Exit whenever you'd get out</b>.
+    `;
 
     const replaySlot = document.getElementById("quiz-replay-slot");
     replaySlot.innerHTML = `<div class="quiz-replay-loading">${state.tickMode === "real" ? "Loading real ticks from the server…" : "Loading…"}</div>`;
@@ -1148,6 +1272,11 @@
         tag: real ? "live ticks · server" : "simulated seconds",
         tagCls: real ? "live" : "",
         fallbackNote: fellBack ? "No live ticks came back for this window — showing the simulated path instead." : "",
+        // The chart already reflects everything through the previous bar
+        // (or was just fit once in buildWatchScreen) -- re-fitting on
+        // every later bar is exactly the "resets the chart view" behavior
+        // this replaces, so skip it here.
+        autoFit: false,
         actions: [
           { id: "exit", label: "Exit now", kbd: "E", cls: "exit" },
         ],
@@ -1164,8 +1293,11 @@
           }
         },
         onExhausted: () => {
-          // This bar's tape ran out without you clicking Exit -- move
-          // straight on to the next bar and keep the tape rolling.
+          // This bar's tape ran out without you clicking Exit -- finalize
+          // it on the chart (swap from the orange forming look to its
+          // normal closed color) and move straight on to the next bar,
+          // without touching the DOM or rebuilding the chart.
+          finalizeBarOnChart(c.chartHandle, bar);
           c.watchIdx += 1;
           if (c.watchIdx > c.bars.length - 1) { goToReveal(); return; } // out of chart to watch
           renderWatchBar();

@@ -107,7 +107,15 @@
    chart wrap unclipped. The candle chart already fills exactly to its own
    box, so dropping this doesn't visibly change the rounded corners. */
 .quiz-chart-wrap { margin: 14px 0 6px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); }
-#quiz-candle-chart { width: 100%; }
+#quiz-candle-chart { width: 100%; position: relative; }
+
+/* Vertical marker at the last bar we actually have data for (watch stage). */
+.quiz-eod-line { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed var(--amber); pointer-events: none; z-index: 3; }
+.quiz-eod-label {
+  position: absolute; top: 6px; left: 6px; font-size: 10px; font-family: var(--mono); white-space: nowrap;
+  color: var(--amber); background: rgba(15,17,21,.85); border: 1px solid rgba(232,169,76,.3);
+  border-radius: 4px; padding: 2px 6px;
+}
 
 .quiz-prompt { font-size: 14.5px; color: var(--text); margin: 14px 0 12px; line-height: 1.55; }
 .quiz-prompt b { color: var(--text); }
