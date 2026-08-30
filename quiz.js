@@ -93,6 +93,119 @@
     return a;
   }
 
+  // ---------------------------------------------------------------
+  // second-by-second replay — Polygon only gives us 1-min bars, so
+  // there's no real tick feed to draw on. Instead we synthesize a
+  // plausible intra-bar path: a deterministic (seeded, so a given
+  // bar always replays the same way) walk from the previous close
+  // through the bar's open, its high/low (order randomized per bar,
+  // since either order is consistent with the same OHLC print), and
+  // its close, with small random jitter layered on top so it doesn't
+  // look like a robotic straight-line ramp. It's clearly labeled as
+  // simulated in the UI — this is a practice aid, not real ticks.
+  // ---------------------------------------------------------------
+  function seededRng(seedStr) {
+    let h = 1779033703 ^ seedStr.length;
+    for (let i = 0; i < seedStr.length; i++) {
+      h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return function () {
+      h = Math.imul(h ^ (h >>> 16), 2246822507);
+      h = Math.imul(h ^ (h >>> 13), 3266489909);
+      h ^= h >>> 16;
+      return (h >>> 0) / 4294967296;
+    };
+  }
+  const REPLAY_SECONDS = 30; // sub-ticks synthesized per 1-min bar
+
+  function genSecondTicks(bar, prevClose, seed) {
+    const n = REPLAY_SECONDS;
+    const rng = seededRng(seed);
+    const o = bar.o, h = bar.h, l = bar.l, c = bar.c;
+    const start = Number.isFinite(prevClose) ? prevClose : o;
+    const highFirst = rng() < 0.5;
+    const waypoints = [
+      { t: 0, p: start },
+      { t: Math.round(n * 0.1), p: o },
+      { t: Math.round(n * 0.42), p: highFirst ? h : l },
+      { t: Math.round(n * 0.74), p: highFirst ? l : h },
+      { t: n - 1, p: c },
+    ];
+    const range = Math.max(h - l, 0.0001);
+    const jitterAmp = range * 0.07;
+    const ticks = [];
+    for (let s = 0; s < n; s++) {
+      let a = waypoints[0], b = waypoints[waypoints.length - 1];
+      for (let i = 0; i < waypoints.length - 1; i++) {
+        if (s >= waypoints[i].t && s <= waypoints[i + 1].t) { a = waypoints[i]; b = waypoints[i + 1]; break; }
+      }
+      const span = Math.max(1, b.t - a.t);
+      const frac = (s - a.t) / span;
+      let price = a.p + (b.p - a.p) * frac;
+      price += (rng() - 0.5) * 2 * jitterAmp;
+      price = Math.min(h, Math.max(l, price));
+      ticks.push(price);
+    }
+    ticks[n - 1] = c; // always land exactly on the bar's real close
+    return ticks;
+  }
+
+  // Auto-plays through `ticks`, one per `tickMs`, updating a live price
+  // readout. `actions` is a list of {id, label, kbd, cls} buttons that are
+  // clickable at any point during playback; clicking one locks in the
+  // current second and price and stops playback. If nobody clicks before
+  // the ticks run out, `defaultActionId` fires automatically on the last
+  // second. Returns { stop } to let a caller tear it down early (e.g. the
+  // quiz question changes underneath it).
+  function runSecondReplay(container, ticks, opts) {
+    const tickMs = opts.tickMs || 150;
+    container.innerHTML = `
+      <div class="quiz-replay-panel">
+        <div class="quiz-replay-top">
+          <span class="quiz-replay-price"></span>
+          <span class="quiz-replay-tag">simulated seconds</span>
+        </div>
+        <div class="quiz-replay-track"><div class="quiz-replay-bar" id="qz-replay-fill"></div></div>
+        <div class="quiz-replay-row" id="qz-replay-actions"></div>
+        <div class="quiz-replay-sec" id="qz-replay-sec" style="margin-top:8px;"></div>
+      </div>
+    `;
+    const priceEl = container.querySelector(".quiz-replay-price");
+    const fillEl = container.querySelector("#qz-replay-fill");
+    const secEl = container.querySelector("#qz-replay-sec");
+    const actionsEl = container.querySelector("#qz-replay-actions");
+    (opts.actions || []).forEach((a) => {
+      const btn = document.createElement("button");
+      btn.id = `qz-${a.id}`;
+      btn.className = `quiz-answer-btn ${a.cls || ""}`;
+      btn.innerHTML = `${escapeHtml(a.label)}${a.kbd ? ` <span class="kbd">${escapeHtml(a.kbd)}</span>` : ""}`;
+      btn.addEventListener("click", () => finish(a.id));
+      actionsEl.appendChild(btn);
+    });
+
+    let i = 0, done = false, timer = null;
+    function paint() {
+      priceEl.textContent = "$" + fmtPrice(ticks[i]);
+      secEl.textContent = `second ${i + 1} of ${ticks.length}`;
+      fillEl.style.width = `${((i + 1) / ticks.length) * 100}%`;
+    }
+    function finish(actionId) {
+      if (done) return;
+      done = true;
+      clearInterval(timer);
+      actionsEl.querySelectorAll("button").forEach((b) => (b.disabled = true));
+      opts.onAct && opts.onAct(actionId, i, ticks[i]);
+    }
+    paint();
+    timer = setInterval(() => {
+      if (i >= ticks.length - 1) { finish(opts.defaultActionId); return; }
+      i++;
+      paint();
+    }, tickMs);
+    return { stop: () => { done = true; clearInterval(timer); } };
+  }
+
   function loadHistory() {
     try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch (e) { return []; }
   }
@@ -211,6 +324,70 @@
   // the quiz only needs candles + volume + VWAP/EMA overlays, cropped
   // to whatever the current stage should reveal.
   // ---------------------------------------------------------------
+
+  // Any click outside a pointer tooltip closes whichever one is pinned
+  // open. Registered once (not per buildChart call, since buildChart
+  // reruns for every stage of every question) so it never stacks up
+  // duplicate handlers.
+  document.addEventListener("click", () => {
+    document.querySelectorAll(".pointer-tooltip").forEach((t) => { t.dataset.open = "0"; t.style.display = "none"; });
+  });
+
+  const POINTER_H = 9; // triangle height in px -- also used to correct the tip offset below
+
+  // Same small-triangle-on-the-exact-price marker as trade.js, instead of
+  // lightweight-charts' built-in arrow markers (which snap to a fixed
+  // offset above/below the *bar*, not the actual fill price). Building it
+  // here (rather than importing trade.js) keeps the quiz's chart free of
+  // trade.js's page-specific globals -- the visual result and behavior
+  // (hover on desktop, tap on touch, click-outside-to-close) match exactly.
+  function buildPointer(wrap, tooltipText, color) {
+    wrap.style.position = "relative";
+    let overlay = wrap.querySelector(".fill-pointer-overlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.className = "fill-pointer-overlay";
+      overlay.style.cssText = "position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:2;";
+      wrap.appendChild(overlay);
+    }
+    const el = document.createElement("div");
+    el.style.cssText = `
+      position:absolute; width:0; height:0; pointer-events:auto;
+      border-left:6px solid transparent; border-right:6px solid transparent;
+      filter: drop-shadow(0 0 1.5px #0b0d10) drop-shadow(0 0 1.5px #0b0d10);
+    `;
+    overlay.appendChild(el);
+
+    let tooltip = null;
+    if (tooltipText) {
+      tooltip = document.createElement("div");
+      tooltip.className = "pointer-tooltip";
+      tooltip.dataset.open = "0";
+      tooltip.style.cssText = `
+        position:absolute; display:none; width:180px; max-width:60vw;
+        background:#181b22; border:1px solid ${color}; border-radius:8px;
+        padding:8px 10px; font-size:12px; line-height:1.5; color:#eceef2;
+        box-shadow:0 6px 20px rgba(0,0,0,.45); z-index:5; pointer-events:none;
+      `;
+      tooltip.textContent = tooltipText;
+      wrap.appendChild(tooltip);
+
+      const openTooltip = () => {
+        wrap.querySelectorAll(".pointer-tooltip").forEach((t) => { t.dataset.open = "0"; t.style.display = "none"; });
+        tooltip.dataset.open = "1";
+        tooltip.style.display = "block";
+      };
+      const closeTooltip = () => { tooltip.dataset.open = "0"; tooltip.style.display = "none"; };
+      el.addEventListener("mouseenter", openTooltip);
+      el.addEventListener("mouseleave", closeTooltip);
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (tooltip.dataset.open === "1") closeTooltip(); else openTooltip();
+      });
+    }
+    return { el, tooltip };
+  }
+
   function buildChart(el, bars, opts) {
     opts = opts || {};
     el.innerHTML = "";
@@ -231,9 +408,19 @@
     const series = chart.addCandlestickSeries({
       upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
       wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
+      // The candlestick series draws its own automatic price line + label
+      // at the last visible close, colored green/red to match whichever
+      // way that last candle closed -- entirely independent of the
+      // explicit entry/exit price lines below, which are ALSO green/red.
+      // Whenever the last visible candle happened to close the same
+      // direction as the entry or exit, this auto line landed right next
+      // to (or through) the real one, reading as a stray duplicate green
+      // or red line. Turning it off leaves only the price lines we draw
+      // on purpose.
+      priceLineVisible: false, lastValueVisible: false,
     });
     series.setData(candleData);
-    chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.12, bottom: 0.2 } });
+    chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.14, bottom: 0.18 } });
 
     const volSeries = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol" });
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
@@ -249,12 +436,57 @@
       priceLineRefs[pl.key || i] = series.createPriceLine(pl);
     });
 
+    // opts.pointers: [{ time, price, color, above, tooltip }] -- small
+    // triangles that sit right on the exact entry/exit fill, tip pointing
+    // straight at it, replacing the old built-in arrow markers (which
+    // only ever snapped to a fixed offset above/below the bar).
+    const pointers = (opts.pointers || []).map((p) => {
+      const { el: pel, tooltip } = buildPointer(el, p.tooltip, p.color);
+      pel.style.borderTop = p.above ? `${POINTER_H}px solid ${p.color}` : "";
+      pel.style.borderBottom = p.above ? "" : `${POINTER_H}px solid ${p.color}`;
+      return { time: p.time, price: p.price, above: p.above, el: pel, tooltip };
+    });
+    function repositionPointers() {
+      pointers.forEach((p) => {
+        const x = chart.timeScale().timeToCoordinate(p.time);
+        const y = series.priceToCoordinate(p.price);
+        if (x === null || y === null) {
+          p.el.style.display = "none";
+          if (p.tooltip) { p.tooltip.style.display = "none"; p.tooltip.dataset.open = "0"; }
+          return;
+        }
+        p.el.style.display = "block";
+        p.el.style.left = `${x}px`;
+        const pointerTop = p.above ? y - POINTER_H : y;
+        p.el.style.top = `${pointerTop}px`;
+        p.el.style.transform = "translateX(-50%)";
+        if (p.tooltip && p.tooltip.dataset.open === "1") {
+          p.tooltip.style.left = `${x + 8}px`;
+          p.tooltip.style.top = `${p.above ? pointerTop - 8 : pointerTop + POINTER_H + 8}px`;
+          p.tooltip.style.transform = p.above ? "translateY(-100%)" : "none";
+        }
+      });
+    }
+    if (pointers.length) {
+      chart.timeScale().subscribeVisibleLogicalRangeChange(repositionPointers);
+    }
+
     chart.timeScale().fitContent();
     let ro = null;
     if (window.ResizeObserver) {
-      ro = new ResizeObserver(() => { try { chart.applyOptions({ width: el.clientWidth }); } catch (e) {} });
+      ro = new ResizeObserver(() => {
+        try { chart.applyOptions({ width: el.clientWidth }); } catch (e) {}
+        repositionPointers();
+      });
       ro.observe(el);
     }
+    // priceToCoordinate depends on the right price scale's autoscale,
+    // which isn't settled until after setData/fitContent run -- a couple
+    // of follow-up passes catch that instead of racing it.
+    repositionPointers();
+    requestAnimationFrame(repositionPointers);
+    setTimeout(repositionPointers, 0);
+
     return { chart, series, volSeries, priceLineRefs, resizeObserver: ro };
   }
   function teardownChart(handle) {
@@ -294,6 +526,7 @@
   }
 
   function loadQuestion() {
+    if (state.current && state.current.replayHandle) state.current.replayHandle.stop();
     updateHeaderChrome();
     if (state.qIndex >= state.queue.length) { finishQuiz(); return; }
     els.card.innerHTML = `<div class="loading-line">Loading chart…</div>`;
@@ -332,6 +565,11 @@
       stopOutIdx: null,
       checkpointAction: null,
       chartHandle: null,
+      replayHandle: null,
+      simEntryPrice: null,
+      entrySecond: null,
+      userExitPrice: null,
+      exitSecond: null,
     };
     renderEntryStage();
   }
@@ -347,8 +585,13 @@
     const c = state.current;
     const trade = c.trade;
     const label = displayLabel(trade);
-    const visibleBars = c.bars.slice(0, c.entryIdx + 1);
-    const lastClose = visibleBars[visibleBars.length - 1].c;
+    // History only up through the bar BEFORE entry -- the entry bar itself
+    // isn't shown as a finished candle. Instead it plays out second by
+    // second below, so "would you enter" is answered against a moment in
+    // time, not an already-closed bar.
+    const historyBars = c.bars.slice(0, c.entryIdx);
+    const entryBar = c.bars[c.entryIdx];
+    const prevClose = historyBars.length ? historyBars[historyBars.length - 1].c : null;
     const sidePretty = c.side === "short" ? "short" : "long";
 
     els.card.innerHTML = `
@@ -363,41 +606,67 @@
       </div>
       <div class="quiz-chart-wrap"><div id="quiz-candle-chart"></div></div>
       <div class="quiz-prompt">
-        Price is at <b>$${fmtPrice(lastClose)}</b>. This is a <b>${sidePretty}</b> setup${label.date ? "" : ""}. <b>Would you enter here?</b>
+        This is a <b>${sidePretty}</b> setup${label.date ? "" : ""}. Watch the next minute play out second by second — <b>click when you'd enter</b>, or pass.
       </div>
-      <div class="quiz-answer-row">
-        <button class="quiz-answer-btn enter" id="qz-enter">Enter the trade <span class="kbd">Y</span></button>
-        <button class="quiz-answer-btn pass" id="qz-pass">Pass <span class="kbd">N</span></button>
-      </div>
+      <div id="quiz-replay-slot"></div>
       <div id="quiz-stop-slot"></div>
     `;
 
     teardownChart(c.chartHandle);
-    c.chartHandle = buildChart(document.getElementById("quiz-candle-chart"), visibleBars, { height: 380 });
+    c.chartHandle = historyBars.length
+      ? buildChart(document.getElementById("quiz-candle-chart"), historyBars, { height: 380 })
+      : null;
+    if (!historyBars.length) document.getElementById("quiz-candle-chart").innerHTML =
+      `<div class="empty-state" style="padding:24px 0;">No bars before entry to show — jumping straight to the replay.</div>`;
 
-    document.getElementById("qz-enter").addEventListener("click", () => handleEntryChoice(true));
-    document.getElementById("qz-pass").addEventListener("click", () => handleEntryChoice(false));
+    const ticks = genSecondTicks(entryBar, prevClose, `${trade.id}:entry`);
+    c.replayHandle = runSecondReplay(document.getElementById("quiz-replay-slot"), ticks, {
+      actions: [
+        { id: "enter", label: "Enter now", kbd: "Y", cls: "enter" },
+        { id: "pass", label: "Pass", kbd: "N", cls: "pass" },
+      ],
+      defaultActionId: "pass",
+      onAct: (actionId, secondIdx, price) => handleEntryChoice(actionId === "enter", secondIdx, price),
+    });
     c.stage = "entry";
   }
 
-  function handleEntryChoice(entered) {
+  function handleEntryChoice(entered, secondIdx, price) {
     const c = state.current;
     c.entered = entered;
-    document.getElementById("qz-enter").disabled = true;
-    document.getElementById("qz-pass").disabled = true;
+    c.entrySecond = secondIdx;
+    c.simEntryPrice = entered ? price : null;
     if (entered) renderStopStage();
     else goToReveal();
   }
+
+  // Quick-pick stop distances, as % risk off the entry price -- the
+  // common round numbers a trader would reach for first. Each resolves to
+  // a real price on the correct side of entry for the trade's side
+  // (below entry for longs, above for shorts).
+  const STOP_PRESET_PCTS = [0.005, 0.01, 0.02, 0.03];
 
   // ---------- Stage B: stop-loss placement ----------
   function renderStopStage() {
     const c = state.current;
     const trade = c.trade;
-    const entryPrice = trade.entry_price;
+    // Fill price is whatever second they clicked "Enter now" on during the
+    // replay, not the AI's logged entry_price -- that's the whole point of
+    // choosing the second yourself.
+    const entryPrice = Number.isFinite(c.simEntryPrice) ? c.simEntryPrice : trade.entry_price;
     const slot = document.getElementById("quiz-stop-slot");
+
+    const presetsHtml = STOP_PRESET_PCTS.map((pct) => {
+      const price = c.side === "short" ? entryPrice * (1 + pct) : entryPrice * (1 - pct);
+      return `<button type="button" class="quiz-stop-preset-btn" data-price="${price}">
+        ${(pct * 100).toFixed(1)}% <span class="dim">· $${fmtPrice(price)}</span>
+      </button>`;
+    }).join("");
+
     slot.innerHTML = `
       <div class="quiz-stop-panel">
-        <div class="quiz-prompt" style="margin-top:0;">You're in. <b>Where's your stop-loss?</b> Type a price, or click the chart to place it.</div>
+        <div class="quiz-prompt" style="margin-top:0;">Filled at <b>$${fmtPrice(entryPrice)}</b>. <b>Where's your stop-loss?</b> Pick a default, type a price, or click the chart to place it.</div>
+        <div class="quiz-stop-presets">${presetsHtml}</div>
         <div class="quiz-stop-row">
           <input type="number" step="0.0001" id="quiz-stop-input" placeholder="e.g. ${fmtPrice(c.side === "short" ? entryPrice * 1.02 : entryPrice * 0.98)}">
           <button class="quiz-answer-btn enter" id="quiz-stop-confirm" style="flex:none; min-width:150px;">Lock in stop <span class="kbd">↵</span></button>
@@ -407,6 +676,15 @@
       </div>
     `;
     c.stage = "stop";
+
+    // Now that the entry decision is locked in, reveal the entry bar
+    // itself as history (it was hidden during the second-by-second replay)
+    // so there's a real chart to click a stop-loss onto.
+    teardownChart(c.chartHandle);
+    c.chartHandle = buildChart(document.getElementById("quiz-candle-chart"), c.bars.slice(0, c.entryIdx + 1), {
+      height: 380,
+      priceLines: [{ price: entryPrice, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "your entry" }],
+    });
 
     let previewLine = null;
     function setPreview(price) {
@@ -424,11 +702,27 @@
     }
 
     const input = document.getElementById("quiz-stop-input");
-    input.addEventListener("input", () => setPreview(Number(input.value)));
+    const presetBtns = Array.from(document.querySelectorAll(".quiz-stop-preset-btn"));
+    // Typing or clicking the chart is a manual override -- it should
+    // clear whichever preset button was showing as selected, so the
+    // highlighted preset never lies about what's actually in the input.
+    function clearPresetSelection() { presetBtns.forEach((b) => b.classList.remove("active")); }
+
+    input.addEventListener("input", () => { clearPresetSelection(); setPreview(Number(input.value)); });
+    presetBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        clearPresetSelection();
+        btn.classList.add("active");
+        const price = Number(btn.dataset.price);
+        input.value = fmtPrice(price);
+        setPreview(price);
+      });
+    });
     c.chartHandle.chart.subscribeClick((param) => {
       if (!param.point || !c.chartHandle.series) return;
       const price = c.chartHandle.series.coordinateToPrice(param.point.y);
       if (price == null) return;
+      clearPresetSelection();
       input.value = fmtPrice(price);
       setPreview(price);
     });
@@ -465,9 +759,14 @@
   function renderCheckpointStage() {
     const c = state.current;
     const trade = c.trade;
-    const visibleBars = c.bars.slice(0, c.checkpointIdx + 1);
+    const entryPrice = Number.isFinite(c.simEntryPrice) ? c.simEntryPrice : trade.entry_price;
+    // History through the bar before the checkpoint -- like the entry
+    // stage, the checkpoint bar itself plays out second by second below
+    // instead of being shown as an already-closed candle.
+    const historyBars = c.bars.slice(0, c.checkpointIdx);
     const checkpointBar = c.bars[c.checkpointIdx];
-    const unrealized = pnlPerShare(trade.entry_price, checkpointBar.c, c.side);
+    const prevClose = historyBars.length ? historyBars[historyBars.length - 1].c : entryPrice;
+    const unrealized = pnlPerShare(entryPrice, prevClose, c.side);
     const clockStr = new Date(checkpointBar.t.replace(" ", "T")).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
     els.card.innerHTML = `
@@ -480,28 +779,37 @@
       </div>
       <div class="quiz-chart-wrap"><div id="quiz-candle-chart"></div></div>
       <div class="quiz-prompt">
-        You're in at <b>$${fmtPrice(trade.entry_price)}</b>, stop at <b>$${fmtPrice(c.stopPrice)}</b>.
-        Price is now <b>$${fmtPrice(checkpointBar.c)}</b> — unrealized <b style="color:${unrealized >= 0 ? "var(--green)" : "var(--red)"}">${fmtSignedPerShare(unrealized)}/sh</b>.
-        <b>Exit now, or hold?</b>
+        You're in at <b>$${fmtPrice(entryPrice)}</b>, stop at <b>$${fmtPrice(c.stopPrice)}</b>.
+        Going into this minute, unrealized was <b style="color:${unrealized >= 0 ? "var(--green)" : "var(--red)"}">${fmtSignedPerShare(unrealized)}/sh</b>.
+        Watch it play out second by second — <b>click when you'd exit</b>, or hold.
       </div>
-      <div class="quiz-answer-row">
-        <button class="quiz-answer-btn exit" id="qz-exit">Exit now <span class="kbd">E</span></button>
-        <button class="quiz-answer-btn hold" id="qz-hold">Hold <span class="kbd">H</span></button>
-      </div>
+      <div id="quiz-replay-slot"></div>
     `;
     c.stage = "checkpoint";
 
     teardownChart(c.chartHandle);
-    c.chartHandle = buildChart(document.getElementById("quiz-candle-chart"), visibleBars, {
+    c.chartHandle = buildChart(document.getElementById("quiz-candle-chart"), historyBars.length ? historyBars : c.bars.slice(0, c.checkpointIdx + 1), {
       height: 380,
       priceLines: [
-        { price: trade.entry_price, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "" },
+        { price: entryPrice, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "your entry" },
         { price: c.stopPrice, color: "#c9cdd6", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your stop" },
       ],
     });
 
-    document.getElementById("qz-exit").addEventListener("click", () => { c.checkpointAction = "exit"; goToReveal(); });
-    document.getElementById("qz-hold").addEventListener("click", () => { c.checkpointAction = "hold"; goToReveal(); });
+    const ticks = genSecondTicks(checkpointBar, prevClose, `${trade.id}:checkpoint`);
+    c.replayHandle = runSecondReplay(document.getElementById("quiz-replay-slot"), ticks, {
+      actions: [
+        { id: "exit", label: "Exit now", kbd: "E", cls: "exit" },
+        { id: "hold", label: "Hold", kbd: "H", cls: "hold" },
+      ],
+      defaultActionId: "hold",
+      onAct: (actionId, secondIdx, price) => {
+        c.checkpointAction = actionId;
+        c.exitSecond = secondIdx;
+        c.userExitPrice = actionId === "exit" ? price : null;
+        goToReveal();
+      },
+    });
   }
 
   // ---------- grading ----------
@@ -534,24 +842,29 @@
   function computeGrading(c) {
     const trade = c.trade;
     const side = c.side;
-    const entryPrice = trade.entry_price;
+    // The user's own P&L is computed off the second they actually clicked,
+    // not the AI's logged entry/exit -- that precision is the point of the
+    // replay. `actualPnl` (the real trade's outcome) still uses the AI's
+    // logged prices as the baseline to compare against.
+    const entryPrice = Number.isFinite(c.simEntryPrice) ? c.simEntryPrice : trade.entry_price;
     const win = !!trade.win;
     const entryGrade = gradeEntry(win, c.entered);
 
     let stopGrade = null, exitGrade = null, userPnlPerShare = null;
     if (c.entered) {
       stopGrade = gradeStop(side, entryPrice, c.stopPrice, trade.suggested_stop);
-      const actualPnl = pnlPerShare(entryPrice, trade.exit_price, side);
+      const actualPnl = pnlPerShare(trade.entry_price, trade.exit_price, side);
 
       if (c.stoppedOutEarly) {
         userPnlPerShare = pnlPerShare(entryPrice, c.stopPrice, side);
         exitGrade = { label: `Stopped out before your check-in, at $${fmtPrice(c.stopPrice)}.`, tone: "warn" };
       } else if (c.checkpointIdx == null) {
-        userPnlPerShare = actualPnl;
+        userPnlPerShare = pnlPerShare(entryPrice, trade.exit_price, side);
         exitGrade = { label: "Not enough bars for a mid-trade check on this one — it went straight to the real exit.", tone: "neutral" };
       } else if (c.checkpointAction === "exit") {
         const checkpointBar = c.bars[c.checkpointIdx];
-        userPnlPerShare = pnlPerShare(entryPrice, checkpointBar.c, side);
+        const exitPrice = Number.isFinite(c.userExitPrice) ? c.userExitPrice : checkpointBar.c;
+        userPnlPerShare = pnlPerShare(entryPrice, exitPrice, side);
         const diff = actualPnl - userPnlPerShare;
         const threshold = Math.max(0.15 * Math.abs(actualPnl || 0.01), 0.01);
         if (diff > threshold) exitGrade = { label: `You exited early — the move kept going. Riding it to the real exit made ${fmtSignedPerShare(diff)}/sh more.`, tone: "warn" };
@@ -567,7 +880,7 @@
           userPnlPerShare = pnlPerShare(entryPrice, c.stopPrice, side);
           exitGrade = { label: `Holding would've run you into your own stop at $${fmtPrice(c.stopPrice)} before the real exit.`, tone: "warn" };
         } else {
-          userPnlPerShare = actualPnl;
+          userPnlPerShare = pnlPerShare(entryPrice, trade.exit_price, side);
           exitGrade = { label: "You held on — matches what actually happened.", tone: "neutral" };
         }
       }
@@ -590,16 +903,19 @@
     });
     state.streak = grading.entryGrade.correct ? state.streak + 1 : 0;
 
-    const markers = [];
     const entryBar = c.bars[c.entryIdx], exitBar = c.bars[c.exitIdx];
-    markers.push({
-      time: toUnix(entryBar.t), position: c.side === "short" ? "aboveBar" : "belowBar",
-      color: "#2fd08a", shape: c.side === "short" ? "arrowDown" : "arrowUp", text: "Entry",
-    });
-    markers.push({
-      time: toUnix(exitBar.t), position: c.side === "short" ? "belowBar" : "aboveBar",
-      color: "#f2555a", shape: c.side === "short" ? "arrowUp" : "arrowDown", text: "Exit",
-    });
+    // Small triangle pointers landing right on the exact fill price/time,
+    // same as trade.js -- "above"/"below" keeps the same short-vs-long
+    // direction the old arrow markers used (short entries point down from
+    // above, long entries point up from below, and exits mirror that).
+    const pointers = [
+      { time: toUnix(entryBar.t), price: trade.entry_price, color: "#2fd08a", above: c.side === "short",
+        tooltip: `ENTRY $${fmtPrice(trade.entry_price)}` },
+      { time: toUnix(exitBar.t), price: trade.exit_price, color: "#f2555a", above: c.side !== "short",
+        tooltip: `EXIT $${fmtPrice(trade.exit_price)}` },
+    ];
+
+    const markers = [];
     if (c.stoppedOutEarly && c.stopOutIdx != null) {
       markers.push({ time: toUnix(c.bars[c.stopOutIdx].t), position: "inBar", color: "#e8a94c", shape: "circle", text: "Your stop" });
     } else if (c.entered && c.checkpointAction === "exit" && c.checkpointIdx != null) {
@@ -610,6 +926,14 @@
       { price: trade.entry_price, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "" },
       { price: trade.exit_price, color: "#f2555a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "" },
     ];
+    // Your own chosen entry/exit prices from the second-by-second replay,
+    // shown separately from the AI's logged fills above when they differ.
+    if (c.entered && Number.isFinite(c.simEntryPrice) && Math.abs(c.simEntryPrice - trade.entry_price) >= 0.005) {
+      priceLines.push({ price: c.simEntryPrice, color: "#5b93f0", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your entry" });
+    }
+    if (c.entered && c.checkpointAction === "exit" && Number.isFinite(c.userExitPrice) && Math.abs(c.userExitPrice - trade.exit_price) >= 0.005) {
+      priceLines.push({ price: c.userExitPrice, color: "#ec6cad", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your exit" });
+    }
     if (c.entered && c.stopPrice != null) {
       priceLines.push({ price: c.stopPrice, color: "#c9cdd6", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your stop" });
     }
@@ -626,12 +950,9 @@
     if (trade.suggested_target != null && Number.isFinite(sugTarget) && (c.side === "short" ? sugTarget < trade.entry_price : sugTarget > trade.entry_price)) {
       priceLines.push({ price: sugTarget, color: "#22d3ee", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "AI target" });
     }
-    if (trade.better_entry && trade.better_entry.price != null) {
-      priceLines.push({ price: Number(trade.better_entry.price), color: "#8b7cf6", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "better entry" });
-    }
-    if (trade.better_exit && trade.better_exit.price != null) {
-      priceLines.push({ price: Number(trade.better_exit.price), color: "#ec6cad", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "better exit" });
-    }
+    // better_entry/better_exit dotted lines removed -- they cluttered the
+    // reveal chart without adding anything the text below it doesn't
+    // already cover.
 
     const label = { name: trade.symbol, date: trade.trade_date }; // reveal always shows the real thing
     const winPillHtml = `<span class="pill ${trade.win ? "win" : "loss"}">${trade.win ? "Winner" : "Loser"}</span>`;
@@ -694,7 +1015,7 @@
     `;
 
     teardownChart(c.chartHandle);
-    c.chartHandle = buildChart(document.getElementById("quiz-candle-chart"), c.bars, { height: 400, markers, priceLines });
+    c.chartHandle = buildChart(document.getElementById("quiz-candle-chart"), c.bars, { height: 400, markers, priceLines, pointers });
 
     document.getElementById("qz-next").addEventListener("click", () => { state.qIndex++; loadQuestion(); });
   }
@@ -726,6 +1047,7 @@
 
   function goToSetupScreen() {
     if (state.current && state.current.chartHandle) teardownChart(state.current.chartHandle);
+    if (state.current && state.current.replayHandle) state.current.replayHandle.stop();
     state.current = null;
     els.playScreen.style.display = "none";
     els.summaryScreen.style.display = "none";

@@ -88,7 +88,13 @@
 .side-pill.short { background: var(--red-soft); color: var(--red); }
 .quiz-clock { font-size: 12.5px; color: var(--text-faint); font-family: var(--mono); }
 
-.quiz-chart-wrap { margin: 14px 0 6px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); overflow: hidden; }
+/* overflow was previously hidden to keep the chart canvas clipped to the
+   wrap's rounded corners, but that also clipped the entry/exit pointer
+   tooltips whenever they landed near the top/bottom edge of the chart.
+   The candle chart itself already fills exactly to its own box, so
+   dropping this doesn't visibly change the corners, and now tooltips are
+   never cut off -- same as the (unclipped) chart wrap on trade.html. */
+.quiz-chart-wrap { margin: 14px 0 6px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); }
 #quiz-candle-chart { width: 100%; }
 
 .quiz-prompt { font-size: 14.5px; color: var(--text); margin: 14px 0 12px; line-height: 1.55; }
@@ -115,7 +121,28 @@
 .quiz-answer-btn.hold { border-color: rgba(232,169,76,.4); color: var(--amber); }
 .quiz-answer-btn.hold:hover { background: var(--amber-soft); }
 
+.quiz-replay-panel { margin: 4px 0 6px; padding: 14px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: var(--panel-2); }
+.quiz-replay-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+.quiz-replay-price { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
+.quiz-replay-sec { font-size: 12px; color: var(--text-faint); font-family: var(--mono); }
+.quiz-replay-tag { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; }
+.quiz-replay-track { height: 4px; border-radius: 2px; background: var(--border-soft); overflow: hidden; margin-bottom: 12px; }
+.quiz-replay-bar { height: 100%; width: 0%; background: var(--blue); transition: width .08s linear; }
+.quiz-replay-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
 .quiz-stop-panel { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-soft); }
+.quiz-stop-presets { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.quiz-stop-preset-btn {
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim);
+  border-radius: 20px; padding: 6px 12px; font-size: 12.5px; font-weight: 600;
+  font-family: var(--mono); cursor: pointer; transition: all .12s ease;
+}
+.quiz-stop-preset-btn .dim { color: var(--text-faint); font-weight: 400; }
+.quiz-stop-preset-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.quiz-stop-preset-btn.active {
+  background: var(--primary-soft); color: var(--primary); border-color: rgba(139,124,246,.4);
+}
+.quiz-stop-preset-btn.active .dim { color: var(--primary); opacity: .8; }
 .quiz-stop-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .quiz-stop-row input[type="number"] {
   background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
