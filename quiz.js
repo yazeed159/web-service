@@ -103,6 +103,8 @@
   // its close, with small random jitter layered on top so it doesn't
   // look like a robotic straight-line ramp. It's clearly labeled as
   // simulated in the UI — this is a practice aid, not real ticks.
+  // Used for the checkpoint/exit stage only — the entry stage keeps
+  // its forming-candle + live countdown badge look.
   // ---------------------------------------------------------------
   function seededRng(seedStr) {
     let h = 1779033703 ^ seedStr.length;
@@ -324,75 +326,18 @@
   // the quiz only needs candles + volume + VWAP/EMA overlays, cropped
   // to whatever the current stage should reveal.
   // ---------------------------------------------------------------
-
-  // Any click outside a pointer tooltip closes whichever one is pinned
-  // open. Registered once (not per buildChart call, since buildChart
-  // reruns for every stage of every question) so it never stacks up
-  // duplicate handlers.
-  document.addEventListener("click", () => {
-    document.querySelectorAll(".pointer-tooltip").forEach((t) => { t.dataset.open = "0"; t.style.display = "none"; });
-  });
-
-  const POINTER_H = 9; // triangle height in px -- also used to correct the tip offset below
-
-  // Same small-triangle-on-the-exact-price marker as trade.js, instead of
-  // lightweight-charts' built-in arrow markers (which snap to a fixed
-  // offset above/below the *bar*, not the actual fill price). Building it
-  // here (rather than importing trade.js) keeps the quiz's chart free of
-  // trade.js's page-specific globals -- the visual result and behavior
-  // (hover on desktop, tap on touch, click-outside-to-close) match exactly.
-  function buildPointer(wrap, tooltipText, color) {
-    wrap.style.position = "relative";
-    let overlay = wrap.querySelector(".fill-pointer-overlay");
-    if (!overlay) {
-      overlay = document.createElement("div");
-      overlay.className = "fill-pointer-overlay";
-      overlay.style.cssText = "position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:2;";
-      wrap.appendChild(overlay);
-    }
-    const el = document.createElement("div");
-    el.style.cssText = `
-      position:absolute; width:0; height:0; pointer-events:auto;
-      border-left:6px solid transparent; border-right:6px solid transparent;
-      filter: drop-shadow(0 0 1.5px #0b0d10) drop-shadow(0 0 1.5px #0b0d10);
-    `;
-    overlay.appendChild(el);
-
-    let tooltip = null;
-    if (tooltipText) {
-      tooltip = document.createElement("div");
-      tooltip.className = "pointer-tooltip";
-      tooltip.dataset.open = "0";
-      tooltip.style.cssText = `
-        position:absolute; display:none; width:180px; max-width:60vw;
-        background:#181b22; border:1px solid ${color}; border-radius:8px;
-        padding:8px 10px; font-size:12px; line-height:1.5; color:#eceef2;
-        box-shadow:0 6px 20px rgba(0,0,0,.45); z-index:5; pointer-events:none;
-      `;
-      tooltip.textContent = tooltipText;
-      wrap.appendChild(tooltip);
-
-      const openTooltip = () => {
-        wrap.querySelectorAll(".pointer-tooltip").forEach((t) => { t.dataset.open = "0"; t.style.display = "none"; });
-        tooltip.dataset.open = "1";
-        tooltip.style.display = "block";
-      };
-      const closeTooltip = () => { tooltip.dataset.open = "0"; tooltip.style.display = "none"; };
-      el.addEventListener("mouseenter", openTooltip);
-      el.addEventListener("mouseleave", closeTooltip);
-      el.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (tooltip.dataset.open === "1") closeTooltip(); else openTooltip();
-      });
-    }
-    return { el, tooltip };
-  }
-
   function buildChart(el, bars, opts) {
     opts = opts || {};
     el.innerHTML = "";
-    const candleData = bars.map((b) => ({ time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c }));
-    const volData = bars.map((b) => ({ time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" }));
+    const candleData = bars.map((b) => {
+      const point = { time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c };
+      if (b._forming) { point.color = "rgba(232,169,76,0.55)"; point.borderColor = "#e8a94c"; point.wickColor = "#e8a94c"; }
+      return point;
+    });
+    const volData = bars.map((b) => ({
+      time: toUnix(b.t), value: b.v,
+      color: b._forming ? "rgba(232,169,76,0.4)" : (b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)"),
+    }));
     const vwapData = bars.filter((b) => b.vwap != null).map((b) => ({ time: toUnix(b.t), value: b.vwap }));
     const ema9Data = bars.filter((b) => b.ema9 != null).map((b) => ({ time: toUnix(b.t), value: b.ema9 }));
     const ema20Data = bars.filter((b) => b.ema20 != null).map((b) => ({ time: toUnix(b.t), value: b.ema20 }));
@@ -408,19 +353,9 @@
     const series = chart.addCandlestickSeries({
       upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
       wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
-      // The candlestick series draws its own automatic price line + label
-      // at the last visible close, colored green/red to match whichever
-      // way that last candle closed -- entirely independent of the
-      // explicit entry/exit price lines below, which are ALSO green/red.
-      // Whenever the last visible candle happened to close the same
-      // direction as the entry or exit, this auto line landed right next
-      // to (or through) the real one, reading as a stray duplicate green
-      // or red line. Turning it off leaves only the price lines we draw
-      // on purpose.
-      priceLineVisible: false, lastValueVisible: false,
     });
     series.setData(candleData);
-    chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.14, bottom: 0.18 } });
+    chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.12, bottom: 0.2 } });
 
     const volSeries = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol" });
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
@@ -436,63 +371,72 @@
       priceLineRefs[pl.key || i] = series.createPriceLine(pl);
     });
 
-    // opts.pointers: [{ time, price, color, above, tooltip }] -- small
-    // triangles that sit right on the exact entry/exit fill, tip pointing
-    // straight at it, replacing the old built-in arrow markers (which
-    // only ever snapped to a fixed offset above/below the bar).
-    const pointers = (opts.pointers || []).map((p) => {
-      const { el: pel, tooltip } = buildPointer(el, p.tooltip, p.color);
-      pel.style.borderTop = p.above ? `${POINTER_H}px solid ${p.color}` : "";
-      pel.style.borderBottom = p.above ? "" : `${POINTER_H}px solid ${p.color}`;
-      return { time: p.time, price: p.price, above: p.above, el: pel, tooltip };
-    });
-    function repositionPointers() {
-      pointers.forEach((p) => {
-        const x = chart.timeScale().timeToCoordinate(p.time);
-        const y = series.priceToCoordinate(p.price);
-        if (x === null || y === null) {
-          p.el.style.display = "none";
-          if (p.tooltip) { p.tooltip.style.display = "none"; p.tooltip.dataset.open = "0"; }
-          return;
-        }
-        p.el.style.display = "block";
-        p.el.style.left = `${x}px`;
-        const pointerTop = p.above ? y - POINTER_H : y;
-        p.el.style.top = `${pointerTop}px`;
-        p.el.style.transform = "translateX(-50%)";
-        if (p.tooltip && p.tooltip.dataset.open === "1") {
-          p.tooltip.style.left = `${x + 8}px`;
-          p.tooltip.style.top = `${p.above ? pointerTop - 8 : pointerTop + POINTER_H + 8}px`;
-          p.tooltip.style.transform = p.above ? "translateY(-100%)" : "none";
-        }
-      });
-    }
-    if (pointers.length) {
-      chart.timeScale().subscribeVisibleLogicalRangeChange(repositionPointers);
-    }
-
     chart.timeScale().fitContent();
     let ro = null;
     if (window.ResizeObserver) {
-      ro = new ResizeObserver(() => {
-        try { chart.applyOptions({ width: el.clientWidth }); } catch (e) {}
-        repositionPointers();
-      });
+      ro = new ResizeObserver(() => { try { chart.applyOptions({ width: el.clientWidth }); } catch (e) {} });
       ro.observe(el);
     }
-    // priceToCoordinate depends on the right price scale's autoscale,
-    // which isn't settled until after setData/fitContent run -- a couple
-    // of follow-up passes catch that instead of racing it.
-    repositionPointers();
-    requestAnimationFrame(repositionPointers);
-    setTimeout(repositionPointers, 0);
-
     return { chart, series, volSeries, priceLineRefs, resizeObserver: ro };
   }
   function teardownChart(handle) {
     if (!handle) return;
     try { if (handle.resizeObserver) handle.resizeObserver.disconnect(); } catch (e) {}
+    try { if (handle.pointerRo) handle.pointerRo.disconnect(); } catch (e) {}
     try { handle.chart.remove(); } catch (e) {}
+  }
+
+  // ---------------------------------------------------------------
+  // exact-price pointer triangles -- the same look used on trade.html,
+  // instead of lightweight-charts' native markers (which snap to a fixed
+  // offset above/below the candle's own high/low, not the exact fill
+  // price). A native marker plus a horizontal price line at the same
+  // price but visually offset from each other is what read as "two lines"
+  // -- a pointer's tip sits exactly where the line is, so there's only
+  // ever one thing marking a given price.
+  // ---------------------------------------------------------------
+  const POINTER_H = 9;
+  function attachPointers(container, chartHandle, pointerDefs) {
+    const { chart, series } = chartHandle;
+    container.style.position = "relative";
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:2;";
+    container.appendChild(overlay);
+
+    const pointers = pointerDefs.map((p) => {
+      const el = document.createElement("div");
+      el.style.cssText = `
+        position:absolute; width:0; height:0; pointer-events:none;
+        border-left:6px solid transparent; border-right:6px solid transparent;
+        filter: drop-shadow(0 0 1.5px #0b0d10) drop-shadow(0 0 1.5px #0b0d10);
+        border-top:${p.above ? `${POINTER_H}px solid ${p.color}` : "0"};
+        border-bottom:${p.above ? "0" : `${POINTER_H}px solid ${p.color}`};
+      `;
+      overlay.appendChild(el);
+      return { ...p, el };
+    });
+
+    function reposition() {
+      try {
+        pointers.forEach((p) => {
+          const x = chart.timeScale().timeToCoordinate(p.time);
+          const y = series.priceToCoordinate(p.price);
+          if (x == null || y == null) { p.el.style.display = "none"; return; }
+          p.el.style.display = "block";
+          p.el.style.left = `${x}px`;
+          p.el.style.top = `${p.above ? y - POINTER_H : y}px`;
+          p.el.style.transform = "translateX(-50%)";
+        });
+      } catch (e) { /* chart already torn down */ }
+    }
+
+    let ro = null;
+    if (window.ResizeObserver) { ro = new ResizeObserver(reposition); ro.observe(container); }
+    chart.timeScale().subscribeVisibleLogicalRangeChange(reposition);
+    reposition();
+    requestAnimationFrame(reposition);
+    setTimeout(reposition, 0);
+    chartHandle.pointerRo = ro;
   }
 
   // ---------------------------------------------------------------
@@ -566,8 +510,6 @@
       checkpointAction: null,
       chartHandle: null,
       replayHandle: null,
-      simEntryPrice: null,
-      entrySecond: null,
       userExitPrice: null,
       exitSecond: null,
     };
@@ -581,17 +523,38 @@
   }
 
   // ---------- Stage A: entry decision ----------
+  const BAR_SECONDS = 60; // data is 1-minute bars throughout
+
+  // The bar the entry fill happened inside is only *partially* known at
+  // decision time — we don't want to show its eventual high/low if those
+  // were set after (or are simply unrelated to) the actual fill. We only
+  // know: the bar's open, and the fill price itself. So the "live" candle
+  // shown pre-decision is built from just those two points, clamped so it
+  // can never leak the bar's real (future-relative-to-entry) extremes.
+  function buildFormingBar(fullBar, fillPrice, secondsIntoBar) {
+    const frac = Math.max(0, Math.min(1, secondsIntoBar / BAR_SECONDS));
+    return {
+      t: fullBar.t,
+      o: fullBar.o,
+      h: Math.max(fullBar.o, fillPrice),
+      l: Math.min(fullBar.o, fillPrice),
+      c: fillPrice,
+      v: Math.round((fullBar.v || 0) * frac),
+      vwap: fullBar.vwap, ema9: fullBar.ema9, ema20: fullBar.ema20,
+      _forming: true,
+    };
+  }
+
   function renderEntryStage() {
     const c = state.current;
     const trade = c.trade;
     const label = displayLabel(trade);
-    // History only up through the bar BEFORE entry -- the entry bar itself
-    // isn't shown as a finished candle. Instead it plays out second by
-    // second below, so "would you enter" is answered against a moment in
-    // time, not an already-closed bar.
-    const historyBars = c.bars.slice(0, c.entryIdx);
     const entryBar = c.bars[c.entryIdx];
-    const prevClose = historyBars.length ? historyBars[historyBars.length - 1].c : null;
+    const entryUnix = toUnix(`${trade.trade_date} ${trade.entry_time}`);
+    const secondsIntoBar = Math.max(0, entryUnix - toUnix(entryBar.t));
+    const secondsRemaining = Math.max(0, BAR_SECONDS - secondsIntoBar);
+    const formingBar = buildFormingBar(entryBar, trade.entry_price, secondsIntoBar);
+    const visibleBars = c.bars.slice(0, c.entryIdx).concat([formingBar]);
     const sidePretty = c.side === "short" ? "short" : "long";
 
     els.card.innerHTML = `
@@ -602,71 +565,47 @@
           <span class="side-pill ${sidePretty}">${sidePretty}</span>
           <span class="pill">${escapeHtml((trade.setup_type || "unlabeled setup").replace(/_/g, " "))}</span>
         </div>
-        <span class="quiz-clock">${escapeHtml(trade.entry_time)}</span>
+        <span class="quiz-clock">${escapeHtml(trade.entry_time)}
+          <span class="quiz-live-badge"><span class="quiz-live-dot"></span>${secondsRemaining}s left on this candle</span>
+        </span>
       </div>
       <div class="quiz-chart-wrap"><div id="quiz-candle-chart"></div></div>
       <div class="quiz-prompt">
-        This is a <b>${sidePretty}</b> setup${label.date ? "" : ""}. Watch the next minute play out second by second — <b>click when you'd enter</b>, or pass.
+        Price is at <b>$${fmtPrice(trade.entry_price)}</b> and this candle is still forming — you're deciding mid-bar, not after the close. This is a <b>${sidePretty}</b> setup. <b>Would you enter here?</b>
       </div>
-      <div id="quiz-replay-slot"></div>
+      <div class="quiz-answer-row">
+        <button class="quiz-answer-btn enter" id="qz-enter">Enter the trade <span class="kbd">Y</span></button>
+        <button class="quiz-answer-btn pass" id="qz-pass">Pass <span class="kbd">N</span></button>
+      </div>
       <div id="quiz-stop-slot"></div>
     `;
 
     teardownChart(c.chartHandle);
-    c.chartHandle = historyBars.length
-      ? buildChart(document.getElementById("quiz-candle-chart"), historyBars, { height: 380 })
-      : null;
-    if (!historyBars.length) document.getElementById("quiz-candle-chart").innerHTML =
-      `<div class="empty-state" style="padding:24px 0;">No bars before entry to show — jumping straight to the replay.</div>`;
+    c.chartHandle = buildChart(document.getElementById("quiz-candle-chart"), visibleBars, { height: 380 });
 
-    const ticks = genSecondTicks(entryBar, prevClose, `${trade.id}:entry`);
-    c.replayHandle = runSecondReplay(document.getElementById("quiz-replay-slot"), ticks, {
-      actions: [
-        { id: "enter", label: "Enter now", kbd: "Y", cls: "enter" },
-        { id: "pass", label: "Pass", kbd: "N", cls: "pass" },
-      ],
-      defaultActionId: "pass",
-      onAct: (actionId, secondIdx, price) => handleEntryChoice(actionId === "enter", secondIdx, price),
-    });
+    document.getElementById("qz-enter").addEventListener("click", () => handleEntryChoice(true));
+    document.getElementById("qz-pass").addEventListener("click", () => handleEntryChoice(false));
     c.stage = "entry";
   }
 
-  function handleEntryChoice(entered, secondIdx, price) {
+  function handleEntryChoice(entered) {
     const c = state.current;
     c.entered = entered;
-    c.entrySecond = secondIdx;
-    c.simEntryPrice = entered ? price : null;
+    document.getElementById("qz-enter").disabled = true;
+    document.getElementById("qz-pass").disabled = true;
     if (entered) renderStopStage();
     else goToReveal();
   }
-
-  // Quick-pick stop distances, as % risk off the entry price -- the
-  // common round numbers a trader would reach for first. Each resolves to
-  // a real price on the correct side of entry for the trade's side
-  // (below entry for longs, above for shorts).
-  const STOP_PRESET_PCTS = [0.005, 0.01, 0.02, 0.03];
 
   // ---------- Stage B: stop-loss placement ----------
   function renderStopStage() {
     const c = state.current;
     const trade = c.trade;
-    // Fill price is whatever second they clicked "Enter now" on during the
-    // replay, not the AI's logged entry_price -- that's the whole point of
-    // choosing the second yourself.
-    const entryPrice = Number.isFinite(c.simEntryPrice) ? c.simEntryPrice : trade.entry_price;
+    const entryPrice = trade.entry_price;
     const slot = document.getElementById("quiz-stop-slot");
-
-    const presetsHtml = STOP_PRESET_PCTS.map((pct) => {
-      const price = c.side === "short" ? entryPrice * (1 + pct) : entryPrice * (1 - pct);
-      return `<button type="button" class="quiz-stop-preset-btn" data-price="${price}">
-        ${(pct * 100).toFixed(1)}% <span class="dim">· $${fmtPrice(price)}</span>
-      </button>`;
-    }).join("");
-
     slot.innerHTML = `
       <div class="quiz-stop-panel">
-        <div class="quiz-prompt" style="margin-top:0;">Filled at <b>$${fmtPrice(entryPrice)}</b>. <b>Where's your stop-loss?</b> Pick a default, type a price, or click the chart to place it.</div>
-        <div class="quiz-stop-presets">${presetsHtml}</div>
+        <div class="quiz-prompt" style="margin-top:0;">You're in. <b>Where's your stop-loss?</b> Type a price, or click the chart to place it.</div>
         <div class="quiz-stop-row">
           <input type="number" step="0.0001" id="quiz-stop-input" placeholder="e.g. ${fmtPrice(c.side === "short" ? entryPrice * 1.02 : entryPrice * 0.98)}">
           <button class="quiz-answer-btn enter" id="quiz-stop-confirm" style="flex:none; min-width:150px;">Lock in stop <span class="kbd">↵</span></button>
@@ -676,15 +615,6 @@
       </div>
     `;
     c.stage = "stop";
-
-    // Now that the entry decision is locked in, reveal the entry bar
-    // itself as history (it was hidden during the second-by-second replay)
-    // so there's a real chart to click a stop-loss onto.
-    teardownChart(c.chartHandle);
-    c.chartHandle = buildChart(document.getElementById("quiz-candle-chart"), c.bars.slice(0, c.entryIdx + 1), {
-      height: 380,
-      priceLines: [{ price: entryPrice, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "your entry" }],
-    });
 
     let previewLine = null;
     function setPreview(price) {
@@ -702,27 +632,11 @@
     }
 
     const input = document.getElementById("quiz-stop-input");
-    const presetBtns = Array.from(document.querySelectorAll(".quiz-stop-preset-btn"));
-    // Typing or clicking the chart is a manual override -- it should
-    // clear whichever preset button was showing as selected, so the
-    // highlighted preset never lies about what's actually in the input.
-    function clearPresetSelection() { presetBtns.forEach((b) => b.classList.remove("active")); }
-
-    input.addEventListener("input", () => { clearPresetSelection(); setPreview(Number(input.value)); });
-    presetBtns.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        clearPresetSelection();
-        btn.classList.add("active");
-        const price = Number(btn.dataset.price);
-        input.value = fmtPrice(price);
-        setPreview(price);
-      });
-    });
+    input.addEventListener("input", () => setPreview(Number(input.value)));
     c.chartHandle.chart.subscribeClick((param) => {
       if (!param.point || !c.chartHandle.series) return;
       const price = c.chartHandle.series.coordinateToPrice(param.point.y);
       if (price == null) return;
-      clearPresetSelection();
       input.value = fmtPrice(price);
       setPreview(price);
     });
@@ -759,10 +673,10 @@
   function renderCheckpointStage() {
     const c = state.current;
     const trade = c.trade;
-    const entryPrice = Number.isFinite(c.simEntryPrice) ? c.simEntryPrice : trade.entry_price;
-    // History through the bar before the checkpoint -- like the entry
-    // stage, the checkpoint bar itself plays out second by second below
-    // instead of being shown as an already-closed candle.
+    const entryPrice = trade.entry_price;
+    // History through the bar before the checkpoint -- the checkpoint bar
+    // itself plays out second by second below instead of being shown as
+    // an already-closed candle.
     const historyBars = c.bars.slice(0, c.checkpointIdx);
     const checkpointBar = c.bars[c.checkpointIdx];
     const prevClose = historyBars.length ? historyBars[historyBars.length - 1].c : entryPrice;
@@ -791,7 +705,7 @@
     c.chartHandle = buildChart(document.getElementById("quiz-candle-chart"), historyBars.length ? historyBars : c.bars.slice(0, c.checkpointIdx + 1), {
       height: 380,
       priceLines: [
-        { price: entryPrice, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "your entry" },
+        { price: entryPrice, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "" },
         { price: c.stopPrice, color: "#c9cdd6", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your stop" },
       ],
     });
@@ -842,24 +756,20 @@
   function computeGrading(c) {
     const trade = c.trade;
     const side = c.side;
-    // The user's own P&L is computed off the second they actually clicked,
-    // not the AI's logged entry/exit -- that precision is the point of the
-    // replay. `actualPnl` (the real trade's outcome) still uses the AI's
-    // logged prices as the baseline to compare against.
-    const entryPrice = Number.isFinite(c.simEntryPrice) ? c.simEntryPrice : trade.entry_price;
+    const entryPrice = trade.entry_price;
     const win = !!trade.win;
     const entryGrade = gradeEntry(win, c.entered);
 
     let stopGrade = null, exitGrade = null, userPnlPerShare = null;
     if (c.entered) {
       stopGrade = gradeStop(side, entryPrice, c.stopPrice, trade.suggested_stop);
-      const actualPnl = pnlPerShare(trade.entry_price, trade.exit_price, side);
+      const actualPnl = pnlPerShare(entryPrice, trade.exit_price, side);
 
       if (c.stoppedOutEarly) {
         userPnlPerShare = pnlPerShare(entryPrice, c.stopPrice, side);
         exitGrade = { label: `Stopped out before your check-in, at $${fmtPrice(c.stopPrice)}.`, tone: "warn" };
       } else if (c.checkpointIdx == null) {
-        userPnlPerShare = pnlPerShare(entryPrice, trade.exit_price, side);
+        userPnlPerShare = actualPnl;
         exitGrade = { label: "Not enough bars for a mid-trade check on this one — it went straight to the real exit.", tone: "neutral" };
       } else if (c.checkpointAction === "exit") {
         const checkpointBar = c.bars[c.checkpointIdx];
@@ -880,7 +790,7 @@
           userPnlPerShare = pnlPerShare(entryPrice, c.stopPrice, side);
           exitGrade = { label: `Holding would've run you into your own stop at $${fmtPrice(c.stopPrice)} before the real exit.`, tone: "warn" };
         } else {
-          userPnlPerShare = pnlPerShare(entryPrice, trade.exit_price, side);
+          userPnlPerShare = actualPnl;
           exitGrade = { label: "You held on — matches what actually happened.", tone: "neutral" };
         }
       }
@@ -904,55 +814,27 @@
     state.streak = grading.entryGrade.correct ? state.streak + 1 : 0;
 
     const entryBar = c.bars[c.entryIdx], exitBar = c.bars[c.exitIdx];
-    // Small triangle pointers landing right on the exact fill price/time,
-    // same as trade.js -- "above"/"below" keeps the same short-vs-long
-    // direction the old arrow markers used (short entries point down from
-    // above, long entries point up from below, and exits mirror that).
-    const pointers = [
-      { time: toUnix(entryBar.t), price: trade.entry_price, color: "#2fd08a", above: c.side === "short",
-        tooltip: `ENTRY $${fmtPrice(trade.entry_price)}` },
-      { time: toUnix(exitBar.t), price: trade.exit_price, color: "#f2555a", above: c.side !== "short",
-        tooltip: `EXIT $${fmtPrice(trade.exit_price)}` },
-    ];
 
-    const markers = [];
+    // Only what actually matters at a glance: the real entry/exit fills,
+    // your own stop (if you had one), and whatever you actually did at
+    // exit time. AI stop/target and better-entry/exit are still explained
+    // in the text panels below -- they don't need to live on the chart
+    // too, and doing so is what caused a second, slightly-offset line
+    // sitting near the real entry/exit line.
+    const pointerDefs = [
+      { time: toUnix(entryBar.t), price: trade.entry_price, color: "#2fd08a", above: true },
+      { time: toUnix(exitBar.t), price: trade.exit_price, color: "#f2555a", above: false },
+    ];
     if (c.stoppedOutEarly && c.stopOutIdx != null) {
-      markers.push({ time: toUnix(c.bars[c.stopOutIdx].t), position: "inBar", color: "#e8a94c", shape: "circle", text: "Your stop" });
+      pointerDefs.push({ time: toUnix(c.bars[c.stopOutIdx].t), price: c.stopPrice, color: "#e8a94c", above: false });
     } else if (c.entered && c.checkpointAction === "exit" && c.checkpointIdx != null) {
-      markers.push({ time: toUnix(c.bars[c.checkpointIdx].t), position: "inBar", color: "#5b93f0", shape: "circle", text: "Your exit" });
+      pointerDefs.push({ time: toUnix(c.bars[c.checkpointIdx].t), price: c.bars[c.checkpointIdx].c, color: "#5b93f0", above: false });
     }
 
-    const priceLines = [
-      { price: trade.entry_price, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "" },
-      { price: trade.exit_price, color: "#f2555a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "" },
-    ];
-    // Your own chosen entry/exit prices from the second-by-second replay,
-    // shown separately from the AI's logged fills above when they differ.
-    if (c.entered && Number.isFinite(c.simEntryPrice) && Math.abs(c.simEntryPrice - trade.entry_price) >= 0.005) {
-      priceLines.push({ price: c.simEntryPrice, color: "#5b93f0", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your entry" });
-    }
-    if (c.entered && c.checkpointAction === "exit" && Number.isFinite(c.userExitPrice) && Math.abs(c.userExitPrice - trade.exit_price) >= 0.005) {
-      priceLines.push({ price: c.userExitPrice, color: "#ec6cad", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your exit" });
-    }
+    const priceLines = [];
     if (c.entered && c.stopPrice != null) {
       priceLines.push({ price: c.stopPrice, color: "#c9cdd6", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your stop" });
     }
-    // The AI's suggested stop/target are sometimes anchored to its suggested
-    // "better entry" rather than the real fill (e.g. a chase entry that's
-    // already past where a sane stop would sit) — only draw them when they
-    // fall on the correct side of the REAL entry, so the chart never shows
-    // a "stop" line above a long entry or similar nonsense.
-    const sugStop = Number(trade.suggested_stop);
-    if (trade.suggested_stop != null && Number.isFinite(sugStop) && (c.side === "short" ? sugStop > trade.entry_price : sugStop < trade.entry_price)) {
-      priceLines.push({ price: sugStop, color: "#e8a94c", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "AI stop" });
-    }
-    const sugTarget = Number(trade.suggested_target);
-    if (trade.suggested_target != null && Number.isFinite(sugTarget) && (c.side === "short" ? sugTarget < trade.entry_price : sugTarget > trade.entry_price)) {
-      priceLines.push({ price: sugTarget, color: "#22d3ee", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "AI target" });
-    }
-    // better_entry/better_exit dotted lines removed -- they cluttered the
-    // reveal chart without adding anything the text below it doesn't
-    // already cover.
 
     const label = { name: trade.symbol, date: trade.trade_date }; // reveal always shows the real thing
     const winPillHtml = `<span class="pill ${trade.win ? "win" : "loss"}">${trade.win ? "Winner" : "Loser"}</span>`;
@@ -1015,7 +897,9 @@
     `;
 
     teardownChart(c.chartHandle);
-    c.chartHandle = buildChart(document.getElementById("quiz-candle-chart"), c.bars, { height: 400, markers, priceLines, pointers });
+    const chartEl = document.getElementById("quiz-candle-chart");
+    c.chartHandle = buildChart(chartEl, c.bars, { height: 400, priceLines });
+    attachPointers(chartEl, c.chartHandle, pointerDefs);
 
     document.getElementById("qz-next").addEventListener("click", () => { state.qIndex++; loadQuestion(); });
   }
