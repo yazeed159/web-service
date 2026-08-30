@@ -523,6 +523,13 @@
   // ---------------------------------------------------------------
   function buildChart(el, bars, opts) {
     opts = opts || {};
+    if (typeof LightweightCharts === "undefined") {
+      // The charting library loads from an external CDN with `defer`, so on
+      // a slow connection it's possible to reach this before it's finished.
+      // Fail with a clear, actionable message instead of a bare
+      // "LightweightCharts is not defined" crash that leaves the card stuck.
+      throw new Error("Chart library hasn't finished loading yet — wait a moment and try again.");
+    }
     el.innerHTML = "";
     const candleData = bars.map((b) => {
       const point = { time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c };
@@ -737,6 +744,20 @@
     els.streak.textContent = state.streak >= 2 ? `🔥 ${state.streak} in a row` : "";
   }
 
+  // Anything past the initial fetch runs inside click handlers, setInterval
+  // ticks, or promise callbacks that a plain try/catch around the initial
+  // fetch can't see -- a thrown error there is normally swallowed silently
+  // by the browser, leaving whatever was on screen (often mid-action, with
+  // its buttons already disabled) permanently stuck with nothing to click.
+  // Every risky entry point below is wrapped so a failure instead lands
+  // here: a clear message plus a way to move on.
+  function showStageError(err) {
+    if (state.current && state.current.replayHandle) { state.current.replayHandle.stop(); state.current.replayHandle = null; }
+    els.card.innerHTML = `<div class="empty-state">Something went wrong showing this trade (${escapeHtml(String((err && err.message) || err))}). <button class="btn-advanced" id="qz-skip">Skip this question</button></div>`;
+    const skip = document.getElementById("qz-skip");
+    if (skip) skip.addEventListener("click", () => { state.qIndex++; loadQuestion(); });
+  }
+
   function loadQuestion() {
     if (state.current && state.current.replayHandle) state.current.replayHandle.stop();
     updateHeaderChrome();
@@ -744,11 +765,7 @@
     els.card.innerHTML = `<div class="loading-line">Loading chart…</div>`;
     fetchDetail(state.queue[state.qIndex])
       .then((trade) => initQuestion(trade))
-      .catch((err) => {
-        els.card.innerHTML = `<div class="empty-state">Couldn't load this trade (${escapeHtml(String(err.message))}). <button class="btn-advanced" id="qz-skip">Skip it</button></div>`;
-        const skip = document.getElementById("qz-skip");
-        if (skip) skip.addEventListener("click", () => { state.qIndex++; loadQuestion(); });
-      });
+      .catch(showStageError);
   }
 
   function initQuestion(trade) {
@@ -875,8 +892,15 @@
       watchBtn.textContent = state.tickMode === "real" ? "Loading real ticks…" : "Loading…";
       getEntryWatchTicks(trade, entryBar, prevCloseEntry, secondsIntoBar).then(({ prices, real, fellBack }) => {
         if (state.current !== c || c.stage !== "entry") return;
+        try {
         watchBtn.style.display = "none";
-        answerRow.style.display = "none"; // the replay's own Enter/Pass take over once you're watching
+        // Removed (not just hidden): the replay below creates its own
+        // #qz-enter/#qz-pass buttons, and a hidden duplicate of those same
+        // ids left in the DOM would silently win every document.getElementById
+        // lookup -- including the Y/N/Enter/Escape keyboard shortcuts -- so
+        // pressing a key would lock in the real fill price instead of
+        // whatever tick you were actually watching.
+        answerRow.remove();
         c.replayHandle = runSecondReplay(document.getElementById("quiz-entry-replay-slot"), prices, {
           unitLabel: real ? "tick" : "second",
           tag: real ? "live ticks · server" : "simulated seconds",
@@ -891,7 +915,8 @@
           bar: entryBar,
           onAct: (actionId, tickIdx, price) => handleEntryChoice(actionId === "enter", price),
         });
-      });
+        } catch (err) { showStageError(err); }
+      }).catch(showStageError);
     });
 
     c.stage = "entry";
@@ -899,6 +924,7 @@
 
   function handleEntryChoice(entered, price) {
     const c = state.current;
+    try {
     if (c.replayHandle) { c.replayHandle.stop(); c.replayHandle = null; } // stop an in-progress "watch it print in" replay
     c.entered = entered;
     if (entered) c.userEntryPrice = Number.isFinite(price) ? price : c.trade.entry_price;
@@ -908,6 +934,7 @@
     if (passBtn) passBtn.disabled = true;
     if (entered) renderStopStage();
     else goToReveal();
+    } catch (err) { showStageError(err); }
   }
 
   // ---------- Stage B: stop-loss + position size ----------
@@ -1065,6 +1092,7 @@
 
   function renderWatchBar() {
     const c = state.current;
+    try {
     const trade = c.trade;
     const entryPrice = c.userEntryPrice;
     // Everything before the bar currently playing is settled chart history;
@@ -1114,6 +1142,7 @@
     const watchIdxAtFetch = c.watchIdx;
     getCheckpointTicks(trade, bar, prevClose).then(({ prices, real, fellBack }) => {
       if (state.current !== c || c.stage !== "watch" || c.watchIdx !== watchIdxAtFetch) return; // moved on while this was in flight
+      try {
       c.replayHandle = runSecondReplay(replaySlot, prices, {
         unitLabel: real ? "tick" : "second",
         tag: real ? "live ticks · server" : "simulated seconds",
@@ -1149,7 +1178,9 @@
           goToReveal();
         },
       });
-    });
+      } catch (err) { showStageError(err); }
+    }).catch(showStageError);
+    } catch (err) { showStageError(err); }
   }
 
   // ---------- grading ----------
@@ -1231,6 +1262,7 @@
   // ---------- Stage D: full reveal ----------
   function goToReveal() {
     const c = state.current;
+    try {
     const trade = c.trade;
     const grading = computeGrading(c);
     c.stage = "reveal";
@@ -1381,6 +1413,7 @@
 
     document.getElementById("qz-replay-again-btn").addEventListener("click", () => retryCurrentQuestion());
     document.getElementById("qz-next").addEventListener("click", () => { state.qIndex++; loadQuestion(); });
+    } catch (err) { showStageError(err); }
   }
 
   // ---------------------------------------------------------------
