@@ -147,13 +147,16 @@ dashboard/
   playbooks.html          per-setup_type scorecards, links into journal.html
   backtester.html         ORB / gap-gainer strategy backtester (see below)
   chat.html                AI Chat — ask questions about your trade history (see below)
+  quiz.html                Quiz — chart-reading practice on your own logged trades (see below)
   trade.html              per-trade page (reads ?id=... from the URL)
   style.css               shared design tokens + app-shell/sidebar layout
   features.css              additive styles for journal/stats/patterns/playbooks/backtester/chat (filters, data table, bar rows, playbook cards, run cards, progress bar, chat bubbles)
+  quiz.css                   additive styles for the Quiz tab
   app.js                  home page logic
   trade.js                  trade page + chart logic
   backtester.js            backtester tab logic (start job, poll status, render results/history)
   chat.js                  AI Chat tab logic (builds trade context, talks to the n8n chat webhook)
+  quiz.js                  Quiz tab logic (question flow, chart cropping/markers, grading, localStorage history)
   data/
     trades.json          index: one row per trade, feeds the home table and journal/stats/patterns/playbooks pages
     trades/<id>.json      full detail per trade, feeds trade.html
@@ -244,6 +247,61 @@ chat just falls back to the journal text alone.
 export as-is has a live Gemini API key hardcoded in the "Chat: LLM
 Analysis" node's query parameters. Rotate/remove it (move it to an n8n
 credential instead) before this file leaves your machine.
+
+## Quiz tab
+
+`quiz.html` / `quiz.js` turn your own logged trades into a chart-reading
+practice game. It's entirely client-side — no `chart_service.py` call, no
+n8n webhook — it just reads the same `data/trades.json` index and
+`data/trades/<id>.json` detail files that `journal.html` / `trade.html`
+already read, and crops what it shows you.
+
+**Flow, per question:**
+1. **Entry** — the candlestick chart (with VWAP/EMA9/EMA20 + volume, same
+   overlays as `trade.html`) cropped to the minute of the actual entry.
+   You're told the side (long/short) and setup type and asked whether
+   you'd take it. Nothing that would give away the outcome (verdict,
+   lessons, suggested stop, etc.) is shown yet.
+2. **Stop-loss** (only if you entered) — type a price or click directly
+   on the chart to drop a stop line; a live risk-per-share preview updates
+   as you move it.
+3. **Mid-trade check-in** — reveals more candles up to a checkpoint
+   between your entry and the real exit (or the exit bar itself, on fast
+   trades with only one bar in between) and asks "exit now or hold?"
+   showing your running unrealized P&L. If price would have already hit
+   your stop before this point, you're auto-stopped-out and skipped
+   straight to the reveal.
+4. **Reveal** — the full chart with the real entry/exit markers, the AI's
+   `suggested_stop`/`suggested_target` and `better_entry`/`better_exit`
+   lines (same color scheme as `trade.html`), plus a grade on your entry
+   call, your stop placement (compared against `suggested_stop`, when it's
+   on the sane side of the real entry — see note below), and your
+   hypothetical exit versus what actually happened. The trade's `verdict`,
+   `lessons`, and `walk_away_rule` are shown underneath.
+
+**Filters** on the setup screen: setup type, win/loss/flagged-only,
+question count, and a **blind mode** toggle (hides symbol & date until
+the reveal, so you're reading the chart instead of remembering the
+trade — setup type and side still show, since that's the information a
+real scan would give you).
+
+**Scoring:** entry calls are graded correct/incorrect against the real
+outcome (entered-and-won or passed-and-lost = correct) and drive the
+session accuracy score; stop and exit decisions get descriptive
+good/warn/bad tags rather than points, since "was this stop good" is a
+judgment call, not a binary. Session results are saved to
+`localStorage` (`quiz:history`) so the setup screen shows an accuracy
+trend across past sessions plus a "setups to review" list (linking into
+`playbooks.html?setup=...`) aggregated from missed questions.
+
+**Data quirk to know about:** on a small number of trades (~1%),
+`suggested_stop` / `suggested_target` were computed relative to the AI's
+suggested `better_entry` price rather than the real entry — e.g. a chase
+entry that's already past where a sane stop for *that* entry would sit.
+`quiz.js` only draws/uses those fields as a benchmark when they land on
+the correct side of the real entry price for the trade's side; otherwise
+it silently falls back to a plain risk-percentage grade with no AI
+comparison.
 
 ## Data schema
 

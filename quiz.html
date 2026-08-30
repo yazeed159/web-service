@@ -4,13 +4,12 @@
 <script src="config.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Report — trade.log</title>
+<title>Quiz — trade.log</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="features.css">
-<link rel="stylesheet" href="polish.css">
 <link rel="stylesheet" href="modern.css">
-<link rel="stylesheet" href="report.css">
+<link rel="stylesheet" href="quiz.css">
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -65,7 +64,7 @@
 
       <div class="nav-section-label">More</div>
 
-      <a class="nav-item" id="import-trades-link" href="#" target="_blank" rel="noopener" title="Upload a CSV of past trades to import into your real journal">
+      <a class="nav-item" id="import-trades-link" href="#" target="_blank" rel="noopener" title="Upload a CSV of past trades to import">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
         <span class="nav-label">Import Trades</span>
       </a>
@@ -95,7 +94,7 @@
         <span class="nav-label">Calculator</span>
       </a>
 
-      <a class="nav-item active" href="backtester.html">
+      <a class="nav-item" href="backtester.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 6"></polyline><polyline points="15 6 21 6 21 12"></polyline></svg>
         <span class="nav-label">Backtester</span>
       </a>
@@ -105,23 +104,21 @@
         <span class="nav-label">AI Chat</span>
       </a>
 
-      <a class="nav-item" href="quiz.html">
+      <a class="nav-item active" href="quiz.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg>
         <span class="nav-label">Quiz</span>
       </a>
-</nav>
+    </nav>
 
     <div class="sidebar-bottom">
-      <div class="pipeline-status"><span class="dot"></span><span>Backtester</span></div>
+      <div class="pipeline-status"><span class="dot"></span><span>Quiz</span></div>
     </div>
   </aside>
 
   <div class="main">
     <header class="topbar">
       <div class="topbar-left">
-        <a href="backtester.html" class="rpt-back" title="Back to Backtester">&larr;</a>
-        <h1 id="page-title">Report</h1>
-        <span class="date-range-pill" id="rpt-range-pill" style="display:none;"></span>
+        <h1 id="page-title">Quiz</h1>
       </div>
       <div class="topbar-right">
         <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
@@ -131,144 +128,114 @@
     </header>
 
     <div class="content">
-
-      <!-- ============== EMPTY / IMPORT STATE (no report loaded yet) ============== -->
-      <div id="rpt-import-state">
-        <div class="panel-head">
-          <div class="sub">Open a saved backtest run from the Backtester's Past Runs list, or drop in any CSV of trades below to build a one-off dashboard, trade table, and journal for it — right here, no backend required.</div>
-        </div>
-
-        <div class="panel-box" id="rpt-drop-zone">
-          <div class="panel-box-head"><span class="title">Import a CSV of trades</span></div>
-          <label class="rpt-dropzone-inner" for="rpt-csv-file">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
-            <div><b>Click to choose a CSV</b>, or drag one here</div>
-            <div class="hint-text">Any column names work — you'll map them in the next step. Nothing is uploaded anywhere; it's parsed right in your browser.</div>
-          </label>
-          <input type="file" id="rpt-csv-file" accept=".csv" style="display:none;">
-        </div>
-
-        <div class="section-label" id="rpt-local-label" style="display:none;">Your CSV Reports</div>
-        <div id="rpt-local-list"></div>
+      <div class="panel-head">
+        <div class="sub">Chart-reading practice, pulled straight from your own logged trades. Chart's cropped to the moment of the decision — no peeking at what happens next.</div>
       </div>
 
-      <!-- ============== COLUMN MAPPING STEP ============== -->
-      <div id="rpt-map-state" style="display:none;">
-        <div class="panel-box">
-          <div class="panel-box-head">
-            <span class="title">Match your columns</span>
-            <button type="button" class="link" id="rpt-map-cancel">Cancel</button>
-          </div>
-          <p class="hint-text">We guessed a few of these from your header row — double check them, fill in the rest, and hit Build Report. Fields marked * are required.</p>
-          <div class="bt-field-grid wide" id="rpt-map-fields"></div>
-          <div class="bt-run-row">
-            <button class="btn-confirm" id="rpt-map-build">Build Report</button>
-            <span id="rpt-map-status"></span>
-          </div>
-        </div>
-      </div>
-
-      <!-- ============== LOADED REPORT ============== -->
-      <div id="rpt-loaded-state" style="display:none;">
-        <div class="panel-head">
-          <div class="sub" id="rpt-subtitle"></div>
-        </div>
-
-        <div class="rpt-toolbar">
-          <button class="filter-btn" id="rpt-export-csv">Export CSV</button>
-          <button class="filter-btn" id="rpt-export-json">Export JSON</button>
-          <button class="filter-btn" id="rpt-send-journal" style="display:none;" title="Send this run's trades through your n8n trade-journal workflow (chart + vision-LLM verdict), scoped to this report only">Send to AI Journal Workflow</button>
-          <button class="filter-btn" id="rpt-replace-csv" style="display:none;" title="Load a different CSV into this same report page">Replace with new CSV</button>
-          <button class="filter-btn danger" id="rpt-delete">Delete this report</button>
-          <span id="rpt-toolbar-status" class="hint-text"></span>
-        </div>
-
-        <div class="report-toptabs" id="rpt-toptabs">
-          <button class="toptab-btn active" data-toptab="overview">Overview</button>
-          <button class="toptab-btn" data-toptab="trades">Trades</button>
-        </div>
-
-        <div class="toptab-panel active" data-toptab-panel="overview">
-          <div class="stat-grid" id="rpt-stat-grid" style="margin-bottom:18px;"></div>
-          <div class="panel-box" id="rpt-detail-box"></div>
-        </div>
-
-        <div class="toptab-panel" data-toptab-panel="trades">
+      <!-- ============ SETUP SCREEN ============ -->
+      <div id="quiz-setup-screen">
+        <div class="quiz-setup-grid">
           <div class="panel-box">
-            <div class="panel-box-head">
-              <span class="title">Trades</span>
-              <span class="hint-text" id="rpt-trades-count"></span>
+            <div class="panel-box-head"><span class="title">Set up your quiz</span></div>
+
+            <div class="quiz-filter-row">
+              <label>Setup type</label>
+              <select id="qf-setup"><option value="">All setups</option></select>
             </div>
-            <div style="overflow-x:auto;">
-              <table class="data-table" id="rpt-trades-table">
-                <thead><tr id="rpt-trades-head"></tr></thead>
-                <tbody id="rpt-trades-body"></tbody>
-              </table>
+
+            <div class="quiz-filter-row">
+              <label>Which trades</label>
+              <select id="qf-result">
+                <option value="">Any outcome (most realistic)</option>
+                <option value="win">Winners only</option>
+                <option value="loss">Losers only</option>
+                <option value="flagged">Only ones with a flagged better entry/exit</option>
+              </select>
             </div>
+
+            <div class="quiz-filter-row">
+              <label>Length</label>
+              <div class="quiz-mode-row" id="qf-count-row">
+                <button class="quiz-mode-btn" data-count="5">5 questions</button>
+                <button class="quiz-mode-btn active" data-count="10">10 questions</button>
+                <button class="quiz-mode-btn" data-count="20">20 questions</button>
+                <button class="quiz-mode-btn" data-count="0">All matching</button>
+              </div>
+            </div>
+
+            <div class="quiz-filter-row">
+              <label>Mode</label>
+              <div class="quiz-check-row">
+                <input type="checkbox" id="qf-blind" checked>
+                <label for="qf-blind" style="text-transform:none; font-size:13px; color:var(--text-dim); font-weight:400;">
+                  Blind mode — hide symbol &amp; date until the reveal, so you're reading the chart instead of remembering the trade
+                </label>
+              </div>
+            </div>
+
+            <div class="quiz-candidate-count" id="qf-candidate-count"></div>
+
+            <button class="btn-confirm quiz-start-btn" id="qf-start-btn">Start quiz</button>
+          </div>
+
+          <div class="panel-box">
+            <div class="panel-box-head"><span class="title">Your quiz history</span></div>
+            <div id="quiz-history-box"><div class="quiz-history-empty">No quizzes taken yet — your accuracy trend will show up here.</div></div>
+
+            <div id="quiz-focus-box" style="margin-top:18px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ PLAY SCREEN ============ -->
+      <div id="quiz-play-screen" style="display:none;">
+        <div class="quiz-play-head">
+          <div class="qp-left">
+            <span class="quiz-progress-label" id="qp-progress-label">Question 1 / 10</span>
+            <div class="quiz-progress-track"><div class="quiz-progress-fill" id="qp-progress-fill" style="width:0%"></div></div>
+            <span class="quiz-score-chip" id="qp-score-chip"></span>
+            <span class="quiz-streak" id="qp-streak"></span>
+          </div>
+          <button class="btn-advanced quiz-quit-btn" id="qp-quit-btn">End quiz</button>
+        </div>
+
+        <div class="quiz-card" id="quiz-card">
+          <div class="loading-line">Loading…</div>
+        </div>
+      </div>
+
+      <!-- ============ SUMMARY SCREEN ============ -->
+      <div id="quiz-summary-screen" style="display:none;">
+        <div class="quiz-summary-grid">
+          <div class="panel-box">
+            <div class="panel-box-head"><span class="title">Session score</span></div>
+            <div class="score-wrap" id="qs-score-wrap"></div>
+          </div>
+          <div class="panel-box">
+            <div class="panel-box-head"><span class="title">Breakdown</span></div>
+            <div id="qs-breakdown"></div>
           </div>
         </div>
 
-      </div>
+        <div class="panel-box" style="margin-top:18px;">
+          <div class="panel-box-head"><span class="title">Question review</span></div>
+          <div id="qs-review"></div>
+        </div>
 
-      <div id="rpt-error-state" style="display:none;">
-        <div class="empty-state" id="rpt-error-text"></div>
+        <div class="quiz-summary-actions">
+          <button class="btn-confirm" id="qs-again-btn">Play again</button>
+          <button class="btn-advanced" id="qs-review-missed-btn">Review missed only</button>
+          <button class="btn-advanced" id="qs-setup-btn">Change filters</button>
+        </div>
       </div>
 
     </div>
 
-    <div class="footer">trade.log — report view</div>
+    <div class="footer">trade.log — Quiz reads data/trades.json + data/trades/&lt;id&gt;.json, entirely client-side</div>
   </div>
 </div>
 
-<!-- ============== INTERACTIVE TRADE CHART MODAL ============== -->
-<div id="rpt-chart-modal" class="rpt-chart-modal" style="display:none;" aria-hidden="true">
-  <div class="rpt-chart-modal-backdrop" id="rpt-chart-modal-backdrop"></div>
-  <div class="rpt-chart-modal-box" role="dialog" aria-modal="true" aria-labelledby="rpt-chart-modal-title">
-    <div class="rpt-chart-modal-head">
-      <div>
-        <span id="rpt-chart-modal-title">Trade chart</span>
-        <span class="hint-text" id="rpt-chart-modal-sub"></span>
-      </div>
-      <button class="icon-btn" id="rpt-chart-modal-close" title="Close" aria-label="Close">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-      </button>
-    </div>
-    <div class="rpt-chart-legend">
-      <span><i style="background:#2fd08a"></i>Entry</span>
-      <span><i style="background:#f2555a"></i>Exit</span>
-      <span><i style="background:#e8a94c"></i>VWAP</span>
-      <span><i style="background:#9aa8a1"></i>EMA9</span>
-      <span><i style="background:#5b93f0"></i>EMA20</span>
-      <span id="rpt-chart-legend-better-entry" style="display:none;"><i style="background:#8b7cf6"></i>Better entry</span>
-      <span id="rpt-chart-legend-better-exit" style="display:none;"><i style="background:#ec6cad"></i>Better exit</span>
-    </div>
-    <div id="rpt-candle-chart"></div>
-    <div id="rpt-macd-chart"></div>
-    <div id="rpt-chart-verdict" class="rpt-chart-verdict" style="display:none;"></div>
-  </div>
-</div>
-
-<script src="report.js"></script>
-<script>
-  const sidebarBackdrop = document.createElement("div");
-  sidebarBackdrop.className = "sidebar-backdrop";
-  document.body.appendChild(sidebarBackdrop);
-  function closeMobileNav() { document.getElementById("sidebar").classList.remove("mobile-open"); }
-  sidebarBackdrop.addEventListener("click", closeMobileNav);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMobileNav(); });
-
-  document.getElementById("sidebar-toggle").addEventListener("click", () => {
-    const sidebar = document.getElementById("sidebar");
-    if (window.innerWidth <= 760 && sidebar.classList.contains("mobile-open")) {
-      closeMobileNav();
-    } else {
-      sidebar.classList.toggle("collapsed");
-    }
-  });
-  document.getElementById("mobile-nav-btn").addEventListener("click", () => {
-    document.getElementById("sidebar").classList.toggle("mobile-open");
-  });
-</script>
+<script src="quiz.js"></script>
 <script src="modern.js"></script>
 </body>
 </html>
