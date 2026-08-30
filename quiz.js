@@ -392,7 +392,15 @@
     }
 
     let i = 0, done = false, timer = null;
-    function currentTickMs() { return Math.max(20, Math.round(baseTickMs / (state.playbackSpeed || 1))); }
+    // Some real fills happen just a couple seconds into a bar -- with a
+    // straight 1 tick = 1 real second pace that's barely any time to
+    // decide. minTotalMs (when given) stretches the per-tick delay so the
+    // whole tape takes at least that long at 1x, without changing what's
+    // shown -- it's the same ticks, just paced slower when there are few
+    // of them. The speed picker still multiplies on top of this floor.
+    const minTotalMs = opts.minTotalMs || 0;
+    const effectiveBaseTickMs = minTotalMs > 0 ? Math.max(baseTickMs, minTotalMs / ticks.length) : baseTickMs;
+    function currentTickMs() { return Math.max(20, Math.round(effectiveBaseTickMs / (state.playbackSpeed || 1))); }
     function paint() {
       priceEl.textContent = "$" + fmtPrice(ticks[i]);
       if (unitLabel === "second") {
@@ -1007,7 +1015,8 @@
             { id: "enter", label: "Enter", kbd: "Y", cls: "enter" },
             { id: "pass", label: "Pass", kbd: "N", cls: "pass" },
           ],
-          defaultActionId: "enter",
+          defaultActionId: "pass", // running out the clock without deciding = you didn't take it
+          minTotalMs: 20000, // at least 20 real seconds to decide, even on a fast fill
           chartHandle: c.chartHandle,
           bar: entryBar,
           onAct: (actionId, tickIdx, price) => handleEntryChoice(actionId === "enter", price),
@@ -1221,9 +1230,11 @@
       { price: entryPrice, color: COLOR_YOUR_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "your entry" },
       { price: c.stopPrice, color: COLOR_YOUR_STOP, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your stop" },
     ];
-    if (Math.abs(trade.entry_price - entryPrice) > 0.0001) {
-      watchPriceLines.push({ price: trade.entry_price, color: COLOR_REAL_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "real entry" });
-    }
+    // Deliberately no "real entry"/"real exit" lines or pointers here --
+    // the trade is still live at this stage, and showing where the real
+    // fills landed (or even that they differ from yours) would spoil the
+    // outcome before the reveal screen. Those only show up once you've
+    // finished the trade.
     const chartEl = document.getElementById("quiz-candle-chart");
     c.chartHandle = buildChart(chartEl, historyBars.length ? historyBars : c.bars.slice(0, c.watchIdx + 1), {
       height: 380,
