@@ -4,11 +4,13 @@
 <script src="config.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Playbooks — trade.log</title>
+<title>Rewind — trade.log</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="features.css">
 <link rel="stylesheet" href="modern.css">
+<link rel="stylesheet" href="rewind.css">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js" defer></script>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -23,7 +25,6 @@
     </linearGradient>
   </defs>
 </svg>
-
 
 <div class="app-shell">
 
@@ -83,7 +84,7 @@
         <span class="nav-label">Patterns</span>
       </a>
 
-      <a class="nav-item active" href="playbooks.html">
+      <a class="nav-item" href="playbooks.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
         <span class="nav-label">Playbooks</span>
       </a>
@@ -103,21 +104,21 @@
         <span class="nav-label">AI Chat</span>
       </a>
 
-      <a class="nav-item" href="rewind.html">
+      <a class="nav-item active" href="rewind.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
         <span class="nav-label">Rewind</span>
       </a>
-</nav>
+    </nav>
 
     <div class="sidebar-bottom">
-      <div class="pipeline-status"><span class="dot"></span><span>Playbooks</span></div>
+      <div class="pipeline-status"><span class="dot"></span><span>Rewind</span></div>
     </div>
   </aside>
 
   <div class="main">
     <header class="topbar">
       <div class="topbar-left">
-        <h1 id="page-title">Playbooks</h1>
+        <h1 id="page-title">Rewind</h1>
       </div>
       <div class="topbar-right">
         <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
@@ -128,127 +129,124 @@
 
     <div class="content">
       <div class="panel-head">
-        <div class="sub">Every <span class="mono">setup_type</span> your trades are tagged with, grouped into its own scorecard — win rate, sample size, net P&amp;L, and the most common lesson tag logged against it. Click a card to see just those trades in the Journal.</div>
+        <div class="sub">Chart-reading practice, pulled straight from your own logged trades. Chart's cropped to the moment of the decision — no peeking at what happens next.</div>
       </div>
 
-      <div id="playbooks-content">
-        <div class="loading-line">Loading…</div>
+      <!-- ============ SETUP SCREEN ============ -->
+      <div id="quiz-setup-screen">
+        <div class="quiz-setup-grid">
+          <div class="panel-box">
+            <div class="panel-box-head"><span class="title">Set up a rewind</span></div>
+
+            <div class="quiz-filter-row">
+              <label>Setup type</label>
+              <select id="qf-setup"><option value="">All setups</option></select>
+            </div>
+
+            <div class="quiz-filter-row">
+              <label>Which trades</label>
+              <select id="qf-result">
+                <option value="">Any outcome (most realistic)</option>
+                <option value="win">Winners only</option>
+                <option value="loss">Losers only</option>
+                <option value="flagged">Only ones with a flagged better entry/exit</option>
+              </select>
+            </div>
+
+            <div class="quiz-filter-row">
+              <label>Length</label>
+              <div class="quiz-mode-row" id="qf-count-row">
+                <button class="quiz-mode-btn" data-count="5">5 questions</button>
+                <button class="quiz-mode-btn active" data-count="10">10 questions</button>
+                <button class="quiz-mode-btn" data-count="20">20 questions</button>
+                <button class="quiz-mode-btn" data-count="0">All matching</button>
+              </div>
+            </div>
+
+            <div class="quiz-filter-row">
+              <label>Mode</label>
+              <div class="quiz-check-row">
+                <input type="checkbox" id="qf-blind" checked>
+                <label for="qf-blind" style="text-transform:none; font-size:13px; color:var(--text-dim); font-weight:400;">
+                  Blind mode — hide symbol &amp; date until the reveal, so you're reading the chart instead of remembering the trade
+                </label>
+              </div>
+            </div>
+
+            <div class="quiz-filter-row">
+              <label>Tick playback</label>
+              <div class="quiz-mode-row" id="qf-tickmode-row">
+                <button class="quiz-mode-btn active" data-tickmode="sim">Simulated (offline)</button>
+                <button class="quiz-mode-btn" data-tickmode="real">Real ticks (from server)</button>
+              </div>
+              <div class="quiz-tickmode-hint" id="qf-tickmode-hint" style="display:none;">
+                Pulls actual trade prints for that minute from <code>chart_service.py</code>
+                (<code>window.CHART_SERVICE_URL</code> in <code>config.js</code>) instead of a
+                synthesized path. Falls back to simulated automatically, per-question, if the
+                server's unreachable or has no ticks for that window.
+              </div>
+            </div>
+
+            <div class="quiz-candidate-count" id="qf-candidate-count"></div>
+
+            <button class="btn-confirm quiz-start-btn" id="qf-start-btn">Start rewind</button>
+          </div>
+
+          <div class="panel-box">
+            <div class="panel-box-head"><span class="title">Past sessions</span></div>
+            <div id="quiz-history-box"><div class="quiz-history-empty">No sessions yet — they'll show up here once you run one.</div></div>
+
+            <div id="quiz-focus-box" style="margin-top:18px;"></div>
+          </div>
+        </div>
       </div>
+
+      <!-- ============ PLAY SCREEN ============ -->
+      <div id="quiz-play-screen" style="display:none;">
+        <div class="quiz-play-head">
+          <div class="qp-left">
+            <span class="quiz-progress-label" id="qp-progress-label">Trade 1 / 10</span>
+            <div class="quiz-progress-track"><div class="quiz-progress-fill" id="qp-progress-fill" style="width:0%"></div></div>
+          </div>
+          <button class="btn-advanced quiz-quit-btn" id="qp-quit-btn">End session</button>
+        </div>
+
+        <div class="quiz-card" id="quiz-card">
+          <div class="loading-line">Loading…</div>
+        </div>
+      </div>
+
+      <!-- ============ SUMMARY SCREEN ============ -->
+      <div id="quiz-summary-screen" style="display:none;">
+        <div class="panel-box">
+          <div class="panel-box-head"><span class="title">Session recap</span></div>
+          <div id="qs-recap"></div>
+        </div>
+
+        <div class="panel-box" style="margin-top:18px;">
+          <div class="panel-box-head"><span class="title">How your calls read</span></div>
+          <div id="qs-breakdown"></div>
+        </div>
+
+        <div class="panel-box" style="margin-top:18px;">
+          <div class="panel-box-head"><span class="title">Trade by trade</span></div>
+          <div id="qs-review"></div>
+        </div>
+
+        <div class="quiz-summary-actions">
+          <button class="btn-confirm" id="qs-again-btn">Rewind again</button>
+          <button class="btn-advanced" id="qs-review-missed-btn">Review the shaky calls</button>
+          <button class="btn-advanced" id="qs-setup-btn">Change filters</button>
+        </div>
+      </div>
+
     </div>
 
-    <div class="footer">trade.log — generated from data/trades.json</div>
+    <div class="footer">trade.log — Rewind reads data/trades.json + data/trades/&lt;id&gt;.json, entirely client-side (plus an optional live call to chart_service.py for real tick playback)</div>
   </div>
 </div>
 
-<script>
-(function () {
-  "use strict";
-  const content = document.getElementById("playbooks-content");
-
-  fetch("data/trades.json")
-    .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then((rows) => render(Array.isArray(rows) ? rows : []))
-    .catch((err) => {
-      content.innerHTML = `<div class="empty-state">Couldn't load data/trades.json (${escapeHtml(String(err.message))}).</div>`;
-    });
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-  function fmtMoney(v) {
-    const sign = v >= 0 ? "+" : "-";
-    return sign + "$" + Math.abs(v).toFixed(2);
-  }
-
-  function render(rows) {
-    const withSetup = rows.filter((r) => r.setup_type);
-    if (!withSetup.length) {
-      content.innerHTML = `<div class="empty-state">No <span class="mono">setup_type</span> data yet — this needs trades published with a setup tagged by the verdict step.</div>`;
-      return;
-    }
-
-    const bySetup = {};
-    for (const r of rows) {
-      if (!r.setup_type) continue;
-      bySetup[r.setup_type] = bySetup[r.setup_type] || [];
-      bySetup[r.setup_type].push(r);
-    }
-    const entries = Object.entries(bySetup).sort((a, b) => b[1].length - a[1].length);
-
-    content.innerHTML = `<div class="playbook-grid">${entries.map(([setup, trades]) => playbookCard(setup, trades)).join("")}</div>`;
-
-    content.querySelectorAll("[data-setup-link]").forEach((card) => {
-      card.addEventListener("click", () => {
-        window.location.href = `journal.html?setup=${encodeURIComponent(card.getAttribute("data-setup-link"))}`;
-      });
-    });
-  }
-
-  function playbookCard(setup, trades) {
-    const wins = trades.filter((t) => t.win).length;
-    const winRate = Math.round((wins / trades.length) * 1000) / 10;
-    const net = trades.reduce((s, t) => s + (t.pnl_after_comm || 0), 0);
-    const avgTrade = net / trades.length;
-    const smallSample = trades.length < 5;
-
-    // Most common lesson tag logged against trades in this setup -- the
-    // mistake most worth watching for the next time this setup sets up.
-    const tagCounts = {};
-    for (const t of trades) {
-      for (const tag of t.lesson_tags || []) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-    }
-    const topTag = Object.entries(tagCounts).sort((a, b) => b[1] - a[1])[0];
-
-    return `
-      <div class="playbook-card" data-setup-link="${escapeHtml(setup)}">
-        <div class="playbook-card-head">
-          <span class="playbook-name">${escapeHtml(setup.replace(/_/g, " "))}</span>
-          ${smallSample ? `<span class="pill" title="Fewer than 5 trades — treat this win rate as a rough signal, not a verdict.">small sample</span>` : ""}
-        </div>
-        <div class="playbook-stats">
-          <div class="pb-stat">
-            <div class="pb-label">Win rate</div>
-            <div class="pb-value ${winRate >= 50 ? "up" : "down"}">${winRate}%</div>
-          </div>
-          <div class="pb-stat">
-            <div class="pb-label">Trades</div>
-            <div class="pb-value">${trades.length}</div>
-          </div>
-          <div class="pb-stat">
-            <div class="pb-label">Net P&amp;L</div>
-            <div class="pb-value ${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</div>
-          </div>
-          <div class="pb-stat">
-            <div class="pb-label">Avg / trade</div>
-            <div class="pb-value ${avgTrade >= 0 ? "up" : "down"}">${fmtMoney(avgTrade)}</div>
-          </div>
-        </div>
-        ${topTag ? `<div class="playbook-tag-line"><span class="lesson-tag">${escapeHtml(topTag[0].replace(/_/g, " "))}</span> flagged on ${topTag[1]} of these</div>` : `<div class="playbook-tag-line dim">No recurring lesson tag on this setup.</div>`}
-        <div class="playbook-card-foot">View in Journal →</div>
-      </div>`;
-  }
-})();
-</script>
-<script>
-  const sidebarBackdrop = document.createElement("div");
-  sidebarBackdrop.className = "sidebar-backdrop";
-  document.body.appendChild(sidebarBackdrop);
-  function closeMobileNav() { document.getElementById("sidebar").classList.remove("mobile-open"); }
-  sidebarBackdrop.addEventListener("click", closeMobileNav);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMobileNav(); });
-
-  document.getElementById("sidebar-toggle").addEventListener("click", () => {
-    const sidebar = document.getElementById("sidebar");
-    if (window.innerWidth <= 760 && sidebar.classList.contains("mobile-open")) {
-      closeMobileNav();
-    } else {
-      sidebar.classList.toggle("collapsed");
-    }
-  });
-  document.getElementById("mobile-nav-btn").addEventListener("click", () => {
-    document.getElementById("sidebar").classList.toggle("mobile-open");
-  });
-</script>
+<script src="rewind.js"></script>
 <script src="modern.js"></script>
 </body>
 </html>

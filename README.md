@@ -147,16 +147,16 @@ dashboard/
   playbooks.html          per-setup_type scorecards, links into journal.html
   backtester.html         ORB / gap-gainer strategy backtester (see below)
   chat.html                AI Chat — ask questions about your trade history (see below)
-  quiz.html                Quiz — chart-reading practice on your own logged trades (see below)
+  rewind.html              Rewind — chart-reading practice on your own logged trades (see below)
   trade.html              per-trade page (reads ?id=... from the URL)
   style.css               shared design tokens + app-shell/sidebar layout
   features.css              additive styles for journal/stats/patterns/playbooks/backtester/chat (filters, data table, bar rows, playbook cards, run cards, progress bar, chat bubbles)
-  quiz.css                   additive styles for the Quiz tab
+  rewind.css                  additive styles for the Rewind tab
   app.js                  home page logic
   trade.js                  trade page + chart logic
   backtester.js            backtester tab logic (start job, poll status, render results/history)
   chat.js                  AI Chat tab logic (builds trade context, talks to the n8n chat webhook)
-  quiz.js                  Quiz tab logic (question flow, chart cropping/markers, grading, localStorage history)
+  rewind.js                Rewind tab logic (per-trade flow, chart cropping/markers, feedback, localStorage history)
   data/
     trades.json          index: one row per trade, feeds the home table and journal/stats/patterns/playbooks pages
     trades/<id>.json      full detail per trade, feeds trade.html
@@ -209,19 +209,19 @@ synthetic trades) so you can preview the site immediately. Delete
 `data/trades.json` and `data/trades/*` and replace them with real output
 once the pipeline is publishing.
 
-## Quiz — real tick playback (optional)
+## Rewind — real tick playback (optional)
 
-`quiz.html`'s entry and mid-trade "watch it play out" moments normally
+`rewind.html`'s entry and mid-trade "watch it play out" moments normally
 synthesize a plausible second-by-second path inside each 1-minute bar
-(see the comment above `genSecondTicks` in `quiz.js`) — Polygon's minute
+(see the comment above `genSecondTicks` in `rewind.js`) — Polygon's minute
 bars are all that's needed for the rest of the site, so there's no real
 intra-bar data to draw on offline. The setup screen's **Tick playback**
 picker adds a second option, **Real ticks (from server)**, that instead
 asks `chart_service.py` for the actual trade prints in that window.
 Simulated stays the default and always works with zero setup; Real is
-opt-in per quiz and falls back to simulated automatically (per question,
+opt-in per session and falls back to simulated automatically (per trade,
 with a small note in the UI) if the server's unreachable or has no prints
-for that window — it never blocks the quiz.
+for that window — it never blocks the session.
 
 **Setup:** same `window.CHART_SERVICE_URL` in `config.js` the Backtester
 tab uses, pointing at your `chart_service.py`, which now also serves:
@@ -230,7 +230,7 @@ tab uses, pointing at your `chart_service.py`, which now also serves:
   8601 timestamps, start inclusive / end exclusive, capped to a 5-minute
   window); returns `{ ticks: [{ t, p }, ...] }` — real Polygon `v3/trades`
   prints, ordered oldest first. Always 200, `{ ticks: [] }` on no
-  data/failure (logged server-side) rather than an error, since the quiz
+  data/failure (logged server-side) rather than an error, since Rewind
   treats "nothing came back" and "couldn't reach the server" the same way
   (fall back to simulated). Same CORS, rate-limiter, and small
   process-lifetime cache as the rest of `chart_service.py`; `TICK_DATA_MAX_TRADES`
@@ -276,15 +276,18 @@ export as-is has a live Gemini API key hardcoded in the "Chat: LLM
 Analysis" node's query parameters. Rotate/remove it (move it to an n8n
 credential instead) before this file leaves your machine.
 
-## Quiz tab
+## Rewind tab
 
-`quiz.html` / `quiz.js` turn your own logged trades into a chart-reading
-practice game. It's entirely client-side — no `chart_service.py` call, no
-n8n webhook — it just reads the same `data/trades.json` index and
-`data/trades/<id>.json` detail files that `journal.html` / `trade.html`
-already read, and crops what it shows you.
+`rewind.html` / `rewind.js` turn your own logged trades into a
+chart-reading practice tool. It's entirely client-side — no
+`chart_service.py` call, no n8n webhook — it just reads the same
+`data/trades.json` index and `data/trades/<id>.json` detail files that
+`journal.html` / `trade.html` already read, and crops what it shows you.
+It's deliberately not a graded test: there's no score, accuracy
+percentage, or streak anywhere in it, just descriptive feedback on each
+call so you can spot your own tendencies.
 
-**Flow, per question:**
+**Flow, per trade:**
 1. **Entry** — the candlestick chart (with VWAP/EMA9/EMA20 + volume, same
    overlays as `trade.html`) cropped to the minute of the actual entry.
    You're told the side (long/short) and setup type and asked whether
@@ -301,34 +304,36 @@ already read, and crops what it shows you.
    straight to the reveal.
 4. **Reveal** — the full chart with the real entry/exit markers, the AI's
    `suggested_stop`/`suggested_target` and `better_entry`/`better_exit`
-   lines (same color scheme as `trade.html`), plus a grade on your entry
-   call, your stop placement (compared against `suggested_stop`, when it's
-   on the sane side of the real entry — see note below), and your
-   hypothetical exit versus what actually happened. The trade's `verdict`,
-   `lessons`, and `walk_away_rule` are shown underneath.
+   lines (same color scheme as `trade.html`), plus descriptive feedback on
+   your entry call, your stop placement (compared against
+   `suggested_stop`, when it's on the sane side of the real entry — see
+   note below), and your hypothetical exit versus what actually happened.
+   The trade's `verdict`, `lessons`, and `walk_away_rule` are shown
+   underneath.
 
-**Filters** on the setup screen: setup type, win/loss/flagged-only,
-question count, and a **blind mode** toggle (hides symbol & date until
-the reveal, so you're reading the chart instead of remembering the
-trade — setup type and side still show, since that's the information a
-real scan would give you).
+**Filters** on the setup screen: setup type, win/loss/flagged-only, trade
+count, and a **blind mode** toggle (hides symbol & date until the reveal,
+so you're reading the chart instead of remembering the trade — setup type
+and side still show, since that's the information a real scan would
+give you).
 
-**Scoring:** entry calls are graded correct/incorrect against the real
-outcome (entered-and-won or passed-and-lost = correct) and drive the
-session accuracy score; stop and exit decisions get descriptive
-good/warn/bad tags rather than points, since "was this stop good" is a
-judgment call, not a binary. Session results are saved to
-`localStorage` (`quiz:history`) so the setup screen shows an accuracy
-trend across past sessions plus a "setups to review" list (linking into
-`playbooks.html?setup=...`) aggregated from missed questions.
+**Feedback, not scoring:** each call (entry, stop, exit, size) gets a
+descriptive good/off/bad tag rather than points — "was this stop good" is
+a judgment call, not a binary, so nothing gets tallied into a percentage,
+and there's no streak counter. The session recap at the end just states
+plain counts (trades reviewed / entered / passed) and a chip breakdown of
+how each kind of call read. Session results are saved to `localStorage`
+(`rewind:history`) so the setup screen shows past sessions plus a "setups
+worth revisiting" list (linking into `playbooks.html?setup=...`)
+aggregated from calls that didn't read as good.
 
 **Data quirk to know about:** on a small number of trades (~1%),
 `suggested_stop` / `suggested_target` were computed relative to the AI's
 suggested `better_entry` price rather than the real entry — e.g. a chase
 entry that's already past where a sane stop for *that* entry would sit.
-`quiz.js` only draws/uses those fields as a benchmark when they land on
+`rewind.js` only draws/uses those fields as a benchmark when they land on
 the correct side of the real entry price for the trade's side; otherwise
-it silently falls back to a plain risk-percentage grade with no AI
+it silently falls back to a plain risk-percentage note with no AI
 comparison.
 
 ## Data schema

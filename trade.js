@@ -802,7 +802,7 @@
     //
     // Polygon only gives us 1-min bars, so there's no real tick feed for
     // any of this -- same deterministic (seeded) synthesized intra-bar
-    // path used in the Quiz tab (see genSecondTicks in quiz.js), chained
+    // path used in the Rewind tab (see genSecondTicks in rewind.js), chained
     // across every bar from the entry bar through the exit bar, clipped
     // at both ends to the trade's actual entry/exit second so the replay
     // starts exactly at the real fill and ends exactly at the real exit.
