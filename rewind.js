@@ -268,6 +268,25 @@
     ));
   }
 
+  // The entry bar's full simulated path -- a pure function of the trade
+  // (same seed every time), so the pre-entry tape and whatever's left of
+  // the bar after you enter are always the SAME underlying walk, just
+  // sliced at different points. That's what makes the post-entry
+  // continuation (getEntryBarRemainderTicks below) pick up exactly where
+  // the pre-entry tape (getEntryWatchTicks) left off instead of jumping
+  // to an unrelated path.
+  function simEntryBarTicks(trade, bar, prevClose) {
+    return genSecondTicks(bar, prevClose, `${trade.id}:entrywatch`);
+  }
+  // How many ticks (1..REPLAY_SECONDS) are visible/elapsed by a given
+  // point into the bar -- shared by the pre-entry tape's cutoff and the
+  // default (un-watched) entry's implied tick index, so both agree on
+  // exactly which tick your fill happened on.
+  function entryTickCount(secondsIntoBar) {
+    const frac = Math.max(0, Math.min(1, secondsIntoBar / BAR_SECONDS));
+    return Math.max(1, Math.round(frac * REPLAY_SECONDS));
+  }
+
   // Ticks for the "watch it print in" replay on the entry stage — only
   // the window from the bar's open up to the actual fill instant, so
   // real mode never leaks anything past the moment you're deciding at
@@ -275,9 +294,8 @@
   // reason — see buildFormingBar above).
   function getEntryWatchTicks(trade, bar, prevClose, secondsIntoBar) {
     const simPrices = () => {
-      const full = genSecondTicks(bar, prevClose, `${trade.id}:entrywatch`);
-      const frac = Math.max(0, Math.min(1, secondsIntoBar / BAR_SECONDS));
-      const cut = Math.max(1, Math.round(frac * REPLAY_SECONDS));
+      const full = simEntryBarTicks(trade, bar, prevClose);
+      const cut = entryTickCount(secondsIntoBar);
       const t = full.slice(0, cut);
       t[t.length - 1] = trade.entry_price;
       return t;
@@ -285,6 +303,31 @@
     if (state.tickMode !== "real") return Promise.resolve({ prices: simPrices(), real: false, fellBack: false });
     const start = toUnix(bar.t);
     const end = Math.max(start + 1, start + Math.round(secondsIntoBar));
+    return fetchRealTicks(trade.symbol, start, end).then((real) => (
+      real ? { prices: real.map((t) => t.price), real: true, fellBack: false }
+           : { prices: simPrices(), real: false, fellBack: true }
+    ));
+  }
+
+  // Continues the SAME entry bar's tape from the tick you actually
+  // entered on through to the bar's close -- this is what used to be
+  // skipped entirely (the watch stage jumped straight to the *next*
+  // bar), cutting off however much of the entry candle was still left
+  // to play. entryTickIdx is 0-based into the REPLAY_SECONDS space (the
+  // same index space getEntryWatchTicks/onAct use), so slicing the same
+  // deterministic path one tick past it picks up exactly where your
+  // fill happened, with no jump.
+  function getEntryBarRemainderTicks(trade, bar, prevClose, entryTickIdx) {
+    const simPrices = () => {
+      const full = simEntryBarTicks(trade, bar, prevClose);
+      full[entryTickIdx] = trade.entry_price; // anchor to your actual fill so there's no seam
+      return full.slice(entryTickIdx + 1);
+    };
+    if (state.tickMode !== "real") return Promise.resolve({ prices: simPrices(), real: false, fellBack: false });
+    const barStart = toUnix(bar.t);
+    const start = barStart + entryTickIdx + 1;
+    const end = barStart + BAR_SECONDS;
+    if (end <= start) return Promise.resolve({ prices: [], real: false, fellBack: false });
     return fetchRealTicks(trade.symbol, start, end).then((real) => (
       real ? { prices: real.map((t) => t.price), real: true, fellBack: false }
            : { prices: simPrices(), real: false, fellBack: true }
@@ -362,8 +405,16 @@
     // entry stage uses for its own partial bar.
     const liveChart = opts.chartHandle && opts.bar ? opts.chartHandle : null;
     const barTime = liveChart ? toUnix(opts.bar.t) : null;
-    let runningHigh = liveChart ? opts.bar.o : null;
-    let runningLow = liveChart ? opts.bar.o : null;
+    // seedHigh/seedLow let a caller continue a candle that already has a
+    // body (e.g. resuming the entry bar right after your fill) instead of
+    // always resetting the wick back down to the bar's open -- without
+    // them this defaults to the old flat-at-open start.
+    let runningHigh = liveChart ? (opts.seedHigh != null ? opts.seedHigh : opts.bar.o) : null;
+    let runningLow = liveChart ? (opts.seedLow != null ? opts.seedLow : opts.bar.o) : null;
+    // volStartFrac lets volume continue accumulating from where an
+    // earlier segment of the same bar left off, instead of restarting
+    // the fraction from 0 for a partial tick set.
+    const volStartFrac = opts.volStartFrac || 0;
     function paintCandle(idx) {
       if (!liveChart) return;
       const price = ticks[idx];
@@ -374,7 +425,8 @@
         color: "rgba(232,169,76,0.55)", borderColor: "#e8a94c", wickColor: "#e8a94c",
       });
       if (liveChart.volSeries) {
-        const frac = (idx + 1) / ticks.length;
+        const localFrac = (idx + 1) / ticks.length;
+        const frac = volStartFrac + localFrac * (1 - volStartFrac);
         liveChart.volSeries.update({ time: barTime, value: Math.round((opts.bar.v || 0) * frac), color: "rgba(232,169,76,0.4)" });
       }
     }
@@ -890,6 +942,9 @@
       stopPrice: null,
       stoppedOutEarly: false, // set true the instant a live tick crosses your stop, whenever that happens
       stopOutIdx: null, // bar index the stop got hit in
+      entrySecondsIntoBar: null, // how far into the entry bar the real fill happened
+      entryBarPrevClose: null, // prior bar's close, feeds the entry bar's deterministic sim path
+      entryTickIdx: null, // which tick (0..REPLAY_SECONDS-1) you actually entered on
       watchIdx: null, // bar currently playing in the post-entry watch stage
       checkpointAction: null, // "exit" once you click Exit; stays null if you watch through to the end of the data
       exitBarIdx: null, // bar index your chosen exit tick fell in
@@ -922,23 +977,39 @@
   const BAR_SECONDS = 60; // data is 1-minute bars throughout
 
   // The bar the entry fill happened inside is only *partially* known at
-  // decision time — we don't want to show its eventual high/low if those
-  // were set after (or are simply unrelated to) the actual fill. We only
-  // know: the bar's open, and the fill price itself. So the "live" candle
-  // shown pre-decision is built from just those two points, clamped so it
-  // can never leak the bar's real (future-relative-to-entry) extremes.
-  function buildFormingBar(fullBar, fillPrice, secondsIntoBar) {
-    const frac = Math.max(0, Math.min(1, secondsIntoBar / BAR_SECONDS));
+  // decision time, and that includes the fill price itself: the whole
+  // point of "Watch it print in" is to find out where price actually
+  // goes, so the chart you see before you've decided (or before you've
+  // pressed watch) can't already show a candle reaching the real fill --
+  // that would spoil the tape before it plays. So the default view is
+  // just a flat, just-opened candle with no body yet. The entry prompt
+  // still states the current price in text (you need that to decide),
+  // but the chart's shape is only revealed once you've watched it print
+  // or made your call -- see pushFormingBarPrice below.
+  function buildFormingBar(fullBar) {
     return {
-      t: fullBar.t,
-      o: fullBar.o,
-      h: Math.max(fullBar.o, fillPrice),
-      l: Math.min(fullBar.o, fillPrice),
-      c: fillPrice,
-      v: Math.round((fullBar.v || 0) * frac),
+      t: fullBar.t, o: fullBar.o, h: fullBar.o, l: fullBar.o, c: fullBar.o, v: 0,
       vwap: fullBar.vwap, ema9: fullBar.ema9, ema20: fullBar.ema20,
       _forming: true,
     };
+  }
+  // Reveals the forming candle's body up to a given price, clamped so it
+  // still never leaks the bar's real (future-relative-to-this-point)
+  // extremes -- same clamp buildFormingBar used to apply up front. Used
+  // once you've actually entered (or watched the tape) without a live
+  // replay already having painted it tick by tick.
+  function pushFormingBarPrice(chartHandle, bar, price, secondsIntoBar) {
+    if (!chartHandle) return;
+    const frac = Math.max(0, Math.min(1, secondsIntoBar / BAR_SECONDS));
+    try {
+      chartHandle.series.update({
+        time: toUnix(bar.t), open: bar.o, high: Math.max(bar.o, price), low: Math.min(bar.o, price), close: price,
+        color: "rgba(232,169,76,0.55)", borderColor: "#e8a94c", wickColor: "#e8a94c",
+      });
+      if (chartHandle.volSeries) {
+        chartHandle.volSeries.update({ time: toUnix(bar.t), value: Math.round((bar.v || 0) * frac), color: "rgba(232,169,76,0.4)" });
+      }
+    } catch (e) { /* chart already torn down */ }
   }
 
   function renderEntryStage() {
@@ -949,7 +1020,8 @@
     const entryUnix = toUnix(`${trade.trade_date} ${trade.entry_time}`);
     const secondsIntoBar = Math.max(0, entryUnix - toUnix(entryBar.t));
     const secondsRemaining = Math.max(0, BAR_SECONDS - secondsIntoBar);
-    const formingBar = buildFormingBar(entryBar, trade.entry_price, secondsIntoBar);
+    c.entrySecondsIntoBar = secondsIntoBar;
+    const formingBar = buildFormingBar(entryBar);
     const visibleBars = c.bars.slice(0, c.entryIdx).concat([formingBar]);
     const sidePretty = c.side === "short" ? "short" : "long";
 
@@ -992,6 +1064,7 @@
     const watchBtn = document.getElementById("qz-watch-entry");
     const answerRow = document.getElementById("quiz-entry-answer-row");
     const prevCloseEntry = c.entryIdx > 0 ? c.bars[c.entryIdx - 1].c : entryBar.o;
+    c.entryBarPrevClose = prevCloseEntry;
     watchBtn.addEventListener("click", () => {
       watchBtn.disabled = true;
       watchBtn.textContent = state.tickMode === "real" ? "Loading real ticks…" : "Loading…";
@@ -1019,7 +1092,7 @@
           minTotalMs: 20000, // at least 20 real seconds to decide, even on a fast fill
           chartHandle: c.chartHandle,
           bar: entryBar,
-          onAct: (actionId, tickIdx, price) => handleEntryChoice(actionId === "enter", price),
+          onAct: (actionId, tickIdx, price) => handleEntryChoice(actionId === "enter", price, tickIdx),
         });
         } catch (err) { showStageError(err); }
       }).catch(showStageError);
@@ -1028,12 +1101,30 @@
     c.stage = "entry";
   }
 
-  function handleEntryChoice(entered, price) {
+  // tickIdx (0-based, in the REPLAY_SECONDS space) is only given when the
+  // choice came from clicking during "Watch it print in" -- it's exactly
+  // which tick you clicked on. When it's missing (you decided straight
+  // from the static prompt, without watching), we derive the equivalent
+  // index from the real fill's time into the bar, using the same rounding
+  // the tape's own cutoff uses, so both paths agree on one tick index.
+  function handleEntryChoice(entered, price, tickIdx) {
     const c = state.current;
     try {
     if (c.replayHandle) { c.replayHandle.stop(); c.replayHandle = null; } // stop an in-progress "watch it print in" replay
     c.entered = entered;
-    if (entered) c.userEntryPrice = Number.isFinite(price) ? price : c.trade.entry_price;
+    if (entered) {
+      c.userEntryPrice = Number.isFinite(price) ? price : c.trade.entry_price;
+      c.entryTickIdx = Number.isFinite(tickIdx)
+        ? tickIdx
+        : entryTickCount(c.entrySecondsIntoBar || 0) - 1;
+      // If the tape was watched, its own live-painted candle already
+      // reflects this price -- only push it here for the un-watched path,
+      // where the chart is still sitting flat at the open.
+      if (!Number.isFinite(tickIdx)) {
+        const entryBar = c.bars[c.entryIdx];
+        pushFormingBarPrice(c.chartHandle, entryBar, c.userEntryPrice, c.entrySecondsIntoBar || 0);
+      }
+    }
     const enterBtn = document.getElementById("qz-enter");
     const passBtn = document.getElementById("qz-pass");
     if (enterBtn) enterBtn.disabled = true;
@@ -1185,7 +1276,14 @@
   // would, regardless of where the real entry/exit actually landed.
   function renderWatchStage() {
     const c = state.current;
-    c.watchIdx = c.entryIdx + 1;
+    // Resume from the entry bar itself if there was any of it left when
+    // you entered -- watchIdx === entryIdx means "still finishing this
+    // candle". Only once that's played out do we move on to entryIdx + 1.
+    // (Previously this always jumped straight to entryIdx + 1, silently
+    // skipping whatever time was left on the candle you actually entered
+    // on.)
+    const hasEntryBarRemainder = c.entryTickIdx != null && c.entryTickIdx < REPLAY_SECONDS - 1;
+    c.watchIdx = hasEntryBarRemainder ? c.entryIdx : c.entryIdx + 1;
     if (c.watchIdx > c.bars.length - 1) {
       // Nothing left to watch after entry -- go straight to reveal, same
       // outcome as watching through to the end of the data and never
@@ -1236,7 +1334,12 @@
     // outcome before the reveal screen. Those only show up once you've
     // finished the trade.
     const chartEl = document.getElementById("quiz-candle-chart");
-    c.chartHandle = buildChart(chartEl, historyBars.length ? historyBars : c.bars.slice(0, c.watchIdx + 1), {
+    // Fall back to just this one bar only when there's truly no earlier
+    // history (watchIdx is the very first bar of the dataset) -- for the
+    // entry-bar-remainder case there's no fallback needed since the
+    // entry bar itself isn't finished yet and must not be shown as an
+    // already-closed candle.
+    c.chartHandle = buildChart(chartEl, historyBars.length ? historyBars : (c.watchIdx > 0 ? c.bars.slice(0, c.watchIdx + 1) : []), {
       height: 380,
       priceLines: watchPriceLines,
     });
@@ -1254,10 +1357,21 @@
     try {
     const trade = c.trade;
     const entryPrice = c.userEntryPrice;
+    // watchIdx === entryIdx means we're still finishing out the candle
+    // you entered on, tick by tick from your fill -- not yet a fresh bar.
+    const isEntryRemainder = c.watchIdx === c.entryIdx;
     const historyBars = c.bars.slice(0, c.watchIdx);
     const bar = c.bars[c.watchIdx];
-    const prevClose = historyBars.length ? historyBars[historyBars.length - 1].c : entryPrice;
-    const unrealized = pnlPerShare(entryPrice, prevClose, c.side);
+    // Feeds the deterministic simulated path -- for the entry bar's
+    // remainder this must be the exact value the pre-entry tape used
+    // (c.entryBarPrevClose), so both halves of the same candle are the
+    // same underlying walk instead of visibly disagreeing at the seam.
+    const tickPrevClose = isEntryRemainder
+      ? (c.entryBarPrevClose != null ? c.entryBarPrevClose : entryPrice)
+      : (historyBars.length ? historyBars[historyBars.length - 1].c : entryPrice);
+    // "Unrealized so far" for the remainder should read off your own
+    // fill (you only just entered), not the close of the bar before it.
+    const unrealized = pnlPerShare(entryPrice, isEntryRemainder ? entryPrice : tickPrevClose, c.side);
     const clockStr = new Date(bar.t.replace(" ", "T")).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const minutesIn = c.watchIdx - c.entryIdx;
     const barsLeft = c.bars.length - 1 - c.watchIdx;
@@ -1275,9 +1389,22 @@
     replaySlot.innerHTML = `<div class="quiz-replay-loading">${state.tickMode === "real" ? "Loading real ticks from the server…" : "Loading…"}</div>`;
 
     const watchIdxAtFetch = c.watchIdx;
-    getCheckpointTicks(trade, bar, prevClose).then(({ prices, real, fellBack }) => {
+    const ticksPromise = isEntryRemainder
+      ? getEntryBarRemainderTicks(trade, bar, tickPrevClose, c.entryTickIdx)
+      : getCheckpointTicks(trade, bar, tickPrevClose);
+    ticksPromise.then(({ prices, real, fellBack }) => {
       if (state.current !== c || c.stage !== "watch" || c.watchIdx !== watchIdxAtFetch) return; // moved on while this was in flight
       try {
+      if (!prices.length) {
+        // You entered right on the bar's final tick -- nothing left of
+        // this candle to watch, so finalize it and move on to the next
+        // bar instead of trying to play an empty tape.
+        finalizeBarOnChart(c.chartHandle, bar);
+        c.watchIdx += 1;
+        if (c.watchIdx > c.bars.length - 1) { goToReveal(); return; }
+        renderWatchBar();
+        return;
+      }
       c.replayHandle = runSecondReplay(replaySlot, prices, {
         unitLabel: real ? "tick" : "second",
         tag: real ? "live ticks · server" : "simulated seconds",
@@ -1293,6 +1420,12 @@
         ],
         chartHandle: c.chartHandle,
         bar,
+        // Continuing the entry bar's own candle: seed the wick from what
+        // it already showed (open..your fill) instead of resetting it
+        // flat, and keep volume accumulating past what already printed.
+        seedHigh: isEntryRemainder ? Math.max(bar.o, entryPrice) : undefined,
+        seedLow: isEntryRemainder ? Math.min(bar.o, entryPrice) : undefined,
+        volStartFrac: isEntryRemainder ? (c.entryTickIdx + 1) / REPLAY_SECONDS : 0,
         onTick: (price) => {
           const breached = c.side === "short" ? price >= c.stopPrice : price <= c.stopPrice;
           if (breached) {
