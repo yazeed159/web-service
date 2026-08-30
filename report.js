@@ -546,13 +546,49 @@
       .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json().catch(() => ({})); })
       .then((data) => {
         const n = (data && data.imported) || trades.length;
-        // The workflow runs async (chart render + vision-LLM pass per
-        // trade) and calls back to /enrich on its own time, so nothing
-        // new is available on THIS response -- just reload the report
-        // from the backend after a bit so the newly-enriched trades'
-        // "View Chart" buttons light up without a manual refresh.
+        // The workflow runs async (one chart render per trade, paced ~13s
+        // apart by the chart server's own Polygon rate limit -- see
+        // chart_service.py) and calls back to /enrich once it's done, so
+        // nothing new is available on THIS response yet.
+        //
+        // This used to reload the report exactly ONCE, 20 seconds later,
+        // regardless of trade count -- fine for a couple of trades, but a
+        // batch of a dozen-plus can legitimately take several minutes
+        // (~13s per trade), so that single reload landed mid-run and
+        // showed whatever had enriched so far as done, with everything
+        // still in flight stuck permanently greyed out until a manual
+        // page refresh. Poll instead: keep reloading every 15s until
+        // every trade has its bars (or the run truly errored out on the
+        // n8n side), for a budget that scales with how many trades are
+        // actually in this batch.
+        const POLL_MS = 15000;
+        const maxAttempts = Math.max(4, Math.ceil((trades.length * 15000 + 30000) / POLL_MS));
+        let attempt = 0;
+
+        function allEnriched() {
+          return currentReport && Array.isArray(currentReport.trades)
+            && currentReport.trades.every((t) => Array.isArray(t.bars) && t.bars.length);
+        }
+
+        function poll() {
+          attempt++;
+          loadBackendReport(currentId).then(() => {
+            if (!currentReport || currentReport.source !== "backend") return; // navigated away
+            if (allEnriched()) {
+              els.toolbarStatus.textContent = `All ${trades.length} trade${trades.length === 1 ? "" : "s"} enriched.`;
+              return;
+            }
+            if (attempt >= maxAttempts) {
+              els.toolbarStatus.textContent = "Some trades are still missing charts — the journal workflow may still be running or hit an error partway through; reload this page in a bit to check again.";
+              return;
+            }
+            els.toolbarStatus.textContent = `Sent ${n} trade${n === 1 ? "" : "s"} to the journal workflow — charts will appear here as they finish (checking again in ${POLL_MS / 1000}s)…`;
+            setTimeout(poll, POLL_MS);
+          });
+        }
+
         els.toolbarStatus.textContent = `Sent ${n} trade${n === 1 ? "" : "s"} to the journal workflow — charts will appear here once it finishes (this page will refresh automatically).`;
-        setTimeout(() => { if (currentReport && currentReport.source === "backend") loadBackendReport(currentId); }, 20000);
+        setTimeout(poll, POLL_MS);
       })
       .catch((err) => { els.toolbarStatus.textContent = `Couldn't send to journal (${err.message}).`; })
       .finally(() => { els.sendJournal.disabled = false; els.sendJournal.textContent = original; });
@@ -881,9 +917,9 @@
     if (!API() || API().includes("YOUR-NGROK-SUBDOMAIN")) {
       els.errorText.textContent = "Set window.CHART_SERVICE_URL in config.js to your ngrok URL to open saved backtest runs.";
       showOnly("error");
-      return;
+      return Promise.resolve();
     }
-    fetch(`${API()}/backtest/history/${id}/report`, { headers: FETCH_HEADERS })
+    return fetch(`${API()}/backtest/history/${id}/report`, { headers: FETCH_HEADERS })
       .then((r) => {
         if (r.status === 404) throw new Error("No saved report for this run — it may have been deleted, or predates this feature.");
         if (!r.ok) throw new Error("HTTP " + r.status);
