@@ -124,6 +124,15 @@
 .quiz-replay-track { height: 4px; border-radius: 2px; background: var(--border-soft); overflow: hidden; margin-bottom: 12px; }
 .quiz-replay-bar { height: 100%; width: 0%; background: var(--blue); transition: width .08s linear; }
 .quiz-replay-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.quiz-replay-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+.quiz-speed-row { display: inline-flex; gap: 4px; }
+.quiz-speed-btn {
+  background: var(--panel-3); border: 1px solid var(--border); color: var(--text-faint);
+  border-radius: 20px; padding: 3px 9px; font-size: 11px; font-weight: 700; font-family: var(--mono);
+  cursor: pointer; transition: all .12s ease;
+}
+.quiz-speed-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.quiz-speed-btn.active { background: var(--primary-soft); color: var(--primary); border-color: rgba(139,124,246,.4); }
 
 /* Tick-mode picker on the setup screen (mirrors .quiz-mode-row/.quiz-mode-btn) */
 .quiz-tickmode-hint {
