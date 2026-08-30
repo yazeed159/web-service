@@ -565,7 +565,7 @@
   // populated by sendJournal() above once the n8n workflow's /enrich
   // callback has run. No image is generated or shown; everything is
   // drawn client-side from the raw bar data.
-  let rptCandleChart = null, rptMacdChart = null;
+  let rptCandleChart = null, rptMacdChart = null, rptRepositionPointers = null;
 
   function toUnix(t) { return Math.floor(new Date(String(t).replace(" ", "T")).getTime() / 1000); }
 
@@ -574,6 +574,7 @@
     els.chartModal.setAttribute("aria-hidden", "true");
     if (rptCandleChart) { rptCandleChart.remove(); rptCandleChart = null; }
     if (rptMacdChart) { rptMacdChart.remove(); rptMacdChart = null; }
+    rptRepositionPointers = null;
     document.getElementById("rpt-candle-chart").innerHTML = "";
     document.getElementById("rpt-macd-chart").innerHTML = "";
   }
@@ -635,9 +636,12 @@
     rptCandleChart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema9Data);
     rptCandleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema20Data);
 
-    // Entry/exit price lines -- solid, actual fills.
-    candleSeries.createPriceLine({ price: trade.entry_price, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "entry" });
-    candleSeries.createPriceLine({ price: trade.exit_price, color: "#f2555a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "exit" });
+    // Entry/exit price lines -- solid, actual fills. No axis title: the
+    // pointer triangles below (same visual language as trade.js's
+    // real-journal chart) carry that now, on hover/tap, instead of a
+    // permanent label competing with the axis.
+    candleSeries.createPriceLine({ price: trade.entry_price, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "" });
+    candleSeries.createPriceLine({ price: trade.exit_price, color: "#f2555a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "" });
 
     // The LLM verdict step (see chart_service.py's /enrich contract) only
     // ever gives a better_entry/exit PRICE for backtest trades, no time --
@@ -656,20 +660,137 @@
       });
     }
 
-    // Small marker triangles right on the actual entry/exit fills, same
-    // visual language as trade.js's real-journal chart.
+    // Small pointer triangles right on the actual entry/exit fills, exact
+    // same visual language and mechanics as trade.js's real-journal chart:
+    // a tiny CSS triangle positioned in screen pixels off the fill's real
+    // time/price coordinate, with a hover/tap tooltip carrying the full
+    // price -- instead of lightweight-charts' native arrow+text markers,
+    // which draw their text permanently on the pane and, at anything but
+    // a wide zoom, sit right on top of (or right next to) the candles
+    // themselves.
+    //
+    // Backtest trades never carry better_entry_time/better_exit_time (only
+    // a price -- see Build Backtest Callback Body), so unlike trade.js
+    // there's no bar to anchor a "better" pointer to; those stay as the
+    // dotted price lines above, axis label only.
     function barAt(unixTime) {
       let best = bars[0];
       for (const b of bars) { if (toUnix(b.t) <= unixTime) best = b; else break; }
       return best;
     }
-    const markers = [];
     const entryBar = barAt(toUnix(`${trade.date} ${trade.entry_time}`));
     const exitBar = barAt(toUnix(`${trade.date} ${trade.exit_time}`));
-    if (entryBar) markers.push({ time: toUnix(entryBar.t), position: "belowBar", color: "#2fd08a", shape: "arrowUp", text: `entry $${Number(trade.entry_price).toFixed(2)}` });
-    if (exitBar) markers.push({ time: toUnix(exitBar.t), position: "aboveBar", color: "#f2555a", shape: "arrowDown", text: `exit $${Number(trade.exit_price).toFixed(2)}` });
-    markers.sort((a, b) => a.time - b.time);
-    candleSeries.setMarkers(markers);
+
+    const POINTER_H = 9; // triangle height in px -- also used to correct the tip offset in repositionPointers()
+
+    function tooltipHtml(head) {
+      return `<div style="font-weight:700;">${escapeHtml(head)}</div>`;
+    }
+
+    // Appended to `wrap` directly (not the pointer overlay, which clips its
+    // contents to the chart's bounds via overflow:hidden) so the tooltip is
+    // never cut off at the pane edge.
+    function buildPointer(tooltipHtmlText, color) {
+      const wrap = candleEl;
+      wrap.style.position = "relative";
+      let overlay = wrap.querySelector(".fill-pointer-overlay");
+      if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.className = "fill-pointer-overlay";
+        overlay.style.cssText = "position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:2;";
+        wrap.appendChild(overlay);
+      }
+      const el = document.createElement("div");
+      el.style.cssText = `
+        position:absolute; width:0; height:0; pointer-events:auto;
+        border-left:6px solid transparent; border-right:6px solid transparent;
+        filter: drop-shadow(0 0 1.5px #0b0d10) drop-shadow(0 0 1.5px #0b0d10);
+      `;
+      overlay.appendChild(el);
+
+      let tooltip = null;
+      if (tooltipHtmlText) {
+        tooltip = document.createElement("div");
+        tooltip.className = "pointer-tooltip";
+        tooltip.dataset.open = "0";
+        tooltip.style.cssText = `
+          position:absolute; display:none; width:180px; max-width:60vw;
+          background:#181b22; border:1px solid ${color}; border-radius:8px;
+          padding:10px 12px; font-size:12px; line-height:1.5; color:#eceef2;
+          box-shadow:0 6px 20px rgba(0,0,0,.45); z-index:5; pointer-events:none;
+        `;
+        tooltip.innerHTML = tooltipHtmlText;
+        wrap.appendChild(tooltip);
+
+        const openTooltip = () => {
+          wrap.querySelectorAll(".pointer-tooltip").forEach((t) => { t.dataset.open = "0"; t.style.display = "none"; });
+          tooltip.dataset.open = "1";
+          tooltip.style.display = "block";
+          repositionPointers();
+        };
+        const closeTooltip = () => { tooltip.dataset.open = "0"; tooltip.style.display = "none"; };
+        el.addEventListener("mouseenter", openTooltip);
+        el.addEventListener("mouseleave", closeTooltip);
+        // Tap-to-toggle so touch users (no mouseenter) can still reach it.
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (tooltip.dataset.open === "1") closeTooltip(); else openTooltip();
+        });
+      }
+      return { el, tooltip };
+    }
+
+    function mkPointer(time, price, color, above, tooltipHtmlText) {
+      const { el, tooltip } = buildPointer(tooltipHtmlText, color);
+      return { time, price, color, above, el, tooltip };
+    }
+
+    const pointers = [
+      // Entry: triangle sits just above the fill, tip pointing down onto it.
+      mkPointer(toUnix(entryBar.t), trade.entry_price, "#2fd08a", true, tooltipHtml(`ENTRY $${Number(trade.entry_price).toFixed(2)}`)),
+      // Exit: triangle sits just below the fill, tip pointing up onto it.
+      mkPointer(toUnix(exitBar.t), trade.exit_price, "#f2555a", false, tooltipHtml(`EXIT $${Number(trade.exit_price).toFixed(2)}`)),
+    ];
+
+    // A zero-size div with only border-bottom set renders a triangle whose
+    // TIP sits at the box's OWN top edge, with the flat BASE extending
+    // downward (by POINTER_H) from there; border-top-only is the mirror
+    // image. See repositionPointers() below, which corrects for that.
+    pointers.forEach((p) => {
+      p.el.style.borderTop = p.above ? `${POINTER_H}px solid ${p.color}` : "";
+      p.el.style.borderBottom = p.above ? "" : `${POINTER_H}px solid ${p.color}`;
+    });
+
+    function repositionPointers() {
+      pointers.forEach((p) => {
+        const x = rptCandleChart.timeScale().timeToCoordinate(p.time);
+        const y = candleSeries.priceToCoordinate(p.price);
+        if (x === null || y === null) {
+          p.el.style.display = "none";
+          if (p.tooltip) { p.tooltip.style.display = "none"; p.tooltip.dataset.open = "0"; }
+          return;
+        }
+        p.el.style.display = "block";
+        p.el.style.left = `${x}px`;
+        const pointerTop = p.above ? y - POINTER_H : y;
+        p.el.style.top = `${pointerTop}px`;
+        p.el.style.transform = "translateX(-50%)";
+        if (p.tooltip && p.tooltip.dataset.open === "1") {
+          p.tooltip.style.left = `${x + 8}px`;
+          p.tooltip.style.top = `${p.above ? pointerTop - 8 : pointerTop + POINTER_H + 8}px`;
+          p.tooltip.style.transform = p.above ? "translateY(-100%)" : "none";
+        }
+      });
+    }
+
+    rptRepositionPointers = repositionPointers;
+    rptCandleChart.timeScale().subscribeVisibleLogicalRangeChange(repositionPointers);
+    // priceToCoordinate depends on the right price scale's own autoscale,
+    // which isn't settled until after setData/fitContent run -- a couple
+    // of follow-up passes catch that instead of racing it.
+    repositionPointers();
+    requestAnimationFrame(repositionPointers);
+    setTimeout(repositionPointers, 0);
 
     rptMacdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: macdEl.clientHeight || 100 });
     rptMacdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } }).setData(histData);
@@ -692,12 +813,21 @@
   els.chartModalBackdrop.addEventListener("click", closeTradeChart);
   els.chartModalClose.addEventListener("click", closeTradeChart);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && els.chartModal.style.display !== "none") closeTradeChart(); });
+  // Closes whichever pointer tooltip is tap-pinned open when the user
+  // clicks anywhere else -- otherwise a tapped-open tooltip (the only way
+  // touch users reach it, since there's no mouseenter) would just sit
+  // there covering the chart. Registered once here rather than inside
+  // buildTradeChart, which reruns on every chart open.
+  document.addEventListener("click", () => {
+    document.querySelectorAll(".pointer-tooltip").forEach((t) => { t.dataset.open = "0"; t.style.display = "none"; });
+  });
   window.addEventListener("resize", () => {
     if (!rptCandleChart) return;
     const candleEl = document.getElementById("rpt-candle-chart");
     const macdEl = document.getElementById("rpt-macd-chart");
     rptCandleChart.applyOptions({ width: candleEl.clientWidth });
     if (rptMacdChart) rptMacdChart.applyOptions({ width: macdEl.clientWidth });
+    if (rptRepositionPointers) rptRepositionPointers();
   });
 
   // ================= local reports list (import/empty state) =================
