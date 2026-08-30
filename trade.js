@@ -157,6 +157,10 @@
           </div>
           <div style="display:flex; align-items:center; gap:12px;">
             <span>Scroll to zoom · drag to pan</span>
+            <button class="icon-btn" id="replay-btn" title="Second-by-second replay, entry to exit" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              Replay
+            </button>
             <button class="icon-btn" id="export-chart-btn" title="Export chart as PNG" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
               PNG
@@ -164,6 +168,28 @@
           </div>
         </div>
         <div id="candle-chart"></div>
+        <div id="replay-panel" style="display:none; margin-top:10px; padding:12px 14px; background:var(--panel-2, #14171c); border:1px solid var(--border-soft, #232830); border-radius:8px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:baseline; gap:10px;">
+              <span id="replay-price" style="font-size:20px; font-weight:700; font-variant-numeric:tabular-nums;">—</span>
+              <span id="replay-pnl" style="font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums;"></span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--text-faint,#8b98a5);">
+              <span id="replay-clock" style="font-variant-numeric:tabular-nums;"></span>
+              <span style="opacity:.6;">simulated seconds — synthesized between real 1-min bars, not real tick data</span>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
+            <button class="icon-btn" id="replay-play-btn" title="Play/pause" style="width:auto; padding:4px 10px; font-size:11.5px;">▶ Play</button>
+            <input type="range" id="replay-scrub" min="0" max="0" value="0" step="1" style="flex:1;">
+            <select id="replay-speed" title="Playback speed" style="background:var(--panel,#0f1216); color:inherit; border:1px solid var(--border,#232830); border-radius:6px; font-size:11.5px; padding:3px 6px;">
+              <option value="1">1×</option>
+              <option value="0.5">2×</option>
+              <option value="0.25">4×</option>
+            </select>
+            <button class="icon-btn" id="replay-close-btn" title="Close replay" style="width:auto; padding:4px 8px; font-size:11.5px;">✕</button>
+          </div>
+        </div>
         <div id="macd-chart"></div>
       </div>
 
@@ -770,6 +796,183 @@
         title: "better exit",
       });
     }
+
+    // ---------------------------------------------------------------
+    // Second-by-second replay, entry through exit, on demand.
+    //
+    // Polygon only gives us 1-min bars, so there's no real tick feed for
+    // any of this -- same deterministic (seeded) synthesized intra-bar
+    // path used in the Quiz tab (see genSecondTicks in quiz.js), chained
+    // across every bar from the entry bar through the exit bar, clipped
+    // at both ends to the trade's actual entry/exit second so the replay
+    // starts exactly at the real fill and ends exactly at the real exit.
+    // Clearly labeled "simulated seconds" in the panel -- this is a
+    // review aid, not a real tick-by-tick record. Opens/closes on demand
+    // (the Replay button) and is freely scrubbable at any position at any
+    // time via the range input, not just a one-shot forward animation.
+    // ---------------------------------------------------------------
+    (function setupReplay() {
+      const SUBTICKS_PER_BAR = 30;
+      const BAR_SECONDS = 60;
+
+      function seededRng(seedStr) {
+        let h = 1779033703 ^ seedStr.length;
+        for (let i = 0; i < seedStr.length; i++) {
+          h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353);
+          h = (h << 13) | (h >>> 19);
+        }
+        return function () {
+          h = Math.imul(h ^ (h >>> 16), 2246822507);
+          h = Math.imul(h ^ (h >>> 13), 3266489909);
+          h ^= h >>> 16;
+          return (h >>> 0) / 4294967296;
+        };
+      }
+
+      function genSubticks(bar, prevClose, seed) {
+        const n = SUBTICKS_PER_BAR;
+        const rng = seededRng(seed);
+        const o = bar.o, h = bar.h, l = bar.l, c = bar.c;
+        const start = Number.isFinite(prevClose) ? prevClose : o;
+        const highFirst = rng() < 0.5;
+        const waypoints = [
+          { t: 0, p: start },
+          { t: Math.round(n * 0.1), p: o },
+          { t: Math.round(n * 0.42), p: highFirst ? h : l },
+          { t: Math.round(n * 0.74), p: highFirst ? l : h },
+          { t: n - 1, p: c },
+        ];
+        const range = Math.max(h - l, 0.0001);
+        const jitterAmp = range * 0.07;
+        const prices = [];
+        for (let s = 0; s < n; s++) {
+          let a = waypoints[0], b = waypoints[waypoints.length - 1];
+          for (let i = 0; i < waypoints.length - 1; i++) {
+            if (s >= waypoints[i].t && s <= waypoints[i + 1].t) { a = waypoints[i]; b = waypoints[i + 1]; break; }
+          }
+          const span = Math.max(1, b.t - a.t);
+          const frac = (s - a.t) / span;
+          let price = a.p + (b.p - a.p) * frac;
+          price += (rng() - 0.5) * 2 * jitterAmp;
+          price = Math.min(h, Math.max(l, price));
+          prices.push(price);
+        }
+        prices[n - 1] = c;
+        return prices;
+      }
+
+      const entryUnix = toUnix(`${trade.trade_date} ${trade.entry_time}`);
+      const exitUnix = toUnix(`${trade.trade_date} ${trade.exit_time}`);
+      const entryIdx = bars.indexOf(entryBar);
+      const exitIdx = Math.max(entryIdx, bars.indexOf(exitBar));
+      if (entryIdx < 0 || exitIdx < 0 || !Number.isFinite(entryUnix) || !Number.isFinite(exitUnix)) return;
+
+      const ticks = [];
+      for (let idx = entryIdx; idx <= exitIdx; idx++) {
+        const bar = bars[idx];
+        const barStart = toUnix(bar.t);
+        const prevClose = idx > 0 ? bars[idx - 1].c : bar.o;
+        const prices = genSubticks(bar, prevClose, `${trade.id || ""}-${bar.t}`);
+        for (let s = 0; s < prices.length; s++) {
+          const t = barStart + (s / prices.length) * BAR_SECONDS;
+          if (t < entryUnix) continue; // clip before the real entry, on the entry bar
+          if (t > exitUnix) continue; // clip after the real exit, on the exit bar
+          ticks.push({ time: t, price: prices[s] });
+        }
+      }
+      // Snap the endpoints to the trade's real fill prices so the replay
+      // always starts and ends on the numbers that actually happened,
+      // even though the path between them is synthesized.
+      if (!ticks.length || ticks[0].time > entryUnix) ticks.unshift({ time: entryUnix, price: trade.entry_price });
+      else { ticks[0].time = entryUnix; ticks[0].price = trade.entry_price; }
+      if (ticks[ticks.length - 1].time < exitUnix) ticks.push({ time: exitUnix, price: trade.exit_price });
+      else { ticks[ticks.length - 1].time = exitUnix; ticks[ticks.length - 1].price = trade.exit_price; }
+
+      const panel = document.getElementById("replay-panel");
+      const replayBtn = document.getElementById("replay-btn");
+      const closeBtn = document.getElementById("replay-close-btn");
+      const playBtn = document.getElementById("replay-play-btn");
+      const scrub = document.getElementById("replay-scrub");
+      const speedSel = document.getElementById("replay-speed");
+      const priceEl = document.getElementById("replay-price");
+      const pnlEl = document.getElementById("replay-pnl");
+      const clockEl = document.getElementById("replay-clock");
+      if (!panel || !replayBtn) return;
+
+      scrub.max = String(ticks.length - 1);
+
+      // A small dot on the candle chart marking the current replay point,
+      // positioned the same way the entry/exit pointer triangles are
+      // (chart-coordinate conversion), so it tracks pan/zoom correctly.
+      const dot = document.createElement("div");
+      dot.style.cssText = `
+        position:absolute; width:9px; height:9px; border-radius:50%;
+        background:#ffd166; border:2px solid #14171c; z-index:6;
+        pointer-events:none; display:none; transform:translate(-50%,-50%);
+        box-shadow:0 0 0 2px rgba(255,209,102,0.35);
+      `;
+      candleEl.style.position = "relative";
+      candleEl.appendChild(dot);
+
+      function positionDot(tick) {
+        const x = candleChart.timeScale().timeToCoordinate(Math.round(tick.time));
+        const y = candleSeries.priceToCoordinate(tick.price);
+        if (x === null || y === null) { dot.style.display = "none"; return; }
+        dot.style.display = "block";
+        dot.style.left = `${x}px`;
+        dot.style.top = `${y}px`;
+      }
+
+      const side = String(trade.side || "long").toLowerCase() === "short" ? -1 : 1;
+      function paint(i) {
+        const tick = ticks[i];
+        priceEl.textContent = "$" + tick.price.toFixed(2);
+        const openPnl = side * (tick.price - trade.entry_price) * (trade.shares || 0);
+        pnlEl.textContent = (openPnl >= 0 ? "+" : "-") + "$" + Math.abs(openPnl).toFixed(2);
+        pnlEl.style.color = openPnl >= 0 ? "#2fd08a" : "#f2555a";
+        const elapsed = Math.max(0, Math.round(tick.time - entryUnix));
+        clockEl.textContent = `+${elapsed}s since entry · ${i + 1}/${ticks.length}`;
+        scrub.value = String(i);
+        positionDot(tick);
+      }
+
+      let curIdx = 0, timer = null, playing = false;
+      function stop() {
+        playing = false;
+        if (timer) clearInterval(timer);
+        timer = null;
+        playBtn.textContent = "▶ Play";
+      }
+      function play() {
+        if (curIdx >= ticks.length - 1) curIdx = 0;
+        playing = true;
+        playBtn.textContent = "⏸ Pause";
+        const tickMs = 150 * Number(speedSel.value || "1");
+        if (timer) clearInterval(timer);
+        timer = setInterval(() => {
+          if (curIdx >= ticks.length - 1) { stop(); return; }
+          curIdx++;
+          paint(curIdx);
+        }, tickMs);
+      }
+
+      replayBtn.addEventListener("click", () => {
+        const opening = panel.style.display === "none";
+        panel.style.display = opening ? "block" : "none";
+        if (opening) { curIdx = 0; paint(0); }
+        else stop();
+      });
+      closeBtn.addEventListener("click", () => { stop(); panel.style.display = "none"; dot.style.display = "none"; });
+      playBtn.addEventListener("click", () => { playing ? stop() : play(); });
+      scrub.addEventListener("input", () => {
+        stop();
+        curIdx = Number(scrub.value);
+        paint(curIdx);
+      });
+      speedSel.addEventListener("change", () => { if (playing) play(); });
+      candleChart.timeScale().subscribeVisibleLogicalRangeChange(() => { if (panel.style.display !== "none") positionDot(ticks[curIdx]); });
+      window.addEventListener("resize", () => { if (panel.style.display !== "none") positionDot(ticks[curIdx]); });
+    })();
 
     const macdEl = document.getElementById("macd-chart");
     const macdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: 110 });

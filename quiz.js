@@ -84,6 +84,21 @@
     }
     return bestIdx;
   }
+  // Baseline share count the size presets scale off of — not tied to what
+  // was actually traded (that stays hidden until reveal), just a round
+  // reference point so "size up / size down" means something concrete.
+  const SIZE_BASELINE = 100;
+  const SIZE_PRESETS = [
+    { shares: 50, label: "Small", sub: "50 sh · low conviction" },
+    { shares: SIZE_BASELINE, label: "Standard", sub: "100 sh" },
+    { shares: 200, label: "Large", sub: "200 sh · high conviction" },
+  ];
+  const STOP_PRESETS = [
+    { pct: 0.5, label: "Tight", sub: "0.5%" },
+    { pct: 1, label: "Standard", sub: "1%" },
+    { pct: 2, label: "Wide", sub: "2%" },
+  ];
+
   function shuffle(arr) {
     const a = arr.slice();
     for (let i = a.length - 1; i > 0; i--) {
@@ -186,11 +201,41 @@
       actionsEl.appendChild(btn);
     });
 
+    // If given a live chart + the raw bar being replayed, push a real
+    // forming candle that grows/wicks with each tick instead of just
+    // updating the text readout -- same forming-candle look/colors the
+    // entry stage uses for its own partial bar.
+    const liveChart = opts.chartHandle && opts.bar ? opts.chartHandle : null;
+    const barTime = liveChart ? toUnix(opts.bar.t) : null;
+    let runningHigh = liveChart ? opts.bar.o : null;
+    let runningLow = liveChart ? opts.bar.o : null;
+    function paintCandle(idx) {
+      if (!liveChart) return;
+      const price = ticks[idx];
+      if (price > runningHigh) runningHigh = price;
+      if (price < runningLow) runningLow = price;
+      liveChart.series.update({
+        time: barTime, open: opts.bar.o, high: runningHigh, low: runningLow, close: price,
+        color: "rgba(232,169,76,0.55)", borderColor: "#e8a94c", wickColor: "#e8a94c",
+      });
+      if (liveChart.volSeries) {
+        const frac = (idx + 1) / ticks.length;
+        liveChart.volSeries.update({ time: barTime, value: Math.round((opts.bar.v || 0) * frac), color: "rgba(232,169,76,0.4)" });
+      }
+    }
+    if (liveChart) {
+      // Seed a zero-range candle before ticking so there's room for it on
+      // the timescale, then make sure that room is actually visible.
+      paintCandle(0);
+      try { liveChart.chart.timeScale().fitContent(); } catch (e) {}
+    }
+
     let i = 0, done = false, timer = null;
     function paint() {
       priceEl.textContent = "$" + fmtPrice(ticks[i]);
       secEl.textContent = `second ${i + 1} of ${ticks.length}`;
       fillEl.style.width = `${((i + 1) / ticks.length) * 100}%`;
+      paintCandle(i);
     }
     function finish(actionId) {
       if (done) return;
@@ -206,6 +251,88 @@
       paint();
     }, tickMs);
     return { stop: () => { done = true; clearInterval(timer); } };
+  }
+
+  // ---------------------------------------------------------------
+  // Full entry->exit second-by-second replay, for the "↻ Replay
+  // entry→exit" button on the reveal screen -- distinct from
+  // runSecondReplay above, which only plays a single bar (the
+  // checkpoint) and drives forming-candle grading actions. This one
+  // just animates a marker across the whole trade's already-rendered
+  // reveal chart, purely for review, and can be re-clicked to watch it
+  // again from the start as many times as you want.
+  // ---------------------------------------------------------------
+  function buildEntryExitTicks(trade, bars, entryIdx, exitIdx) {
+    const entryUnix = toUnix(`${trade.trade_date} ${trade.entry_time}`);
+    const exitUnix = toUnix(`${trade.trade_date} ${trade.exit_time}`);
+    if (!Number.isFinite(entryUnix) || !Number.isFinite(exitUnix)) return [];
+    const ticks = [];
+    for (let idx = entryIdx; idx <= exitIdx; idx++) {
+      const bar = bars[idx];
+      const barStart = toUnix(bar.t);
+      const prevClose = idx > 0 ? bars[idx - 1].c : bar.o;
+      const prices = genSecondTicks(bar, prevClose, `${trade.id}:reveal:${bar.t}`);
+      for (let s = 0; s < prices.length; s++) {
+        const t = barStart + (s / prices.length) * 60;
+        if (t < entryUnix || t > exitUnix) continue;
+        ticks.push({ time: t, price: prices[s] });
+      }
+    }
+    if (!ticks.length || ticks[0].time > entryUnix) ticks.unshift({ time: entryUnix, price: trade.entry_price });
+    else { ticks[0].time = entryUnix; ticks[0].price = trade.entry_price; }
+    if (ticks[ticks.length - 1].time < exitUnix) ticks.push({ time: exitUnix, price: trade.exit_price });
+    else { ticks[ticks.length - 1].time = exitUnix; ticks[ticks.length - 1].price = trade.exit_price; }
+    return ticks;
+  }
+
+  function setupRevealReplay(c, chartEl) {
+    const btn = document.getElementById("qz-replay-again-btn");
+    if (!btn) return;
+    const ticks = buildEntryExitTicks(c.trade, c.bars, c.entryIdx, c.exitIdx);
+    if (ticks.length < 2) { btn.disabled = true; return; }
+
+    const dot = document.createElement("div");
+    dot.style.cssText = `
+      position:absolute; width:9px; height:9px; border-radius:50%;
+      background:#ffd166; border:2px solid #14171c; z-index:6;
+      pointer-events:none; display:none; transform:translate(-50%,-50%);
+      box-shadow:0 0 0 2px rgba(255,209,102,0.35);
+    `;
+    chartEl.style.position = "relative";
+    chartEl.appendChild(dot);
+
+    function positionDot(tick) {
+      try {
+        const x = c.chartHandle.chart.timeScale().timeToCoordinate(Math.round(tick.time));
+        const y = c.chartHandle.series.priceToCoordinate(tick.price);
+        if (x == null || y == null) { dot.style.display = "none"; return; }
+        dot.style.display = "block";
+        dot.style.left = `${x}px`;
+        dot.style.top = `${y}px`;
+      } catch (e) { /* chart torn down mid-animation */ }
+    }
+    let timer = null, replayIdx = 0;
+    c.chartHandle.chart.timeScale().subscribeVisibleLogicalRangeChange(() => positionDot(ticks[Math.min(replayIdx, ticks.length - 1)]));
+
+    function stop() { if (timer) clearInterval(timer); timer = null; }
+    function play() {
+      stop();
+      replayIdx = 0;
+      btn.disabled = true;
+      btn.textContent = "▶ Replaying…";
+      positionDot(ticks[0]);
+      timer = setInterval(() => {
+        replayIdx++;
+        if (replayIdx >= ticks.length) {
+          stop();
+          btn.disabled = false;
+          btn.textContent = "↻ Replay entry→exit";
+          return;
+        }
+        positionDot(ticks[replayIdx]);
+      }, Math.max(20, Math.round(4000 / ticks.length)));
+    }
+    btn.addEventListener("click", play);
   }
 
   function loadHistory() {
@@ -564,6 +691,8 @@
       replayHandle: null,
       userExitPrice: null,
       exitSecond: null,
+      userShares: SIZE_BASELINE,
+      holdStopHitIdx: null, // set if a "hold" decision would've later run into the stop
     };
     renderEntryStage();
   }
@@ -649,7 +778,7 @@
     else goToReveal();
   }
 
-  // ---------- Stage B: stop-loss placement ----------
+  // ---------- Stage B: stop-loss + position size ----------
   function renderStopStage() {
     const c = state.current;
     const trade = c.trade;
@@ -657,18 +786,53 @@
     const slot = document.getElementById("quiz-stop-slot");
     slot.innerHTML = `
       <div class="quiz-stop-panel">
-        <div class="quiz-prompt" style="margin-top:0;">You're in. <b>Where's your stop-loss?</b> Type a price, or click the chart to place it.</div>
+        <div class="quiz-prompt" style="margin-top:0;">You're in. <b>Where's your stop-loss?</b> Pick a quick option, type a price, or click the chart to place it.</div>
+        <div class="quiz-preset-row" id="quiz-stop-presets">
+          ${STOP_PRESETS.map((p) => `<button class="quiz-preset-btn" data-pct="${p.pct}">${p.label} <span class="dim">· ${p.sub}</span></button>`).join("")}
+          <button class="quiz-preset-btn active" data-pct="">Custom</button>
+        </div>
         <div class="quiz-stop-row">
           <input type="number" step="0.0001" id="quiz-stop-input" placeholder="e.g. ${fmtPrice(c.side === "short" ? entryPrice * 1.02 : entryPrice * 0.98)}">
-          <button class="quiz-answer-btn enter" id="quiz-stop-confirm" style="flex:none; min-width:150px;">Lock in stop <span class="kbd">↵</span></button>
         </div>
         <div class="quiz-risk-preview" id="quiz-risk-preview"></div>
+
+        <div class="quiz-prompt">
+          <b>How much size?</b> Size up on trades you like, size down on ones you're not sure about — pick a quick option or set your own.
+        </div>
+        <div class="quiz-preset-row" id="quiz-size-presets">
+          ${SIZE_PRESETS.map((p) => `<button class="quiz-preset-btn${p.shares === SIZE_BASELINE ? " active" : ""}" data-shares="${p.shares}">${p.label} <span class="dim">· ${p.sub}</span></button>`).join("")}
+          <button class="quiz-preset-btn" data-shares="">Custom</button>
+        </div>
+        <div class="quiz-size-row">
+          <input type="number" step="1" min="1" id="quiz-size-input" value="${SIZE_BASELINE}">
+          <span class="quiz-size-unit">shares</span>
+        </div>
+        <div class="quiz-size-preview" id="quiz-size-risk-preview"></div>
+
+        <div class="quiz-stop-row" style="margin-top:16px;">
+          <button class="quiz-answer-btn enter" id="quiz-stop-confirm" style="flex:none; min-width:190px;">Lock in stop &amp; size <span class="kbd">↵</span></button>
+        </div>
         <div class="quiz-stop-hint" id="quiz-stop-error"></div>
       </div>
     `;
     c.stage = "stop";
 
+    const input = document.getElementById("quiz-stop-input");
+    const sizeInput = document.getElementById("quiz-size-input");
+    const stopPresetBtns = Array.from(document.querySelectorAll("#quiz-stop-presets .quiz-preset-btn"));
+    const sizePresetBtns = Array.from(document.querySelectorAll("#quiz-size-presets .quiz-preset-btn"));
+
     let previewLine = null;
+    function updateSizeRiskPreview() {
+      const el = document.getElementById("quiz-size-risk-preview");
+      if (!el) return;
+      const shares = Number(sizeInput.value);
+      const price = Number(input.value);
+      const risk = c.side === "short" ? price - entryPrice : entryPrice - price;
+      el.textContent = (Number.isFinite(shares) && shares > 0 && risk > 0)
+        ? `Total risk if stopped: $${(risk * shares).toFixed(2)} across ${shares} sh.`
+        : "";
+    }
     function setPreview(price) {
       if (!Number.isFinite(price)) return;
       if (previewLine) previewLine.applyOptions({ price });
@@ -681,24 +845,60 @@
       if (el) el.textContent = risk > 0
         ? `Risking $${fmtPrice(risk)}/sh (${((risk / entryPrice) * 100).toFixed(1)}%) if filled at $${fmtPrice(entryPrice)}.`
         : `That's on the wrong side of your entry ($${fmtPrice(entryPrice)}) — widen it out.`;
+      updateSizeRiskPreview();
     }
 
-    const input = document.getElementById("quiz-stop-input");
-    input.addEventListener("input", () => setPreview(Number(input.value)));
+    stopPresetBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        stopPresetBtns.forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        const pct = Number(btn.dataset.pct);
+        if (pct) {
+          const mult = c.side === "short" ? 1 + pct / 100 : 1 - pct / 100;
+          const price = entryPrice * mult;
+          input.value = fmtPrice(price);
+          setPreview(price);
+        } else {
+          input.focus();
+        }
+      });
+    });
+    sizePresetBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        sizePresetBtns.forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        const shares = btn.dataset.shares;
+        if (shares) { sizeInput.value = shares; updateSizeRiskPreview(); }
+        else { sizeInput.focus(); sizeInput.select(); }
+      });
+    });
+
+    input.addEventListener("input", () => {
+      stopPresetBtns.forEach((b) => b.classList.toggle("active", b.dataset.pct === ""));
+      setPreview(Number(input.value));
+    });
+    sizeInput.addEventListener("input", () => {
+      sizePresetBtns.forEach((b) => b.classList.toggle("active", b.dataset.shares === ""));
+      updateSizeRiskPreview();
+    });
     c.chartHandle.chart.subscribeClick((param) => {
       if (!param.point || !c.chartHandle.series) return;
       const price = c.chartHandle.series.coordinateToPrice(param.point.y);
       if (price == null) return;
       input.value = fmtPrice(price);
+      stopPresetBtns.forEach((b) => b.classList.toggle("active", b.dataset.pct === ""));
       setPreview(price);
     });
 
     document.getElementById("quiz-stop-confirm").addEventListener("click", () => {
       const price = Number(input.value);
+      const shares = Number(sizeInput.value);
       const errorEl = document.getElementById("quiz-stop-error");
-      if (!Number.isFinite(price) || price <= 0) { errorEl.textContent = "Enter a valid price first."; return; }
+      if (!Number.isFinite(price) || price <= 0) { errorEl.textContent = "Enter a valid stop price first."; return; }
       const risk = c.side === "short" ? price - entryPrice : entryPrice - price;
       if (!(risk > 0)) { errorEl.textContent = `That stop is on the wrong side of your $${fmtPrice(entryPrice)} entry for a ${c.side}.`; return; }
+      if (!Number.isFinite(shares) || shares <= 0) { errorEl.textContent = "Enter a valid share size too."; return; }
+      c.userShares = Math.round(shares);
       confirmStop(price);
     });
   }
@@ -706,10 +906,20 @@
   function confirmStop(stopPrice) {
     const c = state.current;
     c.stopPrice = stopPrice;
-    document.getElementById("quiz-stop-confirm").disabled = true;
-    document.getElementById("quiz-stop-input").disabled = true;
+    const slot = document.getElementById("quiz-stop-slot");
+    if (slot) slot.querySelectorAll("button, input").forEach((elm) => (elm.disabled = true));
 
-    if (c.checkpointIdx == null) { goToReveal(); return; }
+    if (c.checkpointIdx == null) {
+      // No mid-trade check on this one -- still worth knowing whether your
+      // stop would've been run over somewhere between entry and the real exit.
+      for (let k = c.entryIdx + 1; k <= c.exitIdx; k++) {
+        const b = c.bars[k];
+        const breached = c.side === "short" ? b.h >= stopPrice : b.l <= stopPrice;
+        if (breached) { c.holdStopHitIdx = k; break; }
+      }
+      goToReveal();
+      return;
+    }
 
     // Did price breach the stop between entry and the checkpoint? If so,
     // the hypothetical trade is already over -- skip straight to reveal.
@@ -769,6 +979,8 @@
         { id: "hold", label: "Hold", kbd: "H", cls: "hold" },
       ],
       defaultActionId: "hold",
+      chartHandle: c.chartHandle,
+      bar: checkpointBar,
       onAct: (actionId, secondIdx, price) => {
         c.checkpointAction = actionId;
         c.exitSecond = secondIdx;
@@ -836,7 +1048,7 @@
         let stopHitLater = false;
         for (let k = c.checkpointIdx + 1; k <= c.exitIdx; k++) {
           const b = c.bars[k];
-          if (side === "short" ? b.h >= c.stopPrice : b.l <= c.stopPrice) { stopHitLater = true; break; }
+          if (side === "short" ? b.h >= c.stopPrice : b.l <= c.stopPrice) { stopHitLater = true; c.holdStopHitIdx = k; break; }
         }
         if (stopHitLater) {
           userPnlPerShare = pnlPerShare(entryPrice, c.stopPrice, side);
@@ -847,7 +1059,21 @@
         }
       }
     }
-    return { entryGrade, stopGrade, exitGrade, userPnlPerShare };
+
+    // Size grading is independent of how the entry/stop/exit played out --
+    // it's just: did your conviction (bigger size = more confident) line up
+    // with how the trade actually turned out?
+    let sizeGrade = null;
+    if (c.entered && Number.isFinite(c.userShares)) {
+      const ratio = c.userShares / SIZE_BASELINE;
+      if (ratio >= 1.3 && win) sizeGrade = { label: `Sized up to ${c.userShares} sh and it paid off — good conviction.`, tone: "good" };
+      else if (ratio >= 1.3 && !win) sizeGrade = { label: `Sized up to ${c.userShares} sh on a loser — that conviction cost you more.`, tone: "bad" };
+      else if (ratio <= 0.7 && !win) sizeGrade = { label: `Sized down to ${c.userShares} sh — good instinct, this one lost.`, tone: "good" };
+      else if (ratio <= 0.7 && win) sizeGrade = { label: `Sized down to ${c.userShares} sh on a winner — left size on the table.`, tone: "warn" };
+      else sizeGrade = { label: `Standard size (${c.userShares} sh).`, tone: "neutral" };
+    }
+
+    return { entryGrade, stopGrade, exitGrade, sizeGrade, userPnlPerShare };
   }
 
   // ---------- Stage D: full reveal ----------
@@ -862,6 +1088,7 @@
       entered: c.entered, entryCorrect: grading.entryGrade.correct,
       stopTone: grading.stopGrade ? grading.stopGrade.tone : null,
       exitTone: grading.exitGrade ? grading.exitGrade.tone : null,
+      sizeTone: grading.sizeGrade ? grading.sizeGrade.tone : null,
     });
     state.streak = grading.entryGrade.correct ? state.streak + 1 : 0;
 
@@ -882,6 +1109,13 @@
       pointerDefs.push({ time: toUnix(c.bars[c.stopOutIdx].t), price: c.stopPrice, color: "#e8a94c", above: false, tooltip: `STOPPED OUT $${fmtPrice(c.stopPrice)}` });
     } else if (c.entered && c.checkpointAction === "exit" && c.checkpointIdx != null) {
       pointerDefs.push({ time: toUnix(c.bars[c.checkpointIdx].t), price: c.bars[c.checkpointIdx].c, color: "#5b93f0", above: false, tooltip: `YOUR EXIT $${fmtPrice(c.bars[c.checkpointIdx].c)}` });
+    }
+    // If you held (or there was no mid-trade check at all) and your stop
+    // would've been run over somewhere before the real exit, mark exactly
+    // where that would've happened -- separate from an actual early stop-out
+    // above, since this one never really happened, only would have.
+    if (c.holdStopHitIdx != null) {
+      pointerDefs.push({ time: toUnix(c.bars[c.holdStopHitIdx].t), price: c.stopPrice, color: "#e8a94c", above: false, tooltip: `WOULD'VE STOPPED OUT $${fmtPrice(c.stopPrice)} (if held)` });
     }
 
     const priceLines = [
@@ -912,6 +1146,22 @@
          <div class="rb-line"><span class="${pillFor(grading.exitGrade.tone)}">${escapeHtml(grading.exitGrade.label)}</span></div>`
       : `<div class="rb-line dim">You passed, so no exit to grade.</div>`;
 
+    const sizeRowHtml = grading.sizeGrade
+      ? `<div class="rb-line">You sized: <b>${c.userShares} sh</b> <span class="dim">(actual trade: ${trade.shares} sh)</span></div>
+         <div class="rb-line"><span class="${pillFor(grading.sizeGrade.tone)}">${escapeHtml(grading.sizeGrade.label)}</span></div>`
+      : `<div class="rb-line dim">You passed, so no size to grade.</div>`;
+
+    // "Real numbers" -- the actual trade's fill/commission/timing, plus what
+    // those same numbers would've looked like at the share size you picked
+    // (commission scaled off the actual trade's own $/share commission rate,
+    // since that's the only rate we actually have logged).
+    const tradeCommission = Number(trade.commission) || 0;
+    const tradeShares = Number(trade.shares) || 0;
+    const commissionPerShare = tradeShares > 0 ? tradeCommission / tradeShares : 0;
+    const userGross = c.entered && Number.isFinite(grading.userPnlPerShare) ? grading.userPnlPerShare * c.userShares : null;
+    const userCommission = c.entered ? commissionPerShare * c.userShares : null;
+    const userNet = (userGross != null && userCommission != null) ? userGross - userCommission : null;
+
     const lessonsHtml = (trade.lessons || []).map((l) => {
       if (typeof l === "string") return `<li>${escapeHtml(l)}</li>`;
       const how = l.how_to_know ? ` <span class="dim">— ${escapeHtml(l.how_to_know)}</span>` : "";
@@ -936,9 +1186,11 @@
         <div class="quiz-reveal-box"><div class="rb-label">Entry</div>${entryRowHtml}</div>
         <div class="quiz-reveal-box"><div class="rb-label">Stop-loss</div>${stopRowHtml}</div>
         <div class="quiz-reveal-box"><div class="rb-label">Exit</div>${exitRowHtml}</div>
-        <div class="quiz-reveal-box"><div class="rb-label">Real numbers</div>
-          <div class="rb-line">Entry <b>$${fmtPrice(trade.entry_price)}</b> → Exit <b>$${fmtPrice(trade.exit_price)}</b></div>
-          <div class="rb-line">Net P&amp;L: <b style="color:${trade.pnl_after_comm >= 0 ? "var(--green)" : "var(--red)"}">${trade.pnl_after_comm >= 0 ? "+" : "-"}$${Math.abs(trade.pnl_after_comm).toFixed(2)}</b></div>
+        <div class="quiz-reveal-box"><div class="rb-label">Position size</div>${sizeRowHtml}</div>
+        <div class="quiz-reveal-box" style="grid-column:1/-1;"><div class="rb-label">Real numbers</div>
+          <div class="rb-line">Entry <b>$${fmtPrice(trade.entry_price)}</b> at <b>${escapeHtml(trade.entry_time)}</b> → Exit <b>$${fmtPrice(trade.exit_price)}</b> at <b>${escapeHtml(trade.exit_time)}</b> <span class="dim">(${escapeHtml(trade.time_in_trade || "—")} in trade)</span></div>
+          <div class="rb-line">Shares: <b>${tradeShares}</b> actual${c.entered ? ` · <b>${c.userShares}</b> yours` : ""} &nbsp;·&nbsp; Commission: <b>$${tradeCommission.toFixed(2)}</b> actual${c.entered && userCommission != null ? ` · <b>$${userCommission.toFixed(2)}</b> yours` : ""}</div>
+          <div class="rb-line">Net P&amp;L: <b style="color:${trade.pnl_after_comm >= 0 ? "var(--green)" : "var(--red)"}">${trade.pnl_after_comm >= 0 ? "+" : "-"}$${Math.abs(trade.pnl_after_comm).toFixed(2)}</b> actual${c.entered && userNet != null ? ` · <b style="color:${userNet >= 0 ? "var(--green)" : "var(--red)"}">${userNet >= 0 ? "+" : "-"}$${Math.abs(userNet).toFixed(2)}</b> yours` : ""}</div>
         </div>
       </div>
 
@@ -947,6 +1199,7 @@
       ${trade.walk_away_rule ? `<div class="quiz-walkaway"><b>Walk-away rule:</b> ${escapeHtml(trade.walk_away_rule)}</div>` : ""}
 
       <div class="quiz-next-row">
+        <button class="btn-advanced" id="qz-replay-again-btn" type="button">↻ Replay entry→exit</button>
         <a class="btn-advanced" href="trade.html?id=${encodeURIComponent(trade.id)}" target="_blank" rel="noopener">Open full trade page</a>
         <button class="btn-confirm" id="qz-next">${isLast ? "See results" : "Next question"} <span class="kbd">↵</span></button>
       </div>
@@ -956,6 +1209,7 @@
     const chartEl = document.getElementById("quiz-candle-chart");
     c.chartHandle = buildChart(chartEl, c.bars, { height: 400, priceLines });
     attachPointers(chartEl, c.chartHandle, pointerDefs);
+    setupRevealReplay(c, chartEl);
 
     document.getElementById("qz-next").addEventListener("click", () => { state.qIndex++; loadQuestion(); });
   }
@@ -1036,6 +1290,7 @@
     }
     const stopTally = tally("stopTone");
     const exitTally = tally("exitTone");
+    const sizeTally = tally("sizeTone");
     function chipsHtml(t) {
       const parts = [];
       if (t.good) parts.push(`<span class="pill good">${t.good} good</span>`);
@@ -1047,6 +1302,7 @@
     els.breakdown.innerHTML = `
       <div class="quiz-breakdown-row"><span class="br-k">Stop placement</span><span class="br-chips">${chipsHtml(stopTally)}</span></div>
       <div class="quiz-breakdown-row"><span class="br-k">Exit timing</span><span class="br-chips">${chipsHtml(exitTally)}</span></div>
+      <div class="quiz-breakdown-row"><span class="br-k">Position sizing</span><span class="br-chips">${chipsHtml(sizeTally)}</span></div>
     `;
 
     els.review.innerHTML = `
