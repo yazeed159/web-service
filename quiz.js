@@ -390,10 +390,13 @@
   // exact-price pointer triangles -- the same look used on trade.html,
   // instead of lightweight-charts' native markers (which snap to a fixed
   // offset above/below the candle's own high/low, not the exact fill
-  // price). A native marker plus a horizontal price line at the same
-  // price but visually offset from each other is what read as "two lines"
-  // -- a pointer's tip sits exactly where the line is, so there's only
-  // ever one thing marking a given price.
+  // price). A pointer's tip sits exactly where its price line is, so
+  // there's only ever one thing marking a given price.
+  //
+  // Each pointer also owns a hover/tap tooltip with the exact price --
+  // same behavior as trade.html. The tooltip is appended to `container`
+  // directly rather than the (clipped) overlay, so it's never cut off at
+  // the chart's edge.
   // ---------------------------------------------------------------
   const POINTER_H = 9;
   function attachPointers(container, chartHandle, pointerDefs) {
@@ -406,14 +409,45 @@
     const pointers = pointerDefs.map((p) => {
       const el = document.createElement("div");
       el.style.cssText = `
-        position:absolute; width:0; height:0; pointer-events:none;
+        position:absolute; width:0; height:0; pointer-events:auto;
         border-left:6px solid transparent; border-right:6px solid transparent;
         filter: drop-shadow(0 0 1.5px #0b0d10) drop-shadow(0 0 1.5px #0b0d10);
         border-top:${p.above ? `${POINTER_H}px solid ${p.color}` : "0"};
         border-bottom:${p.above ? "0" : `${POINTER_H}px solid ${p.color}`};
       `;
       overlay.appendChild(el);
-      return { ...p, el };
+
+      let tooltip = null;
+      if (p.tooltip) {
+        tooltip = document.createElement("div");
+        tooltip.className = "pointer-tooltip";
+        tooltip.dataset.open = "0";
+        tooltip.style.cssText = `
+          position:absolute; display:none; width:180px; max-width:60vw;
+          background:#181b22; border:1px solid ${p.color}; border-radius:8px;
+          padding:8px 10px; font-size:12px; line-height:1.5; color:#eceef2;
+          box-shadow:0 6px 20px rgba(0,0,0,.45); z-index:5; pointer-events:none;
+        `;
+        tooltip.textContent = p.tooltip;
+        container.appendChild(tooltip);
+
+        const openTooltip = () => {
+          container.querySelectorAll(".pointer-tooltip").forEach((t) => { t.dataset.open = "0"; t.style.display = "none"; });
+          tooltip.dataset.open = "1";
+          tooltip.style.display = "block";
+          reposition();
+        };
+        const closeTooltip = () => { tooltip.dataset.open = "0"; tooltip.style.display = "none"; };
+        el.addEventListener("mouseenter", openTooltip);
+        el.addEventListener("mouseleave", closeTooltip);
+        // Tap-to-toggle so touch users (no mouseenter) can still reach it.
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (tooltip.dataset.open === "1") closeTooltip(); else openTooltip();
+        });
+      }
+
+      return { ...p, el, tooltip };
     });
 
     function reposition() {
@@ -421,11 +455,21 @@
         pointers.forEach((p) => {
           const x = chart.timeScale().timeToCoordinate(p.time);
           const y = series.priceToCoordinate(p.price);
-          if (x == null || y == null) { p.el.style.display = "none"; return; }
+          if (x == null || y == null) {
+            p.el.style.display = "none";
+            if (p.tooltip) { p.tooltip.style.display = "none"; p.tooltip.dataset.open = "0"; }
+            return;
+          }
           p.el.style.display = "block";
           p.el.style.left = `${x}px`;
-          p.el.style.top = `${p.above ? y - POINTER_H : y}px`;
+          const pointerTop = p.above ? y - POINTER_H : y;
+          p.el.style.top = `${pointerTop}px`;
           p.el.style.transform = "translateX(-50%)";
+          if (p.tooltip && p.tooltip.dataset.open === "1") {
+            p.tooltip.style.left = `${x + 8}px`;
+            p.tooltip.style.top = `${p.above ? pointerTop - 8 : pointerTop + POINTER_H + 8}px`;
+            p.tooltip.style.transform = p.above ? "translateY(-100%)" : "none";
+          }
         });
       } catch (e) { /* chart already torn down */ }
     }
@@ -438,6 +482,14 @@
     setTimeout(reposition, 0);
     chartHandle.pointerRo = ro;
   }
+
+  // Any click outside a pointer tooltip closes whichever one is pinned
+  // open -- otherwise a tapped-open tooltip would just sit there covering
+  // the chart. Registered once here (not inside attachPointers) so it
+  // doesn't pile up a duplicate listener on every question.
+  document.addEventListener("click", () => {
+    document.querySelectorAll(".pointer-tooltip").forEach((t) => { t.dataset.open = "0"; t.style.display = "none"; });
+  });
 
   // ---------------------------------------------------------------
   // quiz flow
@@ -815,23 +867,27 @@
 
     const entryBar = c.bars[c.entryIdx], exitBar = c.bars[c.exitIdx];
 
-    // Only what actually matters at a glance: the real entry/exit fills,
-    // your own stop (if you had one), and whatever you actually did at
-    // exit time. AI stop/target and better-entry/exit are still explained
-    // in the text panels below -- they don't need to live on the chart
-    // too, and doing so is what caused a second, slightly-offset line
-    // sitting near the real entry/exit line.
+    // The real entry/exit fills, your own stop (if you had one), and
+    // whatever you actually did at exit time -- each gets both a
+    // full-width price line (so the level is easy to read off the right
+    // axis) and a pointer triangle sitting exactly on the fill (so the
+    // exact bar/time is unambiguous too), same combination trade.html
+    // uses. AI stop/target and better-entry/exit stay in the text panels
+    // below rather than adding more lines to the chart.
     const pointerDefs = [
-      { time: toUnix(entryBar.t), price: trade.entry_price, color: "#2fd08a", above: true },
-      { time: toUnix(exitBar.t), price: trade.exit_price, color: "#f2555a", above: false },
+      { time: toUnix(entryBar.t), price: trade.entry_price, color: "#2fd08a", above: true, tooltip: `ENTRY $${fmtPrice(trade.entry_price)}` },
+      { time: toUnix(exitBar.t), price: trade.exit_price, color: "#f2555a", above: false, tooltip: `EXIT $${fmtPrice(trade.exit_price)}` },
     ];
     if (c.stoppedOutEarly && c.stopOutIdx != null) {
-      pointerDefs.push({ time: toUnix(c.bars[c.stopOutIdx].t), price: c.stopPrice, color: "#e8a94c", above: false });
+      pointerDefs.push({ time: toUnix(c.bars[c.stopOutIdx].t), price: c.stopPrice, color: "#e8a94c", above: false, tooltip: `STOPPED OUT $${fmtPrice(c.stopPrice)}` });
     } else if (c.entered && c.checkpointAction === "exit" && c.checkpointIdx != null) {
-      pointerDefs.push({ time: toUnix(c.bars[c.checkpointIdx].t), price: c.bars[c.checkpointIdx].c, color: "#5b93f0", above: false });
+      pointerDefs.push({ time: toUnix(c.bars[c.checkpointIdx].t), price: c.bars[c.checkpointIdx].c, color: "#5b93f0", above: false, tooltip: `YOUR EXIT $${fmtPrice(c.bars[c.checkpointIdx].c)}` });
     }
 
-    const priceLines = [];
+    const priceLines = [
+      { price: trade.entry_price, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "" },
+      { price: trade.exit_price, color: "#f2555a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "" },
+    ];
     if (c.entered && c.stopPrice != null) {
       priceLines.push({ price: c.stopPrice, color: "#c9cdd6", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your stop" });
     }

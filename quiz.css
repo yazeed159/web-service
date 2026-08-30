@@ -101,7 +101,12 @@
   50% { opacity: .35; transform: scale(.7); }
 }
 
-.quiz-chart-wrap { margin: 14px 0 6px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); overflow: hidden; }
+/* overflow: hidden here clips the entry/exit pointer tooltips (and, near
+   the top/bottom edge, the pointer triangles themselves) whenever they land
+   close to the wrap's edge -- same issue trade.html avoids by leaving its
+   chart wrap unclipped. The candle chart already fills exactly to its own
+   box, so dropping this doesn't visibly change the rounded corners. */
+.quiz-chart-wrap { margin: 14px 0 6px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); }
 #quiz-candle-chart { width: 100%; }
 
 .quiz-prompt { font-size: 14.5px; color: var(--text); margin: 14px 0 12px; line-height: 1.55; }
