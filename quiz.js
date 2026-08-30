@@ -88,6 +88,22 @@
   const COLOR_YOUR_STOP = "#5b93f0";
   const COLOR_YOUR_EXIT = "#b98cf2";
   const COLOR_STOP_EVENT = "#e8a94c";
+
+  // IBKR's "Tiered" US stock commission schedule: $0.0035/share, with a
+  // $0.35 floor and a 1%-of-trade-value ceiling per order. Applied once
+  // per leg (entry fill, exit fill) -- a round-trip pays it twice. This
+  // replaces naively scaling the logged trade's own commission per share,
+  // which ignores the floor/ceiling and so understates small orders and
+  // overstates low-priced/large ones.
+  const IBKR_PER_SHARE = 0.0035;
+  const IBKR_MIN_PER_ORDER = 0.35;
+  const IBKR_MAX_PCT_OF_TRADE_VALUE = 0.01;
+  function ibkrTieredCommission(shares, price) {
+    if (!(shares > 0) || !(price > 0)) return 0;
+    const raw = shares * IBKR_PER_SHARE;
+    const ceiling = shares * price * IBKR_MAX_PCT_OF_TRADE_VALUE;
+    return Math.max(IBKR_MIN_PER_ORDER, Math.min(raw, ceiling));
+  }
   // Bars are start-labeled minute candles; a floor-match (last bar whose
   // start time is <= the target time) finds the candle a given moment
   // actually falls inside — same rule trade.js uses for its markers.
@@ -1144,21 +1160,24 @@
     const entryPrice = c.userEntryPrice;
     const entryGrade = gradeEntry(win, c.entered);
 
-    let stopGrade = null, exitGrade = null, userPnlPerShare = null;
+    let stopGrade = null, exitGrade = null, userPnlPerShare = null, userExitFillPrice = null;
     if (c.entered) {
       stopGrade = gradeStop(side, entryPrice, c.stopPrice, trade.suggested_stop);
       const actualPnl = pnlPerShare(entryPrice, trade.exit_price, side);
 
       if (c.stoppedOutEarly) {
         userPnlPerShare = pnlPerShare(entryPrice, c.stopPrice, side);
+        userExitFillPrice = c.stopPrice;
         exitGrade = { label: `Stopped out before your check-in, at $${fmtPrice(c.stopPrice)}.`, tone: "warn" };
       } else if (c.checkpointIdx == null) {
         userPnlPerShare = actualPnl;
+        userExitFillPrice = trade.exit_price;
         exitGrade = { label: "Not enough bars for a mid-trade check on this one — it went straight to the real exit.", tone: "neutral" };
       } else if (c.checkpointAction === "exit") {
         const checkpointBar = c.bars[c.checkpointIdx];
         const exitPrice = Number.isFinite(c.userExitPrice) ? c.userExitPrice : checkpointBar.c;
         userPnlPerShare = pnlPerShare(entryPrice, exitPrice, side);
+        userExitFillPrice = exitPrice;
         const diff = actualPnl - userPnlPerShare;
         const threshold = Math.max(0.15 * Math.abs(actualPnl || 0.01), 0.01);
         if (diff > threshold) exitGrade = { label: `You exited early — the move kept going. Riding it to the real exit made ${fmtSignedPerShare(diff)}/sh more.`, tone: "warn" };
@@ -1172,9 +1191,11 @@
         }
         if (stopHitLater) {
           userPnlPerShare = pnlPerShare(entryPrice, c.stopPrice, side);
+          userExitFillPrice = c.stopPrice;
           exitGrade = { label: `Holding would've run you into your own stop at $${fmtPrice(c.stopPrice)} before the real exit.`, tone: "warn" };
         } else {
           userPnlPerShare = actualPnl;
+          userExitFillPrice = trade.exit_price;
           exitGrade = { label: "You held on — matches what actually happened.", tone: "neutral" };
         }
       }
@@ -1193,7 +1214,7 @@
       else sizeGrade = { label: `Standard size (${c.userShares} sh).`, tone: "neutral" };
     }
 
-    return { entryGrade, stopGrade, exitGrade, sizeGrade, userPnlPerShare };
+    return { entryGrade, stopGrade, exitGrade, sizeGrade, userPnlPerShare, userExitFillPrice };
   }
 
   // ---------- Stage D: full reveal ----------
@@ -1293,15 +1314,17 @@
          <div class="rb-line"><span class="${pillFor(grading.sizeGrade.tone)}">${escapeHtml(grading.sizeGrade.label)}</span></div>`
       : `<div class="rb-line dim">You passed, so no size to grade.</div>`;
 
-    // "Real numbers" -- the actual trade's fill/commission/timing, plus what
-    // those same numbers would've looked like at the share size you picked
-    // (commission scaled off the actual trade's own $/share commission rate,
-    // since that's the only rate we actually have logged).
+    // "Real numbers" -- the actual trade's logged fill/commission/timing,
+    // plus what your own size/entry/exit would've cost using IBKR's real
+    // tiered commission schedule (per-share rate with a per-order floor
+    // and ceiling) rather than just scaling the actual trade's commission
+    // linearly by share count, which silently ignores both of those.
     const tradeCommission = Number(trade.commission) || 0;
     const tradeShares = Number(trade.shares) || 0;
-    const commissionPerShare = tradeShares > 0 ? tradeCommission / tradeShares : 0;
     const userGross = c.entered && Number.isFinite(grading.userPnlPerShare) ? grading.userPnlPerShare * c.userShares : null;
-    const userCommission = c.entered ? commissionPerShare * c.userShares : null;
+    const userEntryCommission = (c.entered && c.userEntryPrice != null) ? ibkrTieredCommission(c.userShares, c.userEntryPrice) : 0;
+    const userExitCommission = (c.entered && grading.userExitFillPrice != null) ? ibkrTieredCommission(c.userShares, grading.userExitFillPrice) : 0;
+    const userCommission = c.entered ? userEntryCommission + userExitCommission : null;
     const userNet = (userGross != null && userCommission != null) ? userGross - userCommission : null;
 
     const lessonsHtml = (trade.lessons || []).map((l) => {
