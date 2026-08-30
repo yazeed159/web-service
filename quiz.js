@@ -48,6 +48,7 @@
     qIndex: 0,
     blind: true,
     tickMode: "sim", // "sim" (synthesized, offline) or "real" (live prints from chart_service.py)
+    playbackSpeed: 1, // 1/2/4/8x — carries across questions, like a real ticker's speed toggle
     results: [],
     streak: 0,
     lastFilters: null,
@@ -124,11 +125,43 @@
     { shares: SIZE_BASELINE, label: "Standard", sub: "100 sh" },
     { shares: 200, label: "Large", sub: "200 sh · high conviction" },
   ];
-  const STOP_PRESETS = [
-    { pct: 0.5, label: "Tight", sub: "0.5%" },
-    { pct: 1, label: "Standard", sub: "1%" },
-    { pct: 2, label: "Wide", sub: "2%" },
+  const STOP_PCT_PRESETS = [
+    { pct: 0.5, label: "Tight" },
+    { pct: 1, label: "Standard" },
+    { pct: 2, label: "Wide" },
   ];
+  // Data-driven stop options, not just blind percentages: the prior
+  // candle's low/high and the recent swing low/high, read straight off
+  // the chart the trade actually printed on, alongside a few quick %
+  // fallbacks for when nothing structural stands out.
+  function computeStopPresets(c, entryPrice) {
+    const side = c.side;
+    const bars = c.bars;
+    const idx = c.entryIdx;
+    const priorBar = idx > 0 ? bars[idx - 1] : null;
+    const swingBars = bars.slice(Math.max(0, idx - 10), idx);
+    const swingLow = swingBars.length ? Math.min(...swingBars.map((b) => b.l)) : null;
+    const swingHigh = swingBars.length ? Math.max(...swingBars.map((b) => b.h)) : null;
+
+    const structural = [];
+    if (side === "short") {
+      if (priorBar && priorBar.h > entryPrice) structural.push({ key: "prior", label: "Prior candle high", price: priorBar.h });
+      if (swingHigh != null && swingHigh > entryPrice) structural.push({ key: "swing", label: "Recent swing high", price: swingHigh });
+    } else {
+      if (priorBar && priorBar.l < entryPrice) structural.push({ key: "prior", label: "Prior candle low", price: priorBar.l });
+      if (swingLow != null && swingLow < entryPrice) structural.push({ key: "swing", label: "Recent swing low", price: swingLow });
+    }
+    // The swing level and the prior-candle level are often nearly the
+    // same bar — don't show two buttons for one real option.
+    if (structural.length === 2 && Math.abs(structural[0].price - structural[1].price) / entryPrice < 0.0015) {
+      structural.splice(1, 1);
+    }
+    const pct = STOP_PCT_PRESETS.map((p) => {
+      const mult = side === "short" ? 1 + p.pct / 100 : 1 - p.pct / 100;
+      return { key: `pct${p.pct}`, label: p.label, price: entryPrice * mult, pct: p.pct };
+    });
+    return [...structural, ...pct].map((p) => ({ ...p, sub: p.pct != null ? `${p.pct}%` : `$${fmtPrice(p.price)}` }));
+  }
 
   function shuffle(arr) {
     const a = arr.slice();
@@ -256,15 +289,35 @@
       .finally(() => clearTimeout(timeout));
   }
 
+  // Evenly-spaced real-time offsets (ms, starting at 0) for synthesized
+  // ticks — n sub-ticks spread across durationMs of actual elapsed time,
+  // so playback can be paced to genuine seconds instead of a flat, fast
+  // per-tick delay.
+  function evenTimes(n, durationMs) {
+    if (n <= 1) return [0];
+    return Array.from({ length: n }, (_, i) => Math.round((i / (n - 1)) * durationMs));
+  }
+  // Real per-tick offsets (ms, starting at 0) derived from the server's
+  // actual trade-print timestamps, so real mode replays at the pace
+  // trades actually printed rather than a uniform step.
+  function realTimes(real) {
+    const t0 = real[0].time;
+    return real.map((t) => Math.max(0, (t.time - t0) * 1000));
+  }
+
   // Ticks for the checkpoint (mid-trade) bar — the full 60s window.
   function getCheckpointTicks(trade, bar, prevClose) {
     const simPrices = () => genSecondTicks(bar, prevClose, `${trade.id}:checkpoint`);
-    if (state.tickMode !== "real") return Promise.resolve({ prices: simPrices(), real: false, fellBack: false });
+    if (state.tickMode !== "real") {
+      const prices = simPrices();
+      return Promise.resolve({ prices, times: evenTimes(prices.length, BAR_SECONDS * 1000), real: false, fellBack: false });
+    }
     const start = toUnix(bar.t);
-    return fetchRealTicks(trade.symbol, start, start + BAR_SECONDS).then((real) => (
-      real ? { prices: real.map((t) => t.price), real: true, fellBack: false }
-           : { prices: simPrices(), real: false, fellBack: true }
-    ));
+    return fetchRealTicks(trade.symbol, start, start + BAR_SECONDS).then((real) => {
+      if (real) return { prices: real.map((t) => t.price), times: realTimes(real), real: true, fellBack: false };
+      const prices = simPrices();
+      return { prices, times: evenTimes(prices.length, BAR_SECONDS * 1000), real: false, fellBack: true };
+    });
   }
 
   // Ticks for the "watch it print in" replay on the entry stage — only
@@ -281,31 +334,47 @@
       t[t.length - 1] = trade.entry_price;
       return t;
     };
-    if (state.tickMode !== "real") return Promise.resolve({ prices: simPrices(), real: false, fellBack: false });
+    if (state.tickMode !== "real") {
+      const prices = simPrices();
+      return Promise.resolve({ prices, times: evenTimes(prices.length, secondsIntoBar * 1000), real: false, fellBack: false });
+    }
     const start = toUnix(bar.t);
     const end = Math.max(start + 1, start + Math.round(secondsIntoBar));
-    return fetchRealTicks(trade.symbol, start, end).then((real) => (
-      real ? { prices: real.map((t) => t.price), real: true, fellBack: false }
-           : { prices: simPrices(), real: false, fellBack: true }
-    ));
+    return fetchRealTicks(trade.symbol, start, end).then((real) => {
+      if (real) return { prices: real.map((t) => t.price), times: realTimes(real), real: true, fellBack: false };
+      const prices = simPrices();
+      return { prices, times: evenTimes(prices.length, secondsIntoBar * 1000), real: false, fellBack: true };
+    });
   }
 
-  // Auto-plays through `ticks`, one per `tickMs`, updating a live price
-  // readout. `actions` is a list of {id, label, kbd, cls} buttons that are
-  // clickable at any point during playback; clicking one locks in the
-  // current second and price and stops playback. If nobody clicks before
-  // the ticks run out, `defaultActionId` fires automatically on the last
-  // second. Returns { stop } to let a caller tear it down early (e.g. the
-  // quiz question changes underneath it).
+  // Auto-plays through `ticks`, paced by `times` (ms offsets from the
+  // start, same length as `ticks`) scaled by the current playback speed,
+  // updating a live price readout. `actions` is a list of {id, label, kbd,
+  // cls} buttons that are clickable at any point during playback; clicking
+  // one locks in the current second and price and stops playback. If
+  // nobody clicks before the ticks run out, `defaultActionId` fires
+  // automatically on the last tick. A 1x/2x/4x/8x speed control (like a
+  // real ticker's fast-forward) lets the pace change mid-playback without
+  // losing your place. Returns { stop } to let a caller tear it down early
+  // (e.g. the quiz question changes underneath it).
+  const REPLAY_SPEEDS = [1, 2, 4, 8];
+  const MIN_STEP_MS = 16; // never fully skip a frame, even at 8x on a dense real-tick window
+  const MAX_STEP_MS = 8000; // cap real-tick gaps (e.g. an illiquid quiet spell) so playback can't stall for ages
   function runSecondReplay(container, ticks, opts) {
-    const tickMs = opts.tickMs || 150;
+    const times = Array.isArray(opts.times) && opts.times.length === ticks.length
+      ? opts.times
+      : ticks.map((_, i) => i * (opts.tickMs || 1000));
     const unitLabel = opts.unitLabel || "second";
     const tag = opts.tag || "simulated seconds";
     const tagCls = opts.tagCls ? ` ${opts.tagCls}` : "";
+    let speed = REPLAY_SPEEDS.includes(state.playbackSpeed) ? state.playbackSpeed : 1;
     container.innerHTML = `
       <div class="quiz-replay-panel">
         <div class="quiz-replay-top">
           <span class="quiz-replay-price"></span>
+          <div class="quiz-replay-speeds" id="qz-replay-speeds">
+            ${REPLAY_SPEEDS.map((s) => `<button type="button" class="qz-speed-btn${s === speed ? " active" : ""}" data-speed="${s}">${s}×</button>`).join("")}
+          </div>
           <span class="quiz-replay-tag${tagCls}">${escapeHtml(tag)}</span>
         </div>
         ${opts.fallbackNote ? `<div class="quiz-replay-fallback">${escapeHtml(opts.fallbackNote)}</div>` : ""}
@@ -325,6 +394,14 @@
       btn.innerHTML = `${escapeHtml(a.label)}${a.kbd ? ` <span class="kbd">${escapeHtml(a.kbd)}</span>` : ""}`;
       btn.addEventListener("click", () => finish(a.id));
       actionsEl.appendChild(btn);
+    });
+    container.querySelectorAll(".qz-speed-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        speed = Number(btn.dataset.speed) || 1;
+        state.playbackSpeed = speed; // carries over to the next question, like a real ticker's speed toggle
+        container.querySelectorAll(".qz-speed-btn").forEach((b) => b.classList.toggle("active", Number(b.dataset.speed) === speed));
+        scheduleNext(); // re-pace immediately, mid-flight, instead of waiting out the old delay
+      });
     });
 
     // If given a live chart + the raw bar being replayed, push a real
@@ -366,17 +443,31 @@
     function finish(actionId) {
       if (done) return;
       done = true;
-      clearInterval(timer);
+      clearTimeout(timer);
       actionsEl.querySelectorAll("button").forEach((b) => (b.disabled = true));
       opts.onAct && opts.onAct(actionId, i, ticks[i]);
     }
+    // Real seconds, not a flat 150ms flicker: each step waits out the
+    // actual gap to the next tick (real trade-print timestamps in "real"
+    // mode, an even spread across the bar's true duration in "sim" mode),
+    // divided by the current speed multiplier -- so 1x plays back exactly
+    // as it happened and 2x/4x/8x fast-forward it like a real ticker,
+    // re-pacing instantly if you change speed mid-playback.
+    function scheduleNext() {
+      if (done) return;
+      clearTimeout(timer);
+      if (i >= ticks.length - 1) { timer = setTimeout(() => finish(opts.defaultActionId), 0); return; }
+      const rawGap = Math.max(0, times[i + 1] - times[i]);
+      const stepMs = Math.min(MAX_STEP_MS, Math.max(MIN_STEP_MS, rawGap / speed));
+      timer = setTimeout(() => {
+        i++;
+        paint();
+        scheduleNext();
+      }, stepMs);
+    }
     paint();
-    timer = setInterval(() => {
-      if (i >= ticks.length - 1) { finish(opts.defaultActionId); return; }
-      i++;
-      paint();
-    }, tickMs);
-    return { stop: () => { done = true; clearInterval(timer); } };
+    scheduleNext();
+    return { stop: () => { done = true; clearTimeout(timer); } };
   }
 
   function loadHistory() {
@@ -865,11 +956,12 @@
     watchBtn.addEventListener("click", () => {
       watchBtn.disabled = true;
       watchBtn.textContent = state.tickMode === "real" ? "Loading real ticks…" : "Loading…";
-      getEntryWatchTicks(trade, entryBar, prevCloseEntry, secondsIntoBar).then(({ prices, real, fellBack }) => {
+      getEntryWatchTicks(trade, entryBar, prevCloseEntry, secondsIntoBar).then(({ prices, times, real, fellBack }) => {
         if (state.current !== c || c.stage !== "entry") return;
         watchBtn.style.display = "none";
         answerRow.style.display = "none"; // the replay's own Enter/Pass take over once you're watching
         c.replayHandle = runSecondReplay(document.getElementById("quiz-entry-replay-slot"), prices, {
+          times,
           unitLabel: real ? "tick" : "second",
           tag: real ? "live ticks · server" : "simulated seconds",
           tagCls: real ? "live" : "",
@@ -907,13 +999,14 @@
     const c = state.current;
     const trade = c.trade;
     const entryPrice = c.userEntryPrice;
+    const stopPresets = computeStopPresets(c, entryPrice);
     const slot = document.getElementById("quiz-stop-slot");
     slot.innerHTML = `
       <div class="quiz-stop-panel">
-        <div class="quiz-prompt" style="margin-top:0;">You're in. <b>Where's your stop-loss?</b> Pick a quick option, type a price, or click the chart to place it.</div>
+        <div class="quiz-prompt" style="margin-top:0;">You're in. <b>Where's your stop-loss?</b> Pick an option below, type a price, or hover the chart and click to drop it right on the level you want.</div>
         <div class="quiz-preset-row" id="quiz-stop-presets">
-          ${STOP_PRESETS.map((p) => `<button class="quiz-preset-btn" data-pct="${p.pct}">${p.label} <span class="dim">· ${p.sub}</span></button>`).join("")}
-          <button class="quiz-preset-btn active" data-pct="">Custom</button>
+          ${stopPresets.map((p) => `<button class="quiz-preset-btn" data-price="${p.price}">${p.label} <span class="dim">· ${p.sub}</span></button>`).join("")}
+          <button class="quiz-preset-btn active" data-price="">Custom</button>
         </div>
         <div class="quiz-stop-row">
           <input type="number" step="0.0001" id="quiz-stop-input" placeholder="e.g. ${fmtPrice(c.side === "short" ? entryPrice * 1.02 : entryPrice * 0.98)}">
@@ -976,10 +1069,8 @@
       btn.addEventListener("click", () => {
         stopPresetBtns.forEach((b) => b.classList.remove("active"));
         btn.classList.add("active");
-        const pct = Number(btn.dataset.pct);
-        if (pct) {
-          const mult = c.side === "short" ? 1 + pct / 100 : 1 - pct / 100;
-          const price = entryPrice * mult;
+        const price = Number(btn.dataset.price);
+        if (price) {
           input.value = fmtPrice(price);
           setPreview(price);
         } else {
@@ -998,19 +1089,42 @@
     });
 
     input.addEventListener("input", () => {
-      stopPresetBtns.forEach((b) => b.classList.toggle("active", b.dataset.pct === ""));
+      stopPresetBtns.forEach((b) => b.classList.toggle("active", b.dataset.price === ""));
       setPreview(Number(input.value));
     });
     sizeInput.addEventListener("input", () => {
       sizePresetBtns.forEach((b) => b.classList.toggle("active", b.dataset.shares === ""));
       updateSizeRiskPreview();
     });
+
+    // Hover the chart to preview a stop right on the level you're
+    // pointing at (a light dashed guide line + live risk readout), click
+    // to drop it there — same "put it on the chart" feel as a real
+    // trading platform, without fighting the chart's own drag-to-pan.
+    let hoverLine = null;
+    function clearHover() {
+      if (hoverLine) { try { c.chartHandle.series.removePriceLine(hoverLine); } catch (e) {} hoverLine = null; }
+    }
+    c.chartHandle.chart.subscribeCrosshairMove((param) => {
+      if (!param.point || !c.chartHandle.series) { clearHover(); return; }
+      const price = c.chartHandle.series.coordinateToPrice(param.point.y);
+      if (price == null) { clearHover(); return; }
+      if (!hoverLine) {
+        hoverLine = c.chartHandle.series.createPriceLine({
+          price, color: "rgba(255,255,255,.35)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
+          axisLabelVisible: true, title: "click to set stop",
+        });
+      } else {
+        hoverLine.applyOptions({ price });
+      }
+    });
     c.chartHandle.chart.subscribeClick((param) => {
       if (!param.point || !c.chartHandle.series) return;
       const price = c.chartHandle.series.coordinateToPrice(param.point.y);
       if (price == null) return;
+      clearHover();
       input.value = fmtPrice(price);
-      stopPresetBtns.forEach((b) => b.classList.toggle("active", b.dataset.pct === ""));
+      stopPresetBtns.forEach((b) => b.classList.toggle("active", b.dataset.price === ""));
       setPreview(price);
     });
 
@@ -1103,9 +1217,10 @@
     const replaySlot = document.getElementById("quiz-replay-slot");
     replaySlot.innerHTML = `<div class="quiz-replay-loading">${state.tickMode === "real" ? "Loading real ticks from the server…" : "Loading…"}</div>`;
 
-    getCheckpointTicks(trade, checkpointBar, prevClose).then(({ prices, real, fellBack }) => {
+    getCheckpointTicks(trade, checkpointBar, prevClose).then(({ prices, times, real, fellBack }) => {
       if (state.current !== c || c.stage !== "checkpoint") return; // moved on while this was in flight
       c.replayHandle = runSecondReplay(replaySlot, prices, {
+        times,
         unitLabel: real ? "tick" : "second",
         tag: real ? "live ticks · server" : "simulated seconds",
         tagCls: real ? "live" : "",
