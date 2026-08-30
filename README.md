@@ -209,6 +209,34 @@ synthetic trades) so you can preview the site immediately. Delete
 `data/trades.json` and `data/trades/*` and replace them with real output
 once the pipeline is publishing.
 
+## Quiz — real tick playback (optional)
+
+`quiz.html`'s entry and mid-trade "watch it play out" moments normally
+synthesize a plausible second-by-second path inside each 1-minute bar
+(see the comment above `genSecondTicks` in `quiz.js`) — Polygon's minute
+bars are all that's needed for the rest of the site, so there's no real
+intra-bar data to draw on offline. The setup screen's **Tick playback**
+picker adds a second option, **Real ticks (from server)**, that instead
+asks `chart_service.py` for the actual trade prints in that window.
+Simulated stays the default and always works with zero setup; Real is
+opt-in per quiz and falls back to simulated automatically (per question,
+with a small note in the UI) if the server's unreachable or has no prints
+for that window — it never blocks the quiz.
+
+**Setup:** same `window.CHART_SERVICE_URL` in `config.js` the Backtester
+tab uses, pointing at your `chart_service.py`, which now also serves:
+
+- `POST /tick-data` — body `{ symbol, start, end }` (`start`/`end` are ISO
+  8601 timestamps, start inclusive / end exclusive, capped to a 5-minute
+  window); returns `{ ticks: [{ t, p }, ...] }` — real Polygon `v3/trades`
+  prints, ordered oldest first. Always 200, `{ ticks: [] }` on no
+  data/failure (logged server-side) rather than an error, since the quiz
+  treats "nothing came back" and "couldn't reach the server" the same way
+  (fall back to simulated). Same CORS, rate-limiter, and small
+  process-lifetime cache as the rest of `chart_service.py`; `TICK_DATA_MAX_TRADES`
+  (default 2000) caps how many prints one call can return for a busy
+  ticker/minute.
+
 ## AI Chat tab
 
 `chat.html` is a conversational interface for asking questions about your

@@ -21,6 +21,8 @@
     resultSelect: document.getElementById("qf-result"),
     countRow: document.getElementById("qf-count-row"),
     blindCheck: document.getElementById("qf-blind"),
+    tickModeRow: document.getElementById("qf-tickmode-row"),
+    tickModeHint: document.getElementById("qf-tickmode-hint"),
     candidateCount: document.getElementById("qf-candidate-count"),
     startBtn: document.getElementById("qf-start-btn"),
     historyBox: document.getElementById("quiz-history-box"),
@@ -45,6 +47,7 @@
     queue: [],
     qIndex: 0,
     blind: true,
+    tickMode: "sim", // "sim" (synthesized, offline) or "real" (live prints from chart_service.py)
     results: [],
     streak: 0,
     lastFilters: null,
@@ -168,6 +171,97 @@
     return ticks;
   }
 
+  // ---------------------------------------------------------------
+  // Real tick playback (opt-in, "Real ticks (from server)" on the setup
+  // screen) — pulls actual trade prints for a bar's time window from
+  // chart_service.py instead of synthesizing them. This calls a new
+  // POST /tick-data route (added to chart_service.py alongside
+  // /generate-chart and the /backtest/* routes — see README) rather than
+  // anything Polygon's minute-bar aggregates give us directly.
+  //
+  // Request:  { symbol, start: <ISO>, end: <ISO> }  (start inclusive, end exclusive)
+  // Response: { ticks: [ { t: <ISO or epoch ms>, p: <price> }, ... ] }
+  //
+  // Never rejects — any failure (no CHART_SERVICE_URL set, unreachable,
+  // timeout, empty window) resolves to null so callers fall back to the
+  // simulated path without extra error handling.
+  // ---------------------------------------------------------------
+  const CHART_SERVICE_FETCH_HEADERS = {
+    "Content-Type": "application/json",
+    // Same free-tier-ngrok workaround backtester.js/chat.js use.
+    "ngrok-skip-browser-warning": "true",
+  };
+  function chartServiceBase() {
+    const base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
+    if (!base || base.includes("YOUR-NGROK-SUBDOMAIN")) return "";
+    return base;
+  }
+  function fetchRealTicks(symbol, startUnix, endUnix) {
+    const base = chartServiceBase();
+    if (!base || !(endUnix > startUnix)) return Promise.resolve(null);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 9000);
+    return fetch(`${base}/tick-data`, {
+      method: "POST",
+      headers: CHART_SERVICE_FETCH_HEADERS,
+      signal: controller.signal,
+      body: JSON.stringify({
+        symbol,
+        start: new Date(startUnix * 1000).toISOString(),
+        end: new Date(endUnix * 1000).toISOString(),
+      }),
+    })
+      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then((data) => {
+        const raw = data && Array.isArray(data.ticks) ? data.ticks : null;
+        if (!raw || !raw.length) return null;
+        const cleaned = raw
+          .map((t) => ({
+            time: Math.floor((typeof t.t === "number" ? (t.t > 2e12 ? t.t / 1e6 : t.t) : new Date(t.t).getTime()) / 1000),
+            price: Number(t.p),
+          }))
+          .filter((t) => Number.isFinite(t.time) && Number.isFinite(t.price) && t.price > 0)
+          .sort((a, b) => a.time - b.time);
+        return cleaned.length >= 2 ? cleaned : null;
+      })
+      .catch(() => null)
+      .finally(() => clearTimeout(timeout));
+  }
+
+  // Ticks for the checkpoint (mid-trade) bar — the full 60s window.
+  function getCheckpointTicks(trade, bar, prevClose) {
+    const simPrices = () => genSecondTicks(bar, prevClose, `${trade.id}:checkpoint`);
+    if (state.tickMode !== "real") return Promise.resolve({ prices: simPrices(), real: false, fellBack: false });
+    const start = toUnix(bar.t);
+    return fetchRealTicks(trade.symbol, start, start + BAR_SECONDS).then((real) => (
+      real ? { prices: real.map((t) => t.price), real: true, fellBack: false }
+           : { prices: simPrices(), real: false, fellBack: true }
+    ));
+  }
+
+  // Ticks for the "watch it print in" replay on the entry stage — only
+  // the window from the bar's open up to the actual fill instant, so
+  // real mode never leaks anything past the moment you're deciding at
+  // (and sim mode is truncated + pinned to the real fill for the same
+  // reason — see buildFormingBar above).
+  function getEntryWatchTicks(trade, bar, prevClose, secondsIntoBar) {
+    const simPrices = () => {
+      const full = genSecondTicks(bar, prevClose, `${trade.id}:entrywatch`);
+      const frac = Math.max(0, Math.min(1, secondsIntoBar / BAR_SECONDS));
+      const cut = Math.max(1, Math.round(frac * REPLAY_SECONDS));
+      const t = full.slice(0, cut);
+      t[t.length - 1] = trade.entry_price;
+      return t;
+    };
+    if (state.tickMode !== "real") return Promise.resolve({ prices: simPrices(), real: false, fellBack: false });
+    const start = toUnix(bar.t);
+    const end = Math.max(start + 1, start + Math.round(secondsIntoBar));
+    return fetchRealTicks(trade.symbol, start, end).then((real) => (
+      real ? { prices: real.map((t) => t.price), real: true, fellBack: false }
+           : { prices: simPrices(), real: false, fellBack: true }
+    ));
+  }
+
   // Auto-plays through `ticks`, one per `tickMs`, updating a live price
   // readout. `actions` is a list of {id, label, kbd, cls} buttons that are
   // clickable at any point during playback; clicking one locks in the
@@ -177,12 +271,16 @@
   // quiz question changes underneath it).
   function runSecondReplay(container, ticks, opts) {
     const tickMs = opts.tickMs || 150;
+    const unitLabel = opts.unitLabel || "second";
+    const tag = opts.tag || "simulated seconds";
+    const tagCls = opts.tagCls ? ` ${opts.tagCls}` : "";
     container.innerHTML = `
       <div class="quiz-replay-panel">
         <div class="quiz-replay-top">
           <span class="quiz-replay-price"></span>
-          <span class="quiz-replay-tag">simulated seconds</span>
+          <span class="quiz-replay-tag${tagCls}">${escapeHtml(tag)}</span>
         </div>
+        ${opts.fallbackNote ? `<div class="quiz-replay-fallback">${escapeHtml(opts.fallbackNote)}</div>` : ""}
         <div class="quiz-replay-track"><div class="quiz-replay-bar" id="qz-replay-fill"></div></div>
         <div class="quiz-replay-row" id="qz-replay-actions"></div>
         <div class="quiz-replay-sec" id="qz-replay-sec" style="margin-top:8px;"></div>
@@ -233,7 +331,7 @@
     let i = 0, done = false, timer = null;
     function paint() {
       priceEl.textContent = "$" + fmtPrice(ticks[i]);
-      secEl.textContent = `second ${i + 1} of ${ticks.length}`;
+      secEl.textContent = `${unitLabel} ${i + 1} of ${ticks.length}`;
       fillEl.style.width = `${((i + 1) / ticks.length) * 100}%`;
       paintCandle(i);
     }
@@ -315,22 +413,36 @@
     c.chartHandle.chart.timeScale().subscribeVisibleLogicalRangeChange(() => positionDot(ticks[Math.min(replayIdx, ticks.length - 1)]));
 
     function stop() { if (timer) clearInterval(timer); timer = null; }
+    // Total playback is meant to stay ~constant (a few seconds) no matter
+    // how long the real trade was. Flooring the per-tick delay alone broke
+    // that for long trades: with thousands of ticks and a 20ms floor, total
+    // time grew to minutes instead of staying ~4s, making the button look
+    // stuck on "Replaying…". Instead, keep the delay at the floor and skip
+    // multiple ticks per frame so the number of frames -- and therefore the
+    // total duration -- stays roughly fixed regardless of tick count.
+    const TOTAL_MS = 4000;
+    const FRAME_MS = 20;
     function play() {
       stop();
       replayIdx = 0;
       btn.disabled = true;
       btn.textContent = "▶ Replaying…";
       positionDot(ticks[0]);
+      const maxFrames = Math.max(1, Math.floor(TOTAL_MS / FRAME_MS));
+      const step = Math.max(1, Math.ceil(ticks.length / maxFrames));
+      const frameCount = Math.max(1, Math.ceil(ticks.length / step));
+      const delay = Math.max(FRAME_MS, Math.round(TOTAL_MS / frameCount));
       timer = setInterval(() => {
-        replayIdx++;
+        replayIdx += step;
         if (replayIdx >= ticks.length) {
+          positionDot(ticks[ticks.length - 1]);
           stop();
           btn.disabled = false;
           btn.textContent = "↻ Replay entry→exit";
           return;
         }
         positionDot(ticks[replayIdx]);
-      }, Math.max(20, Math.round(4000 / ticks.length)));
+      }, delay);
     }
     btn.addEventListener("click", play);
   }
@@ -375,11 +487,13 @@
 
   function getFilters() {
     const countBtn = els.countRow.querySelector(".quiz-mode-btn.active");
+    const tickBtn = els.tickModeRow.querySelector(".quiz-mode-btn.active");
     return {
       setup: els.setupSelect.value,
       result: els.resultSelect.value,
       count: countBtn ? Number(countBtn.dataset.count) : 10,
       blind: els.blindCheck.checked,
+      tickMode: tickBtn ? tickBtn.dataset.tickmode : "sim",
     };
   }
 
@@ -408,6 +522,13 @@
       els.countRow.querySelectorAll(".quiz-mode-btn").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       renderCandidateCount();
+    });
+  });
+  els.tickModeRow.querySelectorAll(".quiz-mode-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      els.tickModeRow.querySelectorAll(".quiz-mode-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      els.tickModeHint.style.display = btn.dataset.tickmode === "real" ? "" : "none";
     });
   });
   els.startBtn.addEventListener("click", () => {
@@ -625,6 +746,7 @@
     state.queue = shuffle(ids).slice(0, filters.count > 0 ? filters.count : ids.length);
     state.qIndex = 0;
     state.blind = filters.blind;
+    state.tickMode = filters.tickMode === "real" ? "real" : "sim";
     state.results = [];
     state.streak = 0;
     els.setupScreen.style.display = "none";
@@ -758,6 +880,8 @@
         <button class="quiz-answer-btn enter" id="qz-enter">Enter the trade <span class="kbd">Y</span></button>
         <button class="quiz-answer-btn pass" id="qz-pass">Pass <span class="kbd">N</span></button>
       </div>
+      <button class="quiz-watch-btn" id="qz-watch-entry">▶ Watch it print in, tick by tick</button>
+      <div id="quiz-entry-replay-slot"></div>
       <div id="quiz-stop-slot"></div>
     `;
 
@@ -766,11 +890,43 @@
 
     document.getElementById("qz-enter").addEventListener("click", () => handleEntryChoice(true));
     document.getElementById("qz-pass").addEventListener("click", () => handleEntryChoice(false));
+
+    // Optional, non-blocking: replays the run-up to the fill tick by tick
+    // (real prints from the server, or the same simulated path used
+    // elsewhere) without holding up Enter/Pass, which stay clickable the
+    // whole time. Purely a read-the-tape aid for this decision.
+    const watchBtn = document.getElementById("qz-watch-entry");
+    const prevCloseEntry = c.entryIdx > 0 ? c.bars[c.entryIdx - 1].c : entryBar.o;
+    watchBtn.addEventListener("click", () => {
+      watchBtn.disabled = true;
+      watchBtn.textContent = state.tickMode === "real" ? "Loading real ticks…" : "Loading…";
+      getEntryWatchTicks(trade, entryBar, prevCloseEntry, secondsIntoBar).then(({ prices, real, fellBack }) => {
+        if (state.current !== c || c.stage !== "entry") return;
+        watchBtn.style.display = "none";
+        c.replayHandle = runSecondReplay(document.getElementById("quiz-entry-replay-slot"), prices, {
+          unitLabel: real ? "tick" : "second",
+          tag: real ? "live ticks · server" : "simulated seconds",
+          tagCls: real ? "live" : "",
+          fallbackNote: fellBack ? "No live ticks came back for this window — showing the simulated path instead." : "",
+          actions: [],
+          defaultActionId: null,
+          chartHandle: c.chartHandle,
+          bar: entryBar,
+          onAct: () => {
+            watchBtn.style.display = "";
+            watchBtn.disabled = false;
+            watchBtn.textContent = "↻ Watch again";
+          },
+        });
+      });
+    });
+
     c.stage = "entry";
   }
 
   function handleEntryChoice(entered) {
     const c = state.current;
+    if (c.replayHandle) { c.replayHandle.stop(); c.replayHandle = null; } // stop an in-progress "watch it print in" replay
     c.entered = entered;
     document.getElementById("qz-enter").disabled = true;
     document.getElementById("qz-pass").disabled = true;
@@ -972,21 +1128,30 @@
       ],
     });
 
-    const ticks = genSecondTicks(checkpointBar, prevClose, `${trade.id}:checkpoint`);
-    c.replayHandle = runSecondReplay(document.getElementById("quiz-replay-slot"), ticks, {
-      actions: [
-        { id: "exit", label: "Exit now", kbd: "E", cls: "exit" },
-        { id: "hold", label: "Hold", kbd: "H", cls: "hold" },
-      ],
-      defaultActionId: "hold",
-      chartHandle: c.chartHandle,
-      bar: checkpointBar,
-      onAct: (actionId, secondIdx, price) => {
-        c.checkpointAction = actionId;
-        c.exitSecond = secondIdx;
-        c.userExitPrice = actionId === "exit" ? price : null;
-        goToReveal();
-      },
+    const replaySlot = document.getElementById("quiz-replay-slot");
+    replaySlot.innerHTML = `<div class="quiz-replay-loading">${state.tickMode === "real" ? "Loading real ticks from the server…" : "Loading…"}</div>`;
+
+    getCheckpointTicks(trade, checkpointBar, prevClose).then(({ prices, real, fellBack }) => {
+      if (state.current !== c || c.stage !== "checkpoint") return; // moved on while this was in flight
+      c.replayHandle = runSecondReplay(replaySlot, prices, {
+        unitLabel: real ? "tick" : "second",
+        tag: real ? "live ticks · server" : "simulated seconds",
+        tagCls: real ? "live" : "",
+        fallbackNote: fellBack ? "No live ticks came back for this window — showing the simulated path instead." : "",
+        actions: [
+          { id: "exit", label: "Exit now", kbd: "E", cls: "exit" },
+          { id: "hold", label: "Hold", kbd: "H", cls: "hold" },
+        ],
+        defaultActionId: "hold",
+        chartHandle: c.chartHandle,
+        bar: checkpointBar,
+        onAct: (actionId, secondIdx, price) => {
+          c.checkpointAction = actionId;
+          c.exitSecond = secondIdx;
+          c.userExitPrice = actionId === "exit" ? price : null;
+          goToReveal();
+        },
+      });
     });
   }
 

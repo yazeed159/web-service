@@ -117,9 +117,31 @@
 .quiz-replay-price { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
 .quiz-replay-sec { font-size: 12px; color: var(--text-faint); font-family: var(--mono); }
 .quiz-replay-tag { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; }
+.quiz-replay-tag.live { color: var(--green); display: inline-flex; align-items: center; gap: 5px; }
+.quiz-replay-tag.live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 2px rgba(47,208,138,.25); }
+.quiz-replay-fallback { font-size: 11.5px; color: var(--amber); margin: -2px 0 10px; }
+.quiz-replay-loading { padding: 18px 14px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: var(--panel-2); color: var(--text-faint); font-size: 13px; }
 .quiz-replay-track { height: 4px; border-radius: 2px; background: var(--border-soft); overflow: hidden; margin-bottom: 12px; }
 .quiz-replay-bar { height: 100%; width: 0%; background: var(--blue); transition: width .08s linear; }
 .quiz-replay-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* Tick-mode picker on the setup screen (mirrors .quiz-mode-row/.quiz-mode-btn) */
+.quiz-tickmode-hint {
+  margin-top: 8px; font-size: 12px; line-height: 1.5; color: var(--text-faint);
+  background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+  padding: 9px 11px;
+}
+.quiz-tickmode-hint code { font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); }
+
+/* "Watch it print in" button on the entry stage — optional, sits below the
+   Enter/Pass row and never blocks either from being clicked immediately. */
+.quiz-watch-btn {
+  margin-top: 10px; padding: 9px 14px; border-radius: var(--radius-sm); cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--border-soft); color: var(--text-dim);
+  font-size: 12.5px; font-weight: 600;
+}
+.quiz-watch-btn:hover:not(:disabled) { color: var(--text); border-color: var(--text-dim); }
+.quiz-watch-btn:disabled { opacity: .6; cursor: default; }
 .quiz-answer-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .quiz-answer-btn {
   flex: 1; min-width: 140px; padding: 13px 16px; border-radius: var(--radius-sm); cursor: pointer;

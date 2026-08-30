@@ -173,6 +173,20 @@
               </div>
             </div>
 
+            <div class="quiz-filter-row">
+              <label>Tick playback</label>
+              <div class="quiz-mode-row" id="qf-tickmode-row">
+                <button class="quiz-mode-btn active" data-tickmode="sim">Simulated (offline)</button>
+                <button class="quiz-mode-btn" data-tickmode="real">Real ticks (from server)</button>
+              </div>
+              <div class="quiz-tickmode-hint" id="qf-tickmode-hint" style="display:none;">
+                Pulls actual trade prints for that minute from <code>chart_service.py</code>
+                (<code>window.CHART_SERVICE_URL</code> in <code>config.js</code>) instead of a
+                synthesized path. Falls back to simulated automatically, per-question, if the
+                server's unreachable or has no ticks for that window.
+              </div>
+            </div>
+
             <div class="quiz-candidate-count" id="qf-candidate-count"></div>
 
             <button class="btn-confirm quiz-start-btn" id="qf-start-btn">Start quiz</button>
@@ -231,7 +245,7 @@
 
     </div>
 
-    <div class="footer">trade.log — Quiz reads data/trades.json + data/trades/&lt;id&gt;.json, entirely client-side</div>
+    <div class="footer">trade.log — Quiz reads data/trades.json + data/trades/&lt;id&gt;.json, entirely client-side (plus an optional live call to chart_service.py for real tick playback)</div>
   </div>
 </div>
 
