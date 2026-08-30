@@ -287,6 +287,10 @@
         entry_price: trade.entry_price,
         exit_price: trade.exit_price,
         side: trade.side || "long",
+        // Only ever reads data.indicators below -- never bars or the
+        // image -- so skip the extra Polygon calls and the render.
+        include_volume_stats: false,
+        include_image: false,
       }),
     })
       .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
