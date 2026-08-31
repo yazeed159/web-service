@@ -127,6 +127,24 @@
     const ceiling = shares * price * IBKR_MAX_PCT_OF_TRADE_VALUE;
     return Math.max(IBKR_MIN_PER_ORDER, Math.min(raw, ceiling));
   }
+  // The dataset's logged trade.commission field (and the pnl_after_comm
+  // derived from it) is noisy and doesn't track any consistent fee
+  // schedule -- e.g. two 50-share trades in the same price range are
+  // logged at $0.02 and $2.01 commission -- so trusting it verbatim for
+  // "what actually happened" made the real trade look far cheaper (or
+  // pricier) than the same size would really cost under IBKR's schedule,
+  // and made it incomparable with your own simulated fills, which do use
+  // that schedule. Recompute the real trade's commission and net P&L the
+  // same way, from its own shares and entry/exit prices, instead.
+  function realisticActualCommission(trade) {
+    const shares = Number(trade.shares) || 0;
+    return ibkrTieredCommission(shares, Number(trade.entry_price)) + ibkrTieredCommission(shares, Number(trade.exit_price));
+  }
+  function realisticActualNet(trade) {
+    const gross = Number(trade.pnl_before_comm);
+    if (!Number.isFinite(gross)) return Number(trade.pnl_after_comm) || 0;
+    return gross - realisticActualCommission(trade);
+  }
 
   // ---------------------------------------------------------------
   // offline second-by-second tick synthesis -- identical to
@@ -331,9 +349,10 @@
     `).join("");
   }
 
-  function resetAccount() {
-    if (!confirm("Reset your practice account? This clears your balance, fill history, and equity curve. This can't be undone.")) return;
-    const input = prompt("Starting balance for the new account:", String(account.startingBalance || DEFAULT_STARTING_BALANCE));
+  async function resetAccount() {
+    const ok = await UIModal.confirm("Reset your practice account? This clears your balance, fill history, and equity curve. This can't be undone.", { title: "Reset account?", tone: "danger", confirmLabel: "Reset account" });
+    if (!ok) return;
+    const input = await UIModal.prompt("Starting balance for the new account:", String(account.startingBalance || DEFAULT_STARTING_BALANCE), { title: "New starting balance", inputType: "number", confirmLabel: "Create account" });
     if (input === null) return;
     const amt = Number(String(input).replace(/[^0-9.]/g, ""));
     const startingBalance = Number.isFinite(amt) && amt > 0 ? amt : DEFAULT_STARTING_BALANCE;
@@ -443,7 +462,7 @@
     stopPlayback();
     fetchDetail(id).then((trade) => {
       if (!trade || !Array.isArray(trade.bars) || !trade.bars.length) {
-        alert("Couldn't load that chart's data.");
+        UIModal.alert("Couldn't load that chart's data.", { title: "Load failed", tone: "danger" });
         return;
       }
       state.trade = trade;
@@ -862,7 +881,7 @@
         <div class="pr-recap-col">
           <div class="rb-label">What actually happened on this trade</div>
           <div class="rb-line">${t.side.toUpperCase()} ${t.shares} sh · entered <b>$${fmtPrice(t.entry_price)}</b> at ${escapeHtml(t.entry_time)}, exited <b>$${fmtPrice(t.exit_price)}</b> at ${escapeHtml(t.exit_time)}</div>
-          <div class="rb-line">Real result: <b class="${t.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</b> after commission</div>
+          <div class="rb-line">Real result: <b class="${realisticActualNet(t) >= 0 ? "up" : "down"}">${fmtMoney(realisticActualNet(t))}</b> after commission</div>
           ${t.verdict ? `<div class="rb-line" style="margin-top:8px;">${escapeHtml(t.verdict)}</div>` : ""}
         </div>
       </div>
@@ -1059,9 +1078,10 @@
     if (!sess) return;
     loadChart(sess.chartId, sess);
   });
-  els.changeChartBtn.addEventListener("click", () => {
+  els.changeChartBtn.addEventListener("click", async () => {
     if (state.position && state.position.shares > 0) {
-      if (!confirm("You still have an open position on this chart. Leaving now will flatten it at the current price. Continue?")) return;
+      const ok = await UIModal.confirm("You still have an open position on this chart. Leaving now will flatten it at the current price. Continue?", { title: "Flatten & leave?", tone: "danger", confirmLabel: "Flatten & leave" });
+      if (!ok) return;
       endSession("changed chart");
       return;
     }
@@ -1071,8 +1091,9 @@
   });
   els.playPauseBtn.addEventListener("click", () => { state.playing ? stopPlayback() : startPlayback(); });
   els.stepBtn.addEventListener("click", stepOneBar);
-  els.skipBtn.addEventListener("click", () => {
-    if (!confirm("Skip to the end of this chart? Any open position will be closed at the final price.")) return;
+  els.skipBtn.addEventListener("click", async () => {
+    const ok = await UIModal.confirm("Skip to the end of this chart? Any open position will be closed at the final price.", { title: "Skip to end?", confirmLabel: "Skip to end" });
+    if (!ok) return;
     stopPlayback();
     while (state.barIndex < state.bars.length - 1) {
       lockInBar();

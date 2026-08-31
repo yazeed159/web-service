@@ -1,0 +1,67 @@
+/* ===================================================================
+   ui-modal — a small, dependency-free replacement for the browser's
+   native confirm()/alert()/prompt() dialogs, styled to match the rest
+   of the app instead of the OS chrome. Loaded wherever ui-modal.js is
+   used (currently rewind.html + practice.html).
+=================================================================== */
+
+.ui-modal-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  background: rgba(6, 7, 10, 0.6);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  opacity: 0;
+  transition: opacity .16s ease;
+}
+.ui-modal-overlay.open { opacity: 1; }
+
+.ui-modal-box {
+  width: 100%; max-width: 400px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 22px 20px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
+  transform: scale(.95) translateY(6px);
+  transition: transform .16s cubic-bezier(.2,.9,.3,1.2);
+}
+.ui-modal-overlay.open .ui-modal-box { transform: scale(1) translateY(0); }
+
+.ui-modal-icon {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 12px;
+}
+.ui-modal-icon svg { width: 18px; height: 18px; }
+.ui-modal-icon.default { background: var(--primary-soft); color: var(--primary); }
+.ui-modal-icon.danger { background: var(--red-soft); color: var(--red); }
+
+.ui-modal-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.ui-modal-msg { font-size: 13.5px; line-height: 1.55; color: var(--text-dim); }
+
+.ui-modal-input {
+  display: block; width: 100%; margin-top: 14px;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--radius-sm); padding: 10px 11px; font-size: 14px;
+  font-family: var(--mono);
+}
+.ui-modal-input:focus-visible { outline: 1.5px solid var(--primary); outline-offset: 1px; }
+
+.ui-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.ui-modal-actions .btn-advanced,
+.ui-modal-actions .btn-confirm,
+.ui-modal-actions .btn-danger { padding: 9px 16px; font-size: 13px; border-radius: var(--radius-sm); }
+
+.btn-danger {
+  background: linear-gradient(135deg, #f2555a, #d43e46);
+  border: 1px solid transparent;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(242,85,90,0.32);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.btn-danger:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(242,85,90,0.42); }
+.btn-danger:active { transform: translateY(0); }

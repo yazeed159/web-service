@@ -1640,13 +1640,22 @@
          <div class="rb-line"><span class="${pillFor(grading.sizeGrade.tone)}">${escapeHtml(grading.sizeGrade.label)}</span></div>`
       : `<div class="rb-line dim">You passed, so no size to grade.</div>`;
 
-    // "Real numbers" -- the actual trade's logged fill/commission/timing,
-    // plus what your own size/entry/exit would've cost using IBKR's real
-    // tiered commission schedule (per-share rate with a per-order floor
-    // and ceiling) rather than just scaling the actual trade's commission
-    // linearly by share count, which silently ignores both of those.
-    const tradeCommission = Number(trade.commission) || 0;
+    // "Real numbers" -- what your own size/entry/exit would've cost using
+    // IBKR's real tiered commission schedule (per-share rate with a
+    // per-order floor and ceiling), applied on BOTH sides of the
+    // comparison. The dataset's logged trade.commission field is noisy
+    // and doesn't track any consistent fee schedule -- e.g. two 50-share
+    // trades in the same price range are logged at $0.02 and $2.01 -- so
+    // trusting it verbatim for "actual" while computing "yours" from the
+    // real schedule made the two sides incomparable (and made the real
+    // trade look far cheaper than it would actually have cost). Instead,
+    // recompute the actual trade's commission the same way, from its own
+    // shares and entry/exit fill prices, so both numbers reflect the same
+    // real-world schedule and differ only by what was actually traded.
     const tradeShares = Number(trade.shares) || 0;
+    const tradeCommission = ibkrTieredCommission(tradeShares, trade.entry_price) + ibkrTieredCommission(tradeShares, trade.exit_price);
+    const tradePnlBeforeComm = Number(trade.pnl_before_comm);
+    const tradeNet = Number.isFinite(tradePnlBeforeComm) ? tradePnlBeforeComm - tradeCommission : Number(trade.pnl_after_comm) || 0;
     const userGross = c.entered && Number.isFinite(grading.userPnlPerShare) ? grading.userPnlPerShare * c.userShares : null;
     const userEntryCommission = (c.entered && c.userEntryPrice != null) ? ibkrTieredCommission(c.userShares, c.userEntryPrice) : 0;
     const userExitCommission = (c.entered && grading.userExitFillPrice != null) ? ibkrTieredCommission(c.userShares, grading.userExitFillPrice) : 0;
@@ -1681,7 +1690,7 @@
         <div class="quiz-reveal-box" style="grid-column:1/-1;"><div class="rb-label">Real numbers</div>
           <div class="rb-line">Entry <b>$${fmtPrice(trade.entry_price)}</b> actual${c.entered && c.userEntryPrice != null ? ` · <b>$${fmtPrice(c.userEntryPrice)}</b> yours` : ""} at <b>${escapeHtml(trade.entry_time)}</b> → Exit <b>$${fmtPrice(trade.exit_price)}</b> at <b>${escapeHtml(trade.exit_time)}</b> <span class="dim">(${escapeHtml(trade.time_in_trade || "—")} in trade)</span></div>
           <div class="rb-line">Shares: <b>${tradeShares}</b> actual${c.entered ? ` · <b>${c.userShares}</b> yours` : ""} &nbsp;·&nbsp; Commission: <b>$${tradeCommission.toFixed(2)}</b> actual${c.entered && userCommission != null ? ` · <b>$${userCommission.toFixed(2)}</b> yours` : ""}</div>
-          <div class="rb-line">Net P&amp;L: <b style="color:${trade.pnl_after_comm >= 0 ? "var(--green)" : "var(--red)"}">${trade.pnl_after_comm >= 0 ? "+" : "-"}$${Math.abs(trade.pnl_after_comm).toFixed(2)}</b> actual${c.entered && userNet != null ? ` · <b style="color:${userNet >= 0 ? "var(--green)" : "var(--red)"}">${userNet >= 0 ? "+" : "-"}$${Math.abs(userNet).toFixed(2)}</b> yours` : ""}</div>
+          <div class="rb-line">Net P&amp;L: <b style="color:${tradeNet >= 0 ? "var(--green)" : "var(--red)"}">${tradeNet >= 0 ? "+" : "-"}$${Math.abs(tradeNet).toFixed(2)}</b> actual${c.entered && userNet != null ? ` · <b style="color:${userNet >= 0 ? "var(--green)" : "var(--red)"}">${userNet >= 0 ? "+" : "-"}$${Math.abs(userNet).toFixed(2)}</b> yours` : ""}</div>
         </div>
       </div>
 
@@ -1725,8 +1734,9 @@
     }
   });
 
-  els.quitBtn.addEventListener("click", () => {
-    if (!confirm("End this session? Progress on the current trade won't be saved.")) return;
+  els.quitBtn.addEventListener("click", async () => {
+    const ok = await UIModal.confirm("End this session? Progress on the current trade won't be saved.", { title: "End session?", tone: "danger", confirmLabel: "End session" });
+    if (!ok) return;
     goToSetupScreen();
   });
 
@@ -1819,9 +1829,9 @@
     const filters = state.lastFilters || getFilters();
     startQuiz(filters, filterIndex(filters).map((r) => r.id));
   });
-  els.reviewMissedBtn.addEventListener("click", () => {
+  els.reviewMissedBtn.addEventListener("click", async () => {
     const shakyIds = state.results.filter((r) => r.entryTone !== "good").map((r) => r.id);
-    if (!shakyIds.length) { alert("Nothing to revisit — every entry read as a good call!"); return; }
+    if (!shakyIds.length) { await UIModal.alert("Nothing to revisit — every entry read as a good call!", { title: "Nothing shaky here" }); return; }
     const filters = state.lastFilters || getFilters();
     startQuiz(filters, shakyIds);
   });

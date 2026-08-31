@@ -119,12 +119,24 @@
 
 .pp-order-btn-row { display: flex; gap: 10px; margin-bottom: 8px; }
 .pp-order-btn {
-  flex: 1; padding: 13px 10px; border-radius: var(--radius-sm); cursor: pointer;
-  font-size: 14px; font-weight: 800; border: 1px solid transparent; transition: transform .1s ease;
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 13px 10px; border-radius: 9px; cursor: pointer;
+  font-size: 14px; font-weight: 800; border: 1px solid transparent; color: #fff;
+  transition: transform .12s cubic-bezier(.2,.9,.3,1.2), box-shadow .15s ease, filter .15s ease;
 }
-.pp-order-btn:hover { transform: translateY(-1px); }
-.pp-order-btn.buy { background: var(--green-soft); color: var(--green); border-color: rgba(47,208,138,.4); }
-.pp-order-btn.sell { background: var(--red-soft); color: var(--red); border-color: rgba(242,85,90,.4); }
+.pp-order-btn svg { width: 15px; height: 15px; }
+.pp-order-btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.pp-order-btn:active { transform: translateY(0) scale(.97); }
+.pp-order-btn.buy {
+  background: linear-gradient(135deg, #2fd08a, #1fa46c);
+  box-shadow: 0 4px 16px rgba(47,208,138,.28);
+}
+.pp-order-btn.sell {
+  background: linear-gradient(135deg, #f2555a, #d43e46);
+  box-shadow: 0 4px 16px rgba(242,85,90,.28);
+}
+.pp-order-btn.buy:hover { box-shadow: 0 6px 20px rgba(47,208,138,.4); }
+.pp-order-btn.sell:hover { box-shadow: 0 6px 20px rgba(242,85,90,.4); }
 
 .pp-order-msg { min-height: 16px; font-size: 11.5px; color: var(--text-dim); margin-bottom: 12px; }
 .pp-order-msg.err { color: var(--red); }
