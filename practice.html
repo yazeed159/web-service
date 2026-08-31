@@ -4,26 +4,16 @@
 <script src="config.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Playbooks — trade.log</title>
+<title>Practice — trade.log</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="features.css">
 <link rel="stylesheet" href="modern.css">
+<link rel="stylesheet" href="rewind.css">
+<link rel="stylesheet" href="practice.css">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js" defer></script>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <defs>
-    <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#8457ff"/>
-      <stop offset="100%" stop-color="#22d3ee"/>
-    </linearGradient>
-    <linearGradient id="modernEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#8457ff"/>
-      <stop offset="100%" stop-color="#22d3ee"/>
-    </linearGradient>
-  </defs>
-</svg>
-
 
 <div class="app-shell">
 
@@ -83,7 +73,7 @@
         <span class="nav-label">Patterns</span>
       </a>
 
-      <a class="nav-item active" href="playbooks.html">
+      <a class="nav-item" href="playbooks.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
         <span class="nav-label">Playbooks</span>
       </a>
@@ -108,21 +98,21 @@
         <span class="nav-label">Rewind</span>
       </a>
 
-      <a class="nav-item" href="practice.html">
+      <a class="nav-item active" href="practice.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
         <span class="nav-label">Practice</span>
       </a>
-</nav>
+    </nav>
 
     <div class="sidebar-bottom">
-      <div class="pipeline-status"><span class="dot"></span><span>Playbooks</span></div>
+      <div class="pipeline-status"><span class="dot"></span><span>Practice</span></div>
     </div>
   </aside>
 
   <div class="main">
     <header class="topbar">
       <div class="topbar-left">
-        <h1 id="page-title">Playbooks</h1>
+        <h1 id="page-title">Practice</h1>
       </div>
       <div class="topbar-right">
         <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
@@ -133,127 +123,137 @@
 
     <div class="content">
       <div class="panel-head">
-        <div class="sub">Every <span class="mono">setup_type</span> your trades are tagged with, grouped into its own scorecard — win rate, sample size, net P&amp;L, and the most common lesson tag logged against it. Click a card to see just those trades in the Journal.</div>
+        <div class="sub">Paper trade a real logged chart from the start of its data. A persistent dummy account, buy/sell like a real broker, and the same offline tick replay the Quiz tab uses.</div>
       </div>
 
-      <div id="playbooks-content">
-        <div class="loading-line">Loading…</div>
+      <!-- ============ SETUP SCREEN ============ -->
+      <div id="pr-setup-screen">
+
+        <div id="pr-resume-box" class="pr-resume-box" style="display:none;">
+          <div class="rb-text">You left a session in progress on <b id="pr-resume-label"></b>.</div>
+          <button class="btn-confirm" id="pr-resume-btn">Resume session</button>
+        </div>
+
+        <div class="pr-account-grid">
+          <div class="panel-box">
+            <div class="panel-box-head"><span class="title">Your practice account</span></div>
+            <div class="pr-stat-row">
+              <div class="pr-stat-cell"><span class="label">Balance</span><span class="value mono" id="pr-acct-balance">—</span></div>
+              <div class="pr-stat-cell"><span class="label">Starting balance</span><span class="value mono" id="pr-acct-starting">—</span></div>
+              <div class="pr-stat-cell"><span class="label">Realized P&amp;L</span><span class="value mono" id="pr-acct-realized">—</span></div>
+              <div class="pr-stat-cell"><span class="label">Commission paid</span><span class="value mono" id="pr-acct-comm">—</span></div>
+              <div class="pr-stat-cell"><span class="label">Closed trades</span><span class="value mono" id="pr-acct-trades">—</span></div>
+              <div class="pr-stat-cell"><span class="label">Win rate</span><span class="value mono" id="pr-acct-winrate">—</span></div>
+            </div>
+            <div class="pr-reset-row">
+              <button class="btn-advanced" id="pr-reset-btn">Reset account…</button>
+            </div>
+          </div>
+
+          <div class="panel-box">
+            <div class="panel-box-head"><span class="title">Equity curve</span></div>
+            <div class="pr-equity-wrap">
+              <svg id="pr-equity-svg" viewBox="0 0 1000 140" preserveAspectRatio="none"></svg>
+              <div class="pr-equity-empty" id="pr-equity-empty">Your realized P&amp;L curve will build up here as you close trades.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-box" style="margin-bottom:18px;">
+          <div class="panel-box-head"><span class="title">Recent fills</span></div>
+          <div id="pr-fills-box"></div>
+        </div>
+
+        <div class="panel-box">
+          <div class="panel-box-head"><span class="title">Pick a chart to practice on</span></div>
+          <div class="pr-filter-row">
+            <input type="text" id="pf-search" placeholder="Search symbol…">
+            <select id="pf-setup"><option value="">All setups</option></select>
+            <button class="btn-advanced" id="pf-random-btn">Surprise me</button>
+          </div>
+          <div class="pr-candidate-count" id="pf-candidate-count"></div>
+          <div class="pr-candidate-list" id="pf-candidate-list"></div>
+        </div>
+
       </div>
+
+      <!-- ============ PLAY SCREEN ============ -->
+      <div id="pr-play-screen" style="display:none;">
+
+        <div class="pp-head">
+          <div class="pp-head-left">
+            <span id="pp-symbol-line">—</span>
+            <span id="pp-date-line"></span>
+          </div>
+          <button class="btn-advanced" id="pp-change-chart-btn">Change chart</button>
+        </div>
+
+        <div class="pp-body-grid">
+          <div>
+            <div class="pp-chart-wrap" id="pp-chart-wrap">
+              <div id="pp-candle-chart"></div>
+            </div>
+
+            <div class="pp-transport">
+              <button class="btn-advanced" id="pp-playpause-btn">▶ Play</button>
+              <div class="quiz-speed-row" id="pp-speed-row"></div>
+              <button class="btn-advanced" id="pp-step-btn">+1 bar</button>
+              <button class="btn-advanced" id="pp-skip-btn">Skip to end</button>
+              <div class="pp-progress-block">
+                <span id="pp-progress-label">Bar 1 / 1</span>
+                <div class="pp-progress-track">
+                  <div class="pp-progress-fill" id="pp-progress-fill" style="width:0%"></div>
+                  <input type="range" id="pp-progress-slider" min="0" max="0" value="0" title="Fast-forward to a bar">
+                </div>
+              </div>
+            </div>
+
+            <div id="pp-recap-box" class="panel-box" style="display:none; margin-top:14px;"></div>
+          </div>
+
+          <div>
+            <div class="pp-live-block">
+              <span id="pp-live-price">$0.00</span>
+              <span id="pp-live-change" class="pp-live-change"></span>
+            </div>
+
+            <div class="pp-order-panel">
+              <div class="title">Place an order</div>
+              <div class="pp-size-row">
+                <input type="number" id="pp-shares-input" min="1" step="1" value="100">
+                <span class="unit">shares</span>
+              </div>
+              <div id="pp-size-preset-row"></div>
+              <div class="pp-order-btn-row">
+                <button class="pp-order-btn buy" id="pp-buy-btn">Buy</button>
+                <button class="pp-order-btn sell" id="pp-sell-btn">Sell</button>
+              </div>
+              <div class="pp-order-msg" id="pp-order-msg"></div>
+
+              <div class="pp-position-block">
+                <div id="pp-pos-summary"></div>
+                <div class="pp-acct-line"><span>Cash</span><b id="pp-cash-line">—</b></div>
+                <div class="pp-acct-line"><span>Equity</span><b id="pp-equity-line">—</b></div>
+                <div class="pp-acct-line"><span>Buying power</span><b id="pp-bp-line">—</b></div>
+              </div>
+
+              <div class="pp-fill-log-block">
+                <div class="title">This session's fills</div>
+                <div id="pp-fill-log"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
     </div>
 
-    <div class="footer">trade.log — generated from data/trades.json</div>
+    <div class="footer">trade.log — Practice reads data/trades.json + data/trades/&lt;id&gt;.json, entirely client-side. Your dummy account lives in this browser's local storage.</div>
   </div>
 </div>
 
-<script>
-(function () {
-  "use strict";
-  const content = document.getElementById("playbooks-content");
-
-  fetch("data/trades.json")
-    .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-    .then((rows) => render(Array.isArray(rows) ? rows : []))
-    .catch((err) => {
-      content.innerHTML = `<div class="empty-state">Couldn't load data/trades.json (${escapeHtml(String(err.message))}).</div>`;
-    });
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-  function fmtMoney(v) {
-    const sign = v >= 0 ? "+" : "-";
-    return sign + "$" + Math.abs(v).toFixed(2);
-  }
-
-  function render(rows) {
-    const withSetup = rows.filter((r) => r.setup_type);
-    if (!withSetup.length) {
-      content.innerHTML = `<div class="empty-state">No <span class="mono">setup_type</span> data yet — this needs trades published with a setup tagged by the verdict step.</div>`;
-      return;
-    }
-
-    const bySetup = {};
-    for (const r of rows) {
-      if (!r.setup_type) continue;
-      bySetup[r.setup_type] = bySetup[r.setup_type] || [];
-      bySetup[r.setup_type].push(r);
-    }
-    const entries = Object.entries(bySetup).sort((a, b) => b[1].length - a[1].length);
-
-    content.innerHTML = `<div class="playbook-grid">${entries.map(([setup, trades]) => playbookCard(setup, trades)).join("")}</div>`;
-
-    content.querySelectorAll("[data-setup-link]").forEach((card) => {
-      card.addEventListener("click", () => {
-        window.location.href = `journal.html?setup=${encodeURIComponent(card.getAttribute("data-setup-link"))}`;
-      });
-    });
-  }
-
-  function playbookCard(setup, trades) {
-    const wins = trades.filter((t) => t.win).length;
-    const winRate = Math.round((wins / trades.length) * 1000) / 10;
-    const net = trades.reduce((s, t) => s + (t.pnl_after_comm || 0), 0);
-    const avgTrade = net / trades.length;
-    const smallSample = trades.length < 5;
-
-    // Most common lesson tag logged against trades in this setup -- the
-    // mistake most worth watching for the next time this setup sets up.
-    const tagCounts = {};
-    for (const t of trades) {
-      for (const tag of t.lesson_tags || []) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-    }
-    const topTag = Object.entries(tagCounts).sort((a, b) => b[1] - a[1])[0];
-
-    return `
-      <div class="playbook-card" data-setup-link="${escapeHtml(setup)}">
-        <div class="playbook-card-head">
-          <span class="playbook-name">${escapeHtml(setup.replace(/_/g, " "))}</span>
-          ${smallSample ? `<span class="pill" title="Fewer than 5 trades — treat this win rate as a rough signal, not a verdict.">small sample</span>` : ""}
-        </div>
-        <div class="playbook-stats">
-          <div class="pb-stat">
-            <div class="pb-label">Win rate</div>
-            <div class="pb-value ${winRate >= 50 ? "up" : "down"}">${winRate}%</div>
-          </div>
-          <div class="pb-stat">
-            <div class="pb-label">Trades</div>
-            <div class="pb-value">${trades.length}</div>
-          </div>
-          <div class="pb-stat">
-            <div class="pb-label">Net P&amp;L</div>
-            <div class="pb-value ${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</div>
-          </div>
-          <div class="pb-stat">
-            <div class="pb-label">Avg / trade</div>
-            <div class="pb-value ${avgTrade >= 0 ? "up" : "down"}">${fmtMoney(avgTrade)}</div>
-          </div>
-        </div>
-        ${topTag ? `<div class="playbook-tag-line"><span class="lesson-tag">${escapeHtml(topTag[0].replace(/_/g, " "))}</span> flagged on ${topTag[1]} of these</div>` : `<div class="playbook-tag-line dim">No recurring lesson tag on this setup.</div>`}
-        <div class="playbook-card-foot">View in Journal →</div>
-      </div>`;
-  }
-})();
-</script>
-<script>
-  const sidebarBackdrop = document.createElement("div");
-  sidebarBackdrop.className = "sidebar-backdrop";
-  document.body.appendChild(sidebarBackdrop);
-  function closeMobileNav() { document.getElementById("sidebar").classList.remove("mobile-open"); }
-  sidebarBackdrop.addEventListener("click", closeMobileNav);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMobileNav(); });
-
-  document.getElementById("sidebar-toggle").addEventListener("click", () => {
-    const sidebar = document.getElementById("sidebar");
-    if (window.innerWidth <= 760 && sidebar.classList.contains("mobile-open")) {
-      closeMobileNav();
-    } else {
-      sidebar.classList.toggle("collapsed");
-    }
-  });
-  document.getElementById("mobile-nav-btn").addEventListener("click", () => {
-    document.getElementById("sidebar").classList.toggle("mobile-open");
-  });
-</script>
+<script src="practice.js"></script>
 <script src="modern.js"></script>
 </body>
 </html>

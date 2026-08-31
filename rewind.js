@@ -1038,7 +1038,7 @@
         </span>
       </div>
       <div class="quiz-chart-wrap"><div id="quiz-candle-chart"></div></div>
-      <div class="quiz-prompt">
+      <div class="quiz-prompt" id="qz-entry-prompt">
         Price is at <b>$${fmtPrice(trade.entry_price)}</b> and this candle is still forming — you're deciding mid-bar, not after the close. This is a <b>${sidePretty}</b> setup. <b>Would you enter here?</b>
       </div>
       <div class="quiz-answer-row" id="quiz-entry-answer-row">
@@ -1101,6 +1101,12 @@
     c.stage = "entry";
   }
 
+  // How long to hold on the entered/passed candle before moving into the
+  // next stage -- previously this was instant, so entering (or passing)
+  // snapped straight into the stop-loss prompt with no beat to actually
+  // see where the fill landed.
+  const ENTRY_SETTLE_MS = 1600;
+
   // tickIdx (0-based, in the REPLAY_SECONDS space) is only given when the
   // choice came from clicking during "Watch it print in" -- it's exactly
   // which tick you clicked on. When it's missing (you decided straight
@@ -1129,8 +1135,17 @@
     const passBtn = document.getElementById("qz-pass");
     if (enterBtn) enterBtn.disabled = true;
     if (passBtn) passBtn.disabled = true;
-    if (entered) renderStopStage();
-    else goToReveal();
+    const promptEl = document.getElementById("qz-entry-prompt");
+    if (promptEl) {
+      promptEl.innerHTML = entered
+        ? `Filled at <b>$${fmtPrice(c.userEntryPrice)}</b>…`
+        : `Passed.`;
+    }
+    setTimeout(() => {
+      if (state.current !== c) return; // moved on (retry/quit/next question) while we were waiting
+      if (entered) renderStopStage();
+      else goToReveal();
+    }, ENTRY_SETTLE_MS);
     } catch (err) { showStageError(err); }
   }
 
