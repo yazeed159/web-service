@@ -39,7 +39,6 @@
 
     randomBtn: document.getElementById("pf-random-btn"),
     candidateCount: document.getElementById("pf-candidate-count"),
-    longOnlyToggle: document.getElementById("pf-long-only"),
 
     // play screen
     symLine: document.getElementById("pp-symbol-line"),
@@ -218,7 +217,6 @@
       createdAt: new Date().toISOString(),
       fills: [],       // { time, chartId, symbol, side, shares, price, commission, realizedPnl }
       session: null,   // in-progress chart session, see loadChart()
-      longOnly: false, // when true, Sell can only close/reduce a long -- never open or add to a short
       sizeMode: "shares", // "shares" (raw share count) or "pct" (% of buying power at order time)
     };
   }
@@ -229,7 +227,7 @@
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== "object" || !Number.isFinite(parsed.balance)) return defaultAccount();
       if (!Array.isArray(parsed.fills)) parsed.fills = [];
-      if (typeof parsed.longOnly !== "boolean") parsed.longOnly = false;
+      delete parsed.longOnly; // no shorting anymore -- long-only is the only mode, not a toggle
       if (parsed.sizeMode !== "shares" && parsed.sizeMode !== "pct") parsed.sizeMode = "shares";
       return parsed;
     } catch (e) { return defaultAccount(); }
@@ -280,7 +278,6 @@
   }
 
   function renderAccountPanel() {
-    if (els.longOnlyToggle) els.longOnlyToggle.checked = !!account.longOnly;
     const st = accountStats();
     els.acctBalance.textContent = fmtUsd(account.balance);
     els.acctBalance.className = "value mono " + (account.balance >= account.startingBalance ? "up" : "down");
@@ -420,6 +417,9 @@
   const SCANNER_LOOKBACK = 10;         // bars of trailing "normal" pace to compare against
   const SCANNER_SURGE_MULT = 5;        // needs to be running ~5x that trailing pace
   const SCANNER_MIN_BAR_DOLLAR_VOL = 50000; // a single 1-min bar worth at least ~$50k to count as "loud"
+  const SCANNER_CONFIRM_BARS = 3;      // bars right after the spike that need to keep pace
+  const SCANNER_CONFIRM_MULT = 2;      // "keeping pace" = still running ~2x the trailing baseline
+  const SCANNER_CONFIRM_MOVE_PCT = 0.015; // ...or price itself kept moving >=1.5% across that window
 
   function computeScannerPopIndex(trade) {
     const bars = trade.bars;
@@ -434,12 +434,30 @@
     // that would actually have popped up on a scanner.
     const baseSlice = bars.slice(0, Math.min(SCANNER_LOOKBACK, bars.length));
     const baselineAvg = baseSlice.reduce((s, b) => s + dollarVol(b), 0) / baseSlice.length;
+
+    // A single loud bar isn't enough on its own -- a stray block trade or
+    // bad print can spike one bar 5x and then immediately go quiet again,
+    // which is what was producing "starts on a candle, then 20 flat ones"
+    // in practice. A real scanner alert corresponds to a move that keeps
+    // going, so a candidate only counts once the following few bars either
+    // keep running hot or the price itself keeps moving in that burst.
+    function isConfirmed(i) {
+      const windowBars = bars.slice(i, Math.min(i + SCANNER_CONFIRM_BARS, bars.length));
+      if (!windowBars.length) return true; // nothing left to confirm against -- take it as-is
+      const windowAvg = windowBars.reduce((s, b) => s + dollarVol(b), 0) / windowBars.length;
+      if (baselineAvg > 0 && windowAvg >= baselineAvg * SCANNER_CONFIRM_MULT) return true;
+      const startPrice = Number(bars[i].o ?? bars[i].c) || 0;
+      const endPrice = Number(windowBars[windowBars.length - 1].c) || 0;
+      if (startPrice > 0 && Math.abs(endPrice - startPrice) / startPrice >= SCANNER_CONFIRM_MOVE_PCT) return true;
+      return false;
+    }
+
     for (let i = 0; i < bars.length; i++) {
       const cur = dollarVol(bars[i]);
       if (cur < SCANNER_MIN_BAR_DOLLAR_VOL) continue;
-      if (baselineAvg === 0 || cur >= baselineAvg * SCANNER_SURGE_MULT) return i;
+      if ((baselineAvg === 0 || cur >= baselineAvg * SCANNER_SURGE_MULT) && isConfirmed(i)) return i;
     }
-    // never surged -- fall back to just skipping the dead, zero-volume open
+    // never surged (confirmed) -- fall back to just skipping the dead, zero-volume open
     for (let i = 0; i < bars.length; i++) {
       if (Number(bars[i].v) > 0) return i;
     }
@@ -507,7 +525,7 @@
     els.dateLine.textContent = state.barIndex > 0
       ? `${t.trade_date} · picked up right as this one popped on the scanner (bar ${state.barIndex + 1} of ${state.bars.length})`
       : `${t.trade_date} · replaying from the start of this chart's data`;
-    els.modeBadge.innerHTML = account.longOnly ? `<span class="pill mode-longonly">Long only</span>` : "";
+    els.modeBadge.innerHTML = `<span class="pill mode-longonly">Long only</span>`;
   }
 
   // ---------------------------------------------------------------
@@ -741,10 +759,21 @@
     els.liveChange.textContent = (delta >= 0 ? "▲ " : "▼ ") + fmtPrice(Math.abs(delta));
     els.liveChange.className = "pp-live-change " + (delta >= 0 ? "up" : "down");
   }
+  // The clock time of the bar's forming candle right now -- the bar's
+  // own start time plus however many of its 60 second-ticks have
+  // elapsed, so the seconds visibly count up as the candle forms.
+  function currentBarClockTime() {
+    const bar = state.bars[state.barIndex];
+    if (!bar) return "";
+    try {
+      const start = new Date(String(bar.t).replace(" ", "T"));
+      const withElapsed = new Date(start.getTime() + state.tickIndex * 1000);
+      return withElapsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    } catch (e) { return fmtTime(bar.t); }
+  }
   function renderProgress() {
     const total = state.bars.length;
-    const bar = state.bars[state.barIndex];
-    els.progressLabel.textContent = `Bar ${state.barIndex + 1} / ${total} · ${fmtTime(bar.t)}`;
+    els.progressLabel.textContent = `Bar ${state.barIndex + 1} / ${total} · ${currentBarClockTime()}`;
     els.progressFill.style.width = `${((state.barIndex + 1) / total) * 100}%`;
     els.progressSlider.min = String(state.barIndex);
     els.progressSlider.max = String(total - 1);
@@ -766,11 +795,11 @@
       state.prevClose = state.bars[state.barIndex - 1].c;
       state.tickIndex = 0;
       state.ticks = genSecondTicks(state.bars[state.barIndex], state.prevClose, `${state.trade.id}:practice:${state.barIndex}`);
-      renderProgress();
       persistSession();
     }
     paintFormingBar();
     renderLivePrice(currentPrice());
+    renderProgress();
     renderPositionPanel();
   }
 
@@ -864,7 +893,7 @@
     // flatten any open position at the last available price, just like
     // a broker would force-close at the close of the available tape
     if (state.position && state.position.shares > 0) {
-      executeOrder(state.position.side === "long" ? "sell" : "buy", state.position.shares, true);
+      executeOrder("sell", state.position.shares, true);
     }
     updatePlayPauseBtn();
     renderRecap();
@@ -905,25 +934,34 @@
   }
 
   // ---------------------------------------------------------------
-  // order execution -- BUY/SELL work exactly like at a real broker:
-  // cash always moves by ∓(notional + commission); which side of
-  // your position that nets against (open, add, reduce, close, or
-  // flip) falls out of the math on its own. Shorting requires the
-  // same cash collateral as a long would (simple 1:1 "Reg-T-ish"
-  // guard, not full margin modeling), and closing more than you
-  // hold flips you to the other side for the remainder -- also just
-  // like a real order that exceeds your position.
+  // order execution -- BUY/SELL work like at a real broker: cash
+  // moves by ∓(notional + commission). There's no shorting, ever --
+  // a Sell can only close or reduce an existing long, never open or
+  // add to one. A Buy never gets refused for insufficient funds: if
+  // the requested size costs more than the account has, it silently
+  // fills for the most shares the available cash (net of commission)
+  // can actually cover -- same as spending "whatever's left".
   // ---------------------------------------------------------------
   function buyingPower() {
     return account.balance;
   }
   function positionMarketValue(price) {
     if (!state.position) return 0;
-    const sign = state.position.side === "long" ? 1 : -1;
-    return sign * state.position.shares * price;
+    return state.position.shares * price;
   }
   function accountEquity(price) {
     return account.balance + positionMarketValue(price);
+  }
+  // Largest whole-share quantity (at most `cap`) whose cost, including
+  // commission, still fits within current buying power.
+  function maxAffordableShares(price, cap) {
+    if (!(price > 0)) return 0;
+    let shares = Math.floor(buyingPower() / price);
+    if (Number.isFinite(cap) && cap >= 0) shares = Math.min(shares, Math.floor(cap));
+    while (shares > 0 && shares * price + ibkrTieredCommission(shares, price) > buyingPower() + 1e-6) {
+      shares--;
+    }
+    return Math.max(0, shares);
   }
 
   function executeOrder(sideStr, shares, silent) {
@@ -932,44 +970,41 @@
     if (state.ended) return;
     const pos = state.position;
 
-    // Long-only mode: a Sell can only close or reduce an existing long.
-    // It can never open a fresh short or add to one -- clamp an oversized
-    // sell down to whatever's actually held, and block it outright when
-    // flat (or already short, which shouldn't happen in this mode).
-    if (sideStr === "sell" && account.longOnly) {
-      const heldLong = pos && pos.side === "long" ? pos.shares : 0;
+    // No shorting -- a Sell can only close/reduce an existing long.
+    // Clamp an oversized sell down to whatever's actually held, and
+    // block it outright when flat.
+    if (sideStr === "sell") {
+      const heldLong = pos ? pos.shares : 0;
       if (heldLong <= 0) {
-        if (!silent) showOrderMsg("Long-only mode: no shorting allowed -- buy first to open a position.", true);
+        if (!silent) showOrderMsg("No shorting -- buy first to open a position.", true);
         return;
       }
       if (shares > heldLong) shares = heldLong;
     }
 
     const price = currentPrice();
-    const commission = ibkrTieredCommission(shares, price);
+    let commission = ibkrTieredCommission(shares, price);
     let realizedPnl = null;
+    let clamped = false;
 
     if (sideStr === "buy") {
-      if (pos && pos.side === "short") {
-        const closing = Math.min(shares, pos.shares);
-        realizedPnl = (pos.avgPrice - price) * closing - commission * (closing / shares);
-      }
       const cost = shares * price + commission;
-      if (!silent && cost > buyingPower() + 1e-6) { showOrderMsg(`Not enough buying power (need ${fmtUsd(cost)}, have ${fmtUsd(buyingPower())}).`, true); return; }
-      account.balance -= cost;
+      if (cost > buyingPower() + 1e-6) {
+        const affordable = maxAffordableShares(price, shares);
+        if (affordable <= 0) {
+          if (!silent) showOrderMsg(`Not enough buying power for even 1 share at $${fmtPrice(price)}.`, true);
+          return;
+        }
+        shares = affordable;
+        commission = ibkrTieredCommission(shares, price);
+        clamped = true;
+      }
+      const finalCost = shares * price + commission;
+      account.balance -= finalCost;
       applyFill(pos, "buy", shares, price);
     } else {
-      if (pos && pos.side === "long") {
-        const closing = Math.min(shares, pos.shares);
-        realizedPnl = (price - pos.avgPrice) * closing - commission * (closing / shares);
-      } else if (!silent) {
-        // opening or adding to a short -- require cash collateral
-        // (forced liquidations skip this -- a broker closing you out
-        // never gets blocked by your own buying power)
-        const openingExtra = pos && pos.side === "short" ? shares : Math.max(0, shares - (pos ? pos.shares : 0));
-        const collateral = openingExtra * price;
-        if (collateral > buyingPower() + 1e-6) { showOrderMsg(`Not enough buying power to short (need ${fmtUsd(collateral)} collateral).`, true); return; }
-      }
+      const closing = Math.min(shares, pos.shares);
+      realizedPnl = (price - pos.avgPrice) * closing - commission * (closing / shares);
       const proceeds = shares * price - commission;
       account.balance += proceeds;
       applyFill(pos, "sell", shares, price);
@@ -993,36 +1028,32 @@
     persistSession();
     saveAccount();
     renderPositionPanel();
+    renderSizePreview();
     renderFillLog();
     renderAccountPanel();
-    if (!silent) showOrderMsg(`${sideStr.toUpperCase()} ${shares} @ $${fmtPrice(price)} · commission ${fmtUsd(commission)}`, false);
+    if (!silent) {
+      const msg = `${sideStr.toUpperCase()} ${shares} @ $${fmtPrice(price)} · commission ${fmtUsd(commission)}` + (clamped ? " · filled for all available cash" : "");
+      showOrderMsg(msg, false);
+    }
   }
 
+  // No shorting -- a position, if any, is always "long". Buying opens
+  // or adds to it (blended average price); selling only ever reduces
+  // or closes it (average price on what's left is unchanged).
   function applyFill(pos, sideStr, shares, price) {
-    const sign = sideStr === "buy" ? 1 : -1; // +shares for buy, -shares for sell
-    let signedShares = pos ? (pos.side === "long" ? pos.shares : -pos.shares) : 0;
-    signedShares += sign * shares;
-    if (Math.abs(signedShares) < 1e-9) {
-      state.position = null;
+    if (sideStr === "buy") {
+      if (!pos) {
+        state.position = { side: "long", shares, avgPrice: price };
+      } else {
+        const totalShares = pos.shares + shares;
+        const avgPrice = (pos.avgPrice * pos.shares + price * shares) / totalShares;
+        state.position = { side: "long", shares: totalShares, avgPrice };
+      }
       return;
     }
-    const newSide = signedShares > 0 ? "long" : "short";
-    if (!pos || pos.side !== newSide) {
-      // flipped (or opened fresh) -- new leg starts its own avg price
-      // using whatever quantity ends up on the new side
-      state.position = { side: newSide, shares: Math.abs(signedShares), avgPrice: price };
-      return;
-    }
-    // same side as before: adding grows shares at a blended average;
-    // reducing keeps the same average price on what's left
-    const wasAdding = (pos.side === "long" && sideStr === "buy") || (pos.side === "short" && sideStr === "sell");
-    if (wasAdding) {
-      const totalShares = pos.shares + shares;
-      const avgPrice = (pos.avgPrice * pos.shares + price * shares) / totalShares;
-      state.position = { side: pos.side, shares: totalShares, avgPrice };
-    } else {
-      state.position = { side: pos.side, shares: Math.abs(signedShares), avgPrice: pos.avgPrice };
-    }
+    // sell -- shares is already clamped to at most pos.shares by executeOrder
+    const remaining = pos.shares - shares;
+    state.position = remaining > 1e-9 ? { side: "long", shares: remaining, avgPrice: pos.avgPrice } : null;
   }
 
   function showOrderMsg(text, isError) {
@@ -1038,7 +1069,7 @@
     if (!pos) {
       els.posSummary.innerHTML = `<span class="flat">Flat — no open position</span>`;
     } else {
-      const unreal = (pos.side === "long" ? price - pos.avgPrice : pos.avgPrice - price) * pos.shares;
+      const unreal = (price - pos.avgPrice) * pos.shares;
       els.posSummary.innerHTML = `
         <span class="side-pill ${pos.side}">${pos.side.toUpperCase()}</span>
         <span class="mono">${pos.shares} sh @ $${fmtPrice(pos.avgPrice)}</span>
@@ -1049,12 +1080,10 @@
     els.equityLine.textContent = fmtUsd(accountEquity(price));
     els.bpLine.textContent = fmtUsd(buyingPower());
 
-    const heldLong = pos && pos.side === "long" ? pos.shares : 0;
-    const blockSell = account.longOnly && heldLong <= 0;
+    const blockSell = !pos || pos.shares <= 0;
     els.sellBtn.disabled = blockSell;
-    els.sellBtn.title = blockSell ? "Long only: no shorting -- buy first to open a position." : "";
+    els.sellBtn.title = blockSell ? "No shorting -- buy first to open a position." : "";
 
-    renderSizePreview();
     renderPartialExitRow();
   }
 
@@ -1189,13 +1218,6 @@
   // ---------------------------------------------------------------
   els.resetBtn.addEventListener("click", resetAccount);
   els.randomBtn.addEventListener("click", pickRandomCandidate);
-  if (els.longOnlyToggle) {
-    els.longOnlyToggle.addEventListener("change", () => {
-      account.longOnly = els.longOnlyToggle.checked;
-      saveAccount();
-      renderPositionPanel();
-    });
-  }
   els.replayBtn.addEventListener("click", async () => {
     if (!state.trade) return;
     if (state.position && state.position.shares > 0) {

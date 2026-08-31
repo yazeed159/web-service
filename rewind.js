@@ -667,6 +667,13 @@
   // the quiz only needs candles + volume + VWAP/EMA overlays, cropped
   // to whatever the current stage should reveal.
   // ---------------------------------------------------------------
+  // A touch shorter on narrow phones so the chart doesn't eat the whole
+  // screen before you've even reached the prompt/buttons below it --
+  // still tall enough to read candle shapes, just not the full desktop
+  // height. Checked at build time only (not on resize/rotate).
+  function mobileChartHeight(base) {
+    return window.innerWidth <= 480 ? Math.round(base * 0.8) : base;
+  }
   function buildChart(el, bars, opts) {
     opts = opts || {};
     if (typeof LightweightCharts === "undefined") {
@@ -697,7 +704,7 @@
       timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     };
-    const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: opts.height || 380 });
+    const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: mobileChartHeight(opts.height || 380) });
     const series = chart.addCandlestickSeries({
       upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
       wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
@@ -1209,7 +1216,7 @@
     const structurePrice = prevBar ? (c.side === "short" ? prevBar.h : prevBar.l) : null;
     const structureRisk = structurePrice != null ? (c.side === "short" ? structurePrice - entryPrice : entryPrice - structurePrice) : 0;
     const structureValid = structurePrice != null && structureRisk > 0;
-    const structureLabel = c.side === "short" ? "Last candle high" : "Last candle low";
+    const structureLabel = c.side === "short" ? "Prior high" : "Prior low";
     const standardPreset = STOP_PRESETS.find((p) => p.pct === 1) || STOP_PRESETS[0];
 
     slot.innerHTML = `
