@@ -245,6 +245,22 @@
           </div>
         </div>
 
+        <div id="pp-symbol-card" style="display:none; margin-top:14px;"></div>
+
+        <div class="card sr-box" id="pp-sr-box" style="display:none; margin-top:14px;">
+          <div class="sr-head">
+            <div>
+              <h2 style="margin:0;">Support &amp; Resistance</h2>
+              <div class="sr-sub">Reads this symbol's prior daily bars (before this chart's data) and draws support/resistance lines on the chart above. Off by default — runs only when you click, so it never spends API tokens on its own.</div>
+            </div>
+            <button class="sr-run-btn" id="pp-sr-run-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.4 8.6 12 15l-3-3-4 4"></path></svg>
+              Analyze support/resistance
+            </button>
+          </div>
+          <div id="pp-sr-result"></div>
+        </div>
+
       </div>
 
     </div>

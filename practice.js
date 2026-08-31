@@ -75,7 +75,17 @@
     fillLog: document.getElementById("pp-fill-log"),
 
     recapBox: document.getElementById("pp-recap-box"),
+
+    symbolCard: document.getElementById("pp-symbol-card"),
+    srBox: document.getElementById("pp-sr-box"),
+    srBtn: document.getElementById("pp-sr-run-btn"),
+    srResult: document.getElementById("pp-sr-result"),
   };
+
+  // Webhook for the optional "Support & Resistance" box, same one
+  // trade.js uses -- reads the symbol's prior daily bars and returns
+  // support/resistance levels. Only ever called on click.
+  const SR_ANALYSIS_URL = window.N8N_SR_URL || "";
 
   // ---------------------------------------------------------------
   // shared helpers (same conventions as rewind.js / trade.js / app.js)
@@ -391,6 +401,44 @@
     return fetch(`data/trades/${encodeURIComponent(id)}.json`).then((r) => (r.ok ? r.json() : null));
   }
 
+  // ---------------------------------------------------------------
+  // "scanner pop" detection -- the real version of this isn't "wait
+  // for any volume": a momentum/gap scanner alerts when a stock is
+  // suddenly trading multiples of its own recent pace. We look for
+  // the first bar whose dollar volume (price × shares, so it scales
+  // sensibly across both $0.50 and $5 names) spikes well above the
+  // trailing average of the bars just before it -- that's the bar a
+  // real scanner would've actually flagged. (A flat daily average
+  // isn't used as the baseline: one unrelated high-volume day can
+  // permanently skew a stock's 30-day average, which would make a
+  // genuine intraday pop look unremarkable by comparison.) Earlier
+  // bars aren't deleted; they stay on the chart as pre-alert history,
+  // same as your own charting platform would show once you pull the
+  // chart up after getting the alert.
+  // ---------------------------------------------------------------
+  const SCANNER_LOOKBACK = 10;         // bars of trailing "normal" pace to compare against
+  const SCANNER_SURGE_MULT = 5;        // needs to be running ~5x that trailing pace
+  const SCANNER_MIN_BAR_DOLLAR_VOL = 50000; // a single 1-min bar worth at least ~$50k to count as "loud"
+
+  function computeScannerPopIndex(trade) {
+    const bars = trade.bars;
+    if (!Array.isArray(bars) || !bars.length) return 0;
+    const dollarVol = (b) => (Number(b.v) || 0) * (Number(b.c) || 0);
+    for (let i = 1; i < bars.length; i++) {
+      const start = Math.max(0, i - SCANNER_LOOKBACK);
+      const priorSlice = bars.slice(start, i);
+      const priorAvg = priorSlice.reduce((s, b) => s + dollarVol(b), 0) / priorSlice.length;
+      const cur = dollarVol(bars[i]);
+      if (cur < SCANNER_MIN_BAR_DOLLAR_VOL) continue;
+      if (priorAvg === 0 || cur >= priorAvg * SCANNER_SURGE_MULT) return i;
+    }
+    // never surged -- fall back to just skipping the dead, zero-volume open
+    for (let i = 0; i < bars.length; i++) {
+      if (Number(bars[i].v) > 0) return i;
+    }
+    return 0;
+  }
+
   function loadChart(id, resumeFrom) {
     stopPlayback();
     fetchDetail(id).then((trade) => {
@@ -400,10 +448,10 @@
       }
       state.trade = trade;
       state.bars = trade.bars;
-      state.barIndex = resumeFrom ? Math.min(resumeFrom.barIndex || 0, trade.bars.length - 1) : 0;
+      state.barIndex = resumeFrom ? Math.min(resumeFrom.barIndex || 0, trade.bars.length - 1) : computeScannerPopIndex(trade);
       state.tickIndex = 0;
-      state.prevClose = state.barIndex > 0 ? trade.bars[state.barIndex - 1].c : null;
-      state.ticks = genSecondTicks(trade.bars[state.barIndex], state.prevClose, `${trade.id}:practice:${state.barIndex}`);
+      state.prevClose = state.barIndex > 0 ? state.bars[state.barIndex - 1].c : null;
+      state.ticks = genSecondTicks(state.bars[state.barIndex], state.prevClose, `${trade.id}:practice:${state.barIndex}`);
       state.position = resumeFrom ? resumeFrom.position || null : null;
       state.fills = resumeFrom ? resumeFrom.fills || [] : [];
       state.markers = state.fills.map(fillToMarker);
@@ -424,6 +472,8 @@
       els.recapBox.style.display = "none";
       buildPlayChart();
       renderHeader();
+      renderSymbolInfo(trade);
+      resetSrBox();
       renderSpeedRow();
       renderSizePresets();
       renderProgress();
@@ -447,7 +497,145 @@
   function renderHeader() {
     const t = state.trade;
     els.symLine.textContent = t.symbol;
-    els.dateLine.textContent = `${t.trade_date} · replaying from the start of this chart's data`;
+    els.dateLine.textContent = state.barIndex > 0
+      ? `${t.trade_date} · picked up right as this one popped on the scanner (bar ${state.barIndex + 1} of ${state.bars.length})`
+      : `${t.trade_date} · replaying from the start of this chart's data`;
+  }
+
+  // ---------------------------------------------------------------
+  // symbol info card -- same "About <SYMBOL>" card trade.html shows,
+  // built from the trade's own symbol_info + indicators blocks.
+  // ---------------------------------------------------------------
+  function fmtShares(n) {
+    if (n === null || n === undefined) return null;
+    const v = Number(n);
+    if (!Number.isFinite(v)) return null;
+    if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
+    if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
+    if (v >= 1e3) return (v / 1e3).toFixed(0) + "K";
+    return String(v);
+  }
+  function volumeFloatPills(trade) {
+    const ind = trade.indicators || {};
+    const parts = [];
+    if (ind.float_shares) parts.push(`<span class="pill floattag" title="Shares outstanding (float proxy)">Float ${fmtShares(ind.float_shares)}</span>`);
+    if (ind.avg_volume_30d) parts.push(`<span class="pill avgvol" title="30-day average daily volume">Avg vol ${fmtShares(ind.avg_volume_30d)}</span>`);
+    if (typeof ind.relative_volume === "number") parts.push(`<span class="pill rvol" title="Entry-day volume vs. 30-day average">RVol ${ind.relative_volume.toFixed(2)}x</span>`);
+    return parts.join("\n");
+  }
+  function renderSymbolInfo(trade) {
+    const info = trade.symbol_info;
+    if (!info || (!info.name && !info.description)) {
+      els.symbolCard.style.display = "none";
+      els.symbolCard.innerHTML = "";
+      return;
+    }
+    els.symbolCard.style.display = "";
+    els.symbolCard.innerHTML = `
+      <div class="card symbol-card">
+        <h2>About ${escapeHtml(trade.symbol)}</h2>
+        <div class="sym-head"><span class="sym-name">${escapeHtml(info.name || trade.symbol)}</span></div>
+        <div class="sym-meta-row">
+          ${info.country ? `<span class="pill">${escapeHtml(info.country)}</span>` : ""}
+          ${info.sector ? `<span class="pill">${escapeHtml(info.sector)}</span>` : ""}
+          ${volumeFloatPills(trade)}
+        </div>
+        <div class="sym-desc">${escapeHtml(info.description || "")}</div>
+      </div>
+    `;
+  }
+
+  // ---------------------------------------------------------------
+  // support & resistance -- same on-demand n8n webhook + price-line
+  // drawing trade.js uses, wired to the practice chart's own candle
+  // series instead. Nothing runs until the button is clicked.
+  // ---------------------------------------------------------------
+  function resetSrBox() {
+    els.srBox.style.display = "";
+    els.srResult.innerHTML = "";
+  }
+  function srLevelNote(lv) {
+    return lv.label || (lv.touches ? lv.touches + "x touched" : "");
+  }
+  let srRequestInFlight = false;
+  function runSupportResistance() {
+    if (srRequestInFlight || !state.trade) return;
+    if (!SR_ANALYSIS_URL) {
+      els.srResult.innerHTML = `<div class="sr-status error">SR_ANALYSIS_URL isn't set yet -- point window.N8N_SR_URL in config.js at your own n8n webhook first.</div>`;
+      return;
+    }
+    srRequestInFlight = true;
+    const trade = state.trade;
+    const originalLabel = els.srBtn.innerHTML;
+    els.srBtn.disabled = true;
+    els.srBtn.innerHTML = "Analyzing…";
+    els.srResult.innerHTML = `<div class="sr-status">Reading ${escapeHtml(trade.symbol)}'s prior daily bars and computing levels — this calls out to n8n, so it can take a few seconds…</div>`;
+
+    fetch(SR_ANALYSIS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol: trade.symbol, trade_date: trade.trade_date, lookback_days: 40 }),
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then((data) => {
+        renderSrResult(data);
+        drawSrLevelsOnChart(data);
+      })
+      .catch((err) => {
+        els.srResult.innerHTML = `<div class="sr-status error">Couldn't get support/resistance levels (${escapeHtml(String(err.message))}). If SR_ANALYSIS_URL in config.js still says YOUR-N8N-SUBDOMAIN, point it at your own n8n webhook first.</div>`;
+      })
+      .finally(() => {
+        srRequestInFlight = false;
+        els.srBtn.disabled = false;
+        els.srBtn.innerHTML = originalLabel;
+      });
+  }
+  function renderSrResult(data) {
+    const support = Array.isArray(data.support) ? data.support : [];
+    const resistance = Array.isArray(data.resistance) ? data.resistance : [];
+    if (!support.length && !resistance.length) {
+      els.srResult.innerHTML = `<div class="sr-status">No clear levels came back for this symbol.</div>`;
+      return;
+    }
+    const levelRow = (lv) => `<div class="lvl-row"><span>$${Number(lv.price).toFixed(2)}</span><span class="note">${escapeHtml(srLevelNote(lv))}</span></div>`;
+    els.srResult.innerHTML = `
+      ${data.summary ? `<div class="sr-summary">${escapeHtml(data.summary)}</div>` : ""}
+      <div class="sr-levels">
+        <div class="col">
+          <div class="col-label resistance">Resistance</div>
+          ${resistance.length ? resistance.map(levelRow).join("") : `<div class="lvl-row"><span class="note">None found</span></div>`}
+        </div>
+        <div class="col">
+          <div class="col-label support">Support</div>
+          ${support.length ? support.map(levelRow).join("") : `<div class="lvl-row"><span class="note">None found</span></div>`}
+        </div>
+      </div>
+      ${data.source === "computed_fallback" ? `<div class="sr-status">Showing computer-detected pivot levels (the level read didn't come back cleanly).</div>` : ""}
+    `;
+  }
+  function drawSrLevelsOnChart(data) {
+    if (!state.chartHandle || !state.chartHandle.series) return;
+    const support = Array.isArray(data.support) ? data.support : [];
+    const resistance = Array.isArray(data.resistance) ? data.resistance : [];
+    resistance.forEach((lv) => {
+      const note = srLevelNote(lv);
+      state.chartHandle.series.createPriceLine({
+        price: Number(lv.price), color: "#f2555a", lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true,
+        title: note ? `resistance (${note})` : "resistance",
+      });
+    });
+    support.forEach((lv) => {
+      const note = srLevelNote(lv);
+      state.chartHandle.series.createPriceLine({
+        price: Number(lv.price), color: "#2fd08a", lineWidth: 1,
+        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true,
+        title: note ? `support (${note})` : "support",
+      });
+    });
   }
 
   // ---------------------------------------------------------------
@@ -902,6 +1090,7 @@
   els.progressSlider.addEventListener("change", () => scrubTo(Number(els.progressSlider.value)));
   els.buyBtn.addEventListener("click", () => executeOrder("buy", els.sharesInput.value));
   els.sellBtn.addEventListener("click", () => executeOrder("sell", els.sharesInput.value));
+  els.srBtn.addEventListener("click", runSupportResistance);
 
   // ---------------------------------------------------------------
   // boot
