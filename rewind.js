@@ -121,9 +121,9 @@
   // reference point so "size up / size down" means something concrete.
   const SIZE_BASELINE = 100;
   const SIZE_PRESETS = [
-    { shares: 50, label: "Small", sub: "50 sh · low conviction" },
+    { shares: 50, label: "Small", sub: "50 sh" },
     { shares: SIZE_BASELINE, label: "Standard", sub: "100 sh" },
-    { shares: 200, label: "Large", sub: "200 sh · high conviction" },
+    { shares: 200, label: "Large", sub: "200 sh" },
   ];
   const STOP_PRESETS = [
     { pct: 0.5, label: "Tight", sub: "0.5%" },
@@ -361,26 +361,33 @@
     const unitLabel = opts.unitLabel || "second";
     const tag = opts.tag || "simulated seconds";
     const tagCls = opts.tagCls ? ` ${opts.tagCls}` : "";
+    // hideProgress drops the sweeping loading-style track + the "X elapsed /
+    // Y left" line from this panel entirely -- used once you're actually in
+    // a trade, where opts.liveClockEl (a header element) carries that same
+    // elapsed/remaining info instead, framed as a live ticking clock rather
+    // than a bar that looks like something is still loading.
+    const hideProgress = !!opts.hideProgress;
     container.innerHTML = `
       <div class="quiz-replay-panel">
         <div class="quiz-replay-top">
-          <span class="quiz-replay-price"></span>
+          <button type="button" class="quiz-speed-btn quiz-pause-btn" id="qz-replay-pause">&#10074;&#10074; Pause</button>
           <div class="quiz-speed-row" id="qz-replay-speeds">
             ${REPLAY_SPEEDS.map((sp) => `<button type="button" class="quiz-speed-btn${sp === state.playbackSpeed ? " active" : ""}" data-speed="${sp}">${sp}&times;</button>`).join("")}
           </div>
           <span class="quiz-replay-tag${tagCls}">${escapeHtml(tag)}</span>
         </div>
         ${opts.fallbackNote ? `<div class="quiz-replay-fallback">${escapeHtml(opts.fallbackNote)}</div>` : ""}
-        <div class="quiz-replay-track"><div class="quiz-replay-bar" id="qz-replay-fill"></div></div>
+        ${hideProgress ? "" : `<div class="quiz-replay-track"><div class="quiz-replay-bar" id="qz-replay-fill"></div></div>`}
         <div class="quiz-replay-row" id="qz-replay-actions"></div>
-        <div class="quiz-replay-sec" id="qz-replay-sec" style="margin-top:8px;"></div>
+        ${hideProgress ? "" : `<div class="quiz-replay-sec" id="qz-replay-sec" style="margin-top:8px;"></div>`}
       </div>
     `;
-    const priceEl = container.querySelector(".quiz-replay-price");
+    const pauseBtn = container.querySelector("#qz-replay-pause");
     const fillEl = container.querySelector("#qz-replay-fill");
     const secEl = container.querySelector("#qz-replay-sec");
     const actionsEl = container.querySelector("#qz-replay-actions");
     const speedsEl = container.querySelector("#qz-replay-speeds");
+    const liveClockEl = opts.liveClockEl || null;
     (opts.actions || []).forEach((a) => {
       const btn = document.createElement("button");
       btn.id = `qz-${a.id}`;
@@ -394,9 +401,23 @@
         state.playbackSpeed = Number(btn.dataset.speed) || 1;
         speedsEl.querySelectorAll(".quiz-speed-btn").forEach((b) => b.classList.toggle("active", b === btn));
         // Re-arm the wait with the new pace right away instead of letting
-        // the slower/faster old delay run out first.
-        if (!done) { clearTimeout(timer); scheduleNext(); }
+        // the slower/faster old delay run out first. Skipped while paused
+        // -- resuming (not the speed click) is what should restart ticks.
+        if (!done && !paused) { clearTimeout(timer); scheduleNext(); }
       });
+    });
+    // Pause just stops the timer from re-arming -- the tape holds exactly
+    // where it is (last painted candle/price stays on screen) so you can
+    // stop and think without losing your place. Action buttons (Enter,
+    // Exit, etc.) stay live while paused, since deciding is the point.
+    let paused = false;
+    pauseBtn.addEventListener("click", () => {
+      if (done) return;
+      paused = !paused;
+      pauseBtn.innerHTML = paused ? "&#9654; Resume" : "&#10074;&#10074; Pause";
+      pauseBtn.classList.toggle("active", paused);
+      if (paused) clearTimeout(timer);
+      else scheduleNext();
     });
 
     // If given a live chart + the raw bar being replayed, push a real
@@ -454,18 +475,24 @@
     const effectiveBaseTickMs = minTotalMs > 0 ? Math.max(baseTickMs, minTotalMs / ticks.length) : baseTickMs;
     function currentTickMs() { return Math.max(20, Math.round(effectiveBaseTickMs / (state.playbackSpeed || 1))); }
     function paint() {
-      priceEl.textContent = "$" + fmtPrice(ticks[i]);
       if (unitLabel === "second") {
         // Real-time framing: how far into the candle we are and how much
         // is left, so it's obvious when the candle is about to close.
         const elapsed = i + 1, remaining = ticks.length - elapsed;
-        secEl.textContent = `${fmtClock(elapsed)} elapsed \u00b7 ${fmtClock(remaining)} left on this candle`;
+        if (secEl) secEl.textContent = `${fmtClock(elapsed)} elapsed \u00b7 ${fmtClock(remaining)} left on this candle`;
+        // Same elapsed/remaining info, but ticking live up in the header
+        // like an actual trading clock instead of a bar sweeping across a
+        // panel -- this is what a live position should feel like.
+        if (liveClockEl) {
+          liveClockEl.innerHTML = `<span class="quiz-live-dot"></span>${fmtClock(elapsed)} <span class="dim" style="font-weight:400;">of ${fmtClock(ticks.length)} on this candle</span>`;
+        }
       } else {
         // Real server ticks aren't evenly spaced in time, so a plain
         // count is more honest than a clock here.
-        secEl.textContent = `${unitLabel} ${i + 1} of ${ticks.length}`;
+        if (secEl) secEl.textContent = `${unitLabel} ${i + 1} of ${ticks.length}`;
+        if (liveClockEl) liveClockEl.innerHTML = `<span class="quiz-live-dot"></span>${unitLabel} ${i + 1} of ${ticks.length}`;
       }
-      fillEl.style.width = `${((i + 1) / ticks.length) * 100}%`;
+      if (fillEl) fillEl.style.width = `${((i + 1) / ticks.length) * 100}%`;
       paintCandle(i);
     }
     function finish(actionId) {
@@ -473,6 +500,7 @@
       done = true;
       clearTimeout(timer);
       actionsEl.querySelectorAll("button").forEach((b) => (b.disabled = true));
+      pauseBtn.disabled = true;
       opts.onAct && opts.onAct(actionId, i, ticks[i]);
     }
     // Lets a caller watch every printed tick without waiting for the replay
@@ -486,7 +514,7 @@
         // onExhausted lets a caller move on (e.g. to the next bar) instead
         // of forcing a default action once the tape runs out -- falls back
         // to the old auto-fire-defaultActionId behavior when not given.
-        if (opts.onExhausted) { done = true; actionsEl.querySelectorAll("button").forEach((b) => (b.disabled = true)); opts.onExhausted(); }
+        if (opts.onExhausted) { done = true; actionsEl.querySelectorAll("button").forEach((b) => (b.disabled = true)); pauseBtn.disabled = true; opts.onExhausted(); }
         else finish(opts.defaultActionId);
         return;
       }
@@ -498,7 +526,14 @@
     paint();
     checkTick();
     scheduleNext();
-    return { stop: () => { done = true; clearTimeout(timer); } };
+    return {
+      stop: () => { done = true; clearTimeout(timer); },
+      // Lets a caller outside this closure (e.g. a persistent partial-exit
+      // button row that isn't rebuilt every tick) read the price/index of
+      // whatever tick is currently on screen at the moment it's clicked.
+      getPrice: () => ticks[i],
+      getIndex: () => i,
+    };
   }
 
   function loadHistory() {
@@ -947,12 +982,21 @@
       entryTickIdx: null, // which tick (0..REPLAY_SECONDS-1) you actually entered on
       watchIdx: null, // bar currently playing in the post-entry watch stage
       checkpointAction: null, // "exit" once you click Exit; stays null if you watch through to the end of the data
-      exitBarIdx: null, // bar index your chosen exit tick fell in
+      exitBarIdx: null, // bar index your last (fully-flattening) exit tick fell in
       chartHandle: null,
       replayHandle: null,
       userExitPrice: null,
       exitSecond: null,
       userShares: SIZE_BASELINE,
+      // Scaling out: each entry is one closed tranche of the ORIGINAL
+      // position -- { fraction, price, barIdx, tickIdx, tag }, tag is
+      // "sell" (you clicked a Sell button), "stop" (your stop got hit), or
+      // "held" (whatever was still open when the data ran out, synthesized
+      // at reveal time). Fractions across the whole array always sum to 1
+      // once the trade is fully closed. remainingFraction is how much of
+      // the original size is still open right now.
+      exits: [],
+      remainingFraction: 1,
     };
     renderEntryStage();
   }
@@ -1045,8 +1089,7 @@
         <button class="quiz-answer-btn enter" id="qz-enter">Enter the trade <span class="kbd">Y</span></button>
         <button class="quiz-answer-btn pass" id="qz-pass">Pass <span class="kbd">N</span></button>
       </div>
-      <button class="quiz-watch-btn" id="qz-watch-entry">▶ Watch it print in, tick by tick</button>
-      <div id="quiz-entry-replay-slot"></div>
+      <div id="quiz-entry-replay-slot"><div class="quiz-replay-loading">${state.tickMode === "real" ? "Loading real ticks…" : "Loading…"}</div></div>
       <div id="quiz-stop-slot"></div>
     `;
 
@@ -1056,47 +1099,44 @@
     document.getElementById("qz-enter").addEventListener("click", () => handleEntryChoice(true, trade.entry_price));
     document.getElementById("qz-pass").addEventListener("click", () => handleEntryChoice(false));
 
-    // Watching the tape is how you actually time your entry: press Enter
-    // (or Pass) at whatever moment feels right while the ticks print in,
-    // and that tick's price -- not necessarily the real fill -- becomes
-    // your entry price. If you never click and it runs out, it defaults
-    // to entering right at the real fill (same as not watching at all).
-    const watchBtn = document.getElementById("qz-watch-entry");
+    // The tape starts printing the moment this screen loads -- no button
+    // to press first. Press Enter (or Pass) at whatever moment feels right
+    // while the ticks print in, and that tick's price -- not necessarily
+    // the real fill -- becomes your entry price. If you never click and it
+    // runs out, it defaults to entering right at the real fill (same as
+    // never having watched at all). The static Enter/Pass row above stays
+    // live in the meantime, so a click during the brief load is still
+    // honored at the real fill price.
     const answerRow = document.getElementById("quiz-entry-answer-row");
     const prevCloseEntry = c.entryIdx > 0 ? c.bars[c.entryIdx - 1].c : entryBar.o;
     c.entryBarPrevClose = prevCloseEntry;
-    watchBtn.addEventListener("click", () => {
-      watchBtn.disabled = true;
-      watchBtn.textContent = state.tickMode === "real" ? "Loading real ticks…" : "Loading…";
-      getEntryWatchTicks(trade, entryBar, prevCloseEntry, secondsIntoBar).then(({ prices, real, fellBack }) => {
-        if (state.current !== c || c.stage !== "entry") return;
-        try {
-        watchBtn.style.display = "none";
-        // Removed (not just hidden): the replay below creates its own
-        // #qz-enter/#qz-pass buttons, and a hidden duplicate of those same
-        // ids left in the DOM would silently win every document.getElementById
-        // lookup -- including the Y/N/Enter/Escape keyboard shortcuts -- so
-        // pressing a key would lock in the real fill price instead of
-        // whatever tick you were actually watching.
-        answerRow.remove();
-        c.replayHandle = runSecondReplay(document.getElementById("quiz-entry-replay-slot"), prices, {
-          unitLabel: real ? "tick" : "second",
-          tag: real ? "live ticks · server" : "simulated seconds",
-          tagCls: real ? "live" : "",
-          fallbackNote: fellBack ? "No live ticks came back for this window — showing the simulated path instead." : "",
-          actions: [
-            { id: "enter", label: "Enter", kbd: "Y", cls: "enter" },
-            { id: "pass", label: "Pass", kbd: "N", cls: "pass" },
-          ],
-          defaultActionId: "pass", // running out the clock without deciding = you didn't take it
-          minTotalMs: 20000, // at least 20 real seconds to decide, even on a fast fill
-          chartHandle: c.chartHandle,
-          bar: entryBar,
-          onAct: (actionId, tickIdx, price) => handleEntryChoice(actionId === "enter", price, tickIdx),
-        });
-        } catch (err) { showStageError(err); }
-      }).catch(showStageError);
-    });
+    getEntryWatchTicks(trade, entryBar, prevCloseEntry, secondsIntoBar).then(({ prices, real, fellBack }) => {
+      if (state.current !== c || c.stage !== "entry") return;
+      try {
+      // Removed (not just hidden): the replay below creates its own
+      // #qz-enter/#qz-pass buttons, and a hidden duplicate of those same
+      // ids left in the DOM would silently win every document.getElementById
+      // lookup -- including the Y/N/Enter/Escape keyboard shortcuts -- so
+      // pressing a key would lock in the real fill price instead of
+      // whatever tick you were actually watching.
+      answerRow.remove();
+      c.replayHandle = runSecondReplay(document.getElementById("quiz-entry-replay-slot"), prices, {
+        unitLabel: real ? "tick" : "second",
+        tag: real ? "live ticks · server" : "simulated seconds",
+        tagCls: real ? "live" : "",
+        fallbackNote: fellBack ? "No live ticks came back for this window — showing the simulated path instead." : "",
+        actions: [
+          { id: "enter", label: "Enter", kbd: "Y", cls: "enter" },
+          { id: "pass", label: "Pass", kbd: "N", cls: "pass" },
+        ],
+        defaultActionId: "pass", // running out the clock without deciding = you didn't take it
+        minTotalMs: 20000, // at least 20 real seconds to decide, even on a fast fill
+        chartHandle: c.chartHandle,
+        bar: entryBar,
+        onAct: (actionId, tickIdx, price) => handleEntryChoice(actionId === "enter", price, tickIdx),
+      });
+      } catch (err) { showStageError(err); }
+    }).catch(showStageError);
 
     c.stage = "entry";
   }
@@ -1155,33 +1195,55 @@
     const trade = c.trade;
     const entryPrice = c.userEntryPrice;
     const slot = document.getElementById("quiz-stop-slot");
+
+    // Default stop suggestion: reach for structure first -- the low of
+    // the last fully-formed candle for a long, the high of it for a
+    // short -- since that's the level a trader would actually reference,
+    // not an arbitrary percentage. c.entryIdx - 1 is the last candle
+    // that's fully known (the entry candle itself is still only
+    // partially revealed at this point). Falls back to the flat 1%
+    // preset when there's no prior candle yet (entry on the very first
+    // bar of the dataset) or when that level would sit on the wrong
+    // side of -- or right on top of -- entry, which can happen on a gap.
+    const prevBar = c.entryIdx > 0 ? c.bars[c.entryIdx - 1] : null;
+    const structurePrice = prevBar ? (c.side === "short" ? prevBar.h : prevBar.l) : null;
+    const structureRisk = structurePrice != null ? (c.side === "short" ? structurePrice - entryPrice : entryPrice - structurePrice) : 0;
+    const structureValid = structurePrice != null && structureRisk > 0;
+    const structureLabel = c.side === "short" ? "Last candle high" : "Last candle low";
+    const standardPreset = STOP_PRESETS.find((p) => p.pct === 1) || STOP_PRESETS[0];
+
     slot.innerHTML = `
       <div class="quiz-stop-panel">
-        <div class="quiz-prompt" style="margin-top:0;">You're in. <b>Where's your stop-loss?</b> Pick a quick option, type a price, or click the chart to place it.</div>
-        <div class="quiz-preset-row" id="quiz-stop-presets">
-          ${STOP_PRESETS.map((p) => `<button class="quiz-preset-btn" data-pct="${p.pct}">${p.label} <span class="dim">· ${p.sub}</span></button>`).join("")}
-          <button class="quiz-preset-btn active" data-pct="">Custom</button>
+        <div class="quiz-prompt" style="margin-top:0;">You're in at <b>$${fmtPrice(entryPrice)}</b>. Set your stop and size below — click the chart any time to move the stop.</div>
+        <div class="quiz-stop-grid">
+          <div class="qsg-col">
+            <div class="qsg-label">Stop-loss</div>
+            <div class="quiz-preset-row" id="quiz-stop-presets">
+              ${structureValid ? `<button class="quiz-preset-btn active" data-kind="structure">${structureLabel} <span class="dim">· $${fmtPrice(structurePrice)}</span></button>` : ""}
+              ${STOP_PRESETS.map((p) => `<button class="quiz-preset-btn${!structureValid && p === standardPreset ? " active" : ""}" data-kind="pct" data-pct="${p.pct}">${p.label} <span class="dim">· ${p.sub}</span></button>`).join("")}
+              <button class="quiz-preset-btn" data-kind="custom">Custom</button>
+            </div>
+            <div class="quiz-stop-row">
+              <input type="number" step="0.0001" id="quiz-stop-input" placeholder="e.g. ${fmtPrice(c.side === "short" ? entryPrice * 1.02 : entryPrice * 0.98)}">
+            </div>
+            <div class="quiz-risk-preview" id="quiz-risk-preview"></div>
+          </div>
+          <div class="qsg-col">
+            <div class="qsg-label">Size</div>
+            <div class="quiz-preset-row" id="quiz-size-presets">
+              ${SIZE_PRESETS.map((p) => `<button class="quiz-preset-btn${p.shares === SIZE_BASELINE ? " active" : ""}" data-shares="${p.shares}">${p.label} <span class="dim">· ${p.sub}</span></button>`).join("")}
+              <button class="quiz-preset-btn" data-shares="">Custom</button>
+            </div>
+            <div class="quiz-size-row">
+              <input type="number" step="1" min="1" id="quiz-size-input" value="${SIZE_BASELINE}">
+              <span class="quiz-size-unit">shares</span>
+            </div>
+            <div class="quiz-size-preview" id="quiz-size-risk-preview"></div>
+          </div>
         </div>
-        <div class="quiz-stop-row">
-          <input type="number" step="0.0001" id="quiz-stop-input" placeholder="e.g. ${fmtPrice(c.side === "short" ? entryPrice * 1.02 : entryPrice * 0.98)}">
-        </div>
-        <div class="quiz-risk-preview" id="quiz-risk-preview"></div>
 
-        <div class="quiz-prompt">
-          <b>How much size?</b> Size up on trades you like, size down on ones you're not sure about — pick a quick option or set your own.
-        </div>
-        <div class="quiz-preset-row" id="quiz-size-presets">
-          ${SIZE_PRESETS.map((p) => `<button class="quiz-preset-btn${p.shares === SIZE_BASELINE ? " active" : ""}" data-shares="${p.shares}">${p.label} <span class="dim">· ${p.sub}</span></button>`).join("")}
-          <button class="quiz-preset-btn" data-shares="">Custom</button>
-        </div>
-        <div class="quiz-size-row">
-          <input type="number" step="1" min="1" id="quiz-size-input" value="${SIZE_BASELINE}">
-          <span class="quiz-size-unit">shares</span>
-        </div>
-        <div class="quiz-size-preview" id="quiz-size-risk-preview"></div>
-
-        <div class="quiz-stop-row" style="margin-top:16px;">
-          <button class="quiz-answer-btn enter" id="quiz-stop-confirm" style="flex:none; min-width:190px;">Lock in stop &amp; size <span class="kbd">↵</span></button>
+        <div class="quiz-stop-row" style="margin-top:10px;">
+          <button class="quiz-answer-btn enter" id="quiz-stop-confirm" style="flex:none; min-width:150px;">Lock in <span class="kbd">↵</span></button>
         </div>
         <div class="quiz-stop-hint" id="quiz-stop-error"></div>
       </div>
@@ -1223,8 +1285,12 @@
       btn.addEventListener("click", () => {
         stopPresetBtns.forEach((b) => b.classList.remove("active"));
         btn.classList.add("active");
-        const pct = Number(btn.dataset.pct);
-        if (pct) {
+        const kind = btn.dataset.kind;
+        if (kind === "structure") {
+          input.value = fmtPrice(structurePrice);
+          setPreview(structurePrice);
+        } else if (kind === "pct") {
+          const pct = Number(btn.dataset.pct);
           const mult = c.side === "short" ? 1 + pct / 100 : 1 - pct / 100;
           const price = entryPrice * mult;
           input.value = fmtPrice(price);
@@ -1245,7 +1311,7 @@
     });
 
     input.addEventListener("input", () => {
-      stopPresetBtns.forEach((b) => b.classList.toggle("active", b.dataset.pct === ""));
+      stopPresetBtns.forEach((b) => b.classList.toggle("active", b.dataset.kind === "custom"));
       setPreview(Number(input.value));
     });
     sizeInput.addEventListener("input", () => {
@@ -1257,9 +1323,22 @@
       const price = c.chartHandle.series.coordinateToPrice(param.point.y);
       if (price == null) return;
       input.value = fmtPrice(price);
-      stopPresetBtns.forEach((b) => b.classList.toggle("active", b.dataset.pct === ""));
+      stopPresetBtns.forEach((b) => b.classList.toggle("active", b.dataset.kind === "custom"));
       setPreview(price);
     });
+
+    // Pre-fill and preview the default the moment the stage renders --
+    // structure when it's usable, otherwise the flat 1% preset -- instead
+    // of leaving the input empty until you pick something yourself.
+    if (structureValid) {
+      input.value = fmtPrice(structurePrice);
+      setPreview(structurePrice);
+    } else {
+      const mult = c.side === "short" ? 1 + standardPreset.pct / 100 : 1 - standardPreset.pct / 100;
+      const price = entryPrice * mult;
+      input.value = fmtPrice(price);
+      setPreview(price);
+    }
 
     document.getElementById("quiz-stop-confirm").addEventListener("click", () => {
       const price = Number(input.value);
@@ -1280,6 +1359,21 @@
     const slot = document.getElementById("quiz-stop-slot");
     if (slot) slot.querySelectorAll("button, input").forEach((elm) => (elm.disabled = true));
     renderWatchStage();
+  }
+
+  // Records a closed tranche of the ORIGINAL position -- clamps to
+  // whatever's actually still open so a stray double-click can't oversell.
+  // Returns the fraction actually applied (0 if nothing was left to sell).
+  function recordExit(c, fraction, price, barIdx, tickIdx, tag) {
+    const applied = Math.max(0, Math.min(fraction, c.remainingFraction));
+    if (applied <= 1e-9 || !Number.isFinite(price)) return 0;
+    c.exits.push({ fraction: applied, price, barIdx, tickIdx, tag });
+    c.remainingFraction = Math.max(0, c.remainingFraction - applied);
+    if (!c.checkpointAction) c.checkpointAction = "exit";
+    c.exitBarIdx = barIdx;
+    c.exitSecond = tickIdx;
+    c.userExitPrice = price; // last exit's price -- kept for anything that only cares about "how it finally ended"
+    return applied;
   }
 
   // ---------- Stage C: watch continuously from your entry until you exit ----------
@@ -1326,13 +1420,40 @@
           <span>${escapeHtml(displayLabel(trade).name)}</span>
           <span class="side-pill ${c.side}">${c.side}</span>
         </div>
-        <span class="quiz-clock" id="qz-watch-clock"></span>
+        <span class="quiz-clock">
+          <span id="qz-watch-clock"></span>
+          <span class="quiz-live-badge pos" id="qz-watch-live-clock" style="display:none;"></span>
+        </span>
       </div>
       <div class="quiz-chart-wrap"><div id="quiz-candle-chart"></div></div>
       <div class="quiz-prompt" id="qz-watch-prompt"></div>
+      <div class="quiz-partial-row" id="qz-partial-row"></div>
       <div id="quiz-replay-slot"></div>
     `;
     c.stage = "watch";
+
+    // Scale-out buttons -- wired once here (not rebuilt every tick/bar like
+    // the replay panel's Exit button) so they stay live and clickable the
+    // whole way through the watch stage, including the brief gap between
+    // one bar's tape ending and the next one's ticks arriving.
+    document.getElementById("qz-partial-row").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-sell]");
+      if (!btn || btn.disabled) return;
+      const frac = Number(btn.dataset.sell);
+      if (!(frac > 0)) return;
+      const handle = c.replayHandle;
+      const price = handle && typeof handle.getPrice === "function" ? handle.getPrice() : null;
+      if (!Number.isFinite(price)) return;
+      const tickIdx = handle && typeof handle.getIndex === "function" ? handle.getIndex() : null;
+      const applied = recordExit(c, frac, price, c.watchIdx, tickIdx, "sell");
+      if (applied <= 0) return;
+      if (c.remainingFraction <= 1e-9) {
+        if (c.replayHandle) { c.replayHandle.stop(); c.replayHandle = null; }
+        goToReveal();
+      } else {
+        renderPartialRow();
+      }
+    });
 
     teardownChart(c.chartHandle);
     // Everything before the bar currently playing is settled chart
@@ -1363,8 +1484,28 @@
     // the tape runs dry.
     attachEndOfDataLine(chartEl, c.chartHandle, toUnix(c.bars[c.bars.length - 1].t));
 
+    renderPartialRow();
     renderWatchBar();
     } catch (err) { showStageError(err); }
+  }
+
+  // Refreshes the persistent scale-out row: how much of the position is
+  // still open, what's already been sold and at what price, and which
+  // Sell buttons still make sense given what's left.
+  function renderPartialRow() {
+    const c = state.current;
+    if (!c || c.stage !== "watch") return;
+    const row = document.getElementById("qz-partial-row");
+    if (!row) return;
+    const pctOpen = Math.round(c.remainingFraction * 100);
+    const soldParts = c.exits.filter((e) => e.tag === "sell").map((e) => `${Math.round(e.fraction * 100)}% at $${fmtPrice(e.price)}`);
+    row.innerHTML = `
+      <span class="qp-status">${pctOpen}% of position open${soldParts.length ? ` <span class="dim">\u00b7 sold ${escapeHtml(soldParts.join(", "))}</span>` : ""}</span>
+      <div class="qp-btns">
+        <button type="button" class="quiz-answer-btn partial" data-sell="0.25"${c.remainingFraction < 0.25 - 1e-9 ? " disabled" : ""}>Sell &frac14; <span class="kbd">2</span></button>
+        <button type="button" class="quiz-answer-btn partial" data-sell="0.5"${c.remainingFraction < 0.5 - 1e-9 ? " disabled" : ""}>Sell &frac12; <span class="kbd">3</span></button>
+      </div>
+    `;
   }
 
   function renderWatchBar() {
@@ -1394,14 +1535,23 @@
     document.getElementById("qz-watch-clock").innerHTML =
       `${escapeHtml(clockStr)} <span class="dim" style="font-weight:400;">· ${minutesIn} min in</span>` +
       (barsLeft <= 3 ? ` <span style="color:var(--amber);">· ${barsLeft} bar${barsLeft === 1 ? "" : "s"} of data left</span>` : "");
+    const positionNote = c.remainingFraction < 1 - 1e-9
+      ? ` You're still holding <b>${Math.round(c.remainingFraction * 100)}%</b> of the position.`
+      : "";
     document.getElementById("qz-watch-prompt").innerHTML = `
       You're in at <b>$${fmtPrice(entryPrice)}</b>, stop at <b>$${fmtPrice(c.stopPrice)}</b>.
-      Unrealized so far: <b style="color:${unrealized >= 0 ? "var(--green)" : "var(--red)"}">${fmtSignedPerShare(unrealized)}/sh</b>.
-      Keep watching for as long as you like — <b>click Exit whenever you'd get out</b>.
+      Unrealized so far on the open portion: <b style="color:${unrealized >= 0 ? "var(--green)" : "var(--red)"}">${fmtSignedPerShare(unrealized)}/sh</b>.${positionNote}
+      Keep watching for as long as you like — <b>sell some, sell it all, whenever you'd get out</b>.
     `;
+    renderPartialRow();
 
     const replaySlot = document.getElementById("quiz-replay-slot");
     replaySlot.innerHTML = `<div class="quiz-replay-loading">${state.tickMode === "real" ? "Loading real ticks from the server…" : "Loading…"}</div>`;
+    const liveClockEl = document.getElementById("qz-watch-live-clock");
+    if (liveClockEl) liveClockEl.style.display = "none";
+    // Nothing to sell against mid-fetch -- lock the scale-out buttons for
+    // this brief gap rather than let a click read a stale/no price.
+    document.querySelectorAll('#qz-partial-row button[data-sell]').forEach((b) => (b.disabled = true));
 
     const watchIdxAtFetch = c.watchIdx;
     const ticksPromise = isEntryRemainder
@@ -1420,6 +1570,8 @@
         renderWatchBar();
         return;
       }
+      if (liveClockEl) liveClockEl.style.display = "";
+      renderPartialRow();
       c.replayHandle = runSecondReplay(replaySlot, prices, {
         unitLabel: real ? "tick" : "second",
         tag: real ? "live ticks · server" : "simulated seconds",
@@ -1430,8 +1582,13 @@
         // every later bar is exactly the "resets the chart view" behavior
         // this replaces, so skip it here.
         autoFit: false,
+        // Once you're actually in the trade, replace the sweeping
+        // "loading" progress bar with a plain ticking clock up in the
+        // header -- closer to what a real trading platform looks like.
+        hideProgress: true,
+        liveClockEl,
         actions: [
-          { id: "exit", label: "Exit now", kbd: "E", cls: "exit" },
+          { id: "exit", label: c.remainingFraction < 1 - 1e-9 ? `Exit remaining ${Math.round(c.remainingFraction * 100)}%` : "Exit all", kbd: "E", cls: "exit" },
         ],
         chartHandle: c.chartHandle,
         bar,
@@ -1441,13 +1598,15 @@
         seedHigh: isEntryRemainder ? Math.max(bar.o, entryPrice) : undefined,
         seedLow: isEntryRemainder ? Math.min(bar.o, entryPrice) : undefined,
         volStartFrac: isEntryRemainder ? (c.entryTickIdx + 1) / REPLAY_SECONDS : 0,
-        onTick: (price) => {
+        onTick: (price, tickIdx) => {
           const breached = c.side === "short" ? price >= c.stopPrice : price <= c.stopPrice;
           if (breached) {
             if (c.replayHandle) { c.replayHandle.stop(); c.replayHandle = null; }
             c.stoppedOutEarly = true;
             c.stopOutIdx = c.watchIdx;
-            c.userExitPrice = c.stopPrice;
+            // A stop only closes out whatever's still open -- any earlier
+            // partial sells keep their own locked-in prices.
+            recordExit(c, c.remainingFraction, c.stopPrice, c.watchIdx, tickIdx, "stop");
             goToReveal();
           }
         },
@@ -1462,10 +1621,10 @@
           renderWatchBar();
         },
         onAct: (actionId, tickIdx, price) => {
-          c.checkpointAction = actionId;
-          c.exitBarIdx = c.watchIdx;
-          c.exitSecond = tickIdx;
-          c.userExitPrice = price;
+          // Exit all -- closes whatever fraction is still open, whether
+          // that's the full original position or whatever's left after
+          // earlier partial sells.
+          recordExit(c, c.remainingFraction, price, c.watchIdx, tickIdx, "sell");
           goToReveal();
         },
       });
@@ -1512,24 +1671,34 @@
       stopGrade = gradeStop(side, entryPrice, c.stopPrice, trade.suggested_stop);
       const actualPnl = pnlPerShare(entryPrice, trade.exit_price, side);
 
+      // c.exits is fully normalized by the time reveal calls this -- its
+      // fractions always sum to 1 (goToReveal tops up whatever was still
+      // open with a "held to end" tranche first). Blend across however
+      // many tranches you actually closed: one clean exit collapses back
+      // to the old single-price math, scaling out just averages more terms
+      // in, each weighted by how much of the position it covered.
+      const totalFrac = c.exits.reduce((s, e) => s + e.fraction, 0) || 1;
+      userPnlPerShare = c.exits.reduce((s, e) => s + e.fraction * pnlPerShare(entryPrice, e.price, side), 0) / totalFrac;
+      userExitFillPrice = c.exits.reduce((s, e) => s + e.fraction * e.price, 0) / totalFrac;
+
+      const manualTranches = c.exits.filter((e) => e.tag !== "held");
+      const scaledOut = c.exits.filter((e) => e.tag === "sell").length > 1;
+
       if (c.stoppedOutEarly) {
-        userPnlPerShare = pnlPerShare(entryPrice, c.stopPrice, side);
-        userExitFillPrice = c.stopPrice;
-        exitGrade = { label: `Stopped out at $${fmtPrice(c.stopPrice)} while you were watching.`, tone: "warn" };
-      } else if (c.checkpointAction === "exit") {
-        const exitPrice = Number.isFinite(c.userExitPrice) ? c.userExitPrice : trade.exit_price;
-        userPnlPerShare = pnlPerShare(entryPrice, exitPrice, side);
-        userExitFillPrice = exitPrice;
+        const stopFrac = c.exits.filter((e) => e.tag === "stop").reduce((s, e) => s + e.fraction, 0);
+        exitGrade = stopFrac < 1 - 1e-9
+          ? { label: `Scaled out first, then stopped out of the rest at $${fmtPrice(c.stopPrice)}.`, tone: "warn" }
+          : { label: `Stopped out at $${fmtPrice(c.stopPrice)} while you were watching.`, tone: "warn" };
+      } else if (manualTranches.length) {
         const diff = actualPnl - userPnlPerShare;
         const threshold = Math.max(0.15 * Math.abs(actualPnl || 0.01), 0.01);
-        if (diff > threshold) exitGrade = { label: `You exited early — the move kept going. Riding it to the real exit made ${fmtSignedPerShare(diff)}/sh more.`, tone: "warn" };
-        else if (diff < -threshold) exitGrade = { label: "Good exit — price gave back a lot of that move afterward.", tone: "good" };
-        else exitGrade = { label: "Reasonable exit, close to how the trade actually played out.", tone: "good" };
+        const prefix = scaledOut ? `Scaled out across ${manualTranches.length} sells (avg $${fmtPrice(userExitFillPrice)}). ` : "";
+        if (diff > threshold) exitGrade = { label: `${prefix}You exited early — the move kept going. Riding it to the real exit made ${fmtSignedPerShare(diff)}/sh more.`, tone: "warn" };
+        else if (diff < -threshold) exitGrade = { label: `${prefix}Good exit — price gave back a lot of that move afterward.`, tone: "good" };
+        else exitGrade = { label: `${prefix}Reasonable exit, close to how the trade actually played out.`, tone: "good" };
       } else {
-        // Never clicked Exit and never got stopped -- you watched all the
+        // Never sold anything and never got stopped -- you watched all the
         // way through to the end of the available chart, same as holding.
-        userPnlPerShare = actualPnl;
-        userExitFillPrice = trade.exit_price;
         exitGrade = { label: "You held on — matches what actually happened.", tone: "neutral" };
       }
     }
@@ -1555,6 +1724,13 @@
     const c = state.current;
     try {
     const trade = c.trade;
+    // Top up whatever's still open with a synthetic "held to end" tranche
+    // at the real exit price -- same as before when you never clicked
+    // Exit at all, but now it also covers the leftover slice after a
+    // partial scale-out where you never got around to closing the rest.
+    if (c.entered && c.remainingFraction > 1e-9) {
+      recordExit(c, c.remainingFraction, trade.exit_price, c.exitIdx, null, "held");
+    }
     const grading = computeGrading(c);
     c.stage = "reveal";
 
@@ -1588,11 +1764,22 @@
     if (c.entered && c.userEntryPrice != null) {
       pointerDefs.push({ time: toUnix(entryBar.t), price: c.userEntryPrice, color: COLOR_YOUR_ENTRY, above: true, tooltip: `TEST ENTRY $${fmtPrice(c.userEntryPrice)}` });
     }
-    if (c.stoppedOutEarly && c.stopOutIdx != null) {
-      pointerDefs.push({ time: toUnix(c.bars[c.stopOutIdx].t), price: c.stopPrice, color: COLOR_STOP_EVENT, above: false, tooltip: `STOPPED OUT $${fmtPrice(c.stopPrice)}` });
-    } else if (c.entered && c.checkpointAction === "exit" && c.exitBarIdx != null) {
-      pointerDefs.push({ time: toUnix(c.bars[c.exitBarIdx].t), price: c.userExitPrice, color: COLOR_YOUR_EXIT, above: false, tooltip: `TEST EXIT $${fmtPrice(c.userExitPrice)}` });
-    }
+    // One pointer per tranche you actually closed yourself (sell or stop)
+    // -- skips synthetic "held" tranches since that price just duplicates
+    // the real-exit line already on the chart. A single clean exit reads
+    // as "TEST EXIT" same as before; more than one gets labeled with the
+    // fraction so a scale-out is legible at a glance.
+    const manualTranches = c.exits.filter((e) => e.tag !== "held");
+    manualTranches.forEach((e) => {
+      if (e.barIdx == null) return;
+      const bar = c.bars[e.barIdx];
+      if (!bar) return;
+      const pct = Math.round(e.fraction * 100);
+      const label = e.tag === "stop"
+        ? (manualTranches.length > 1 ? `STOPPED OUT (${pct}%) $${fmtPrice(e.price)}` : `STOPPED OUT $${fmtPrice(e.price)}`)
+        : (manualTranches.length > 1 ? `SOLD ${pct}% $${fmtPrice(e.price)}` : `TEST EXIT $${fmtPrice(e.price)}`);
+      pointerDefs.push({ time: toUnix(bar.t), price: e.price, color: e.tag === "stop" ? COLOR_STOP_EVENT : COLOR_YOUR_EXIT, above: false, tooltip: label });
+    });
 
     const priceLines = [
       { price: trade.entry_price, color: COLOR_REAL_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "real entry" },
@@ -1604,13 +1791,18 @@
     if (c.entered && c.stopPrice != null) {
       priceLines.push({ price: c.stopPrice, color: COLOR_YOUR_STOP, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your stop" });
     }
-    // Your own exit fill gets its own line too, not just a pointer --
-    // same treatment as "your stop" -- so its price is readable off the
-    // right axis even without hovering. Skipped when you were stopped out
-    // (that price already has a line via "your stop") or never exited.
-    if (c.entered && !c.stoppedOutEarly && c.checkpointAction === "exit" && c.exitBarIdx != null) {
-      priceLines.push({ price: c.userExitPrice, color: COLOR_YOUR_EXIT, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "test exit" });
-    }
+    // Each closed tranche's price gets its own line too, not just a
+    // pointer -- same treatment "your stop" already got -- so every fill
+    // is readable off the right axis even without hovering. A stop
+    // tranche is skipped here since that price already has a line via
+    // "your stop".
+    manualTranches.filter((e) => e.tag !== "stop").forEach((e, idx) => {
+      const pct = Math.round(e.fraction * 100);
+      priceLines.push({
+        price: e.price, color: COLOR_YOUR_EXIT, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true,
+        title: manualTranches.length > 1 ? `exit ${pct}%` : "test exit",
+      });
+    });
 
     const label = { name: trade.symbol, date: trade.trade_date }; // reveal always shows the real thing
     const winPillHtml = `<span class="pill ${trade.win ? "win" : "loss"}">${trade.win ? "Winner" : "Loser"}</span>`;
@@ -1658,7 +1850,22 @@
     const tradeNet = Number.isFinite(tradePnlBeforeComm) ? tradePnlBeforeComm - tradeCommission : Number(trade.pnl_after_comm) || 0;
     const userGross = c.entered && Number.isFinite(grading.userPnlPerShare) ? grading.userPnlPerShare * c.userShares : null;
     const userEntryCommission = (c.entered && c.userEntryPrice != null) ? ibkrTieredCommission(c.userShares, c.userEntryPrice) : 0;
-    const userExitCommission = (c.entered && grading.userExitFillPrice != null) ? ibkrTieredCommission(c.userShares, grading.userExitFillPrice) : 0;
+    // Each tranche is its own real order -- sum commission per tranche
+    // instead of applying one rate to a single blended price. Share counts
+    // are allocated by cumulative rounding so they add up to exactly
+    // c.userShares even when fractions like 1/4 don't divide it evenly.
+    const userExitCommission = (() => {
+      if (!c.entered) return 0;
+      let cumFrac = 0, cumShares = 0, total = 0;
+      c.exits.forEach((e) => {
+        cumFrac += e.fraction;
+        const newCumShares = Math.round(cumFrac * c.userShares);
+        const shares = newCumShares - cumShares;
+        cumShares = newCumShares;
+        if (shares > 0) total += ibkrTieredCommission(shares, e.price);
+      });
+      return total;
+    })();
     const userCommission = c.entered ? userEntryCommission + userExitCommission : null;
     const userNet = (userGross != null && userCommission != null) ? userGross - userCommission : null;
 
@@ -1728,6 +1935,14 @@
       if (e.key === "n" || e.key === "N" || e.key === "Escape") document.getElementById("qz-pass")?.click();
     } else if (c.stage === "watch" && !typing) {
       if (e.key === "e" || e.key === "E" || e.key === "1") document.getElementById("qz-exit")?.click();
+      if (e.key === "2") document.querySelector('#qz-partial-row button[data-sell="0.25"]')?.click();
+      if (e.key === "3") document.querySelector('#qz-partial-row button[data-sell="0.5"]')?.click();
+    } else if (c.stage === "stop" && e.key === "Enter") {
+      // Enter locks in from either input too, not just a click on the
+      // button -- the whole point of tightening this stage's layout was
+      // to cut down on hunting for a button below the fold.
+      e.preventDefault();
+      document.getElementById("quiz-stop-confirm")?.click();
     } else if (c.stage === "reveal" && (e.key === "Enter" || e.key === " ")) {
       e.preventDefault();
       document.getElementById("qz-next")?.click();

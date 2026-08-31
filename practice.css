@@ -43,32 +43,15 @@
 .pr-resume-box .rb-text b { color: var(--primary); }
 
 /* ---------- setup screen: chart picker ---------- */
-.pr-filter-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
-.pr-filter-row input[type="text"],
-.pr-filter-row select {
-  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
-  border-radius: var(--radius-sm); padding: 8px 10px; font-size: 13px; font-family: var(--sans);
-}
-.pr-filter-row input[type="text"] { flex: 1; min-width: 140px; }
+.pr-filter-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
 
 .pr-candidate-count { font-size: 12px; color: var(--text-faint); margin-bottom: 10px; }
 .pr-candidate-count b { color: var(--text-dim); font-family: var(--mono); }
 
-.pr-candidate-list { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; }
-.pr-candidate-row {
-  display: flex; align-items: center; gap: 10px; text-align: left; width: 100%;
-  background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
-  padding: 9px 12px; font-size: 12.5px; color: var(--text); cursor: pointer; font-family: var(--sans);
-  transition: all .12s ease;
-}
-.pr-candidate-row:hover { border-color: var(--text-dim); transform: translateY(-1px); }
-.pr-candidate-row .cr-sym { font-weight: 700; width: 60px; flex: none; }
-.pr-candidate-row .cr-date { color: var(--text-faint); width: 88px; flex: none; font-family: var(--mono); }
-.pr-candidate-row .cr-setup { color: var(--text-dim); flex: 1; text-align: right; text-transform: capitalize; }
-
 /* ---------- play screen ---------- */
 .pp-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
 .pp-head-left { display: flex; flex-direction: column; gap: 2px; }
+.pp-symbol-row { display: flex; align-items: center; }
 #pp-symbol-line { font-size: 17px; font-weight: 800; }
 #pp-date-line { font-size: 12px; color: var(--text-faint); }
 
@@ -79,12 +62,30 @@
 #pp-candle-chart { width: 100%; }
 
 .pp-transport {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px;
-  padding: 10px 12px; background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;
+  padding: 10px; background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
 }
-.pp-transport .btn-advanced { font-size: 12.5px; padding: 8px 12px; }
-#pp-playpause-btn { min-width: 92px; font-weight: 700; }
-#pp-playpause-btn:disabled { opacity: .5; cursor: default; }
+/* Base look for every transport control -- a step up from the generic flat
+   .btn-advanced used elsewhere in the app, with a real hover/press feel
+   to match the buy/sell buttons instead of looking bolted on. */
+.pp-transport .btn-advanced {
+  font-size: 12.5px; font-weight: 700; padding: 8px 12px; border-radius: 8px;
+  background: var(--panel-3); border: 1px solid var(--border); color: var(--text-dim);
+  transition: transform .12s cubic-bezier(.2,.9,.3,1.2), border-color .12s ease, color .12s ease, background .12s ease;
+}
+.pp-transport .btn-advanced:hover:not(:disabled) { color: var(--text); border-color: var(--text-dim); transform: translateY(-1px); }
+.pp-transport .btn-advanced:active:not(:disabled) { transform: translateY(0) scale(.96); }
+.pp-transport .btn-advanced:disabled { opacity: .45; cursor: default; transform: none; }
+/* Play/Pause is the primary action on this row -- give it the accent
+   treatment so it reads as the one button to reach for first. */
+#pp-playpause-btn {
+  min-width: 92px; font-weight: 800; color: #fff; border: none;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  box-shadow: 0 4px 14px rgba(139,124,246,.28);
+}
+#pp-playpause-btn:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 6px 18px rgba(139,124,246,.4); }
+#pp-playpause-btn:disabled { opacity: .5; box-shadow: none; filter: none; }
+.pp-transport-divider { width: 1px; align-self: stretch; background: var(--border-soft); margin: 2px 2px; }
 
 .pp-progress-block { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 220px; }
 #pp-progress-label { font-size: 12px; color: var(--text-dim); font-family: var(--mono); white-space: nowrap; }
@@ -117,6 +118,17 @@
 
 #pp-size-preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
 
+.pp-size-mode-row { display: flex; gap: 6px; margin-bottom: 10px; }
+.pp-size-mode-btn {
+  flex: 1; background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim);
+  border-radius: var(--radius-sm); padding: 7px 10px; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .12s ease;
+}
+.pp-size-mode-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.pp-size-mode-btn.active { background: var(--primary-soft); color: var(--primary); border-color: rgba(139,124,246,.4); }
+
+.pp-size-preview { min-height: 15px; font-size: 11.5px; color: var(--text-faint); margin: -6px 0 12px; font-family: var(--mono); }
+
 .pp-order-btn-row { display: flex; gap: 10px; margin-bottom: 8px; }
 .pp-order-btn {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -127,6 +139,8 @@
 .pp-order-btn svg { width: 15px; height: 15px; }
 .pp-order-btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
 .pp-order-btn:active { transform: translateY(0) scale(.97); }
+.pp-order-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; filter: none; box-shadow: none; }
+.pp-order-btn:disabled:hover { transform: none; filter: none; box-shadow: none; }
 .pp-order-btn.buy {
   background: linear-gradient(135deg, #2fd08a, #1fa46c);
   box-shadow: 0 4px 16px rgba(47,208,138,.28);
@@ -158,3 +172,37 @@
 .pr-recap-col .rb-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); font-weight: 700; margin-bottom: 8px; }
 .pr-recap-col .rb-line { font-size: 13px; color: var(--text-dim); margin-bottom: 5px; line-height: 1.5; }
 .pr-recap-col .rb-line b { color: var(--text); }
+
+/* ---------- long-only toggle (setup screen filter row) ---------- */
+.pf-long-only-toggle {
+  display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-dim);
+  cursor: pointer; user-select: none; white-space: nowrap;
+}
+.pf-long-only-toggle input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--primary); cursor: pointer; }
+
+/* ---------- play-screen header: mode badge + extra action ---------- */
+.pp-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#pp-mode-badge:empty { display: none; }
+.pp-head-actions .btn-advanced {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700;
+  padding: 8px 13px; border-radius: 8px; background: var(--panel-3); border: 1px solid var(--border);
+  color: var(--text-dim); transition: all .12s ease;
+}
+.pp-head-actions .btn-advanced:hover { color: var(--text); border-color: var(--text-dim); transform: translateY(-1px); }
+.pp-head-actions .btn-advanced:active { transform: translateY(0) scale(.96); }
+/* Replay chart is the one you'll reach for most on this row -- give it a
+   touch of accent color so it doesn't blend into Change chart next to it. */
+#pp-replay-btn { color: var(--primary); background: var(--primary-soft); border-color: rgba(139,124,246,.35); }
+#pp-replay-btn:hover { box-shadow: 0 0 14px var(--glow-violet); border-color: rgba(139,124,246,.5); }
+.pill.mode-longonly {
+  margin-left: 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em;
+  padding: 2px 8px; font-weight: 700; background: var(--primary-soft); color: var(--primary);
+  border-color: rgba(139,124,246,.35);
+}
+
+/* ---------- partial-exit quick buttons ---------- */
+#pp-partial-exit-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+#pp-partial-exit-row:empty { display: none; margin: 0; }
+.pp-partial-label { font-size: 11px; color: var(--text-faint); margin-right: 2px; }
+.pp-partial-btn { display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.15; padding: 6px 10px; }
+.pp-partial-btn .dim { font-size: 10px; }

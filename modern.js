@@ -55,7 +55,7 @@
   /* ---------- 2. Ripple on click for buttons ---------- */
   function initRipple() {
     if (reduced) return;
-    var selector = '.filter-btn, .icon-btn, .cal-nav-btn, .sidebar-toggle, .nav-item, .btn-advanced, .btn-confirm, .btn-danger, .btn-icon, .sr-run-btn, .toptab-btn, .pp-order-btn, .quiz-answer-btn, .quiz-mode-btn, .quiz-preset-btn, .qz-speed-btn, .quiz-speed-btn, .pr-candidate-row';
+    var selector = '.filter-btn, .icon-btn, .cal-nav-btn, .sidebar-toggle, .nav-item, .btn-advanced, .btn-confirm, .btn-danger, .btn-icon, .sr-run-btn, .toptab-btn, .pp-order-btn, .quiz-answer-btn, .quiz-mode-btn, .quiz-preset-btn, .qz-speed-btn, .quiz-speed-btn';
     document.addEventListener('click', function (e) {
       var el = e.target.closest(selector);
       if (!el) return;

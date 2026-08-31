@@ -37,21 +37,22 @@
     resumeBtn: document.getElementById("pr-resume-btn"),
     resumeLabel: document.getElementById("pr-resume-label"),
 
-    search: document.getElementById("pf-search"),
-    setupSelect: document.getElementById("pf-setup"),
     randomBtn: document.getElementById("pf-random-btn"),
-    candidateList: document.getElementById("pf-candidate-list"),
     candidateCount: document.getElementById("pf-candidate-count"),
+    longOnlyToggle: document.getElementById("pf-long-only"),
 
     // play screen
     symLine: document.getElementById("pp-symbol-line"),
     dateLine: document.getElementById("pp-date-line"),
+    modeBadge: document.getElementById("pp-mode-badge"),
+    replayBtn: document.getElementById("pp-replay-btn"),
     changeChartBtn: document.getElementById("pp-change-chart-btn"),
     chartWrap: document.getElementById("pp-chart-wrap"),
     chartEl: document.getElementById("pp-candle-chart"),
 
     playPauseBtn: document.getElementById("pp-playpause-btn"),
     speedRow: document.getElementById("pp-speed-row"),
+    stepBackBtn: document.getElementById("pp-step-back-btn"),
     stepBtn: document.getElementById("pp-step-btn"),
     skipBtn: document.getElementById("pp-skip-btn"),
     progressLabel: document.getElementById("pp-progress-label"),
@@ -61,6 +62,9 @@
     livePrice: document.getElementById("pp-live-price"),
     liveChange: document.getElementById("pp-live-change"),
 
+    sizeModeRow: document.getElementById("pp-size-mode-row"),
+    sizeUnit: document.getElementById("pp-size-unit"),
+    sizePreview: document.getElementById("pp-size-preview"),
     sharesInput: document.getElementById("pp-shares-input"),
     presetRow: document.getElementById("pp-size-preset-row"),
     buyBtn: document.getElementById("pp-buy-btn"),
@@ -68,6 +72,7 @@
     orderMsg: document.getElementById("pp-order-msg"),
 
     posSummary: document.getElementById("pp-pos-summary"),
+    partialExitRow: document.getElementById("pp-partial-exit-row"),
     cashLine: document.getElementById("pp-cash-line"),
     equityLine: document.getElementById("pp-equity-line"),
     bpLine: document.getElementById("pp-bp-line"),
@@ -213,6 +218,8 @@
       createdAt: new Date().toISOString(),
       fills: [],       // { time, chartId, symbol, side, shares, price, commission, realizedPnl }
       session: null,   // in-progress chart session, see loadChart()
+      longOnly: false, // when true, Sell can only close/reduce a long -- never open or add to a short
+      sizeMode: "shares", // "shares" (raw share count) or "pct" (% of buying power at order time)
     };
   }
   function loadAccount() {
@@ -222,6 +229,8 @@
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== "object" || !Number.isFinite(parsed.balance)) return defaultAccount();
       if (!Array.isArray(parsed.fills)) parsed.fills = [];
+      if (typeof parsed.longOnly !== "boolean") parsed.longOnly = false;
+      if (parsed.sizeMode !== "shares" && parsed.sizeMode !== "pct") parsed.sizeMode = "shares";
       return parsed;
     } catch (e) { return defaultAccount(); }
   }
@@ -256,7 +265,8 @@
 
   const SPEEDS = [0.5, 1, 2, 5, 10];
   const BASE_TICK_MS = 140;
-  const SIZE_PRESETS = [50, 100, 200, 500];
+  const SHARE_PRESETS = [50, 100, 200, 500];
+  const PCT_PRESETS = [10, 25, 50, 100];
 
   // ---------------------------------------------------------------
   // account panel (setup screen)
@@ -270,6 +280,7 @@
   }
 
   function renderAccountPanel() {
+    if (els.longOnlyToggle) els.longOnlyToggle.checked = !!account.longOnly;
     const st = accountStats();
     els.acctBalance.textContent = fmtUsd(account.balance);
     els.acctBalance.className = "value mono " + (account.balance >= account.startingBalance ? "up" : "down");
@@ -364,48 +375,19 @@
   }
 
   // ---------------------------------------------------------------
-  // setup screen -- candidate chart picker (search + setup-type
-  // filter over data/trades.json, same source rewind.js indexes)
+  // setup screen -- single "pick a random chart" CTA over
+  // data/trades.json (same source rewind.js indexes). Used to be a
+  // search box + setup-type filter + scrollable candidate list;
+  // simplified down to just the random pick, since in practice
+  // nobody was browsing the list -- they wanted a chart to trade.
   // ---------------------------------------------------------------
-  function populateSetupOptions() {
-    const types = Array.from(new Set(state.index.map((r) => r.setup_type).filter(Boolean))).sort();
-    els.setupSelect.innerHTML = `<option value="">All setups</option>` + types.map((t) =>
-      `<option value="${escapeHtml(t)}">${escapeHtml(t.replace(/_/g, " "))}</option>`).join("");
-  }
-
-  function filteredCandidates() {
-    const q = (els.search.value || "").trim().toUpperCase();
-    const setup = els.setupSelect.value;
-    return state.index.filter((r) => {
-      if (setup && r.setup_type !== setup) return false;
-      if (q && !r.symbol.toUpperCase().includes(q)) return false;
-      return true;
-    });
-  }
-
-  function renderCandidates() {
-    const rows = filteredCandidates();
-    els.candidateCount.innerHTML = `<b>${rows.length}</b> chart${rows.length === 1 ? "" : "s"} available`;
-    const shown = rows.slice(0, 60);
-    if (!shown.length) {
-      els.candidateList.innerHTML = `<div class="pr-empty">No charts match those filters.</div>`;
-      return;
-    }
-    els.candidateList.innerHTML = shown.map((r) => `
-      <button class="pr-candidate-row" data-id="${escapeHtml(r.id)}">
-        <span class="cr-sym">${escapeHtml(r.symbol)}</span>
-        <span class="cr-date">${escapeHtml(r.trade_date)}</span>
-        <span class="side-pill ${r.side}">${escapeHtml(r.side)}</span>
-        <span class="cr-setup">${escapeHtml((r.setup_type || "—").replace(/_/g, " "))}</span>
-      </button>
-    `).join("");
-    els.candidateList.querySelectorAll(".pr-candidate-row").forEach((btn) => {
-      btn.addEventListener("click", () => loadChart(btn.dataset.id));
-    });
+  function updateCandidateCount() {
+    const n = state.index.length;
+    els.candidateCount.innerHTML = `<b>${n}</b> chart${n === 1 ? "" : "s"} available`;
   }
 
   function pickRandomCandidate() {
-    const rows = filteredCandidates();
+    const rows = state.index;
     if (!rows.length) return;
     const pick = rows[Math.floor(Math.random() * rows.length)];
     loadChart(pick.id);
@@ -443,13 +425,19 @@
     const bars = trade.bars;
     if (!Array.isArray(bars) || !bars.length) return 0;
     const dollarVol = (b) => (Number(b.v) || 0) * (Number(b.c) || 0);
-    for (let i = 1; i < bars.length; i++) {
-      const start = Math.max(0, i - SCANNER_LOOKBACK);
-      const priorSlice = bars.slice(start, i);
-      const priorAvg = priorSlice.reduce((s, b) => s + dollarVol(b), 0) / priorSlice.length;
+    // Baseline is the pace at the very start of this chart's data -- fixed
+    // once, not a window that rolls forward with i. A rolling "prior N
+    // bars" baseline climbs right along with a gradual ramp, so by the
+    // time a bar finally looks "5x the recent pace" the move is often
+    // already well underway and playback starts in the middle of it.
+    // Anchoring to the quiet opening bars instead catches the first bar
+    // that would actually have popped up on a scanner.
+    const baseSlice = bars.slice(0, Math.min(SCANNER_LOOKBACK, bars.length));
+    const baselineAvg = baseSlice.reduce((s, b) => s + dollarVol(b), 0) / baseSlice.length;
+    for (let i = 0; i < bars.length; i++) {
       const cur = dollarVol(bars[i]);
       if (cur < SCANNER_MIN_BAR_DOLLAR_VOL) continue;
-      if (priorAvg === 0 || cur >= priorAvg * SCANNER_SURGE_MULT) return i;
+      if (baselineAvg === 0 || cur >= baselineAvg * SCANNER_SURGE_MULT) return i;
     }
     // never surged -- fall back to just skipping the dead, zero-volume open
     for (let i = 0; i < bars.length; i++) {
@@ -494,7 +482,7 @@
       renderSymbolInfo(trade);
       resetSrBox();
       renderSpeedRow();
-      renderSizePresets();
+      applySizeModeUI();
       renderProgress();
       renderLivePrice(state.ticks[0]);
       renderPositionPanel();
@@ -519,6 +507,7 @@
     els.dateLine.textContent = state.barIndex > 0
       ? `${t.trade_date} · picked up right as this one popped on the scanner (bar ${state.barIndex + 1} of ${state.bars.length})`
       : `${t.trade_date} · replaying from the start of this chart's data`;
+    els.modeBadge.innerHTML = account.longOnly ? `<span class="pill mode-longonly">Long only</span>` : "";
   }
 
   // ---------------------------------------------------------------
@@ -760,6 +749,7 @@
     els.progressSlider.min = String(state.barIndex);
     els.progressSlider.max = String(total - 1);
     els.progressSlider.value = String(state.barIndex);
+    updateStepBackBtn();
   }
 
   function tick() {
@@ -801,6 +791,7 @@
     if (!els.playPauseBtn) return;
     els.playPauseBtn.textContent = state.playing ? "⏸ Pause" : "▶ Play";
     els.playPauseBtn.disabled = state.ended;
+    updateStepBackBtn();
   }
   function renderSpeedRow() {
     els.speedRow.innerHTML = SPEEDS.map((s) =>
@@ -829,6 +820,24 @@
     renderPositionPanel();
     persistSession();
     if (wasPlaying) startPlayback();
+  }
+  function stepBackOneBar() {
+    if (state.ended || state.barIndex <= 0) return;
+    stopPlayback();
+    state.barIndex--;
+    state.prevClose = state.barIndex > 0 ? state.bars[state.barIndex - 1].c : null;
+    state.tickIndex = 0;
+    state.ticks = genSecondTicks(state.bars[state.barIndex], state.prevClose, `${state.trade.id}:practice:${state.barIndex}`);
+    seedSeries(state.bars.slice(0, state.barIndex));
+    paintFormingBar();
+    renderLivePrice(currentPrice());
+    renderProgress();
+    renderPositionPanel();
+    persistSession();
+  }
+  function updateStepBackBtn() {
+    if (!els.stepBackBtn) return;
+    els.stepBackBtn.disabled = state.ended || state.barIndex <= 0;
   }
   function scrubTo(targetBarIndex) {
     if (state.ended) return;
@@ -886,11 +895,13 @@
         </div>
       </div>
       <div class="quiz-summary-actions" style="margin-top:16px;">
-        <button class="btn-confirm" id="pr-recap-again-btn">Practice another chart</button>
+        <button class="btn-confirm" id="pr-recap-replay-btn">↺ Replay this chart</button>
+        <button class="btn-advanced" id="pr-recap-again-btn">Practice another chart</button>
         <a class="btn-advanced" href="trade.html?id=${encodeURIComponent(t.id)}" target="_blank" rel="noopener">View the real trade</a>
       </div>
     `;
     document.getElementById("pr-recap-again-btn").addEventListener("click", goToSetup);
+    document.getElementById("pr-recap-replay-btn").addEventListener("click", () => loadChart(t.id));
   }
 
   // ---------------------------------------------------------------
@@ -919,9 +930,23 @@
     shares = Math.floor(Number(shares));
     if (!(shares > 0)) { if (!silent) showOrderMsg("Enter a positive number of shares.", true); return; }
     if (state.ended) return;
+    const pos = state.position;
+
+    // Long-only mode: a Sell can only close or reduce an existing long.
+    // It can never open a fresh short or add to one -- clamp an oversized
+    // sell down to whatever's actually held, and block it outright when
+    // flat (or already short, which shouldn't happen in this mode).
+    if (sideStr === "sell" && account.longOnly) {
+      const heldLong = pos && pos.side === "long" ? pos.shares : 0;
+      if (heldLong <= 0) {
+        if (!silent) showOrderMsg("Long-only mode: no shorting allowed -- buy first to open a position.", true);
+        return;
+      }
+      if (shares > heldLong) shares = heldLong;
+    }
+
     const price = currentPrice();
     const commission = ibkrTieredCommission(shares, price);
-    const pos = state.position;
     let realizedPnl = null;
 
     if (sideStr === "buy") {
@@ -1023,6 +1048,41 @@
     els.cashLine.textContent = fmtUsd(account.balance);
     els.equityLine.textContent = fmtUsd(accountEquity(price));
     els.bpLine.textContent = fmtUsd(buyingPower());
+
+    const heldLong = pos && pos.side === "long" ? pos.shares : 0;
+    const blockSell = account.longOnly && heldLong <= 0;
+    els.sellBtn.disabled = blockSell;
+    els.sellBtn.title = blockSell ? "Long only: no shorting -- buy first to open a position." : "";
+
+    renderSizePreview();
+    renderPartialExitRow();
+  }
+
+  // ---------------------------------------------------------------
+  // partial exits -- one-click ¼ / ½ / full close of whatever
+  // position is currently open, rounded down to a whole share
+  // (minimum 1) so a 1/4 click on a 3-share position still fires.
+  // ---------------------------------------------------------------
+  const PARTIAL_EXIT_STEPS = [
+    { label: "¼", frac: 0.25 },
+    { label: "½", frac: 0.5 },
+    { label: "Full", frac: 1 },
+  ];
+  function renderPartialExitRow() {
+    if (!els.partialExitRow) return;
+    const pos = state.position;
+    if (!pos || !(pos.shares > 0) || state.ended) {
+      els.partialExitRow.innerHTML = "";
+      return;
+    }
+    const closeSide = pos.side === "long" ? "sell" : "buy";
+    els.partialExitRow.innerHTML = `<span class="pp-partial-label">Exit</span>` + PARTIAL_EXIT_STEPS.map((step) => {
+      const closeShares = step.frac >= 1 ? pos.shares : Math.max(1, Math.floor(pos.shares * step.frac));
+      return `<button type="button" class="quiz-preset-btn pp-partial-btn" data-shares="${closeShares}" data-side="${closeSide}">${step.label} <span class="dim">${closeShares} sh</span></button>`;
+    }).join("");
+    els.partialExitRow.querySelectorAll(".pp-partial-btn").forEach((b) => {
+      b.addEventListener("click", () => executeOrder(b.dataset.side, Number(b.dataset.shares)));
+    });
   }
 
   function renderFillLog() {
@@ -1042,10 +1102,68 @@
   }
 
   function renderSizePresets() {
-    els.presetRow.innerHTML = SIZE_PRESETS.map((s) => `<button class="quiz-preset-btn" data-size="${s}">${s} sh</button>`).join("");
+    const isPct = account.sizeMode === "pct";
+    const presets = isPct ? PCT_PRESETS : SHARE_PRESETS;
+    const suffix = isPct ? "%" : " sh";
+    els.presetRow.innerHTML = presets.map((s) => `<button type="button" class="quiz-preset-btn" data-size="${s}">${s}${suffix}</button>`).join("");
     els.presetRow.querySelectorAll("button").forEach((b) => {
-      b.addEventListener("click", () => { els.sharesInput.value = b.dataset.size; });
+      b.addEventListener("click", () => { els.sharesInput.value = b.dataset.size; renderSizePreview(); });
     });
+  }
+
+  // ---------------------------------------------------------------
+  // sizing mode -- "shares" (raw share count, the original behavior)
+  // or "pct" (the input is read as a % of current buying power and
+  // converted to whole shares at order time, at whatever the price
+  // is the instant Buy/Sell is clicked -- like an order ticket's
+  // "% of buying power" quick-size, not a fixed share count locked
+  // in ahead of time).
+  // ---------------------------------------------------------------
+  function pctToShares(pct, price) {
+    if (!(pct > 0) || !(price > 0)) return 0;
+    const dollars = buyingPower() * (pct / 100);
+    return Math.max(0, Math.floor(dollars / price));
+  }
+  function resolveOrderShares() {
+    const raw = Number(els.sharesInput.value);
+    if (!Number.isFinite(raw) || raw <= 0) {
+      return { shares: 0, error: account.sizeMode === "pct" ? "Enter a positive % of capital." : "Enter a positive number of shares." };
+    }
+    if (account.sizeMode === "pct") {
+      const price = currentPrice();
+      const shares = pctToShares(raw, price);
+      if (shares <= 0) {
+        return { shares: 0, error: `${raw}% of buying power (${fmtUsd(buyingPower() * (raw / 100))}) doesn't cover 1 share at $${fmtPrice(price)}.` };
+      }
+      return { shares };
+    }
+    return { shares: Math.floor(raw) };
+  }
+  function renderSizePreview() {
+    if (!els.sizePreview) return;
+    if (account.sizeMode !== "pct") { els.sizePreview.textContent = ""; return; }
+    const raw = Number(els.sharesInput.value);
+    const price = currentPrice();
+    if (!Number.isFinite(raw) || raw <= 0 || !(price > 0)) { els.sizePreview.textContent = ""; return; }
+    const dollars = buyingPower() * (raw / 100);
+    const shares = pctToShares(raw, price);
+    els.sizePreview.textContent = shares > 0
+      ? `≈ ${shares} sh (${fmtUsd(dollars)} of ${fmtUsd(buyingPower())} buying power)`
+      : `Too small for 1 share at $${fmtPrice(price)}`;
+  }
+  function applySizeModeUI() {
+    const isPct = account.sizeMode === "pct";
+    if (els.sizeModeRow) {
+      els.sizeModeRow.querySelectorAll(".pp-size-mode-btn").forEach((b) => {
+        b.classList.toggle("active", b.dataset.mode === account.sizeMode);
+      });
+    }
+    if (els.sizeUnit) els.sizeUnit.textContent = isPct ? "% of buying power" : "shares";
+    if (els.sharesInput) {
+      if (isPct) { els.sharesInput.max = "100"; } else { els.sharesInput.removeAttribute("max"); }
+    }
+    renderSizePresets();
+    renderSizePreview();
   }
 
   function persistSession() {
@@ -1063,16 +1181,31 @@
     els.playScreen.style.display = "none";
     els.setupScreen.style.display = "";
     renderAccountPanel();
-    renderCandidates();
+    updateCandidateCount();
   }
 
   // ---------------------------------------------------------------
   // wiring
   // ---------------------------------------------------------------
   els.resetBtn.addEventListener("click", resetAccount);
-  els.search.addEventListener("input", renderCandidates);
-  els.setupSelect.addEventListener("change", renderCandidates);
   els.randomBtn.addEventListener("click", pickRandomCandidate);
+  if (els.longOnlyToggle) {
+    els.longOnlyToggle.addEventListener("change", () => {
+      account.longOnly = els.longOnlyToggle.checked;
+      saveAccount();
+      renderPositionPanel();
+    });
+  }
+  els.replayBtn.addEventListener("click", async () => {
+    if (!state.trade) return;
+    if (state.position && state.position.shares > 0) {
+      const ok = await UIModal.confirm("You still have an open position on this chart. Replaying will flatten it at the current price and restart from the very first bar. Continue?", { title: "Flatten & replay?", tone: "danger", confirmLabel: "Flatten & replay" });
+      if (!ok) return;
+    }
+    const id = state.trade.id;
+    endSession("replay");
+    loadChart(id);
+  });
   els.resumeBtn.addEventListener("click", () => {
     const sess = account.session;
     if (!sess) return;
@@ -1090,6 +1223,7 @@
     goToSetup();
   });
   els.playPauseBtn.addEventListener("click", () => { state.playing ? stopPlayback() : startPlayback(); });
+  els.stepBackBtn.addEventListener("click", stepBackOneBar);
   els.stepBtn.addEventListener("click", stepOneBar);
   els.skipBtn.addEventListener("click", async () => {
     const ok = await UIModal.confirm("Skip to the end of this chart? Any open position will be closed at the final price.", { title: "Skip to end?", confirmLabel: "Skip to end" });
@@ -1109,8 +1243,29 @@
     endSession("skipped");
   });
   els.progressSlider.addEventListener("change", () => scrubTo(Number(els.progressSlider.value)));
-  els.buyBtn.addEventListener("click", () => executeOrder("buy", els.sharesInput.value));
-  els.sellBtn.addEventListener("click", () => executeOrder("sell", els.sharesInput.value));
+  els.sharesInput.addEventListener("input", renderSizePreview);
+  if (els.sizeModeRow) {
+    els.sizeModeRow.querySelectorAll(".pp-size-mode-btn").forEach((b) => {
+      b.addEventListener("click", () => {
+        const mode = b.dataset.mode;
+        if (mode === account.sizeMode) return;
+        account.sizeMode = mode;
+        saveAccount();
+        els.sharesInput.value = mode === "pct" ? "25" : "100";
+        applySizeModeUI();
+      });
+    });
+  }
+  els.buyBtn.addEventListener("click", () => {
+    const { shares, error } = resolveOrderShares();
+    if (!shares) { showOrderMsg(error, true); return; }
+    executeOrder("buy", shares);
+  });
+  els.sellBtn.addEventListener("click", () => {
+    const { shares, error } = resolveOrderShares();
+    if (!shares) { showOrderMsg(error, true); return; }
+    executeOrder("sell", shares);
+  });
   els.srBtn.addEventListener("click", runSupportResistance);
 
   // ---------------------------------------------------------------
@@ -1120,9 +1275,8 @@
     .then((r) => (r.ok ? r.json() : []))
     .then((rows) => {
       state.index = Array.isArray(rows) ? rows : [];
-      populateSetupOptions();
       renderAccountPanel();
-      renderCandidates();
+      updateCandidateCount();
     })
     .catch(() => {
       els.candidateCount.textContent = "Couldn't load data/trades.json.";

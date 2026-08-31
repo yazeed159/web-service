@@ -6,9 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Practice — trade.log</title>
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="features.css">
-<link rel="stylesheet" href="modern.css">
+<link rel="stylesheet" href="core.css">
+<link rel="stylesheet" href="quiz-shared.css">
 <link rel="stylesheet" href="rewind.css">
 <link rel="stylesheet" href="practice.css">
 <link rel="stylesheet" href="ui-modal.css">
@@ -168,12 +167,13 @@
         <div class="panel-box">
           <div class="panel-box-head"><span class="title">Pick a chart to practice on</span></div>
           <div class="pr-filter-row">
-            <input type="text" id="pf-search" placeholder="Search symbol…">
-            <select id="pf-setup"><option value="">All setups</option></select>
-            <button class="btn-advanced" id="pf-random-btn">Surprise me</button>
+            <button class="btn-confirm" id="pf-random-btn">🎲 Pick a random chart</button>
+            <label class="pf-long-only-toggle" for="pf-long-only" title="When on, Sell only closes/reduces a long — you can never open or add to a short.">
+              <input type="checkbox" id="pf-long-only">
+              Long only — no shorting
+            </label>
           </div>
           <div class="pr-candidate-count" id="pf-candidate-count"></div>
-          <div class="pr-candidate-list" id="pf-candidate-list"></div>
         </div>
 
       </div>
@@ -183,10 +183,16 @@
 
         <div class="pp-head">
           <div class="pp-head-left">
-            <span id="pp-symbol-line">—</span>
+            <span class="pp-symbol-row">
+              <span id="pp-symbol-line">—</span>
+              <span id="pp-mode-badge"></span>
+            </span>
             <span id="pp-date-line"></span>
           </div>
-          <button class="btn-advanced" id="pp-change-chart-btn">Change chart</button>
+          <div class="pp-head-actions">
+            <button class="btn-advanced" id="pp-replay-btn" title="Restart this exact chart from the beginning">↺ Replay chart</button>
+            <button class="btn-advanced" id="pp-change-chart-btn">Change chart</button>
+          </div>
         </div>
 
         <div class="pp-body-grid">
@@ -198,8 +204,11 @@
             <div class="pp-transport">
               <button class="btn-advanced" id="pp-playpause-btn">▶ Play</button>
               <div class="quiz-speed-row" id="pp-speed-row"></div>
+              <div class="pp-transport-divider"></div>
+              <button class="btn-advanced" id="pp-step-back-btn" title="Step back one bar (chart only — doesn't undo fills)">−1 bar</button>
               <button class="btn-advanced" id="pp-step-btn">+1 bar</button>
               <button class="btn-advanced" id="pp-skip-btn">Skip to end</button>
+              <div class="pp-transport-divider"></div>
               <div class="pp-progress-block">
                 <span id="pp-progress-label">Bar 1 / 1</span>
                 <div class="pp-progress-track">
@@ -220,11 +229,16 @@
 
             <div class="pp-order-panel">
               <div class="title">Place an order</div>
+              <div class="pp-size-mode-row" id="pp-size-mode-row">
+                <button type="button" class="pp-size-mode-btn" data-mode="shares">Shares</button>
+                <button type="button" class="pp-size-mode-btn" data-mode="pct">% of capital</button>
+              </div>
               <div class="pp-size-row">
                 <input type="number" id="pp-shares-input" min="1" step="1" value="100">
-                <span class="unit">shares</span>
+                <span class="unit" id="pp-size-unit">shares</span>
               </div>
               <div id="pp-size-preset-row"></div>
+              <div class="pp-size-preview" id="pp-size-preview"></div>
               <div class="pp-order-btn-row">
                 <button class="pp-order-btn buy" id="pp-buy-btn">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
@@ -239,6 +253,7 @@
 
               <div class="pp-position-block">
                 <div id="pp-pos-summary"></div>
+                <div id="pp-partial-exit-row"></div>
                 <div class="pp-acct-line"><span>Cash</span><b id="pp-cash-line">—</b></div>
                 <div class="pp-acct-line"><span>Equity</span><b id="pp-equity-line">—</b></div>
                 <div class="pp-acct-line"><span>Buying power</span><b id="pp-bp-line">—</b></div>
@@ -278,6 +293,7 @@
 
 <script src="ui-modal.js"></script>
 <script src="practice.js"></script>
+<script src="nav.js"></script>
 <script src="modern.js"></script>
 </body>
 </html>

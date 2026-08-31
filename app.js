@@ -155,24 +155,8 @@
   setTab(tabFromHash());
   window.addEventListener("hashchange", () => setTab(tabFromHash()));
 
-  const sidebarBackdrop = document.createElement("div");
-  sidebarBackdrop.className = "sidebar-backdrop";
-  document.body.appendChild(sidebarBackdrop);
-  function closeMobileNav() { document.getElementById("sidebar").classList.remove("mobile-open"); }
-  sidebarBackdrop.addEventListener("click", closeMobileNav);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMobileNav(); });
-
-  document.getElementById("sidebar-toggle").addEventListener("click", () => {
-    const sidebar = document.getElementById("sidebar");
-    if (window.innerWidth <= 760 && sidebar.classList.contains("mobile-open")) {
-      closeMobileNav();
-    } else {
-      sidebar.classList.toggle("collapsed");
-    }
-  });
-  document.getElementById("mobile-nav-btn").addEventListener("click", () => {
-    document.getElementById("sidebar").classList.toggle("mobile-open");
-  });
+  // sidebar-toggle / mobile-nav-btn / backdrop / Escape-to-close are all
+  // wired up by nav.js (shared across every page) — see script tag below.
 
   // Reports → Detailed stats sub-tabs (separate from the main sidebar tabs)
   document.querySelectorAll(".subtab-btn").forEach((btn) => {
