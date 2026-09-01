@@ -18,6 +18,13 @@
   const ACCOUNT_KEY = "practice:account:v2";
   const DEFAULT_STARTING_BALANCE = 25000;
 
+  // Handoff key report.html's "Practice this trade" button writes a
+  // backtest trade into before opening this page -- lets you paper-trade
+  // a symbol the systematic backtester flagged, same as you can for a
+  // real logged journal trade, just without a data/trades/<id>.json file
+  // to fetch (the backtest trade already carries its own bars).
+  const PENDING_BACKTEST_KEY = "practice:pending_backtest_trade";
+
   const els = {
     setupScreen: document.getElementById("pr-setup-screen"),
     playScreen: document.getElementById("pr-play-screen"),
@@ -174,6 +181,14 @@
     return ibkrTieredCommission(shares, Number(trade.entry_price)) + ibkrTieredCommission(shares, Number(trade.exit_price));
   }
   function realisticActualNet(trade) {
+    // Backtest-sourced trades already carry a net P&L computed by the
+    // backtest engine under one consistent commission schedule -- unlike
+    // the noisy logged-journal commission field this function normally
+    // works around, there's nothing to recompute here.
+    if (trade.source === "backtest") {
+      const net = Number(trade.pnl_dollars);
+      if (Number.isFinite(net)) return net;
+    }
     const gross = Number(trade.pnl_before_comm);
     if (!Number.isFinite(gross)) return Number(trade.pnl_after_comm) || 0;
     return gross - realisticActualCommission(trade);
@@ -508,10 +523,15 @@
 
     if (account.session && account.session.chartId) {
       els.resumeBox.style.display = "";
-      const idxRow = state.index.find((r) => r.id === account.session.chartId);
-      els.resumeLabel.textContent = idxRow
-        ? `${idxRow.symbol} — ${idxRow.trade_date} (bar ${account.session.barIndex + 1})`
-        : `Chart ${account.session.chartId} (bar ${account.session.barIndex + 1})`;
+      if (account.session.backtestTrade) {
+        const bt = account.session.backtestTrade;
+        els.resumeLabel.textContent = `${bt.symbol} — ${bt.trade_date} (bar ${account.session.barIndex + 1}) · from backtest`;
+      } else {
+        const idxRow = state.index.find((r) => r.id === account.session.chartId);
+        els.resumeLabel.textContent = idxRow
+          ? `${idxRow.symbol} — ${idxRow.trade_date} (bar ${account.session.barIndex + 1})`
+          : `Chart ${account.session.chartId} (bar ${account.session.barIndex + 1})`;
+      }
     } else {
       els.resumeBox.style.display = "none";
     }
@@ -688,42 +708,86 @@
         UIModal.alert("Couldn't load that chart's data.", { title: "Load failed", tone: "danger" });
         return;
       }
-      state.trade = trade;
-      state.bars = trade.bars;
-      state.barIndex = resumeFrom ? Math.min(resumeFrom.barIndex || 0, trade.bars.length - 1) : computeScannerPopIndex(trade);
-      state.tickIndex = 0;
-      state.prevClose = state.barIndex > 0 ? state.bars[state.barIndex - 1].c : null;
-      state.ticks = genSecondTicks(state.bars[state.barIndex], state.prevClose, `${trade.id}:practice:${state.barIndex}`);
-      state.position = resumeFrom ? resumeFrom.position || null : null;
-      state.fills = resumeFrom ? resumeFrom.fills || [] : [];
-      state.markers = state.fills.map(fillToMarker);
-      state.playing = false;
-      state.ended = false;
-
-      account.session = {
-        chartId: trade.id,
-        barIndex: state.barIndex,
-        position: state.position,
-        fills: state.fills,
-      };
-      saveAccount();
-
-      els.setupScreen.style.display = "none";
-      els.playScreen.style.display = "";
-      els.recapBox.innerHTML = "";
-      els.recapBox.style.display = "none";
-      buildPlayChart();
-      renderHeader();
-      renderSymbolInfo(trade);
-      resetSrBox();
-      renderSpeedRow();
-      applySizeModeUI();
-      renderProgress();
-      renderLivePrice(state.ticks[0]);
-      renderPositionPanel();
-      renderFillLog();
-      updatePlayPauseBtn();
+      trade.source = trade.source || "journal";
+      startSession(trade, resumeFrom);
     });
+  }
+
+  // Normalizes a trade object handed off from the Backtester's report
+  // page (report.js's `t`: symbol, date, bars, entry/exit price+time,
+  // pnl_dollars(_gross), commission_total, r_multiple, win, verdict,
+  // better_entry/exit_price) into the same shape loadChart() produces,
+  // so every downstream function (header, recap, ticks, session
+  // persistence) can treat it like any other trade.
+  function normalizeBacktestTrade(raw) {
+    const id = raw.id || `bt:${raw.job_id || raw.jobId || "run"}:${raw.symbol}:${raw.date || raw.trade_date}:${raw.entry_time || ""}`;
+    return Object.assign({}, raw, {
+      id,
+      trade_date: raw.trade_date || raw.date,
+      source: "backtest",
+      backtestJobId: raw.job_id || raw.jobId || raw.backtestJobId || null,
+      backtestLabel: raw.label || raw.backtestLabel || null,
+    });
+  }
+
+  function loadBacktestTrade(raw, resumeFrom) {
+    stopPlayback();
+    const trade = normalizeBacktestTrade(raw);
+    if (!Array.isArray(trade.bars) || !trade.bars.length) {
+      UIModal.alert("Couldn't load that backtest trade's chart data.", { title: "Load failed", tone: "danger" });
+      return;
+    }
+    startSession(trade, resumeFrom);
+  }
+
+  function startSession(trade, resumeFrom) {
+    state.trade = trade;
+    state.bars = trade.bars;
+    state.barIndex = resumeFrom ? Math.min(resumeFrom.barIndex || 0, trade.bars.length - 1) : computeScannerPopIndex(trade);
+    state.tickIndex = 0;
+    state.prevClose = state.barIndex > 0 ? state.bars[state.barIndex - 1].c : null;
+    state.ticks = genSecondTicks(state.bars[state.barIndex], state.prevClose, `${trade.id}:practice:${state.barIndex}`);
+    state.position = resumeFrom ? resumeFrom.position || null : null;
+    state.fills = resumeFrom ? resumeFrom.fills || [] : [];
+    state.markers = state.fills.map(fillToMarker);
+    state.playing = false;
+    state.ended = false;
+
+    account.session = {
+      chartId: trade.id,
+      barIndex: state.barIndex,
+      position: state.position,
+      fills: state.fills,
+      // Backtest trades don't live at data/trades/<id>.json, so a resume
+      // (or a page reload) can't re-fetch them by id -- stash the whole
+      // trade (bars included) so resumeBtn can hand it straight back to
+      // loadBacktestTrade() instead.
+      backtestTrade: trade.source === "backtest" ? trade : null,
+    };
+    saveAccount();
+
+    els.setupScreen.style.display = "none";
+    els.playScreen.style.display = "";
+    els.recapBox.innerHTML = "";
+    els.recapBox.style.display = "none";
+    buildPlayChart();
+    renderHeader();
+    renderSymbolInfo(trade);
+    resetSrBox();
+    renderSpeedRow();
+    applySizeModeUI();
+    renderProgress();
+    renderLivePrice(state.ticks[0]);
+    renderPositionPanel();
+    renderFillLog();
+    updatePlayPauseBtn();
+  }
+
+  function replayCurrentTrade() {
+    const trade = state.trade;
+    if (!trade) return;
+    if (trade.source === "backtest") loadBacktestTrade(trade);
+    else loadChart(trade.id);
   }
 
   function fillToMarker(f) {
@@ -1157,6 +1221,24 @@
     const st = accountStats();
     const sessionFills = state.fills;
     const sessionPnl = sessionFills.reduce((s, f) => s + (f.realizedPnl || 0), 0);
+    const fromBacktest = t.source === "backtest";
+
+    // Same comparison journal-sourced trades get ("what actually
+    // happened" vs. what you just did), just pointed at the backtest's
+    // own simulated fill instead of a real logged trade when this
+    // session was launched from the Backtester's report page.
+    const colLabel = fromBacktest ? "What the backtest did on this symbol" : "What actually happened on this trade";
+    const resultLabel = fromBacktest ? "Backtest result" : "Real result";
+    const sideShares = t.side || t.shares
+      ? `${t.side ? escapeHtml(String(t.side)).toUpperCase() + " " : ""}${t.shares ? t.shares + " sh · " : ""}`
+      : "";
+    const rMultLine = fromBacktest && typeof t.r_multiple === "number" && isFinite(t.r_multiple)
+      ? `<div class="rb-line">R multiple: <b class="${t.r_multiple >= 0 ? "up" : "down"}">${t.r_multiple.toFixed(2)}R</b></div>`
+      : "";
+    const viewLink = fromBacktest
+      ? (t.backtestJobId ? `<a class="btn-advanced" href="report.html?id=${encodeURIComponent(t.backtestJobId)}" target="_blank" rel="noopener">View full backtest report</a>` : "")
+      : `<a class="btn-advanced" href="trade.html?id=${encodeURIComponent(t.id)}" target="_blank" rel="noopener">View the real trade</a>`;
+
     els.recapBox.style.display = "";
     els.recapBox.innerHTML = `
       <div class="panel-box-head"><span class="title">Session complete</span></div>
@@ -1168,20 +1250,21 @@
           <div class="rb-line">Account balance now: <b>${fmtUsd(account.balance)}</b></div>
         </div>
         <div class="pr-recap-col">
-          <div class="rb-label">What actually happened on this trade</div>
-          <div class="rb-line">${t.side.toUpperCase()} ${t.shares} sh · entered <b>$${fmtPrice(t.entry_price)}</b> at ${escapeHtml(t.entry_time)}, exited <b>$${fmtPrice(t.exit_price)}</b> at ${escapeHtml(t.exit_time)}</div>
-          <div class="rb-line">Real result: <b class="${realisticActualNet(t) >= 0 ? "up" : "down"}">${fmtMoney(realisticActualNet(t))}</b> after commission</div>
+          <div class="rb-label">${colLabel}</div>
+          <div class="rb-line">${sideShares}entered <b>$${fmtPrice(t.entry_price)}</b> at ${escapeHtml(t.entry_time || "")}, exited <b>$${fmtPrice(t.exit_price)}</b> at ${escapeHtml(t.exit_time || "")}</div>
+          <div class="rb-line">${resultLabel}: <b class="${realisticActualNet(t) >= 0 ? "up" : "down"}">${fmtMoney(realisticActualNet(t))}</b>${fromBacktest ? "" : " after commission"}</div>
+          ${rMultLine}
           ${t.verdict ? `<div class="rb-line" style="margin-top:8px;">${escapeHtml(t.verdict)}</div>` : ""}
         </div>
       </div>
       <div class="quiz-summary-actions" style="margin-top:16px;">
         <button class="btn-confirm" id="pr-recap-replay-btn">↺ Replay this chart</button>
         <button class="btn-advanced" id="pr-recap-again-btn">Practice another chart</button>
-        <a class="btn-advanced" href="trade.html?id=${encodeURIComponent(t.id)}" target="_blank" rel="noopener">View the real trade</a>
+        ${viewLink}
       </div>
     `;
     document.getElementById("pr-recap-again-btn").addEventListener("click", goToSetup);
-    document.getElementById("pr-recap-replay-btn").addEventListener("click", () => loadChart(t.id));
+    document.getElementById("pr-recap-replay-btn").addEventListener("click", replayCurrentTrade);
   }
 
   // ---------------------------------------------------------------
@@ -1491,14 +1574,14 @@
       const ok = await UIModal.confirm("You still have an open position on this chart. Replaying will flatten it at the current price and restart from the very first bar. Continue?", { title: "Flatten & replay?", tone: "danger", confirmLabel: "Flatten & replay" });
       if (!ok) return;
     }
-    const id = state.trade.id;
     endSession("replay");
-    loadChart(id);
+    replayCurrentTrade();
   });
   els.resumeBtn.addEventListener("click", () => {
     const sess = account.session;
     if (!sess) return;
-    loadChart(sess.chartId, sess);
+    if (sess.backtestTrade) loadBacktestTrade(sess.backtestTrade, sess);
+    else loadChart(sess.chartId, sess);
   });
   els.changeChartBtn.addEventListener("click", async () => {
     if (state.position && state.position.shares > 0) {
@@ -1606,4 +1689,22 @@
     .catch(() => {
       els.candidateCount.textContent = "Couldn't load data/trades.json.";
     });
+
+  // If report.html's "Practice this trade" button handed off a backtest
+  // trade, jump straight into it instead of the usual setup screen.
+  // Consumed once -- a plain refresh of practice.html afterward goes
+  // back to normal (the in-progress session itself still resumes via
+  // account.session.backtestTrade, same as any other chart).
+  (function loadPendingBacktestHandoff() {
+    let raw;
+    try {
+      raw = localStorage.getItem(PENDING_BACKTEST_KEY);
+      if (raw) localStorage.removeItem(PENDING_BACKTEST_KEY);
+    } catch (e) { raw = null; }
+    if (!raw) return;
+    try {
+      const trade = JSON.parse(raw);
+      loadBacktestTrade(trade);
+    } catch (e) { /* ignore malformed handoff */ }
+  })();
 })();

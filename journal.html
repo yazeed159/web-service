@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <script src="config.js"></script>
+<script src="grade.js"></script>
 <script src="share-export.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -91,6 +92,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
         <span class="nav-label">Playbooks</span>
       </a>
+      <a class="nav-item" href="notes.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <span class="nav-label">Notes Search</span>
+      </a>
 
       <a class="nav-item" href="calculator.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="12" x2="8.01" y2="12"></line><line x1="12" y1="12" x2="12.01" y2="12"></line><line x1="16" y1="12" x2="16.01" y2="12"></line><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg>
@@ -158,6 +163,15 @@
         <select id="f-rvol" title="Relative volume on the trade day"><option value="">All rel. volume</option></select>
         <select id="f-avgvol" title="30-day average daily volume"><option value="">All avg. volume</option></select>
         <select id="f-float" title="Float (shares outstanding, approx.)"><option value="">All float</option></select>
+        <select id="f-grade" title="Self-graded execution quality — separate from win/loss">
+          <option value="">All grades</option>
+          <option value="5">★★★★★ only</option>
+          <option value="4">★★★★+ &amp; up</option>
+          <option value="3">★★★+ &amp; up</option>
+          <option value="2">★★+ &amp; up</option>
+          <option value="1">★+ &amp; up</option>
+          <option value="none">Ungraded</option>
+        </select>
         <label title="Filter by entry time of day">
           <input type="time" id="f-time-from" style="width:96px;"> – <input type="time" id="f-time-to" style="width:96px;">
         </label>
@@ -190,6 +204,7 @@
     rvol: document.getElementById("f-rvol"),
     avgvol: document.getElementById("f-avgvol"),
     float: document.getElementById("f-float"),
+    grade: document.getElementById("f-grade"),
     flagged: document.getElementById("f-flagged"),
     timeFrom: document.getElementById("f-time-from"),
     timeTo: document.getElementById("f-time-to"),
@@ -267,6 +282,7 @@
     const rvol = els.rvol.value;
     const avgvol = els.avgvol.value;
     const floatTag = els.float.value;
+    const gradeFilter = els.grade.value;
     const flaggedOnly = els.flagged.checked;
     const timeFrom = els.timeFrom.value; // "HH:MM" or ""
     const timeTo = els.timeTo.value;
@@ -281,6 +297,11 @@
       if (rvol && r.rvol_tag !== rvol) return false;
       if (avgvol && r.avg_volume_tag !== avgvol) return false;
       if (floatTag && r.float_tag !== floatTag) return false;
+      if (gradeFilter) {
+        const g = window.TradeGrade ? window.TradeGrade.get(r) : null;
+        if (gradeFilter === "none") { if (g) return false; }
+        else if (!g || g < Number(gradeFilter)) return false;
+      }
       if (flaggedOnly && !(r.better_entry_price || r.better_exit_price)) return false;
       // entry_time is "HH:MM:SS"; time inputs give "HH:MM" -- string
       // comparison on the HH:MM prefix is enough for a same-day range.
@@ -300,6 +321,7 @@
     const sorted = rows.slice().sort((a, b) => {
       let av = a[sortKey], bv = b[sortKey];
       if (sortKey === "trade_date") { av = a.trade_date + a.entry_time; bv = b.trade_date + b.entry_time; }
+      if (sortKey === "grade") { av = window.TradeGrade ? (window.TradeGrade.get(a) || 0) : 0; bv = window.TradeGrade ? (window.TradeGrade.get(b) || 0) : 0; }
       if (typeof av === "string") { av = av || ""; bv = bv || ""; return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av); }
       av = av || 0; bv = bv || 0;
       return sortDir === "asc" ? av - bv : bv - av;
@@ -314,8 +336,9 @@
       ["exit_price", "Exit"],
       ["pnl_after_comm", "Net P&L"],
       ["win", "Result"],
+      ["grade", "Grade"],
     ];
-    const GRID_COLS = "100px 90px 130px 80px 80px 100px 80px 1fr";
+    const GRID_COLS = "100px 90px 130px 80px 80px 100px 80px 100px 1fr";
 
     // Volume/rvol/float pills for one row -- skips "_unknown" tags rather
     // than showing an empty-looking badge for trades published before this
@@ -348,7 +371,7 @@
           <tbody>
             ${sorted.map((r) => `
               <tr>
-                <td colspan="8" style="padding:0;">
+                <td colspan="9" style="padding:0;">
                   <a class="row-link" href="trade.html?id=${encodeURIComponent(r.id)}" style="display:grid; grid-template-columns: ${GRID_COLS}; align-items:center; padding:8px 10px; gap:6px;">
                     <span>${escapeHtml(r.trade_date)}</span>
                     <span>${escapeHtml(r.symbol)}</span>
@@ -357,6 +380,7 @@
                     <span>$${Number(r.exit_price).toFixed(2)}</span>
                     <span class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</span>
                     <span class="pill ${r.win ? "win" : "loss"}">${r.win ? "WIN" : "LOSS"}</span>
+                    <span>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(r), { size: 12 }) : "—"}</span>
                     <span style="display:flex; flex-wrap:wrap; gap:4px;">${volumePills(r)}</span>
                   </a>
                 </td>
@@ -412,6 +436,8 @@
     if (els.rvol.value) parts.push(tagLabel(els.rvol.value));
     if (els.avgvol.value) parts.push(tagLabel(els.avgvol.value));
     if (els.float.value) parts.push(tagLabel(els.float.value));
+    if (els.grade.value === "none") parts.push("Ungraded");
+    else if (els.grade.value) parts.push(`${els.grade.value}★ & up`);
     if (els.timeFrom.value || els.timeTo.value) parts.push(`Entry ${els.timeFrom.value || "…"}–${els.timeTo.value || "…"}`);
     if (els.flagged.checked) parts.push("Has better entry/exit flagged");
     return parts.length ? parts.join(" · ") : "All trades, unfiltered";

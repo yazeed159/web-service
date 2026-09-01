@@ -90,6 +90,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
         <span class="nav-label">Playbooks</span>
       </a>
+      <a class="nav-item" href="notes.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <span class="nav-label">Notes Search</span>
+      </a>
 
       <a class="nav-item" href="calculator.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="12" x2="8.01" y2="12"></line><line x1="12" y1="12" x2="12.01" y2="12"></line><line x1="16" y1="12" x2="16.01" y2="12"></line><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg>
@@ -313,18 +317,38 @@
         <div class="subtab-panel" id="subtab-price-volume">
           <div class="report-grid">
             <div class="panel-box">
-              <div class="panel-box-head"><span class="title">By entry price</span></div>
-              <div id="detail-price"><div class="loading-line">Loading…</div></div>
+              <div class="panel-box-head"><span class="title">Distribution by price</span></div>
+              <div id="detail-price-dist"><div class="loading-line">Loading…</div></div>
             </div>
             <div class="panel-box">
-              <div class="panel-box-head"><span class="title">By position size (shares)</span></div>
-              <div id="detail-size"><div class="loading-line">Loading…</div></div>
+              <div class="panel-box-head"><span class="title">Performance by price</span></div>
+              <div id="detail-price-perf"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+          <div class="report-grid" style="margin-top:18px;">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Distribution by volume traded (shares)</span></div>
+              <div id="detail-size-dist"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Performance by volume traded (shares)</span></div>
+              <div id="detail-size-perf"><div class="loading-line">Loading…</div></div>
             </div>
           </div>
         </div>
 
         <div class="subtab-panel" id="subtab-instrument">
           <div class="report-grid">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Performance by symbol — top 20</span></div>
+              <div id="detail-symbol-top20"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Performance by symbol — bottom 20</span></div>
+              <div id="detail-symbol-bottom20"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+          <div class="report-grid" style="margin-top:18px;">
             <div class="panel-box">
               <div class="panel-box-head"><span class="title">By symbol (top 10 by trade count)</span></div>
               <div id="detail-symbol"><div class="loading-line">Loading…</div></div>
@@ -352,9 +376,25 @@
         <div class="subtab-panel" id="subtab-win-loss-expectation">
           <div class="report-grid">
             <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Win/loss ratio</span></div>
+              <div id="detail-winloss-donut"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Win/loss P&amp;L comparison</span></div>
+              <div id="detail-winloss-compare"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+          <div class="report-grid" style="margin-top:18px;">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Trade expectation</span></div>
+              <div id="detail-expectation-bar"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
               <div class="panel-box-head"><span class="title">P&amp;L distribution</span></div>
               <div id="detail-distribution"><div class="loading-line">Loading…</div></div>
             </div>
+          </div>
+          <div class="report-grid" style="margin-top:18px;">
             <div class="panel-box">
               <div class="panel-box-head"><span class="title">Expectancy</span></div>
               <div id="detail-expectancy"><div class="loading-line">Loading…</div></div>
@@ -365,12 +405,22 @@
         <div class="subtab-panel" id="subtab-liquidity">
           <div class="report-grid">
             <div class="panel-box">
-              <div class="panel-box-head"><span class="title">By relative volume</span></div>
-              <div id="detail-rvol"><div class="loading-line">Loading…</div></div>
+              <div class="panel-box-head"><span class="title">Distribution by relative volume (% of 30d avg)</span></div>
+              <div id="detail-rvol-dist"><div class="loading-line">Loading…</div></div>
             </div>
             <div class="panel-box">
-              <div class="panel-box-head"><span class="title">By 30-day avg volume</span></div>
-              <div id="detail-avgvol"><div class="loading-line">Loading…</div></div>
+              <div class="panel-box-head"><span class="title">Performance by relative volume (% of 30d avg)</span></div>
+              <div id="detail-rvol-perf"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+          <div class="report-grid" style="margin-top:18px;">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Distribution by instrument volume</span></div>
+              <div id="detail-avgvol-dist"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Performance by instrument volume</span></div>
+              <div id="detail-avgvol-perf"><div class="loading-line">Loading…</div></div>
             </div>
           </div>
           <div class="report-grid" style="margin-top:18px;">
@@ -383,7 +433,27 @@
         </div>
 
         <div class="toptab-panel" id="toptab-overview">
-        <div class="section-label" style="margin-top:32px;">Streaks</div>
+        <div class="section-label" style="margin-top:32px; display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <span id="report-period-label">Trade distribution &amp; performance by month</span>
+          <select id="report-period-select" title="Rollup timeframe" style="text-transform:none; letter-spacing:normal; font-weight:500; background:var(--panel); border:1px solid var(--border); color:var(--text); font-family:var(--sans); font-size:12.5px; padding:6px 10px; border-radius:var(--radius-sm);">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly" selected>Monthly</option>
+            <option value="yearly">Yearly</option>
+          </select>
+        </div>
+        <div class="report-grid">
+          <div class="panel-box">
+            <div class="panel-box-head"><span class="title" id="report-period-dist-title">Trade distribution by month</span></div>
+            <div id="report-month-dist"><div class="loading-line">Loading…</div></div>
+          </div>
+          <div class="panel-box">
+            <div class="panel-box-head"><span class="title" id="report-period-perf-title">Performance by month</span></div>
+            <div id="report-month-perf"><div class="loading-line">Loading…</div></div>
+          </div>
+        </div>
+
+        <div class="section-label">Streaks</div>
         <div class="streak-strip" id="streak-strip"></div>
 
         <div class="section-label">Best &amp; worst trade</div>
@@ -455,7 +525,19 @@
         </div>
 
         <div class="toptab-panel" id="toptab-drawdown">
-          <div class="section-label">Drawdown</div>
+          <div class="section-label">Cumulative P&amp;L &amp; drawdown</div>
+          <div class="report-grid">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Cumulative P&amp;L</span></div>
+              <div id="dd-cum-pnl"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Cumulative drawdown</span></div>
+              <div id="dd-cum-drawdown"><div class="loading-line">Loading…</div></div>
+            </div>
+          </div>
+
+          <div class="section-label" style="margin-top:24px;">Drawdown</div>
           <div id="dd-summary"><div class="loading-line">Loading…</div></div>
 
           <div class="section-label" style="margin-top:24px;">Drawdown periods</div>

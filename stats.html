@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <script src="config.js"></script>
+<script src="grade.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Performance — trade.log</title>
@@ -90,6 +91,10 @@
       <a class="nav-item" href="playbooks.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
         <span class="nav-label">Playbooks</span>
+      </a>
+      <a class="nav-item" href="notes.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <span class="nav-label">Notes Search</span>
       </a>
 
       <a class="nav-item" href="calculator.html">
@@ -256,6 +261,12 @@
         <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Which setups are costing the most in chased entries and early/late exits.</p>
         <div id="slippage-by-setup"></div>
       </div>
+
+      <div class="panel-box" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Grade vs. P&amp;L</span></div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Self-graded execution quality (1-5 stars, set on each trade's page) compared against net P&amp;L per trade — separate axis from win/loss: a clean 1-star loss and a chased 5-star win both happen.</p>
+        <div id="grade-breakdown"></div>
+      </div>
     `;
 
     renderEquityCurve(sorted);
@@ -264,6 +275,7 @@
     renderSlippage(sorted);
     renderSlippageTrend(sorted);
     renderSlippageBySetup(sorted);
+    renderGradeBreakdown(sorted);
   }
 
   function avg(arr) {
@@ -465,6 +477,63 @@
       </div>
       ${tradeListHtml(rows, uid)}`;
     }).join("");
+    bindTradeToggles(el);
+  }
+
+  // Buckets every trade by its resolved self-grade (1-5, or "ungraded"
+  // when nothing's been set on that trade's page yet) and shows avg net
+  // P&L + win rate per bucket, plus a one-line Pearson correlation
+  // read against raw P&L across every graded trade. Grades set via
+  // trade.html are stored in localStorage (see grade.js) -- this page
+  // reads them the same way, per-browser, so it's showing "your grading
+  // so far in this browser", not a synced/published stat yet.
+  function renderGradeBreakdown(sorted) {
+    const el = document.getElementById("grade-breakdown");
+    if (!window.TradeGrade) {
+      el.innerHTML = `<div class="empty-state small">Grade utility failed to load.</div>`;
+      return;
+    }
+    const graded = sorted.filter((r) => window.TradeGrade.get(r) !== null);
+    if (!graded.length) {
+      el.innerHTML = `<div class="empty-state small">No trades graded yet — rate a trade's execution (1-5 stars) from its trade page to start seeing this breakdown.</div>`;
+      return;
+    }
+    const buckets = { 5: [], 4: [], 3: [], 2: [], 1: [] };
+    const ungraded = [];
+    for (const r of sorted) {
+      const g = window.TradeGrade.get(r);
+      if (g === null) ungraded.push(r);
+      else buckets[g].push(r);
+    }
+    const maxAbsPnl = Math.max(1, ...[5, 4, 3, 2, 1].map((g) => Math.abs(avg(buckets[g].map((r) => r.pnl_after_comm)))));
+    const rows = [5, 4, 3, 2, 1].filter((g) => buckets[g].length).map((g) => {
+      const trades = buckets[g];
+      const pnl = avg(trades.map((r) => r.pnl_after_comm));
+      const wins = trades.filter((r) => r.win).length;
+      const rate = Math.round((wins / trades.length) * 1000) / 10;
+      const pct = Math.round((Math.abs(pnl) / maxAbsPnl) * 100);
+      const color = pnl >= 0 ? "var(--green)" : "var(--red)";
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `<div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
+        <div class="bar-label">${window.TradeGrade.starsHtml(g, { size: 12 })}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${color};"></div></div>
+        <div style="width:80px; text-align:right; flex-shrink:0; color:${color};">${fmtMoney(pnl)} avg</div>
+        <div style="width:70px; text-align:right; flex-shrink:0; color:var(--text-faint);">${rate}% win</div>
+        <div style="width:60px; text-align:right; flex-shrink:0; color:var(--text-faint);">${trades.length}x</div>
+      </div>
+      ${tradeListHtml(trades, uid)}`;
+    }).join("");
+
+    const r = window.TradeGrade.correlationWithPnl(sorted);
+    const rNote = r === null
+      ? "Not enough spread across grades yet to compute a correlation."
+      : `Correlation between grade and net P&amp;L across ${graded.length} graded trade${graded.length === 1 ? "" : "s"}: <b style="color:${r >= 0 ? "var(--green)" : "var(--red)"};">${r.toFixed(2)}</b> ${Math.abs(r) < 0.2 ? "(weak — grading isn't tracking your actual results much)" : Math.abs(r) < 0.5 ? "(moderate)" : "(strong)"}.`;
+
+    el.innerHTML = `
+      ${rows}
+      ${ungraded.length ? `<div style="margin-top:8px; color:var(--text-faint); font-size:11.5px;">${ungraded.length} trade${ungraded.length === 1 ? "" : "s"} not graded yet — excluded above.</div>` : ""}
+      <p style="color:var(--text-faint); font-size:12px; margin:12px 0 0;">${rNote}</p>
+    `;
     bindTradeToggles(el);
   }
 

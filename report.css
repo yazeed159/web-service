@@ -117,7 +117,8 @@
 .rpt-chart-modal-head {
   display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px;
 }
-.rpt-chart-modal-head > div:first-child { display: flex; align-items: baseline; gap: 10px; font-weight: 600; font-size: 15px; }
+.rpt-chart-modal-head > div:first-child { display: flex; align-items: baseline; gap: 10px; font-weight: 600; font-size: 15px; flex: 1; min-width: 0; }
+.rpt-chart-practice-btn { flex-shrink: 0; white-space: nowrap; text-decoration: none; }
 .rpt-chart-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 11.5px; color: var(--text-dim); margin: 6px 0 10px; }
 .rpt-chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .rpt-chart-legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }

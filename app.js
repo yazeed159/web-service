@@ -5,6 +5,7 @@
   let activeFilter = "all";
   let searchTerm = "";
   let reportFilters = { symbol: "", tags: [], side: "all", duration: "all", setup: "all" };
+  let reportPeriodTimeframe = "monthly"; // daily | weekly | monthly | yearly -- see renderPeriodDistPerf
   let calYear = null;
   let calMonth = null; // 0-indexed
   let selectedDay = null;
@@ -75,10 +76,13 @@
     document.getElementById("report-country").innerHTML = '<div class="empty-state small">No data yet.</div>';
     document.getElementById("detailed-stat-grid").innerHTML = "";
     [
-      "detail-dow", "detail-hour", "detail-price", "detail-size", "detail-symbol", "detail-side",
-      "detail-setup", "detail-lessons", "detail-distribution", "detail-expectancy",
-      "detail-rvol", "detail-avgvol", "detail-float",
-    ].forEach((id) => (document.getElementById(id).innerHTML = '<div class="empty-state small">No data yet.</div>'));
+      "detail-dow", "detail-hour", "detail-price-dist", "detail-price-perf", "detail-size-dist", "detail-size-perf",
+      "detail-symbol", "detail-side", "detail-symbol-top20", "detail-symbol-bottom20",
+      "detail-setup", "detail-lessons", "detail-distribution", "detail-expectancy", "detail-expectation-bar",
+      "detail-winloss-donut", "detail-winloss-compare",
+      "detail-rvol-dist", "detail-rvol-perf", "detail-avgvol-dist", "detail-avgvol-perf", "detail-float",
+      "report-month-dist", "report-month-perf", "dd-cum-pnl", "dd-cum-drawdown",
+    ].forEach((id) => { const el = document.getElementById(id); if (el) el.innerHTML = '<div class="empty-state small">No data yet.</div>'; });
     [
       "wld-summary", "wld-top-win", "wld-top-loss", "dd-summary", "dd-periods",
       "compare-a", "compare-b", "tagb-setup", "tagb-lessons",
@@ -93,6 +97,129 @@
     const sign = v >= 0 ? "+" : "-";
     return sign + "$" + Math.abs(v).toFixed(2);
   }
+
+  // ----------------------------------------------------------------
+  // Reports — Tradervue-style axis bar charts, donut, and equity-curve
+  // charts. Plain inline SVG (no charting library) so these stay cheap
+  // to render inside a list of report panels.
+  // ----------------------------------------------------------------
+  function fmtAxisMoney(v) {
+    const abs = Math.abs(v);
+    const s = abs >= 1000 ? "$" + (abs / 1000).toFixed(abs >= 10000 ? 0 : 1) + "k" : "$" + Math.round(abs);
+    return (v < 0 ? "-" : "") + s;
+  }
+  function fmtAxisCount(v) { return String(Math.round(v)); }
+
+  // rows: [{label, value, color}]. Draws horizontal bars from a shared
+  // zero-line, with a labeled numeric axis underneath -- same shape as
+  // Tradervue's "Distribution by X" / "Performance by X" pairs.
+  function svgAxisBarChart(rows, opts) {
+    opts = opts || {};
+    const width = opts.width || 480;
+    const barH = opts.barHeight || 20;
+    const gap = 9;
+    const labelW = opts.labelW || 108;
+    const rightPad = 10;
+    const rowH = barH + gap;
+    const topPad = 4, bottomPad = 24;
+    const plotW = Math.max(60, width - labelW - rightPad);
+    const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r.value)));
+    const hasNeg = rows.some((r) => r.value < 0);
+    const height = topPad + rows.length * rowH + bottomPad;
+    const fmt = opts.fmt || ((v) => String(v));
+    const zeroX = hasNeg ? plotW / 2 : 0;
+    const scale = (hasNeg ? plotW / 2 : plotW) / maxAbs;
+
+    const gridCount = hasNeg ? 4 : 4;
+    let axis = "";
+    for (let i = 0; i <= gridCount; i++) {
+      const frac = i / gridCount;
+      const x = hasNeg ? frac * plotW : frac * plotW;
+      const val = hasNeg ? (frac * 2 - 1) * maxAbs : frac * maxAbs;
+      const gx = (labelW + x).toFixed(1);
+      axis += `<line x1="${gx}" y1="${topPad}" x2="${gx}" y2="${(topPad + rows.length * rowH).toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.6"/>`;
+      axis += `<text x="${gx}" y="${(topPad + rows.length * rowH + 16).toFixed(1)}" font-size="10" fill="var(--text-faint)" text-anchor="middle">${escapeHtml(fmt(val))}</text>`;
+    }
+    const bars = rows.map((r, i) => {
+      const y = topPad + i * rowH;
+      const barW = Math.max(Math.abs(r.value) * scale, r.value === 0 ? 0 : 1.5);
+      const x = hasNeg ? (r.value >= 0 ? labelW + zeroX : labelW + zeroX - barW) : labelW;
+      const color = r.color || "var(--green)";
+      return `<text x="${labelW - 8}" y="${(y + barH / 2 + 4).toFixed(1)}" font-size="11" fill="var(--text-dim)" text-anchor="end">${escapeHtml(r.label)}</text>` +
+        `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH}" rx="2" fill="${color}"/>`;
+    }).join("");
+    const zeroLine = hasNeg ? `<line x1="${(labelW + zeroX).toFixed(1)}" y1="${topPad}" x2="${(labelW + zeroX).toFixed(1)}" y2="${(topPad + rows.length * rowH).toFixed(1)}" stroke="var(--text-faint)" stroke-width="1.3"/>` : "";
+    return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" style="overflow:visible; display:block;">${axis}${bars}${zeroLine}</svg>`;
+  }
+
+  // buckets: [{label, trades}]. Renders the "count" side into distElId
+  // and the "net P&L" side into perfElId -- the paired chart Tradervue
+  // shows for price, size, symbol, and volume breakdowns.
+  function renderPairedHistogram(distElId, perfElId, buckets, opts) {
+    const distEl = document.getElementById(distElId), perfEl = document.getElementById(perfElId);
+    if (!distEl || !perfEl) return;
+    const present = buckets.filter((b) => b.trades.length);
+    if (!present.length) {
+      distEl.innerHTML = `<div class="empty-state small">No data yet.</div>`;
+      perfEl.innerHTML = `<div class="empty-state small">No data yet.</div>`;
+      return;
+    }
+    const distRows = present.map((b) => ({ label: b.label, value: b.trades.length, color: "var(--green)" }));
+    const perfRows = present.map((b) => {
+      const net = b.trades.reduce((s, t) => s + t.pnl_after_comm, 0);
+      return { label: b.label, value: net, color: net >= 0 ? "var(--green)" : "var(--red)" };
+    });
+    distEl.innerHTML = svgAxisBarChart(distRows, Object.assign({ fmt: fmtAxisCount }, opts));
+    perfEl.innerHTML = svgAxisBarChart(perfRows, Object.assign({ fmt: fmtAxisMoney }, opts));
+  }
+
+  function svgDonutChart(winPct, opts) {
+    opts = opts || {};
+    const size = opts.size || 220, stroke = opts.stroke || 34;
+    const r = (size - stroke) / 2, c = size / 2;
+    const circ = 2 * Math.PI * r;
+    const winLen = (winPct / 100) * circ;
+    return `<svg viewBox="0 0 ${size} ${size}" width="100%" height="${size}" style="max-width:${size}px; display:block; margin:0 auto;">
+      <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--red)" stroke-width="${stroke}"/>
+      <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--green)" stroke-width="${stroke}"
+        stroke-dasharray="${winLen.toFixed(1)} ${circ.toFixed(1)}" stroke-dashoffset="${(circ * 0.25).toFixed(1)}" transform="scale(1,-1)" style="transform-origin:${c}px ${c}px;"/>
+      <text x="${c}" y="${c - 4}" text-anchor="middle" font-size="22" font-weight="700" fill="var(--green)">${winPct.toFixed(1)}%</text>
+      <text x="${c}" y="${c + 16}" text-anchor="middle" font-size="11" fill="var(--text-faint)">win rate</text>
+    </svg>`;
+  }
+
+  // points: array of numbers in chronological order (e.g. cumulative
+  // equity or drawdown). Draws a simple filled line chart with a
+  // labeled y-axis -- used for the Cumulative P&L / Cumulative
+  // Drawdown panels.
+  function svgLineAreaChart(points, opts) {
+    opts = opts || {};
+    const width = opts.width || 640, height = opts.height || 220;
+    const padL = 56, padR = 12, padT = 12, padB = 22;
+    const plotW = width - padL - padR, plotH = height - padT - padB;
+    const color = opts.color || "var(--green)";
+    const min = Math.min(0, ...points), max = Math.max(0, ...points);
+    const range = max - min || 1;
+    const xAt = (i) => padL + (points.length > 1 ? (i / (points.length - 1)) * plotW : 0);
+    const yAt = (v) => padT + plotH - ((v - min) / range) * plotH;
+    const zeroY = yAt(0);
+    const linePts = points.map((v, i) => `${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(" ");
+    const areaPts = `${padL.toFixed(1)},${zeroY.toFixed(1)} ${linePts} ${xAt(points.length - 1).toFixed(1)},${zeroY.toFixed(1)}`;
+    const gridCount = 4;
+    let axis = "";
+    for (let i = 0; i <= gridCount; i++) {
+      const val = min + (i / gridCount) * range;
+      const gy = yAt(val);
+      axis += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${width - padR}" y2="${gy.toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.6"/>`;
+      axis += `<text x="${padL - 8}" y="${(gy + 3).toFixed(1)}" font-size="10" fill="var(--text-faint)" text-anchor="end">${escapeHtml(fmtAxisMoney(val))}</text>`;
+    }
+    return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" style="overflow:visible; display:block;">
+      ${axis}
+      <polygon points="${areaPts}" fill="${color}" opacity="0.16"/>
+      <polyline points="${linePts}" fill="none" stroke="${color}" stroke-width="2"/>
+    </svg>`;
+  }
+
 
   // ----------------------------------------------------------------
   // Reports — click-to-expand trade lists (same pattern as patterns.html's
@@ -672,6 +799,21 @@
 
     const applyBtn = document.getElementById("report-filter-apply");
     if (applyBtn) applyBtn.addEventListener("click", () => applyReportFiltersAndRender());
+
+    // Daily/Weekly/Monthly/Yearly rollup switcher for the "Trade
+    // distribution & performance by <period>" charts -- same underlying
+    // aggregation as before (renderPeriodDistPerf), just grouped by a
+    // different date-key. Routed through applyReportFiltersAndRender()
+    // (not called directly) so a timeframe switch still respects
+    // whatever report filters (symbol/side/setup/etc.) are active.
+    const periodSelect = document.getElementById("report-period-select");
+    if (periodSelect) {
+      periodSelect.value = reportPeriodTimeframe;
+      periodSelect.addEventListener("change", () => {
+        reportPeriodTimeframe = periodSelect.value;
+        applyReportFiltersAndRender();
+      });
+    }
   }
 
   // ================================================================
@@ -680,6 +822,7 @@
   function renderReports() {
     renderDetailedStats();
     renderDetailSubtabs();
+    renderPeriodDistPerf();
     renderStreaks();
     renderHighlights();
     renderSymbolBreakdown();
@@ -1095,6 +1238,7 @@
   }
 
   function renderDrawdown() {
+    renderCumulativeCharts();
     const d = computeDrawdownStats();
     const summaryEl = document.getElementById("dd-summary");
     const periodsEl = document.getElementById("dd-periods");
@@ -1436,13 +1580,16 @@
     renderDetailPrice();
     renderDetailSize();
     renderDetailSymbolTable();
+    renderDetailSymbolTop20Bottom20();
     renderDetailSide();
     renderDetailSetup();
     renderDetailLessons();
+    renderDetailWinLossRatio();
+    renderDetailExpectationBar();
     renderDetailDistribution();
     renderDetailExpectancy();
-    renderBreakdownTable("detail-rvol", groupByField("rvol_tag"), "Relative volume");
-    renderBreakdownTable("detail-avgvol", groupByField("avg_volume_tag"), "Avg volume");
+    renderDetailRvol();
+    renderDetailAvgVol();
     renderBreakdownTable("detail-float", groupByField("float_tag"), "Float");
   }
 
@@ -1472,8 +1619,9 @@
 
   // ---- Price/Volume ----
   const PRICE_BUCKETS = [
-    { label: "< $5", max: 5 }, { label: "$5–20", max: 20 }, { label: "$20–50", max: 50 },
-    { label: "$50–100", max: 100 }, { label: "$100–200", max: 200 }, { label: "> $200", max: Infinity },
+    { label: "< $2", max: 2 }, { label: "$2 – $4.99", max: 4.99 }, { label: "$5 – $9.99", max: 9.99 },
+    { label: "$10 – $19.99", max: 19.99 }, { label: "$20 – $49.99", max: 49.99 }, { label: "$50 – $99.99", max: 99.99 },
+    { label: "$100 – $199.99", max: 199.99 }, { label: "$200 – $499.99", max: 499.99 }, { label: "$500+", max: Infinity },
   ];
   function renderDetailPrice() {
     const buckets = PRICE_BUCKETS.map((b) => ({ ...b, trades: [] }));
@@ -1481,12 +1629,13 @@
       const bucket = buckets.find((b) => t.entry_price <= b.max);
       (bucket || buckets[buckets.length - 1]).trades.push(t);
     });
-    setBucketBreakdownHtml("detail-price", buckets, "Entry price");
+    renderPairedHistogram("detail-price-dist", "detail-price-perf", buckets, { labelW: 96 });
   }
 
   const SIZE_BUCKETS = [
-    { label: "< 100 sh", max: 100 }, { label: "100–300 sh", max: 300 }, { label: "300–1,000 sh", max: 1000 },
-    { label: "1,000–5,000 sh", max: 5000 }, { label: "> 5,000 sh", max: Infinity },
+    { label: "< 20", max: 20 }, { label: "20 – 49", max: 49 }, { label: "50 – 99", max: 99 },
+    { label: "100 – 500", max: 500 }, { label: "500 – 1,000", max: 1000 }, { label: "1,000 – 2,500", max: 2500 },
+    { label: "2,500 – 5,000", max: 5000 }, { label: "5,000 – 10,000", max: 10000 }, { label: "10,000+", max: Infinity },
   ];
   function renderDetailSize() {
     const buckets = SIZE_BUCKETS.map((b) => ({ ...b, trades: [] }));
@@ -1494,7 +1643,7 @@
       const bucket = buckets.find((b) => t.shares <= b.max);
       (bucket || buckets[buckets.length - 1]).trades.push(t);
     });
-    setBucketBreakdownHtml("detail-size", buckets, "Position size");
+    renderPairedHistogram("detail-size-dist", "detail-size-perf", buckets, { labelW: 96 });
   }
 
   // ---- Instrument ----
@@ -1505,6 +1654,31 @@
       .sort((a, b) => b.trades.length - a.trades.length)
       .slice(0, 10);
     setBucketBreakdownHtml("detail-symbol", buckets, "Symbol");
+  }
+
+  // Performance by symbol, Top 20 / Bottom 20 by net P&L -- Tradervue's
+  // signature Instrument-tab chart. Every symbol with at least one
+  // trade is eligible; a symbol only ever appears on one side (its own
+  // net P&L is either >= 0 or < 0, never both).
+  function renderDetailSymbolTop20Bottom20() {
+    const map = symbolAgg();
+    const entries = Array.from(map.entries()).map(([sym, e]) => ({
+      label: sym, net: e.net, trades: e.trades,
+    }));
+    const winners = entries.filter((e) => e.net >= 0).sort((a, b) => b.net - a.net).slice(0, 20);
+    const losers = entries.filter((e) => e.net < 0).sort((a, b) => a.net - b.net).slice(0, 20).reverse();
+
+    const chartFor = (elId, rows, color) => {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      if (!rows.length) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
+      el.innerHTML = svgAxisBarChart(
+        rows.map((r) => ({ label: r.label, value: r.net, color })),
+        { fmt: fmtAxisMoney, labelW: 60, barHeight: 15 }
+      );
+    };
+    chartFor("detail-symbol-top20", winners, "var(--green)");
+    chartFor("detail-symbol-bottom20", losers, "var(--red)");
   }
 
   function renderDetailSide() {
@@ -1588,6 +1762,77 @@
     bindTradeToggles(el);
   }
 
+  // ---- Liquidity ----
+  // relative_volume is a raw multiplier on each trade row (1.0 = 100% of
+  // 30-day average volume) -- real numeric buckets, matching Tradervue's
+  // own "% of Nd avg" scale.
+  const RVOL_BUCKETS = [
+    { label: "25% – 49%", max: 0.49 }, { label: "50% – 74%", max: 0.74 }, { label: "75% – 99%", max: 0.99 },
+    { label: "100% – 124%", max: 1.24 }, { label: "125% – 149%", max: 1.49 }, { label: "150% – 199%", max: 1.99 },
+    { label: "200% – 299%", max: 2.99 }, { label: "300% – 499%", max: 4.99 }, { label: "500%+", max: Infinity },
+  ];
+  function renderDetailRvol() {
+    const withRvol = trades.filter((t) => typeof t.relative_volume === "number" && isFinite(t.relative_volume));
+    const buckets = RVOL_BUCKETS.map((b) => ({ ...b, trades: [] }));
+    const under = { label: "< 25%", trades: [] };
+    withRvol.forEach((t) => {
+      if (t.relative_volume < 0.25) { under.trades.push(t); return; }
+      const bucket = buckets.find((b) => t.relative_volume <= b.max);
+      (bucket || buckets[buckets.length - 1]).trades.push(t);
+    });
+    const all = under.trades.length ? [under, ...buckets] : buckets;
+    renderPairedHistogram("detail-rvol-dist", "detail-rvol-perf", all, { labelW: 92 });
+  }
+
+  // No raw 30-day-average-volume number is carried on the trades index
+  // (only trade.js's per-trade detail fetch sees that) -- so this uses
+  // the index's own avg_volume_tag categories rather than fabricating
+  // Tradervue's exact dollar-volume tiers off data that isn't there.
+  function renderDetailAvgVol() {
+    const map = new Map();
+    trades.forEach((t) => {
+      if (!t.avg_volume_tag) return;
+      if (!map.has(t.avg_volume_tag)) map.set(t.avg_volume_tag, []);
+      map.get(t.avg_volume_tag).push(t);
+    });
+    const buckets = Array.from(map.entries()).map(([label, ts]) => ({ label: prettifyTag(label), trades: ts }));
+    renderPairedHistogram("detail-avgvol-dist", "detail-avgvol-perf", buckets, { labelW: 92 });
+  }
+
+  // ---- Win/Loss/Expectation ----
+  function renderDetailWinLossRatio() {
+    const d = computeDetailedStats();
+    const donutEl = document.getElementById("detail-winloss-donut");
+    const cmpEl = document.getElementById("detail-winloss-compare");
+    if (!donutEl || !cmpEl) return;
+    if (!d.n) {
+      donutEl.innerHTML = `<div class="empty-state small">No data yet.</div>`;
+      cmpEl.innerHTML = `<div class="empty-state small">No data yet.</div>`;
+      return;
+    }
+    const winPct = (d.wins.length / d.n) * 100;
+    donutEl.innerHTML = svgDonutChart(winPct) + `<div style="text-align:center; color:var(--text-faint); font-size:11.5px; margin-top:4px;">${d.wins.length} wins · ${d.losses.length} losses</div>`;
+    const grossWin = d.wins.reduce((s, t) => s + t.pnl_after_comm, 0);
+    const grossLoss = d.losses.reduce((s, t) => s + t.pnl_after_comm, 0);
+    cmpEl.innerHTML = svgAxisBarChart(
+      [{ label: "Gain", value: grossWin, color: "var(--green)" }, { label: "Loss", value: grossLoss, color: "var(--red)" }],
+      { fmt: fmtAxisMoney, labelW: 56, barHeight: 34 }
+    );
+  }
+
+  function renderDetailExpectationBar() {
+    const d = computeDetailedStats();
+    const el = document.getElementById("detail-expectation-bar");
+    if (!el) return;
+    if (!d.n) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
+    const winRateFrac = d.wins.length / d.n, lossRateFrac = d.losses.length / d.n;
+    const expectancy = winRateFrac * d.avgWin + lossRateFrac * d.avgLoss;
+    el.innerHTML = svgAxisBarChart(
+      [{ label: "Expectation", value: expectancy, color: expectancy >= 0 ? "var(--green)" : "var(--red)" }],
+      { fmt: fmtAxisMoney, labelW: 84, barHeight: 34 }
+    ) + `<div style="text-align:center; color:var(--text-faint); font-size:11.5px; margin-top:2px;">Expected P&amp;L per trade</div>`;
+  }
+
   function renderDetailExpectancy() {
     const d = computeDetailedStats();
     const el = document.getElementById("detail-expectancy");
@@ -1603,5 +1848,76 @@
       ["Kelly percentage", d.kelly != null ? d.kelly.toFixed(1) + "%" : "—"],
     ];
     el.innerHTML = `<div class="kv-list">${rows.map(([k, v]) => `<div class="kv-row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join("")}</div>`;
+  }
+
+  // ================================================================
+  // REPORTS — Overview: trade distribution & performance by period
+  // ================================================================
+  // Tradervue-style Daily/Weekly/Monthly/Yearly rollup switcher (see
+  // #report-period-select). All four timeframes are the exact same
+  // group-by-date-key-then-net-P&L aggregation Monthly already did --
+  // only periodKey() below changes per timeframe. Monthly stays the
+  // default so existing behavior/screenshots don't shift.
+  const PERIOD_NOUN = { daily: "day", weekly: "week", monthly: "month", yearly: "year" };
+
+  // Returns the bucket key + display label for one trade's trade_date
+  // under the given timeframe. Weekly buckets by the Monday that starts
+  // ISO week the trade falls in (labeled as that Monday's date, so bars
+  // read left-to-right in real chronological order same as the other
+  // timeframes) -- "T12:00:00" avoids the DST/UTC-rollover edge cases
+  // the rest of this file already works around when parsing trade_date.
+  function periodKey(dateStr, timeframe) {
+    if (!dateStr) return null;
+    if (timeframe === "yearly") return dateStr.slice(0, 4);
+    if (timeframe === "monthly") return dateStr.slice(0, 7);
+    if (timeframe === "daily") return dateStr;
+    // weekly
+    const d = new Date(dateStr + "T12:00:00");
+    const dow = d.getDay(); // 0=Sun..6=Sat
+    const mondayOffset = dow === 0 ? -6 : 1 - dow;
+    d.setDate(d.getDate() + mondayOffset);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+
+  function renderPeriodDistPerf() {
+    const timeframe = reportPeriodTimeframe || "monthly";
+    const noun = PERIOD_NOUN[timeframe] || "month";
+
+    const labelEl = document.getElementById("report-period-label");
+    if (labelEl) labelEl.innerHTML = `Trade distribution &amp; performance by ${noun}`;
+    const distTitleEl = document.getElementById("report-period-dist-title");
+    if (distTitleEl) distTitleEl.textContent = `Trade distribution by ${noun}`;
+    const perfTitleEl = document.getElementById("report-period-perf-title");
+    if (perfTitleEl) perfTitleEl.textContent = `Performance by ${noun}`;
+
+    const map = new Map();
+    trades.forEach((t) => {
+      const key = periodKey(t.trade_date, timeframe);
+      if (!key) return;
+      if (!map.has(key)) map.set(key, { label: key, trades: [] });
+      map.get(key).trades.push(t);
+    });
+    const buckets = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+    renderPairedHistogram("report-month-dist", "report-month-perf", buckets, { labelW: 64, barHeight: 15 });
+  }
+
+  // ================================================================
+  // REPORTS — Cumulative P&L / Cumulative Drawdown charts
+  // ================================================================
+  function renderCumulativeCharts() {
+    const pnlEl = document.getElementById("dd-cum-pnl");
+    const ddEl = document.getElementById("dd-cum-drawdown");
+    if (!pnlEl || !ddEl) return;
+    if (!trades.length) {
+      pnlEl.innerHTML = `<div class="empty-state small">No data yet.</div>`;
+      ddEl.innerHTML = `<div class="empty-state small">No data yet.</div>`;
+      return;
+    }
+    const startEquity = trades[0].equity_after - trades[0].pnl_after_comm;
+    const cumPnl = trades.map((t) => t.equity_after - startEquity);
+    let runPeak = -Infinity;
+    const drawdown = cumPnl.map((v) => { runPeak = Math.max(runPeak, v); return v - runPeak; });
+    pnlEl.innerHTML = svgLineAreaChart(cumPnl, { color: "var(--green)" });
+    ddEl.innerHTML = svgLineAreaChart(drawdown, { color: "var(--red)" });
   }
 })();

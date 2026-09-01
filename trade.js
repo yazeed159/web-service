@@ -144,6 +144,11 @@
           &nbsp;→&nbsp; exit ${trade.exit_time} @ $${trade.exit_price.toFixed(2)}
           &nbsp;·&nbsp; <span class="meta-standout">${trade.shares} sh</span> &nbsp;·&nbsp; held <span class="meta-standout">${trade.time_in_trade || "—"}</span>
         </div>
+        <div class="trade-meta" style="margin-top:6px; display:flex; align-items:center; gap:8px;" id="grade-row">
+          <span style="color:var(--text-faint); font-size:12px;">Execution grade</span>
+          <span id="grade-widget">${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(trade), { interactive: true, size: 16 }) : ""}</span>
+          <span id="grade-label" style="color:var(--text-faint); font-size:11.5px;"></span>
+        </div>
       </div>
 
       <div class="pnl-breakdown">
@@ -271,6 +276,22 @@
     `;
 
     buildCharts(trade);
+
+    // Self-graded execution quality (1-5 stars, separate from win/loss --
+    // see grade.js). Persists to localStorage immediately on click; the
+    // small label next to the stars just echoes what was picked so it
+    // isn't purely a hover tooltip.
+    const gradeRow = document.getElementById("grade-row");
+    if (gradeRow && window.TradeGrade) {
+      const gradeLabelEl = document.getElementById("grade-label");
+      const current = window.TradeGrade.get(trade);
+      const paintLabel = (g) => { gradeLabelEl.textContent = g ? window.TradeGrade.label(g) : "Not graded — click a star"; };
+      paintLabel(current);
+      window.TradeGrade.attachInteractive(gradeRow, trade.id, current, (next) => {
+        trade.grade = next; // keep in sync for this render (siblingNav/etc. don't read it, but future code might)
+        paintLabel(next);
+      });
+    }
 
     const copyBtn = document.getElementById("copy-verdict-btn");
     if (copyBtn) {

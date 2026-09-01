@@ -57,6 +57,19 @@ as-is on GitHub Pages (or any static host).
   count (flagged if under 5), net P&L, average P&L per trade, and the
   most common `lesson_tags` entry logged against that setup. Click a
   card to jump to `journal.html` pre-filtered to just that setup.
+- **`notes.html`** ("Notes Search" in the nav) — full-text search across
+  every trade's freeform text: `verdict`, `lessons[]`, `walk_away_rule`,
+  the AI's `better_entry`/`better_exit` `.reason` strings, and
+  `symbol_info.description` — the fields `journal.html` deliberately
+  doesn't filter on, since none of them live in the `trades.json` index.
+  Unlike every other page here, it has to fetch each trade's
+  `data/trades/<id>.json` detail file at least once (6 at a time, with a
+  progress line) since that's the only place this text lives; the
+  extracted text (not the heavy `bars`/`indicators` payload) is then
+  cached in `sessionStorage` so re-searching or revisiting the page in
+  the same tab doesn't refetch everything. Matches are grouped by which
+  field they hit, shown with a highlighted snippet, and link straight to
+  that trade's page. Checkboxes let you narrow which fields are searched.
 
 ## Volume / relative volume / float
 
@@ -145,6 +158,7 @@ dashboard/
   stats.html             "Performance" — equity curve, setup win rates, slippage, feedback tally
   patterns.html           recurring lesson-tag clusters
   playbooks.html          per-setup_type scorecards, links into journal.html
+  notes.html               full-text search across trade verdicts/lessons/notes
   backtester.html         ORB / gap-gainer strategy backtester (see below)
   chat.html                AI Chat — ask questions about your trade history (see below)
   rewind.html              Rewind — chart-reading practice on your own logged trades (see below)
@@ -400,6 +414,21 @@ straight from the IBKR Flex report (not a recomputed percentage):
   reasoning/pattern as `sector`/`country`. See "Volume / relative volume /
   float" below for what produces them and their possible values. Omitted
   (not just empty) when the underlying stat couldn't be computed.
+- `grade` — optional integer 1-5. A **self-graded execution-quality
+  rating**, deliberately separate from `win` — a trade can be a winner
+  with sloppy execution (chased the entry, held past the plan) or a
+  loser that was played exactly right. Unlike every other field above,
+  nothing in the pipeline or vision-LLM step produces this; it's the
+  trader's own after-the-fact call. Today it's set as 1-5 stars on
+  `trade.html` and kept in `localStorage` (see `grade.js`) rather than
+  written back to this file, since the dashboard has no write path to
+  the repo — treat the schema slot as reserved for whenever the publish
+  step (or a manual review pass) starts writing it here directly,
+  matching how `sector`/`country` started as empty-until-populated
+  fields. `journal.html` can filter by grade, and `stats.html`'s "Grade
+  vs. P&L" panel correlates it against `pnl_after_comm` — both read
+  `grade` off the row first and only fall back to the local self-grade
+  when it's absent, so a real published value always wins.
 
 ### `data/trades/<id>.json` — the detail record
 

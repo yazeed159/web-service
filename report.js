@@ -215,6 +215,7 @@
     chartVerdict: document.getElementById("rpt-chart-verdict"),
     chartLegendBetterEntry: document.getElementById("rpt-chart-legend-better-entry"),
     chartLegendBetterExit: document.getElementById("rpt-chart-legend-better-exit"),
+    chartPracticeBtn: document.getElementById("rpt-chart-practice-btn"),
   };
 
   function showOnly(which) {
@@ -632,7 +633,31 @@
     els.chartLegendBetterEntry.style.display = t.better_entry_price ? "" : "none";
     els.chartLegendBetterExit.style.display = t.better_exit_price ? "" : "none";
 
+    wirePracticeHandoff(t);
     buildTradeChart(t);
+  }
+
+  // Hands this backtest trade's own bars + entry/exit/pnl/verdict off to
+  // the Practice tab via localStorage (same-origin, so the new tab can
+  // read it right away), so "Practice this trade" lets you paper-trade
+  // the exact symbol/session the backtester flagged, then see the
+  // backtester's own result on it once the practice session ends --
+  // the same "what actually happened" comparison practice.html already
+  // shows for real logged journal trades.
+  const PRACTICE_HANDOFF_KEY = "practice:pending_backtest_trade";
+  function wirePracticeHandoff(t) {
+    if (!els.chartPracticeBtn) return;
+    const hasBars = Array.isArray(t.bars) && t.bars.length;
+    els.chartPracticeBtn.style.display = hasBars ? "" : "none";
+    if (!hasBars) return;
+    els.chartPracticeBtn.onclick = () => {
+      try {
+        localStorage.setItem(PRACTICE_HANDOFF_KEY, JSON.stringify(Object.assign({}, t, {
+          job_id: currentId,
+          label: (currentReport && currentReport.label) || null,
+        })));
+      } catch (e) { /* storage full/unavailable -- link still opens practice.html normally */ }
+    };
   }
 
   function buildTradeChart(trade) {
