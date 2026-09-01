@@ -27,7 +27,7 @@
 
   window.sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  var isLoginPage = /(^|\/)login\.html$/.test(window.location.pathname);
+  var isLoginPage = /\/login(\.html)?\/?$/.test(window.location.pathname);
 
   function addLogoutButton() {
     if (document.getElementById("auth-logout-btn")) return;
@@ -41,7 +41,7 @@
       "cursor:pointer;backdrop-filter:blur(4px);";
     btn.addEventListener("click", function () {
       window.sb.auth.signOut().then(function () {
-        window.location.href = "login.html";
+        window.location.href = "login";
       });
     });
     document.body.appendChild(btn);
@@ -52,11 +52,11 @@
   window.AUTH_READY = window.sb.auth.getSession().then(function (res) {
     var session = res && res.data && res.data.session;
     if (!session) {
-      if (!isLoginPage) window.location.href = "login.html";
+      if (!isLoginPage) window.location.href = "login";
       return null;
     }
     if (isLoginPage) {
-      window.location.href = "index.html";
+      window.location.href = "/";
       return null;
     }
     addLogoutButton();
@@ -66,7 +66,7 @@
   // Keep behavior in sync if the session changes in another tab, or
   // expires mid-visit.
   window.sb.auth.onAuthStateChange(function (_event, session) {
-    if (!session && !isLoginPage) window.location.href = "login.html";
+    if (!session && !isLoginPage) window.location.href = "login";
   });
 
   // ------------------------------------------------------------------
