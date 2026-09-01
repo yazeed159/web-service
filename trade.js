@@ -45,8 +45,7 @@
   // publish pipeline sorts it (trade_date + entry_time). Fetching it is
   // best-effort — if it 404s or is missing, the page still renders fine
   // without nav arrows.
-  let siblingsPromise = fetch("data/trades.json")
-    .then((r) => (r.ok ? r.json() : []))
+  let siblingsPromise = window.fetchTradesIndex()
     .catch(() => [])
     .then((rows) =>
       (Array.isArray(rows) ? rows : []).slice().sort((a, b) =>
@@ -58,9 +57,9 @@
     content.innerHTML = `<div class="empty-state">No trade id in the URL — go back and pick one from the journal.</div>`;
   } else {
     Promise.all([
-      fetch(`data/trades/${encodeURIComponent(id)}.json`).then((r) => {
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.json();
+      window.fetchTradeDetail(id).then((trade) => {
+        if (!trade) throw new Error("Not found");
+        return trade;
       }),
       siblingsPromise,
     ])
@@ -69,7 +68,7 @@
         content.innerHTML = `
           <div class="empty-state">
             Couldn't load this trade (${escapeHtml(String(err.message))}).<br>
-            <span style="font-size:12.5px">Expected a file at <code>data/trades/${escapeHtml(id)}.json</code> — if the pipeline's publish step for this trade hasn't run successfully yet, that file won't exist.</span>
+            <span style="font-size:12.5px">If the pipeline's publish step for this trade hasn't run successfully yet, it won't be in your Supabase trades/trade_details tables.</span>
           </div>`;
       });
   }

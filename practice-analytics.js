@@ -341,8 +341,8 @@
     // real symbol/trade_date so tables can show something more useful
     // than a raw id and link into the real trade. Analytics still
     // render fine (just with bare chart ids) if this fetch fails.
-    fetch("data/trades.json")
-      .then((r) => (r.ok ? r.json() : []))
+    window.fetchTradesIndex()
+      .catch(() => [])
       .then((rows) => {
         (Array.isArray(rows) ? rows : []).forEach((row) => indexMap.set(row.id, row));
       })

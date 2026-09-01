@@ -85,21 +85,20 @@
 
   // ---- data loading + summarizing ----------------------------------
 
-  fetch("data/trades.json")
-    .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+  window.fetchTradesIndex()
     .then((rows) => {
       trades = Array.isArray(rows) ? rows : [];
       onDataReady();
     })
     .catch((err) => {
-      dataStatusEl.innerHTML = `<span class="chat-data-status-dot error"></span> Couldn't load data/trades.json (${escapeHtml(String(err.message))}) — I can still chat, but without your trade data.`;
+      dataStatusEl.innerHTML = `<span class="chat-data-status-dot error"></span> Couldn't load your trades (${escapeHtml(String(err.message))}) — I can still chat, but without your trade data.`;
       renderChips();
       setInputEnabled(true);
     });
 
   function onDataReady() {
     if (!trades.length) {
-      dataStatusEl.innerHTML = `<span class="chat-data-status-dot"></span> No trades published yet — data/trades.json is empty.`;
+      dataStatusEl.innerHTML = `<span class="chat-data-status-dot"></span> No trades published yet.`;
     } else {
       const dates = trades.map((t) => t.trade_date).filter(Boolean).sort();
       const range = dates.length ? `${dates[0]} → ${dates[dates.length - 1]}` : "";

@@ -1679,15 +1679,14 @@
   // ---------------------------------------------------------------
   // boot
   // ---------------------------------------------------------------
-  fetch("data/trades.json")
-    .then((r) => (r.ok ? r.json() : []))
+  window.fetchTradesIndex()
     .then((rows) => {
       state.index = Array.isArray(rows) ? rows : [];
       renderAccountPanel();
       updateCandidateCount();
     })
     .catch(() => {
-      els.candidateCount.textContent = "Couldn't load data/trades.json.";
+      els.candidateCount.textContent = "Couldn't load your trades.";
     });
 
   // If report.html's "Practice this trade" button handed off a backtest

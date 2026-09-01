@@ -41,7 +41,16 @@ window.N8N_BACKTEST_IMPORT_URL = "https://yazeed105.app.n8n.cloud/webhook/backte
 // Point this at whatever's printed when you run start_chart_service.ps1
 // (the ngrok https URL, no trailing slash) -- it changes every time you
 // restart ngrok on the free plan, so update this line each session.
-window.CHART_SERVICE_URL = "https://sensitize-resurface-semisweet.ngrok-free.dev";
+window.CHART_SERVICE_URL = "https://chart-service-wroj.onrender.com";
+
+// Supabase project -- used by auth.js for login/signup and to read/write
+// this user's own trades (Row Level Security scopes every query to
+// auth.uid() automatically, so no user_id filtering is needed client-side).
+// The anon key is safe to expose in the browser; it can only do what RLS
+// allows. NEVER put the service_role key here -- that one only belongs in
+// n8n's credentials store.
+window.SUPABASE_URL = "https://vxddylzwyyhkvptztkpr.supabase.co";
+window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4ZGR5bHp3eXloa3ZwdHp0a3ByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyOTI5MTgsImV4cCI6MjEwMzg2ODkxOH0.c8CsoRwoSSTboXhi8asY3FgFXPCFaCxEOftnACGedrI";
 
 document.addEventListener("DOMContentLoaded", function () {
   var link = document.getElementById("import-trades-link");

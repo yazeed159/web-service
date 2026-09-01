@@ -16,11 +16,7 @@
   const statGrid = document.getElementById("stat-grid");
   const dayGroups = document.getElementById("day-groups");
 
-  fetch("data/trades.json")
-    .then((r) => {
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.json();
-    })
+  window.fetchTradesIndex()
     .then((data) => {
       trades = data.slice().sort((a, b) => (a.trade_date + a.entry_time).localeCompare(b.trade_date + b.entry_time));
       if (!trades.length) {
@@ -47,7 +43,7 @@
       applyReportFiltersAndRender();
     })
     .catch((err) => {
-      const msg = `Couldn't load data/trades.json (${escapeHtml(String(err.message))}). Make sure you're serving this folder, not opening index.html via file://.`;
+      const msg = `Couldn't load your trades (${escapeHtml(String(err.message))}). Make sure you're signed in and Supabase is reachable.`;
       dayGroups.innerHTML = `<div class="empty-state">${msg}</div>`;
       statGrid.innerHTML = "";
       document.getElementById("last-updated").textContent = "No data";

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="auth.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>trade.log — sign in</title>
+<link rel="icon" href="data:,">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    font-family: system-ui, -apple-system, sans-serif;
+    background: radial-gradient(circle at 20% 20%, #1b1530, #0b0b12 60%);
+    color: #eee;
+  }
+  .card {
+    width: 340px; padding: 32px; border-radius: 16px;
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+    backdrop-filter: blur(6px);
+  }
+  h1 {
+    font-size: 20px; margin: 0 0 4px; text-align: center;
+    background: linear-gradient(90deg, #8457ff, #22d3ee);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  p.sub { text-align: center; color: #999; font-size: 13px; margin: 0 0 24px; }
+  label { display: block; font-size: 12.5px; color: #bbb; margin: 14px 0 6px; }
+  input {
+    width: 100%; padding: 10px 12px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.15); background: rgba(0,0,0,.3); color: #eee; font-size: 14px;
+  }
+  input:focus { outline: none; border-color: #8457ff; }
+  button.primary {
+    width: 100%; margin-top: 22px; padding: 11px; border: none; border-radius: 8px;
+    background: linear-gradient(90deg, #8457ff, #22d3ee); color: #0b0b12; font-weight: 600; font-size: 14px;
+    cursor: pointer;
+  }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  .toggle { text-align: center; margin-top: 18px; font-size: 13px; color: #999; }
+  .toggle a { color: #8457ff; cursor: pointer; text-decoration: underline; }
+  .msg { margin-top: 14px; font-size: 13px; text-align: center; min-height: 18px; }
+  .msg.error { color: #ff6b6b; }
+  .msg.ok { color: #4ade80; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>trade.log</h1>
+    <p class="sub" id="mode-sub">Sign in to your journal</p>
+
+    <form id="auth-form">
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="email" required>
+
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required minlength="6">
+
+      <button class="primary" id="submit-btn" type="submit">Sign in</button>
+      <div class="msg" id="msg"></div>
+    </form>
+
+    <div class="toggle">
+      <span id="toggle-text">No account yet?</span>
+      <a id="toggle-link">Create one</a>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+      var mode = "signin"; // or "signup"
+
+      var form = document.getElementById("auth-form");
+      var emailEl = document.getElementById("email");
+      var passwordEl = document.getElementById("password");
+      var submitBtn = document.getElementById("submit-btn");
+      var msgEl = document.getElementById("msg");
+      var modeSub = document.getElementById("mode-sub");
+      var toggleText = document.getElementById("toggle-text");
+      var toggleLink = document.getElementById("toggle-link");
+
+      function setMsg(text, kind) {
+        msgEl.textContent = text || "";
+        msgEl.className = "msg" + (kind ? " " + kind : "");
+      }
+
+      toggleLink.addEventListener("click", function () {
+        mode = mode === "signin" ? "signup" : "signin";
+        if (mode === "signup") {
+          modeSub.textContent = "Create your journal account";
+          submitBtn.textContent = "Create account";
+          toggleText.textContent = "Already have an account?";
+          toggleLink.textContent = "Sign in";
+        } else {
+          modeSub.textContent = "Sign in to your journal";
+          submitBtn.textContent = "Sign in";
+          toggleText.textContent = "No account yet?";
+          toggleLink.textContent = "Create one";
+        }
+        setMsg("");
+      });
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        if (!window.sb) {
+          setMsg("Auth isn't set up -- check SUPABASE_URL/SUPABASE_ANON_KEY in config.js.", "error");
+          return;
+        }
+        var email = emailEl.value.trim();
+        var password = passwordEl.value;
+        submitBtn.disabled = true;
+        setMsg("");
+
+        var action = mode === "signup"
+          ? window.sb.auth.signUp({ email: email, password: password })
+          : window.sb.auth.signInWithPassword({ email: email, password: password });
+
+        action.then(function (res) {
+          submitBtn.disabled = false;
+          if (res.error) {
+            setMsg(res.error.message, "error");
+            return;
+          }
+          if (mode === "signup" && res.data && res.data.user && !res.data.session) {
+            setMsg("Check your email to confirm your account, then sign in.", "ok");
+            return;
+          }
+          window.location.href = "index.html";
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

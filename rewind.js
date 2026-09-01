@@ -700,8 +700,7 @@
   // ---------------------------------------------------------------
   // boot: load the index, populate the setup screen
   // ---------------------------------------------------------------
-  fetch("data/trades.json")
-    .then((r) => (r.ok ? r.json() : []))
+  window.fetchTradesIndex()
     .then((rows) => {
       state.index = Array.isArray(rows) ? rows : [];
       populateSetupOptions();
@@ -709,7 +708,7 @@
       renderHistoryPanel();
     })
     .catch(() => {
-      els.candidateCount.textContent = "Couldn't load data/trades.json.";
+      els.candidateCount.textContent = "Couldn't load your trades.";
       els.startBtn.disabled = true;
     });
 
