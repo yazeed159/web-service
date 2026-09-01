@@ -79,6 +79,11 @@
         <span class="nav-label">Performance</span>
       </a>
 
+      <a class="nav-item" href="edge-analysis.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7-4 11L21 3 10 14l11 7-7-4"></path><circle cx="3" cy="3" r="1.4" fill="currentColor" stroke="none"></circle></svg>
+        <span class="nav-label">Edge Analysis</span>
+      </a>
+
       <a class="nav-item" href="patterns.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
         <span class="nav-label">Patterns</span>
@@ -156,15 +161,47 @@
             <div class="panel-box-head"><span class="title">Set up a rewind</span></div>
 
             <div class="rw-field-group">
+              <div class="rw-field-group-label">Source</div>
+
+              <div class="quiz-filter-row" style="margin-bottom:0;">
+                <label>Where setups come from</label>
+                <div class="quiz-mode-row" id="qf-source-row">
+                  <button class="quiz-mode-btn active" data-source="log">My logged trades</button>
+                  <button class="quiz-mode-btn" data-source="backtest">Blind backtester</button>
+                </div>
+                <div class="quiz-tickmode-hint" id="qf-source-hint" style="display:none;">
+                  Generates practice setups from a saved strategy run instead of your own history — random real historical
+                  entries that matched a strategy you backtested, so this is practice generation, not replay of trades
+                  you actually took.
+                </div>
+              </div>
+            </div>
+
+            <div class="rw-field-group" id="qf-log-fields">
               <div class="rw-field-group-label">What to review</div>
 
               <div class="quiz-filter-row">
                 <label>Setup type</label>
                 <select id="qf-setup"><option value="">All setups</option></select>
               </div>
+            </div>
+
+            <div class="rw-field-group" id="qf-bt-fields" style="display:none;">
+              <div class="rw-field-group-label">Strategy to practice</div>
 
               <div class="quiz-filter-row">
-                <label>Which trades</label>
+                <label>Saved backtest run</label>
+                <select id="qf-bt-run"><option value="">Loading runs…</option></select>
+              </div>
+
+              <div class="quiz-tickmode-hint" id="qf-bt-hint" style="display:none;"></div>
+            </div>
+
+            <div class="rw-field-group">
+              <div class="rw-field-group-label">Which trades</div>
+
+              <div class="quiz-filter-row" id="qf-result-row">
+                <label>Outcome</label>
                 <select id="qf-result">
                   <option value="">Any outcome (most realistic)</option>
                   <option value="win">Winners only</option>

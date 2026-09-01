@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Edge Analysis — trade.log</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="core.css">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="modernEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <a href="index.html" class="brand">
+        <span class="mark">T</span>
+        <span class="name">trade<span class="muted">.log</span></span>
+      </a>
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Journal</div>
+
+      <a class="nav-item" href="index.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
+        <span class="nav-label">Dashboard</span>
+      </a>
+
+      <a class="nav-item" href="index.html#dayview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line></svg>
+        <span class="nav-label">Day View</span>
+      </a>
+
+      <a class="nav-item" href="index.html#tradeview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        <span class="nav-label">Trade View</span>
+      </a>
+
+      <a class="nav-item" href="index.html#reports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line></svg>
+        <span class="nav-label">Reports</span>
+      </a>
+
+      <div class="nav-section-label">More</div>
+
+      <a class="nav-item" id="import-trades-link" href="#" target="_blank" rel="noopener" title="Upload a CSV of past trades to import">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+        <span class="nav-label">Import Trades</span>
+      </a>
+
+      <a class="nav-item" href="journal.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        <span class="nav-label">Journal</span>
+      </a>
+
+      <a class="nav-item" href="stats.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.4 8.6 12 15l-3-3-4 4"></path></svg>
+        <span class="nav-label">Performance</span>
+      </a>
+
+      <a class="nav-item active" href="edge-analysis.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7-4 11L21 3 10 14l11 7-7-4"></path><circle cx="3" cy="3" r="1.4" fill="currentColor" stroke="none"></circle></svg>
+        <span class="nav-label">Edge Analysis</span>
+      </a>
+
+      <a class="nav-item" href="patterns.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
+        <span class="nav-label">Patterns</span>
+      </a>
+
+      <a class="nav-item" href="playbooks.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+        <span class="nav-label">Playbooks</span>
+      </a>
+
+      <a class="nav-item" href="calculator.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="12" x2="8.01" y2="12"></line><line x1="12" y1="12" x2="12.01" y2="12"></line><line x1="16" y1="12" x2="16.01" y2="12"></line><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg>
+        <span class="nav-label">Calculator</span>
+      </a>
+
+      <a class="nav-item" href="backtester.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 6"></polyline><polyline points="15 6 21 6 21 12"></polyline></svg>
+        <span class="nav-label">Backtester</span>
+      </a>
+
+      <a class="nav-item" href="chat.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
+        <span class="nav-label">AI Chat</span>
+      </a>
+
+      <a class="nav-item" href="rewind.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
+        <span class="nav-label">Rewind</span>
+      </a>
+
+      <a class="nav-item" href="practice.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+        <span class="nav-label">Practice</span>
+      </a>
+
+      <a class="nav-item" href="practice-analytics.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+        <span class="nav-label">Practice Analytics</span>
+      </a>
+</nav>
+
+    <div class="sidebar-bottom">
+      <div class="pipeline-status"><span class="dot"></span><span>Edge Analysis</span></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 id="page-title">Edge Analysis</h1>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="panel-head">
+        <div class="sub">Deeper, skeptical cuts of <span class="mono">data/trades.json</span> (and, where noted, each trade's bar data) — built to poke holes in an edge before you trust it, not to flatter it.</div>
+      </div>
+
+      <div id="edge-content">
+        <div class="loading-line">Loading…</div>
+      </div>
+    </div>
+
+    <div class="footer">trade.log — generated from data/trades.json</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const content = document.getElementById("edge-content");
+  const REGRET_MAX = 100; // cap on how many detail files a bar-level run will fetch
+
+  let allSorted = [];
+  let regretResults = [];
+  let rowSeq = 0;
+
+  fetch("data/trades.json")
+    .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then((rows) => render(Array.isArray(rows) ? rows : []))
+    .catch((err) => {
+      content.innerHTML = `<div class="empty-state">Couldn't load data/trades.json (${escapeHtml(String(err.message))}). This page needs the trades index published by the pipeline.</div>`;
+    });
+
+  // ---------- shared helpers (same conventions as stats.html / journal.html) ----------
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function fmtMoney(v) {
+    if (typeof v !== "number" || !isFinite(v)) return "—";
+    const sign = v >= 0 ? "+" : "-";
+    return sign + "$" + Math.abs(v).toFixed(2);
+  }
+  function avg(arr) {
+    if (!arr.length) return 0;
+    return arr.reduce((s, v) => s + v, 0) / arr.length;
+  }
+  function pctWin(trades) {
+    if (!trades.length) return 0;
+    return Math.round((trades.filter((t) => t.win).length / trades.length) * 1000) / 10;
+  }
+  function groupBy(rows, keyFn) {
+    const g = {};
+    for (const r of rows) { const k = keyFn(r); (g[k] = g[k] || []).push(r); }
+    return g;
+  }
+  function tradeListHtml(rowsList, uid) {
+    const sorted = rowsList.slice().sort((a, b) => (b.trade_date || "").localeCompare(a.trade_date || ""));
+    return `<ul class="tag-trade-list" id="${uid}">
+      ${sorted.map((r) => `<li><a href="trade.html?id=${encodeURIComponent(r.id)}">${escapeHtml(r.symbol)} — ${escapeHtml(r.trade_date)} <span class="${r.win ? "up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></a></li>`).join("")}
+    </ul>`;
+  }
+  function bindTradeToggles(container) {
+    container.querySelectorAll("[data-trade-toggle]").forEach((row) => {
+      row.addEventListener("click", () => {
+        const list = document.getElementById(row.getAttribute("data-trade-toggle"));
+        if (list) list.classList.toggle("open");
+      });
+    });
+  }
+  function makeChart(el, height, extraOpts) {
+    const chart = LightweightCharts.createChart(el, Object.assign({
+      width: el.clientWidth,
+      height,
+      layout: { background: { color: "transparent" }, textColor: "#8b8fa3" },
+      grid: { vertLines: { color: "#1b1e26" }, horzLines: { color: "#1b1e26" } },
+      rightPriceScale: { borderColor: "#262a34" },
+      timeScale: { borderColor: "#262a34" },
+    }, extraOpts || {}));
+    window.addEventListener("resize", () => chart.applyOptions({ width: el.clientWidth }));
+    return chart;
+  }
+  const HINT = 'color:var(--text-faint); font-size:12.5px; margin:-6px 0 16px; line-height:1.5;';
+  const GROUP_LABEL = 'font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em; margin:0 0 6px;';
+
+  // ---------- page shell ----------
+  function render(rows) {
+    if (!rows.length) {
+      content.innerHTML = `<div class="empty-state">No trades published yet.</div>`;
+      return;
+    }
+    allSorted = rows.slice().sort((a, b) => ((a.trade_date || "") + (a.entry_time || "")).localeCompare((b.trade_date || "") + (b.entry_time || "")));
+    const baseline = pctWin(allSorted);
+
+    content.innerHTML = `
+      <div class="filters" style="margin-bottom:18px; gap:8px;">
+        <a href="#section-decay" class="pill" style="text-decoration:none;">Edge Decay</a>
+        <a href="#section-volume" class="pill" style="text-decoration:none;">Volume &amp; Float</a>
+        <a href="#section-regret" class="pill" style="text-decoration:none;">Regret Curve</a>
+        <a href="#section-sizing" class="pill" style="text-decoration:none;">Position Sizing</a>
+      </div>
+
+      <div class="panel-box" id="section-decay" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Setup Edge Decay</span></div>
+        <p style="${HINT}">Every setup's trades split into an earlier and later half, plus a check on whether the last 3 trades are doing more work than the rest of the sample. Click a row to see the trades behind it.</p>
+        <div id="decay-body"></div>
+        <div class="filters" style="margin:18px 0 10px;"><select id="decay-setup-select"></select></div>
+        <div id="decay-chart" style="height:220px;"></div>
+        <p style="${HINT} margin-top:8px;">Rolling win rate as each setup's trades accumulate in order — a real edge should settle down as the sample grows, not keep swinging with every new trade.</p>
+      </div>
+
+      <div class="panel-box" id="section-volume" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Volume &amp; Float Edge Check</span></div>
+        <p style="${HINT}">Baseline win rate across every published trade is <b>${baseline}%</b>. A tag only means something if it clears that baseline by a real margin on a real sample — small-n rows are flagged.</p>
+        <div style="margin-bottom:16px;"><div style="${GROUP_LABEL}">Relative Volume Tag</div><div id="rvol-breakdown"></div></div>
+        <div style="margin-bottom:16px;"><div style="${GROUP_LABEL}">Float Tag</div><div id="float-breakdown"></div></div>
+        <div style="margin-bottom:16px;"><div style="${GROUP_LABEL}">Float × Relative Volume</div><div id="combo-breakdown"></div></div>
+        <div>
+          <div style="${GROUP_LABEL}">Relative Volume Quintiles (continuous)</div>
+          <div id="rvol-quintiles"></div>
+          <p style="${HINT} margin-top:8px;">If Q5 doesn't clearly beat Q1 here, high relative volume by itself probably isn't the edge — it's noise riding along with a setup that already works on its own.</p>
+        </div>
+      </div>
+
+      <div class="panel-box" id="section-regret" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Regret Curve — Exit Timing</span></div>
+        <p style="${HINT}">Replays every bar from entry onward for each trade and compares your actual exit to the best exit the bar data shows was available — the shape of your exit mistakes, not just a dollar total. Pulls each trade's detail file on demand (capped at the most recent ${REGRET_MAX} trades, since this needs bar data the index doesn't carry) and is capped to bar-close prices, so it's an approximation of what was actually achievable intrabar.</p>
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;">
+          <button class="btn-confirm" id="regret-run-btn">Run bar-level exit analysis</button>
+          <span id="regret-status" style="color:var(--text-faint); font-size:12px;"></span>
+        </div>
+        <div id="regret-progress" style="display:none; margin-bottom:14px;"><div class="progress-track"><div class="progress-fill" id="regret-progress-fill" style="width:0%;"></div></div></div>
+        <div id="regret-summary"></div>
+        <div id="regret-histogram"></div>
+        <div class="panel-box-head" style="margin-top:22px;"><span class="title">Regret Curve for One Trade</span></div>
+        <div class="filters" style="margin-bottom:10px;"><select id="regret-trade-select"><option value="">Run the analysis above first…</option></select></div>
+        <div id="regret-trade-chart" style="height:240px;"></div>
+        <div id="regret-trade-note" style="color:var(--text-faint); font-size:12px; margin-top:8px;"></div>
+      </div>
+
+      <div class="panel-box" id="section-sizing" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Position Sizing</span></div>
+        <p style="${HINT}">Win rate by share-size bucket, plus a check for the classic tell: sizing up right before a bad stretch.</p>
+        <div id="sizing-body" style="margin-bottom:18px;"></div>
+        <div id="sizing-tell" style="margin-bottom:18px;"></div>
+        <div id="sizing-chart" style="height:220px;"></div>
+        <p style="${HINT} margin-top:8px;">One bar per trade, in chronological order — height is share size, color is win/loss. A run of tall bars turning red is the pattern worth watching for.</p>
+      </div>
+    `;
+
+    renderDecay(allSorted);
+    renderVolume(allSorted, baseline);
+    renderSizing(allSorted);
+    document.getElementById("regret-run-btn").addEventListener("click", runRegretAnalysis);
+  }
+
+  // ================= 1. SETUP EDGE DECAY =================
+  function renderDecay(sorted) {
+    const el = document.getElementById("decay-body");
+    const groups = groupBy(sorted, (r) => r.setup_type || "unlabeled");
+    const entries = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
+
+    el.innerHTML = entries.map(([setup, trades]) => {
+      const n = trades.length;
+      const overall = pctWin(trades);
+      const half = Math.floor(n / 2);
+      const firstRate = n >= 4 ? pctWin(trades.slice(0, half)) : null;
+      const secondRate = n >= 4 ? pctWin(trades.slice(half)) : null;
+      const last3 = trades.slice(-3);
+      const priorRest = trades.slice(0, Math.max(0, n - 3));
+      const last3Rate = last3.length === 3 ? pctWin(last3) : null;
+      const restRate = priorRest.length ? pctWin(priorRest) : null;
+
+      let flag = "stable", flagCls = "";
+      if (n < 10) { flag = "too early — n<10"; flagCls = ""; }
+      else if (last3Rate !== null && restRate !== null && (last3Rate - restRate) >= 30) { flag = "recency-driven"; flagCls = "loss"; }
+      else if (firstRate !== null && secondRate !== null && (secondRate - firstRate) <= -20) { flag = "fading"; flagCls = "loss"; }
+      else if (firstRate !== null && secondRate !== null && (secondRate - firstRate) >= 20) { flag = "improving"; flagCls = "win"; }
+
+      const uid = `edge-trades-${rowSeq++}`;
+      return `
+        <div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer; flex-wrap:wrap;">
+          <div class="bar-label" style="width:170px;">${escapeHtml(setup.replace(/_/g, " "))}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${overall}%; background:${overall >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
+          <div style="width:44px; text-align:right; flex-shrink:0;">${overall}%</div>
+          <div style="width:140px; text-align:right; flex-shrink:0; color:var(--text-faint); font-family:var(--mono); font-size:11px;">${firstRate === null ? "—" : firstRate + "%"} → ${secondRate === null ? "—" : secondRate + "%"}</div>
+          <div style="width:44px; text-align:right; flex-shrink:0; color:var(--text-faint);">${n}x</div>
+          <span class="pill ${flagCls}" style="width:120px; text-align:center; flex-shrink:0;">${flag}</span>
+        </div>
+        ${tradeListHtml(trades, uid)}
+      `;
+    }).join("") || `<div class="empty-state small">No setup_type data yet.</div>`;
+    bindTradeToggles(el);
+
+    const sel = document.getElementById("decay-setup-select");
+    sel.innerHTML = entries.map(([s]) => `<option value="${escapeHtml(s)}">${escapeHtml(s.replace(/_/g, " "))} (${groups[s].length}x)</option>`).join("");
+    sel.onchange = () => renderDecayChart(groups[sel.value] || []);
+    if (entries.length) renderDecayChart(groups[entries[0][0]]);
+  }
+
+  function renderDecayChart(trades) {
+    const el = document.getElementById("decay-chart");
+    el.innerHTML = "";
+    if (trades.length < 2) { el.innerHTML = `<div class="empty-state small">Not enough trades yet to plot a trend.</div>`; return; }
+    const chart = makeChart(el, 220, { timeScale: { borderColor: "#262a34", tickMarkFormatter: (t) => "#" + t } });
+    const series = chart.addLineSeries({ color: "#8b7cf6", lineWidth: 2 });
+    let wins = 0;
+    const data = trades.map((t, i) => {
+      if (t.win) wins++;
+      return { time: i + 1, value: Math.round((wins / (i + 1)) * 1000) / 10 };
+    });
+    series.setData(data);
+    chart.timeScale().fitContent();
+  }
+
+  // ================= 2. VOLUME / FLOAT EDGE CHECK =================
+  function renderVolume(sorted, baseline) {
+    renderTagBreakdown("rvol-breakdown", groupBy(sorted.filter((r) => r.rvol_tag), (r) => r.rvol_tag), baseline);
+    renderTagBreakdown("float-breakdown", groupBy(sorted.filter((r) => r.float_tag), (r) => r.float_tag), baseline);
+    renderTagBreakdown("combo-breakdown", groupBy(sorted.filter((r) => r.rvol_tag && r.float_tag), (r) => `${r.float_tag} float · ${r.rvol_tag} rvol`), baseline);
+    renderRvolQuintiles(sorted.filter((r) => typeof r.relative_volume === "number" && isFinite(r.relative_volume)));
+  }
+
+  function renderTagBreakdown(elId, groups, baseline) {
+    const el = document.getElementById(elId);
+    const entries = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
+    if (!entries.length) { el.innerHTML = `<div class="empty-state small">No tagged trades yet.</div>`; return; }
+    el.innerHTML = entries.map(([tag, trades]) => {
+      const n = trades.length;
+      const rate = pctWin(trades);
+      const pnl = trades.reduce((s, r) => s + (r.pnl_after_comm || 0), 0);
+      const delta = Math.round((rate - baseline) * 10) / 10;
+      const uid = `edge-trades-${rowSeq++}`;
+      return `<div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
+        <div class="bar-label" style="width:210px; text-transform:none;">${escapeHtml(tag.replace(/_/g, " "))}${n < 5 ? ` <span class="pill" title="Fewer than 5 trades — treat as a rough signal, not a verdict.">n=${n}</span>` : ""}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${rate}%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
+        <div style="width:44px; text-align:right; flex-shrink:0;">${rate}%</div>
+        <div style="width:76px; text-align:right; flex-shrink:0; color:${delta >= 0 ? "var(--green)" : "var(--red)"}; font-family:var(--mono); font-size:11px;">${delta >= 0 ? "+" : ""}${delta}pt</div>
+        <div style="width:80px; text-align:right; flex-shrink:0; color:${pnl >= 0 ? "var(--green)" : "var(--red)"};">${fmtMoney(pnl)}</div>
+        <div style="width:40px; text-align:right; flex-shrink:0; color:var(--text-faint);">${n}x</div>
+      </div>
+      ${tradeListHtml(trades, uid)}`;
+    }).join("");
+    bindTradeToggles(el);
+  }
+
+  function renderRvolQuintiles(rows) {
+    const el = document.getElementById("rvol-quintiles");
+    if (rows.length < 10) { el.innerHTML = `<div class="empty-state small">Need at least 10 trades with relative_volume to bucket into quintiles (have ${rows.length}).</div>`; return; }
+    const byRvol = rows.slice().sort((a, b) => a.relative_volume - b.relative_volume);
+    const size = Math.ceil(byRvol.length / 5);
+    const labels = ["Q1 — lowest rvol", "Q2", "Q3", "Q4", "Q5 — highest rvol"];
+    let html = "";
+    for (let i = 0; i < 5; i++) {
+      const bucket = byRvol.slice(i * size, (i + 1) * size);
+      if (!bucket.length) continue;
+      const rate = pctWin(bucket);
+      const lo = bucket[0].relative_volume.toFixed(2), hi = bucket[bucket.length - 1].relative_volume.toFixed(2);
+      html += `<div class="bar-row">
+        <div class="bar-label" style="width:170px;">${labels[i]}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${rate}%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
+        <div style="width:44px; text-align:right; flex-shrink:0;">${rate}%</div>
+        <div style="width:110px; text-align:right; flex-shrink:0; color:var(--text-faint); font-family:var(--mono); font-size:11px;">${lo}x–${hi}x</div>
+        <div style="width:40px; text-align:right; flex-shrink:0; color:var(--text-faint);">${bucket.length}x</div>
+      </div>`;
+    }
+    el.innerHTML = html;
+  }
+
+  // ================= 3. REGRET CURVE (bar-level) =================
+  function computeRegretForTrade(row, detail) {
+    const bars = detail && Array.isArray(detail.bars) ? detail.bars : null;
+    if (!bars || !bars.length || typeof row.entry_price !== "number" || typeof row.exit_price !== "number") return null;
+    const entryKey = `${row.trade_date}T${row.entry_time}`;
+    const exitKey = `${row.trade_date}T${row.exit_time}`;
+    let entryIdx = bars.findIndex((b) => b.t >= entryKey);
+    if (entryIdx === -1) entryIdx = 0;
+    let exitIdx = bars.findIndex((b) => b.t >= exitKey);
+    if (exitIdx === -1) exitIdx = bars.length - 1;
+    const sign = row.side === "short" ? -1 : 1;
+    const path = [];
+    let bestIdx = entryIdx, bestPnl = -Infinity;
+    for (let i = entryIdx; i < bars.length; i++) {
+      if (typeof bars[i].c !== "number") continue;
+      const pnl = (bars[i].c - row.entry_price) * sign;
+      path.push({ i, t: bars[i].t, pnl });
+      if (pnl > bestPnl) { bestPnl = pnl; bestIdx = i; }
+    }
+    if (!path.length || bestPnl === -Infinity) return null;
+    const actualPnl = (row.exit_price - row.entry_price) * sign;
+    const gaveBackBars = exitIdx - bestIdx; // >0 held past the best bar close, <0 exited before reaching it
+    const capture = bestPnl > 0 ? actualPnl / bestPnl : null;
+    return { path, entryIdx, exitIdx, bestIdx, bestPnl, actualPnl, gaveBackBars, capture };
+  }
+
+  async function runRegretAnalysis() {
+    const btn = document.getElementById("regret-run-btn");
+    const status = document.getElementById("regret-status");
+    const progWrap = document.getElementById("regret-progress");
+    const progFill = document.getElementById("regret-progress-fill");
+    btn.disabled = true;
+    progWrap.style.display = "block";
+    progFill.style.width = "0%";
+
+    const candidates = allSorted.slice()
+      .sort((a, b) => ((b.trade_date || "") + (b.entry_time || "")).localeCompare((a.trade_date || "") + (a.entry_time || "")))
+      .slice(0, REGRET_MAX);
+
+    regretResults = [];
+    let done = 0;
+    let idx = 0;
+    const CONCURRENCY = 6;
+    async function worker() {
+      while (idx < candidates.length) {
+        const row = candidates[idx++];
+        try {
+          const res = await fetch(`data/trades/${encodeURIComponent(row.id)}.json`);
+          if (res.ok) {
+            const detail = await res.json();
+            const computed = computeRegretForTrade(row, detail);
+            if (computed) regretResults.push({ row, computed });
+          }
+        } catch (e) { /* skip this trade, keep going */ }
+        done++;
+        progFill.style.width = Math.round((done / candidates.length) * 100) + "%";
+        status.textContent = `Loaded ${done} / ${candidates.length}`;
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, candidates.length) }, worker));
+
+    progWrap.style.display = "none";
+    btn.disabled = false;
+    btn.textContent = "Re-run bar-level exit analysis";
+    status.textContent = `${regretResults.length} of ${candidates.length} checked trades had usable bar data.`;
+
+    renderRegretSummary();
+    renderRegretTradeSelect();
+  }
+
+  function renderRegretSummary() {
+    const summaryEl = document.getElementById("regret-summary");
+    const histEl = document.getElementById("regret-histogram");
+    if (!regretResults.length) {
+      summaryEl.innerHTML = `<div class="empty-state small">No usable bar data in the trades checked.</div>`;
+      histEl.innerHTML = "";
+      return;
+    }
+    const withCapture = regretResults.filter((r) => r.computed.capture !== null);
+    const avgCapture = withCapture.length ? avg(withCapture.map((r) => Math.max(-1, Math.min(2, r.computed.capture)))) : null;
+    const gaveBack = withCapture.filter((r) => r.computed.gaveBackBars > 0).length;
+    const exitedEarly = withCapture.filter((r) => r.computed.gaveBackBars < 0).length;
+    const moneyLeft = withCapture.reduce((s, r) => s + Math.max(0, r.computed.bestPnl - r.computed.actualPnl) * (r.row.shares || 0), 0);
+
+    summaryEl.innerHTML = `
+      <div class="stat-grid" style="margin-bottom:16px;">
+        <div class="stat">
+          <div class="label-row"><span class="label">Avg. Capture of Best Bar</span></div>
+          <div class="value ${avgCapture !== null && avgCapture >= 0.6 ? "up" : "down"}">${avgCapture === null ? "—" : Math.round(avgCapture * 100) + "%"}</div>
+          <div class="sub-value">${withCapture.length} trades that were ever favorable</div>
+        </div>
+        <div class="stat">
+          <div class="label-row"><span class="label">Gave Back Profit</span></div>
+          <div class="value down">${withCapture.length ? Math.round((gaveBack / withCapture.length) * 100) : 0}%</div>
+          <div class="sub-value">exited after the best bar-close had passed</div>
+        </div>
+        <div class="stat">
+          <div class="label-row"><span class="label">Left Early</span></div>
+          <div class="value">${withCapture.length ? Math.round((exitedEarly / withCapture.length) * 100) : 0}%</div>
+          <div class="sub-value">exited before the best bar-close arrived</div>
+        </div>
+        <div class="stat">
+          <div class="label-row"><span class="label">Bar-Perfect Gap</span></div>
+          <div class="value down">${fmtMoney(-moneyLeft)}</div>
+          <div class="sub-value">vs. exiting at each trade's best bar close</div>
+        </div>
+      </div>
+    `;
+
+    const buckets = [
+      { label: "Gave it all back (< 0%)", test: (c) => c < 0 },
+      { label: "0–50% captured", test: (c) => c >= 0 && c < 0.5 },
+      { label: "50–90% captured", test: (c) => c >= 0.5 && c < 0.9 },
+      { label: "90–110% (near bar-perfect)", test: (c) => c >= 0.9 && c < 1.1 },
+      { label: "> 110% (fill beat every bar close)", test: (c) => c >= 1.1 },
+    ];
+    const total = withCapture.length;
+    histEl.innerHTML = total ? `<div class="panel-box-head" style="margin-top:6px;"><span class="title">Exit Efficiency Distribution</span></div>` +
+      buckets.map((b) => {
+        const rows = withCapture.filter((r) => b.test(r.computed.capture));
+        const pct = total ? Math.round((rows.length / total) * 1000) / 10 : 0;
+        return `<div class="bar-row">
+          <div class="bar-label" style="width:240px; text-transform:none;">${b.label}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:var(--blue);"></div></div>
+          <div style="width:50px; text-align:right; flex-shrink:0;">${pct}%</div>
+          <div style="width:40px; text-align:right; flex-shrink:0; color:var(--text-faint);">${rows.length}x</div>
+        </div>`;
+      }).join("") : "";
+  }
+
+  function renderRegretTradeSelect() {
+    const sel = document.getElementById("regret-trade-select");
+    const sortedResults = regretResults.slice().sort((a, b) => (b.row.trade_date || "").localeCompare(a.row.trade_date || ""));
+    if (!sortedResults.length) {
+      sel.innerHTML = `<option value="">No trades available</option>`;
+      document.getElementById("regret-trade-chart").innerHTML = "";
+      document.getElementById("regret-trade-note").textContent = "";
+      return;
+    }
+    sel.innerHTML = sortedResults.map((r) => `<option value="${escapeHtml(r.row.id)}">${escapeHtml(r.row.symbol)} — ${escapeHtml(r.row.trade_date)} (${r.row.win ? "WIN" : "LOSS"})</option>`).join("");
+    sel.onchange = () => {
+      const found = regretResults.find((r) => r.row.id === sel.value);
+      if (found) renderRegretTradeChart(found);
+    };
+    sel.value = sortedResults[0].row.id;
+    renderRegretTradeChart(sortedResults[0]);
+  }
+
+  function renderRegretTradeChart(entry) {
+    const el = document.getElementById("regret-trade-chart");
+    el.innerHTML = "";
+    const { row, computed } = entry;
+    const chart = makeChart(el, 240);
+    const series = chart.addLineSeries({ color: "#5b93f0", lineWidth: 2 });
+    const shares = row.shares || 1;
+    const toTime = (t) => Math.floor(new Date(t).getTime() / 1000);
+    const data = computed.path.map((p) => ({ time: toTime(p.t), value: Math.round(p.pnl * shares * 100) / 100 }));
+    series.setData(data);
+
+    const markers = [];
+    const bestPoint = computed.path.find((p) => p.i === computed.bestIdx);
+    if (bestPoint) markers.push({ time: toTime(bestPoint.t), position: "aboveBar", color: "#e8a94c", shape: "circle", text: "Best bar" });
+    const exitPoint = computed.path.find((p) => p.i >= computed.exitIdx) || computed.path[computed.path.length - 1];
+    if (exitPoint) markers.push({ time: toTime(exitPoint.t), position: "belowBar", color: row.win ? "#2fd08a" : "#f2555a", shape: "arrowDown", text: "Actual exit" });
+    markers.sort((a, b) => a.time - b.time);
+    series.setMarkers(markers);
+    chart.timeScale().fitContent();
+
+    const capPct = computed.capture === null ? "never favorable on a bar close" : `${Math.round(computed.capture * 100)}% of the best bar-close captured`;
+    document.getElementById("regret-trade-note").innerHTML =
+      `Best possible (bar-close) P&amp;L: <b>${fmtMoney(computed.bestPnl * shares)}</b> · Actual: <b>${fmtMoney(computed.actualPnl * shares)}</b> · ${capPct}. ` +
+      `<a href="trade.html?id=${encodeURIComponent(row.id)}" target="_blank">Open trade →</a>`;
+  }
+
+  // ================= 4. POSITION SIZING =================
+  function renderSizing(sorted) {
+    const bySize = sorted.filter((r) => typeof r.shares === "number" && r.shares > 0);
+    const bodyEl = document.getElementById("sizing-body");
+    const tellEl = document.getElementById("sizing-tell");
+    if (bySize.length < 8) {
+      bodyEl.innerHTML = `<div class="empty-state small">Need more trades with share counts to bucket by size (have ${bySize.length}).</div>`;
+      tellEl.innerHTML = "";
+      document.getElementById("sizing-chart").innerHTML = "";
+      return;
+    }
+
+    const byShares = bySize.slice().sort((a, b) => a.shares - b.shares);
+    const q = Math.ceil(byShares.length / 4);
+    const labels = ["Smallest 25%", "2nd quartile", "3rd quartile", "Largest 25%"];
+    let html = "";
+    for (let i = 0; i < 4; i++) {
+      const bucket = byShares.slice(i * q, (i + 1) * q);
+      if (!bucket.length) continue;
+      const rate = pctWin(bucket);
+      const pnl = bucket.reduce((s, r) => s + (r.pnl_after_comm || 0), 0);
+      const lo = Math.min(...bucket.map((r) => r.shares)), hi = Math.max(...bucket.map((r) => r.shares));
+      html += `<div class="bar-row">
+        <div class="bar-label" style="width:150px;">${labels[i]}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${rate}%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
+        <div style="width:44px; text-align:right; flex-shrink:0;">${rate}%</div>
+        <div style="width:120px; text-align:right; flex-shrink:0; color:var(--text-faint); font-family:var(--mono); font-size:11px;">${lo}–${hi} sh</div>
+        <div style="width:80px; text-align:right; flex-shrink:0; color:${pnl >= 0 ? "var(--green)" : "var(--red)"};">${fmtMoney(pnl)}</div>
+        <div style="width:40px; text-align:right; flex-shrink:0; color:var(--text-faint);">${bucket.length}x</div>
+      </div>`;
+    }
+    bodyEl.innerHTML = html;
+
+    // "size-up tell": trades sized 1.5x+ the trailing 5-trade average share count,
+    // and the win rate of whatever immediately follows one.
+    const chrono = bySize; // already in chronological order (sorted upstream)
+    const baseline = pctWin(chrono);
+    const sizeUpTrades = [];
+    const followSet = new Set();
+    for (let i = 5; i < chrono.length; i++) {
+      const trailing = avg(chrono.slice(i - 5, i).map((r) => r.shares));
+      if (trailing > 0 && chrono[i].shares > trailing * 1.5) {
+        sizeUpTrades.push(chrono[i]);
+        chrono.slice(i + 1, i + 4).forEach((r) => followSet.add(r));
+      }
+    }
+    const followTrades = Array.from(followSet);
+    const sizeUpRate = sizeUpTrades.length ? pctWin(sizeUpTrades) : null;
+    const followRate = followTrades.length ? pctWin(followTrades) : null;
+
+    tellEl.innerHTML = `
+      <div class="stat-grid" style="margin-bottom:0;">
+        <div class="stat">
+          <div class="label-row"><span class="label">Win Rate — Size-Up Trades</span></div>
+          <div class="value ${sizeUpRate === null ? "" : (sizeUpRate >= baseline ? "up" : "down")}">${sizeUpRate === null ? "—" : sizeUpRate + "%"}</div>
+          <div class="sub-value">${sizeUpTrades.length} trades sized 1.5×+ the trailing 5-trade avg, vs ${baseline}% baseline</div>
+        </div>
+        <div class="stat">
+          <div class="label-row"><span class="label">Win Rate — Next 3 After a Size-Up</span></div>
+          <div class="value ${followRate === null ? "" : (followRate >= baseline ? "up" : "down")}">${followRate === null ? "—" : followRate + "%"}</div>
+          <div class="sub-value">${followTrades.length} trades immediately following a size-up</div>
+        </div>
+      </div>
+    `;
+
+    renderSizingChart(chrono);
+  }
+
+  function renderSizingChart(chrono) {
+    const el = document.getElementById("sizing-chart");
+    el.innerHTML = "";
+    const chart = makeChart(el, 220, { timeScale: { borderColor: "#262a34", tickMarkFormatter: (t) => "#" + t } });
+    const series = chart.addHistogramSeries({ priceFormat: { type: "volume" } });
+    series.setData(chrono.map((r, i) => ({ time: i + 1, value: r.shares, color: r.win ? "rgba(47,208,138,0.75)" : "rgba(242,85,90,0.75)" })));
+    chart.timeScale().fitContent();
+  }
+
+})();
+</script>
+<script src="nav.js"></script>
+</body>
+</html>

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <script src="config.js"></script>
+<script src="share-export.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Journal — trade.log</title>
@@ -74,6 +75,11 @@
       <a class="nav-item" href="stats.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.4 8.6 12 15l-3-3-4 4"></path></svg>
         <span class="nav-label">Performance</span>
+      </a>
+
+      <a class="nav-item" href="edge-analysis.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7-4 11L21 3 10 14l11 7-7-4"></path><circle cx="3" cy="3" r="1.4" fill="currentColor" stroke="none"></circle></svg>
+        <span class="nav-label">Edge Analysis</span>
       </a>
 
       <a class="nav-item" href="patterns.html">
@@ -325,8 +331,12 @@
     }
 
     content.innerHTML = `
-      <p style="color:var(--text-faint); font-size:12.5px; margin:0 0 10px;">
-        ${sorted.length} trade${sorted.length === 1 ? "" : "s"} · net <span class="${totalPnl >= 0 ? "up" : "down"}">${fmtMoney(totalPnl)}</span>
+      <p style="color:var(--text-faint); font-size:12.5px; margin:0 0 10px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <span>${sorted.length} trade${sorted.length === 1 ? "" : "s"} · net <span class="${totalPnl >= 0 ? "up" : "down"}">${fmtMoney(totalPnl)}</span></span>
+        <button class="icon-btn" id="share-view-btn" title="Export this filtered set as a shareable static page" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
+          <span id="share-view-label">Share this view</span>
+        </button>
       </p>
       <div class="panel-box" style="padding:0;">
         <div class="table-scroll">
@@ -366,6 +376,45 @@
         applyFilters();
       });
     });
+
+    const shareBtn = document.getElementById("share-view-btn");
+    if (shareBtn) {
+      shareBtn.addEventListener("click", () => {
+        if (!window.TradeLogShare) return;
+        const label = document.getElementById("share-view-label");
+        try {
+          const html = TradeLogShare.buildSetSharePage(sorted, {
+            title: `${sorted.length} trade${sorted.length === 1 ? "" : "s"} — trade.log`,
+            filtersSummary: describeFilters(),
+          });
+          TradeLogShare.download(`trade-log-filtered-${new Date().toISOString().slice(0, 10)}.html`, html);
+          label.textContent = "Downloaded!";
+          setTimeout(() => (label.textContent = "Share this view"), 1600);
+        } catch (e) {
+          label.textContent = "Couldn't export";
+          setTimeout(() => (label.textContent = "Share this view"), 1600);
+        }
+      });
+    }
+  }
+
+  // Turns the active filter controls into a plain-English summary line for
+  // the exported page's header, e.g. "Setup: vwap reclaim · Aug 1–31, 2026
+  // · Wins only" -- so whoever the page gets shared with knows what subset
+  // of trades they're looking at without needing to see the journal UI.
+  function describeFilters() {
+    const parts = [];
+    if (els.symbol.value.trim()) parts.push(`Symbol contains "${els.symbol.value.trim().toUpperCase()}"`);
+    if (els.from.value || els.to.value) parts.push(`${els.from.value || "…"} – ${els.to.value || "…"}`);
+    if (els.setup.value) parts.push(`Setup: ${els.setup.value.replace(/_/g, " ")}`);
+    if (els.result.value === "win") parts.push("Wins only");
+    if (els.result.value === "loss") parts.push("Losses only");
+    if (els.rvol.value) parts.push(tagLabel(els.rvol.value));
+    if (els.avgvol.value) parts.push(tagLabel(els.avgvol.value));
+    if (els.float.value) parts.push(tagLabel(els.float.value));
+    if (els.timeFrom.value || els.timeTo.value) parts.push(`Entry ${els.timeFrom.value || "…"}–${els.timeTo.value || "…"}`);
+    if (els.flagged.checked) parts.push("Has better entry/exit flagged");
+    return parts.length ? parts.join(" · ") : "All trades, unfiltered";
   }
 })();
 </script>

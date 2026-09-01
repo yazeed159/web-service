@@ -20,6 +20,27 @@
   // page) can draw price lines onto it without re-plumbing chart creation.
   let srCandleSeries = null;
 
+  // Set once the trade detail JSON loads, so the "Share trade" button
+  // (static markup, lives outside #trade-content so it survives re-renders)
+  // has something to export. Wired up here rather than inside renderTrade
+  // so it only has to be attached once.
+  let currentTrade = null;
+  const shareBtn = document.getElementById("share-trade-btn");
+  if (shareBtn) {
+    shareBtn.addEventListener("click", () => {
+      if (!currentTrade || !window.TradeLogShare) return;
+      const label = document.getElementById("share-trade-label");
+      try {
+        const html = TradeLogShare.buildTradeSharePage(currentTrade);
+        const filename = `trade-${TradeLogShare.slug(currentTrade.symbol)}-${TradeLogShare.slug(currentTrade.trade_date)}.html`;
+        TradeLogShare.download(filename, html);
+        if (label) { label.textContent = "Downloaded!"; setTimeout(() => (label.textContent = "Share trade"), 1600); }
+      } catch (e) {
+        if (label) { label.textContent = "Couldn't export"; setTimeout(() => (label.textContent = "Share trade"), 1600); }
+      }
+    });
+  }
+
   // Sibling (prev/next) nav needs the full index, sorted the same way the
   // publish pipeline sorts it (trade_date + entry_time). Fetching it is
   // best-effort — if it 404s or is missing, the page still renders fine
@@ -43,7 +64,7 @@
       }),
       siblingsPromise,
     ])
-      .then(([trade, siblings]) => renderTrade(trade, siblings))
+      .then(([trade, siblings]) => { currentTrade = trade; renderTrade(trade, siblings); })
       .catch((err) => {
         content.innerHTML = `
           <div class="empty-state">

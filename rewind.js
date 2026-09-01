@@ -23,6 +23,12 @@
     setupSelect: document.getElementById("qf-setup"),
     resultSelect: document.getElementById("qf-result"),
     countRow: document.getElementById("qf-count-row"),
+    sourceRow: document.getElementById("qf-source-row"),
+    sourceHint: document.getElementById("qf-source-hint"),
+    logFields: document.getElementById("qf-log-fields"),
+    btFields: document.getElementById("qf-bt-fields"),
+    btRunSelect: document.getElementById("qf-bt-run"),
+    btHint: document.getElementById("qf-bt-hint"),
     blindCheck: document.getElementById("qf-blind"),
     tickModeRow: document.getElementById("qf-tickmode-row"),
     tickModeHint: document.getElementById("qf-tickmode-hint"),
@@ -46,6 +52,15 @@
   const state = {
     index: [],
     detailCache: {},
+    // "log" (default) reads your own data/trades.json + data/trades/<id>.json,
+    // same as always. "backtest" instead pulls candidates from a saved
+    // strategy run on chart_service.py -- see the "Blind backtester" field
+    // group and normalizeBacktestTrade() below.
+    source: "log",
+    backtestRuns: [], // raw entries from GET /backtest/history
+    backtestRunId: null,
+    backtestReportCache: {}, // run id -> full /backtest/history/<id>/report response
+    backtestTrades: [], // normalized, chart-ready trades for the currently selected run
     queue: [],
     qIndex: 0,
     blind: true,
@@ -257,6 +272,139 @@
       .catch(() => null)
       .finally(() => clearTimeout(timeout));
   }
+
+  // ---------------------------------------------------------------
+  // Blind backtester mode — practice generation instead of replay.
+  //
+  // Reuses the SAME saved-run machinery backtester.html / report.html
+  // already talk to (GET /backtest/history and GET
+  // /backtest/history/<id>/report on chart_service.py) rather than
+  // inventing a new backend endpoint. A run's trades only carry `bars`
+  // once they've been through the existing "Send to Journal" enrichment
+  // step on the Backtester tab (chart_service.py's /enrich callback) --
+  // trades without bars can't be charted here, so they're filtered out
+  // up front and the setup screen tells you how many were usable.
+  // ---------------------------------------------------------------
+
+  function loadBacktestRuns() {
+    const base = chartServiceBase();
+    if (!base) {
+      els.btRunSelect.innerHTML = `<option value="">Set CHART_SERVICE_URL in config.js first</option>`;
+      els.btRunSelect.disabled = true;
+      return;
+    }
+    els.btRunSelect.disabled = false;
+    fetch(`${base}/backtest/history`, { headers: CHART_SERVICE_FETCH_HEADERS })
+      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then((entries) => {
+        state.backtestRuns = Array.isArray(entries) ? entries : [];
+        if (!state.backtestRuns.length) {
+          els.btRunSelect.innerHTML = `<option value="">No saved runs yet — run one on the Backtester tab first</option>`;
+          els.btRunSelect.disabled = true;
+          return;
+        }
+        els.btRunSelect.innerHTML = `<option value="">Choose a run…</option>` + state.backtestRuns.map((e) => {
+          const s = e.stats || {};
+          const label = `${e.label || "(untitled run)"} — ${s.num_trades || 0} trades, ${s.win_rate != null ? s.win_rate.toFixed(0) + "%" : "—"} win`;
+          return `<option value="${escapeHtml(e.id)}">${escapeHtml(label)}</option>`;
+        }).join("");
+      })
+      .catch(() => {
+        els.btRunSelect.innerHTML = `<option value="">Couldn't reach chart_service.py</option>`;
+        els.btRunSelect.disabled = true;
+      });
+  }
+
+  // Backend `/backtest/history/<id>/report` trades carry `date` (not
+  // `trade_date`), a flat `better_entry_price`/`better_exit_price` (no
+  // time -- see report.js's same normalization note), and no
+  // side/lessons/walk_away_rule at all (the strategy is long-only and
+  // never gets the full daily-pipeline verdict treatment, just whatever
+  // the optional /enrich step attached). Map it onto the same shape
+  // initQuestion()/goToReveal() already read from a real journal
+  // trade.detail file, leaving the fields that don't exist for a
+  // backtest trade out entirely rather than faking them -- reveal
+  // already renders every one of those as an optional section.
+  function normalizeBacktestTrade(t, run) {
+    const runLabel = (run && run.label) || "backtest run";
+    const setupType = (run && run.params && run.params.entry_mode) || runLabel;
+    const id = `bt:${(run && run.id) || runLabel}:${t.symbol}:${t.date}:${t.entry_time}`.replace(/\s+/g, "_");
+    return {
+      id,
+      _source: "backtest",
+      _runLabel: runLabel,
+      symbol: t.symbol,
+      side: "long", // the backtester only ever simulates long breakout entries
+      trade_date: t.date,
+      entry_time: t.entry_time,
+      exit_time: t.exit_time,
+      entry_price: t.entry_price,
+      exit_price: t.exit_price,
+      shares: t.shares,
+      win: !!t.win,
+      pnl_before_comm: Number.isFinite(Number(t.pnl_dollars_gross)) ? Number(t.pnl_dollars_gross) : undefined,
+      commission: Number.isFinite(Number(t.commission_total)) ? Number(t.commission_total) : undefined,
+      pnl_after_comm: t.pnl_dollars,
+      setup_type: setupType,
+      bars: t.bars,
+      verdict: t.verdict || null,
+      lessons: [],
+      better_entry_price: t.better_entry_price != null ? Number(t.better_entry_price) : null,
+      better_exit_price: t.better_exit_price != null ? Number(t.better_exit_price) : null,
+      walk_away_rule: null,
+      _exitReason: t.exit_reason || null,
+      _rMultiple: Number.isFinite(Number(t.r_multiple)) ? Number(t.r_multiple) : null,
+    };
+  }
+
+  function loadBacktestRunTrades(runId) {
+    state.backtestRunId = runId;
+    state.backtestTrades = [];
+    if (!runId) { renderCandidateCount(); return; }
+    const base = chartServiceBase();
+    els.btHint.style.display = "";
+    els.btHint.innerHTML = "Loading this run's trades…";
+    els.startBtn.disabled = true;
+
+    const cached = state.backtestReportCache[runId];
+    const p = cached ? Promise.resolve(cached) : fetch(`${base}/backtest/history/${encodeURIComponent(runId)}/report`, { headers: CHART_SERVICE_FETCH_HEADERS })
+      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then((data) => { state.backtestReportCache[runId] = data; return data; });
+
+    p.then((report) => {
+      const run = state.backtestRuns.find((e) => e.id === runId) || { id: runId, label: report.label, params: report.params };
+      const all = Array.isArray(report.trades) ? report.trades : [];
+      const withCharts = all.filter((t) => Array.isArray(t.bars) && t.bars.length);
+      state.backtestTrades = withCharts.map((t) => normalizeBacktestTrade(t, run));
+      const missing = all.length - withCharts.length;
+      els.btHint.innerHTML = withCharts.length
+        ? `<b>${withCharts.length}</b> of ${all.length} trades in this run have charts available for practice.` +
+          (missing ? ` ${missing} more haven't been sent through journal enrichment yet — use the Backtester tab's "Send to Journal" to add charts to them.` : "")
+        : `None of this run's ${all.length} trade${all.length === 1 ? "" : "s"} have charts yet — go to the Backtester tab, open this run, and use "Send to Journal" to enrich it before practicing on it.`;
+      renderCandidateCount();
+    }).catch((err) => {
+      els.btHint.innerHTML = `Couldn't load this run's trades (${escapeHtml(String(err.message))}).`;
+      els.startBtn.disabled = true;
+    });
+  }
+
+  function setSource(src) {
+    state.source = src === "backtest" ? "backtest" : "log";
+    els.sourceRow.querySelectorAll(".quiz-mode-btn").forEach((b) => b.classList.toggle("active", b.dataset.source === state.source));
+    els.sourceHint.style.display = state.source === "backtest" ? "" : "none";
+    els.logFields.style.display = state.source === "backtest" ? "none" : "";
+    els.btFields.style.display = state.source === "backtest" ? "" : "none";
+    if (state.source === "backtest") {
+      if (!state.backtestRuns.length) loadBacktestRuns();
+      loadBacktestRunTrades(els.btRunSelect.value || null);
+    } else {
+      renderCandidateCount();
+    }
+  }
+  els.sourceRow.querySelectorAll(".quiz-mode-btn").forEach((btn) => {
+    btn.addEventListener("click", () => setSource(btn.dataset.source));
+  });
+  els.btRunSelect.addEventListener("change", () => loadBacktestRunTrades(els.btRunSelect.value || null));
 
   // Ticks for the checkpoint (mid-trade) bar — the full 60s window.
   function getCheckpointTicks(trade, bar, prevClose) {
@@ -587,21 +735,48 @@
     };
   }
 
+  // Shared win/loss/flagged predicate -- works on both a real journal
+  // index row (data/trades.json) and a normalized backtest trade, since
+  // both carry the same flat `win` / `better_entry_price` /
+  // `better_exit_price` fields. `setup` filtering is skipped for
+  // backtest rows (a run is already one single strategy, picked via the
+  // run selector instead of a setup-type dropdown).
+  function matchesOutcome(r, filters) {
+    if (filters.result === "win" && !r.win) return false;
+    if (filters.result === "loss" && r.win) return false;
+    if (filters.result === "flagged" && !(r.better_entry_price != null || r.better_exit_price != null)) return false;
+    return true;
+  }
+
   function filterIndex(filters) {
     return state.index.filter((r) => {
       if (!r.id) return false;
       if (filters.setup && r.setup_type !== filters.setup) return false;
-      if (filters.result === "win" && !r.win) return false;
-      if (filters.result === "loss" && r.win) return false;
-      if (filters.result === "flagged" && !(r.better_entry_price != null || r.better_exit_price != null)) return false;
-      return true;
+      return matchesOutcome(r, filters);
     });
+  }
+
+  function filterBacktestTrades(filters) {
+    return state.backtestTrades.filter((r) => matchesOutcome(r, filters));
+  }
+
+  // Dispatches on state.source so the start button, "Rewind again", and
+  // the candidate-count line all read from whichever source is active
+  // without duplicating the win/loss/flagged logic per source.
+  function getCandidateRows(filters) {
+    return state.source === "backtest" ? filterBacktestTrades(filters) : filterIndex(filters);
   }
 
   function renderCandidateCount() {
     const filters = getFilters();
-    const n = filterIndex(filters).length;
-    els.candidateCount.innerHTML = `<b>${n}</b> matching trade${n === 1 ? "" : "s"} in your journal.`;
+    const n = getCandidateRows(filters).length;
+    if (state.source === "backtest") {
+      els.candidateCount.innerHTML = state.backtestRunId
+        ? `<b>${n}</b> matching trade${n === 1 ? "" : "s"} available to practice from this run.`
+        : `Pick a saved backtest run above to see how many trades are available.`;
+    } else {
+      els.candidateCount.innerHTML = `<b>${n}</b> matching trade${n === 1 ? "" : "s"} in your journal.`;
+    }
     els.startBtn.disabled = n === 0;
   }
 
@@ -624,7 +799,13 @@
   els.startBtn.addEventListener("click", () => {
     const filters = getFilters();
     state.lastFilters = filters;
-    startQuiz(filters, filterIndex(filters).map((r) => r.id));
+    const rows = getCandidateRows(filters);
+    // Backtest-sourced trades already have everything (bars included)
+    // from the run's report -- pre-seed the detail cache so
+    // fetchDetail() below never tries to hit data/trades/<id>.json for
+    // a synthetic id that doesn't exist there.
+    if (state.source === "backtest") rows.forEach((r) => { state.detailCache[r.id] = r; });
+    startQuiz(filters, rows.map((r) => r.id));
   });
 
   function renderHistoryPanel() {
@@ -657,8 +838,10 @@
       </div>`;
     }).join("");
 
+    // Only from log-sourced sessions -- backtest run labels aren't real
+    // journal setup_types, so linking them into playbooks.html would 404.
     const reviewTotals = {};
-    history.forEach((h) => {
+    history.filter((h) => h.source !== "backtest").forEach((h) => {
       Object.entries(h.toReview || {}).forEach(([k, v]) => { reviewTotals[k] = (reviewTotals[k] || 0) + v; });
     });
     const top = Object.entries(reviewTotals).sort((a, b) => b[1] - a[1]).slice(0, 3);
@@ -943,6 +1126,12 @@
 
   function fetchDetail(id) {
     if (state.detailCache[id]) return Promise.resolve(state.detailCache[id]);
+    // Backtest-sourced trades are always pre-seeded into detailCache
+    // before the queue is built (see the start-button handler above) --
+    // there's no data/trades/<id>.json to fall back to for a synthetic
+    // "bt:..." id, so a cache miss here means something's wrong rather
+    // than something to fetch.
+    if (state.source === "backtest") return Promise.reject(new Error("This practice setup is no longer available."));
     return fetch(`data/trades/${encodeURIComponent(id)}.json`)
       .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then((trade) => { state.detailCache[id] = trade; return trade; });
@@ -1764,6 +1953,7 @@
       state.recordedIds.add(trade.id);
       state.results.push({
         id: trade.id, symbol: trade.symbol, setup_type: trade.setup_type, win: !!trade.win,
+        source: trade._source === "backtest" ? "backtest" : "log",
         entered: c.entered, entryTone: grading.entryGrade.tone,
         stopTone: grading.stopGrade ? grading.stopGrade.tone : null,
         exitTone: grading.exitGrade ? grading.exitGrade.tone : null,
@@ -1930,7 +2120,9 @@
 
       <div class="quiz-next-row">
         <button class="btn-advanced" id="qz-replay-again-btn" type="button">↻ Retry this question</button>
-        <a class="btn-advanced" href="trade.html?id=${encodeURIComponent(trade.id)}" target="_blank" rel="noopener">Open full trade page</a>
+        ${trade._source === "backtest"
+          ? `<span class="btn-advanced" style="opacity:.6; cursor:default;" title="Generated from a backtest run, not saved in your journal">Practice-generated setup</span>`
+          : `<a class="btn-advanced" href="trade.html?id=${encodeURIComponent(trade.id)}" target="_blank" rel="noopener">Open full trade page</a>`}
         <button class="btn-confirm" id="qz-next">${isLast ? "See results" : "Next question"} <span class="kbd">↵</span></button>
       </div>
     `;
@@ -2052,7 +2244,7 @@
             <td>${tonePill(r.entryTone)}</td>
             <td>${tonePill(r.stopTone)}</td>
             <td>${tonePill(r.exitTone)}</td>
-            <td><a href="trade.html?id=${encodeURIComponent(r.id)}" target="_blank" rel="noopener">view</a></td>
+            <td>${r.source === "backtest" ? `<span class="dim">—</span>` : `<a href="trade.html?id=${encodeURIComponent(r.id)}" target="_blank" rel="noopener">view</a>`}</td>
           </tr>`).join("")}
         </tbody>
       </table>
@@ -2060,12 +2252,15 @@
 
     const toReview = {};
     state.results.forEach((r) => { if (r.entryTone !== "good") toReview[r.setup_type || "unspecified"] = (toReview[r.setup_type || "unspecified"] || 0) + 1; });
-    saveHistoryEntry({ date: new Date().toISOString().slice(0, 10), count: total, entered, passed, entryTally, toReview });
+    const sessionSource = state.results.length && state.results.every((r) => r.source === "backtest") ? "backtest" : "log";
+    saveHistoryEntry({ date: new Date().toISOString().slice(0, 10), count: total, entered, passed, entryTally, toReview, source: sessionSource });
   }
 
   els.againBtn.addEventListener("click", () => {
     const filters = state.lastFilters || getFilters();
-    startQuiz(filters, filterIndex(filters).map((r) => r.id));
+    const rows = getCandidateRows(filters);
+    if (state.source === "backtest") rows.forEach((r) => { state.detailCache[r.id] = r; });
+    startQuiz(filters, rows.map((r) => r.id));
   });
   els.reviewMissedBtn.addEventListener("click", async () => {
     const shakyIds = state.results.filter((r) => r.entryTone !== "good").map((r) => r.id);
