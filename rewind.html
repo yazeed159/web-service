@@ -113,6 +113,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
         <span class="nav-label">Practice</span>
       </a>
+
+      <a class="nav-item" href="practice-analytics.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+        <span class="nav-label">Practice Analytics</span>
+      </a>
     </nav>
 
     <div class="sidebar-bottom">
@@ -133,68 +138,81 @@
     </header>
 
     <div class="content">
-      <div class="panel-head">
-        <div class="sub">Chart-reading practice, pulled straight from your own logged trades. Chart's cropped to the moment of the decision — no peeking at what happens next.</div>
-      </div>
 
       <!-- ============ SETUP SCREEN ============ -->
       <div id="quiz-setup-screen">
+
+        <div class="rw-hero">
+          <div class="rw-hero-text">
+            <div class="rw-hero-eyebrow">Rewind</div>
+            <h2>Read the chart before you know the ending</h2>
+            <p>Step into your own logged trades from the first candle — call the entry, place your stop, and decide when to get out, blind to what actually happened until the reveal.</p>
+          </div>
+          <div class="rw-hero-stat" id="rw-hero-stat" style="display:none;"></div>
+        </div>
+
         <div class="quiz-setup-grid">
           <div class="panel-box">
             <div class="panel-box-head"><span class="title">Set up a rewind</span></div>
 
-            <div class="quiz-filter-row">
-              <label>Setup type</label>
-              <select id="qf-setup"><option value="">All setups</option></select>
-            </div>
+            <div class="rw-field-group">
+              <div class="rw-field-group-label">What to review</div>
 
-            <div class="quiz-filter-row">
-              <label>Which trades</label>
-              <select id="qf-result">
-                <option value="">Any outcome (most realistic)</option>
-                <option value="win">Winners only</option>
-                <option value="loss">Losers only</option>
-                <option value="flagged">Only ones with a flagged better entry/exit</option>
-              </select>
-            </div>
+              <div class="quiz-filter-row">
+                <label>Setup type</label>
+                <select id="qf-setup"><option value="">All setups</option></select>
+              </div>
 
-            <div class="quiz-filter-row">
-              <label>Length</label>
-              <div class="quiz-mode-row" id="qf-count-row">
-                <button class="quiz-mode-btn" data-count="5">5 questions</button>
-                <button class="quiz-mode-btn active" data-count="10">10 questions</button>
-                <button class="quiz-mode-btn" data-count="20">20 questions</button>
-                <button class="quiz-mode-btn" data-count="0">All matching</button>
+              <div class="quiz-filter-row">
+                <label>Which trades</label>
+                <select id="qf-result">
+                  <option value="">Any outcome (most realistic)</option>
+                  <option value="win">Winners only</option>
+                  <option value="loss">Losers only</option>
+                  <option value="flagged">Only ones with a flagged better entry/exit</option>
+                </select>
+              </div>
+
+              <div class="quiz-filter-row" style="margin-bottom:0;">
+                <label>Length</label>
+                <div class="quiz-mode-row" id="qf-count-row">
+                  <button class="quiz-mode-btn" data-count="5">5 questions</button>
+                  <button class="quiz-mode-btn active" data-count="10">10 questions</button>
+                  <button class="quiz-mode-btn" data-count="20">20 questions</button>
+                  <button class="quiz-mode-btn" data-count="0">All matching</button>
+                </div>
               </div>
             </div>
 
-            <div class="quiz-filter-row">
-              <label>Mode</label>
-              <div class="quiz-check-row">
-                <input type="checkbox" id="qf-blind" checked>
-                <label for="qf-blind" style="text-transform:none; font-size:13px; color:var(--text-dim); font-weight:400;">
-                  Blind mode — hide symbol &amp; date until the reveal, so you're reading the chart instead of remembering the trade
-                </label>
-              </div>
-            </div>
+            <div class="rw-field-group">
+              <div class="rw-field-group-label">How to play it</div>
 
-            <div class="quiz-filter-row">
-              <label>Tick playback</label>
-              <div class="quiz-mode-row" id="qf-tickmode-row">
-                <button class="quiz-mode-btn active" data-tickmode="sim">Simulated (offline)</button>
-                <button class="quiz-mode-btn" data-tickmode="real">Real ticks (from server)</button>
+              <div class="quiz-filter-row">
+                <label>Mode</label>
+                <div class="quiz-check-row">
+                  <input type="checkbox" id="qf-blind" checked>
+                  <label for="qf-blind" style="text-transform:none; font-size:13px; color:var(--text-dim); font-weight:400;">
+                    Blind mode — hide symbol &amp; date until reveal
+                  </label>
+                </div>
               </div>
-              <div class="quiz-tickmode-hint" id="qf-tickmode-hint" style="display:none;">
-                Pulls actual trade prints for that minute from <code>chart_service.py</code>
-                (<code>window.CHART_SERVICE_URL</code> in <code>config.js</code>) instead of a
-                synthesized path. Falls back to simulated automatically, per-question, if the
-                server's unreachable or has no ticks for that window.
+
+              <div class="quiz-filter-row" style="margin-bottom:0;">
+                <label>Tick playback</label>
+                <div class="quiz-mode-row" id="qf-tickmode-row">
+                  <button class="quiz-mode-btn active" data-tickmode="sim">Simulated (offline)</button>
+                  <button class="quiz-mode-btn" data-tickmode="real">Real ticks (from server)</button>
+                </div>
+                <div class="quiz-tickmode-hint" id="qf-tickmode-hint" style="display:none;">
+                  Pulls real prints from <code>chart_service.py</code> instead of a simulated path.
+                  Falls back to simulated if unavailable.
+                </div>
               </div>
             </div>
 
             <div class="quiz-candidate-count" id="qf-candidate-count"></div>
 
-            <button class="btn-confirm quiz-start-btn" id="qf-start-btn">Start rewind</button>
+            <button class="btn-confirm quiz-start-btn" id="qf-start-btn">▶ Start rewind</button>
           </div>
 
           <div class="panel-box">
@@ -247,7 +265,7 @@
 
     </div>
 
-    <div class="footer">trade.log — Rewind reads data/trades.json + data/trades/&lt;id&gt;.json, entirely client-side (plus an optional live call to chart_service.py for real tick playback)</div>
+    <div class="footer">trade.log</div>
   </div>
 </div>
 

@@ -60,6 +60,18 @@
 
     livePrice: document.getElementById("pp-live-price"),
     liveChange: document.getElementById("pp-live-change"),
+    bidVal: document.getElementById("pp-bid-val"),
+    askVal: document.getElementById("pp-ask-val"),
+    spreadVal: document.getElementById("pp-spread-val"),
+    rangeVal: document.getElementById("pp-range-val"),
+    volVal: document.getElementById("pp-vol-val"),
+
+    qtyDecBtn: document.getElementById("pp-qty-dec"),
+    qtyIncBtn: document.getElementById("pp-qty-inc"),
+
+    shortcutsRow: document.getElementById("pp-shortcuts-row"),
+    shortcutsGearBtn: document.getElementById("pp-shortcuts-gear-btn"),
+    headShortcutsGearBtn: document.getElementById("pr-shortcuts-gear-btn"),
 
     sizeModeRow: document.getElementById("pp-size-mode-row"),
     sizeUnit: document.getElementById("pp-size-unit"),
@@ -118,6 +130,23 @@
     try { return new Date(String(t).replace(" ", "T")).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); }
     catch (e) { return String(t); }
   }
+
+  // Synthetic bid/ask spread -- real brokers never fill you at the
+  // "last price" you're staring at; a market buy crosses to the ask
+  // and a market sell crosses to the bid. There's no real Level-1 feed
+  // behind this offline replay, so the spread is a simple, deterministic
+  // function of price (tighter, in relative terms, for higher-priced
+  // names) rather than anything read off the bars -- just enough to make
+  // fills (and the small "instantly down a few cents" unrealized P&L
+  // right after entering) feel like a real ticket instead of trading
+  // at a single frictionless number.
+  function roundPrice(p) { return Math.round(p * 10000) / 10000; }
+  function spreadFor(price) {
+    if (!(price > 0)) return 0.01;
+    return Math.max(0.01, price * 0.0006);
+  }
+  function bidPrice(price) { return roundPrice(price - spreadFor(price) / 2); }
+  function askPrice(price) { return roundPrice(price + spreadFor(price) / 2); }
 
   // IBKR's "Tiered" US stock commission schedule -- identical to the
   // model rewind.js applies when scoring logged trades: $0.0035/share,
@@ -237,6 +266,193 @@
   }
 
   let account = loadAccount();
+
+  // ---------------------------------------------------------------
+  // order shortcuts -- user-defined one-click buy/sell buttons, each
+  // with an optional single-key hotkey. Persisted separately from the
+  // account (they're a ticket preference, not part of the P&L record)
+  // so resetting the account doesn't wipe them.
+  // ---------------------------------------------------------------
+  const SHORTCUTS_KEY = "practice:shortcuts:v1";
+  function defaultShortcuts() {
+    return [
+      { id: "sc-buy100", label: "Buy 100", side: "buy", sizeType: "shares", value: 100, key: "1" },
+      { id: "sc-buy25bp", label: "Buy 25% BP", side: "buy", sizeType: "pct_bp", value: 25, key: "2" },
+      { id: "sc-sellhalf", label: "Sell Half", side: "sell", sizeType: "pct_position", value: 50, key: "3" },
+      { id: "sc-flatten", label: "Flatten", side: "sell", sizeType: "pct_position", value: 100, key: "4" },
+    ];
+  }
+  function shortcutSizeLabel(s) {
+    if (s.sizeType === "shares") return `${s.value} sh`;
+    if (s.sizeType === "pct_bp") return `${s.value}% BP`;
+    return s.value >= 100 ? "All" : `${s.value}%`;
+  }
+  function defaultLabelFor(s) {
+    return s.sizeType === "pct_position" && s.value >= 100 ? "Flatten" : `${s.side === "buy" ? "Buy" : "Sell"} ${shortcutSizeLabel(s)}`;
+  }
+  function normalizeShortcut(s) {
+    const sizeType = ["shares", "pct_bp", "pct_position"].includes(s.sizeType) ? s.sizeType : "shares";
+    const side = s.side === "sell" ? "sell" : "buy";
+    const value = Number(s.value) > 0 ? Number(s.value) : 100;
+    const norm = {
+      id: s.id || ("sc" + Math.random().toString(36).slice(2, 9)),
+      side, sizeType, value,
+      key: (s.key || "").toString().trim().slice(0, 1),
+    };
+    norm.label = String(s.label || "").slice(0, 24) || defaultLabelFor(norm);
+    return norm;
+  }
+  function loadShortcuts() {
+    try {
+      const raw = localStorage.getItem(SHORTCUTS_KEY);
+      if (!raw) return defaultShortcuts();
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return defaultShortcuts();
+      return parsed.filter((s) => s && typeof s === "object").map(normalizeShortcut);
+    } catch (e) { return defaultShortcuts(); }
+  }
+  function saveShortcuts() {
+    try { localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(shortcuts)); } catch (e) { /* ignore */ }
+  }
+  let shortcuts = loadShortcuts();
+
+  // Shares a shortcut resolves to right now, at the current tick's
+  // price and account state -- same "decide the quantity at the
+  // instant you click" spirit as the % of buying power size mode.
+  function resolveShortcutShares(s) {
+    if (s.sizeType === "shares") return Math.floor(s.value);
+    const mid = currentPrice();
+    if (s.sizeType === "pct_bp") {
+      const price = s.side === "buy" ? askPrice(mid) : bidPrice(mid);
+      return pctToShares(s.value, price);
+    }
+    // pct_position -- meaningless while flat; only ever closes a long
+    const held = state.position ? state.position.shares : 0;
+    if (!(held > 0)) return 0;
+    return s.value >= 100 ? held : Math.max(1, Math.floor(held * (s.value / 100)));
+  }
+
+  function runShortcut(id) {
+    const s = shortcuts.find((x) => x.id === id);
+    if (!s || !state.trade || state.ended) return;
+    if (s.side === "sell" && !(state.position && state.position.shares > 0)) {
+      showOrderMsg("No open position to sell.", true);
+      return;
+    }
+    const shares = resolveShortcutShares(s);
+    if (!(shares > 0)) { showOrderMsg("That shortcut resolved to 0 shares.", true); return; }
+    executeOrder(s.side, shares);
+  }
+
+  function renderShortcutsRow() {
+    if (!els.shortcutsRow) return;
+    if (!state.trade) { els.shortcutsRow.innerHTML = ""; return; }
+    els.shortcutsRow.innerHTML = shortcuts.map((s) => {
+      const disabled = state.ended || (s.side === "sell" && !(state.position && state.position.shares > 0));
+      const keyBadge = s.key ? `<span class="pp-shortcut-key">${escapeHtml(s.key.toUpperCase())}</span>` : "";
+      return `<button type="button" class="pp-shortcut-btn ${s.side}" data-id="${s.id}"${disabled ? " disabled" : ""}>${keyBadge}${escapeHtml(s.label)}</button>`;
+    }).join("");
+    els.shortcutsRow.querySelectorAll(".pp-shortcut-btn").forEach((b) => {
+      b.addEventListener("click", () => runShortcut(b.dataset.id));
+    });
+  }
+
+  // Settings modal -- built by hand (not UIModal's confirm/prompt) since
+  // it needs an editable, add/removable list rather than a single value.
+  // Edits a working copy so Cancel truly discards unsaved changes.
+  function openShortcutsModal() {
+    const draft = shortcuts.map((s) => Object.assign({}, s));
+
+    const overlay = document.createElement("div");
+    overlay.className = "ui-modal-overlay pp-shortcuts-modal";
+    overlay.innerHTML = `
+      <div class="ui-modal-box" role="dialog" aria-modal="true">
+        <div class="ui-modal-title">Order shortcuts</div>
+        <div class="pp-sc-table" id="pp-sc-table"></div>
+        <div class="pp-sc-addrow"><button type="button" class="btn-advanced" id="pp-sc-add-btn">+ Add shortcut</button></div>
+        <div class="ui-modal-actions">
+          <button type="button" class="btn-advanced" data-act="cancel">Cancel</button>
+          <button type="button" class="btn-confirm" data-act="save">Save shortcuts</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const table = overlay.querySelector("#pp-sc-table");
+
+    function autoLabelIfUnset(i) {
+      if (draft[i]._customLabel && draft[i].label) return;
+      draft[i].label = defaultLabelFor(draft[i]);
+      const input = table.querySelector(`.pp-sc-row[data-i="${i}"] .sc-label`);
+      if (input) input.value = draft[i].label;
+    }
+
+    function renderRows() {
+      if (!draft.length) {
+        table.innerHTML = `<div class="pp-sc-empty">No shortcuts yet — add one below.</div>`;
+        return;
+      }
+      table.innerHTML = draft.map((s, i) => `
+        <div class="pp-sc-row" data-i="${i}">
+          <input type="text" class="sc-label" maxlength="24" value="${escapeHtml(s.label || "")}" placeholder="Label">
+          <select class="sc-side">
+            <option value="buy" ${s.side === "buy" ? "selected" : ""}>Buy</option>
+            <option value="sell" ${s.side === "sell" ? "selected" : ""}>Sell</option>
+          </select>
+          <select class="sc-type">
+            <option value="shares" ${s.sizeType === "shares" ? "selected" : ""}>Shares (fixed)</option>
+            <option value="pct_bp" ${s.sizeType === "pct_bp" ? "selected" : ""}>% of buying power</option>
+            <option value="pct_position" ${s.sizeType === "pct_position" ? "selected" : ""}>% of position (sell)</option>
+          </select>
+          <input type="number" class="sc-value" min="1" step="1" value="${Number(s.value) || 100}">
+          <input type="text" class="sc-key pp-sc-key" maxlength="1" value="${escapeHtml(s.key || "")}" placeholder="key">
+          <button type="button" class="pp-sc-del" title="Remove shortcut" aria-label="Remove shortcut">×</button>
+        </div>
+      `).join("");
+
+      table.querySelectorAll(".pp-sc-row").forEach((row) => {
+        const i = Number(row.dataset.i);
+        row.querySelector(".sc-label").addEventListener("input", (e) => { draft[i].label = e.target.value; draft[i]._customLabel = true; });
+        row.querySelector(".sc-side").addEventListener("change", (e) => { draft[i].side = e.target.value; autoLabelIfUnset(i); });
+        row.querySelector(".sc-type").addEventListener("change", (e) => { draft[i].sizeType = e.target.value; autoLabelIfUnset(i); });
+        row.querySelector(".sc-value").addEventListener("input", (e) => { draft[i].value = Number(e.target.value) || 0; autoLabelIfUnset(i); });
+        row.querySelector(".sc-key").addEventListener("input", (e) => { draft[i].key = e.target.value.slice(-1); });
+        row.querySelector(".pp-sc-del").addEventListener("click", () => { draft.splice(i, 1); renderRows(); });
+      });
+    }
+    renderRows();
+
+    overlay.querySelector("#pp-sc-add-btn").addEventListener("click", () => {
+      draft.push({ id: "sc" + Math.random().toString(36).slice(2, 9), label: "Buy 100", side: "buy", sizeType: "shares", value: 100, key: "" });
+      renderRows();
+    });
+
+    let closed = false;
+    function close() {
+      if (closed) return;
+      closed = true;
+      document.removeEventListener("keydown", onEsc, true);
+      overlay.classList.remove("open");
+      setTimeout(() => overlay.remove(), 160);
+    }
+    function onEsc(e) { if (e.key === "Escape") close(); }
+    document.addEventListener("keydown", onEsc, true);
+    overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-act="cancel"]').addEventListener("click", close);
+    overlay.querySelector('[data-act="save"]').addEventListener("click", () => {
+      const seenKeys = new Set();
+      shortcuts = draft.map((s) => {
+        const norm = normalizeShortcut(s);
+        if (norm.key && seenKeys.has(norm.key.toLowerCase())) norm.key = "";
+        if (norm.key) seenKeys.add(norm.key.toLowerCase());
+        return norm;
+      });
+      saveShortcuts();
+      renderShortcutsRow();
+      close();
+    });
+
+    requestAnimationFrame(() => overlay.classList.add("open"));
+  }
 
   // ---------------------------------------------------------------
   // runtime state for whatever chart is currently loaded (not all of
@@ -383,10 +599,11 @@
     els.candidateCount.innerHTML = `<b>${n}</b> chart${n === 1 ? "" : "s"} available`;
   }
 
-  function pickRandomCandidate() {
+  function pickRandomCandidate(excludeId) {
     const rows = state.index;
     if (!rows.length) return;
-    const pick = rows[Math.floor(Math.random() * rows.length)];
+    const pool = excludeId && rows.length > 1 ? rows.filter((r) => r.id !== excludeId) : rows;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
     loadChart(pick.id);
   }
 
@@ -758,6 +975,39 @@
     const delta = price - prev;
     els.liveChange.textContent = (delta >= 0 ? "▲ " : "▼ ") + fmtPrice(Math.abs(delta));
     els.liveChange.className = "pp-live-change " + (delta >= 0 ? "up" : "down");
+    renderQuoteStrip(price);
+  }
+
+  // Bid/ask/spread plus a running day range + cumulative volume built
+  // from every bar printed so far (the closed bars, plus the forming
+  // one at its current tick) -- same "what a real quote box shows"
+  // info a broker's ticket sits under, entirely derived client-side
+  // from data already in state.
+  function renderQuoteStrip(price) {
+    if (!els.bidVal) return;
+    els.bidVal.textContent = "$" + fmtPrice(bidPrice(price));
+    els.askVal.textContent = "$" + fmtPrice(askPrice(price));
+    els.spreadVal.textContent = "$" + fmtPrice(spreadFor(price));
+
+    const closed = state.bars.slice(0, state.barIndex);
+    const forming = state.bars[state.barIndex];
+    let hi = -Infinity, lo = Infinity, vol = 0;
+    closed.forEach((b) => {
+      if (Number.isFinite(b.h)) hi = Math.max(hi, b.h);
+      if (Number.isFinite(b.l)) lo = Math.min(lo, b.l);
+      vol += Number(b.v) || 0;
+    });
+    if (forming) {
+      hi = Math.max(hi, forming.h, price);
+      lo = Math.min(lo, forming.l, price);
+      // forming bar's own volume isn't known until it locks in -- credit
+      // it proportionally to how far through the bar the tape is, so the
+      // volume readout doesn't visibly jump the instant each bar locks.
+      const frac = state.ticks.length ? (state.tickIndex + 1) / state.ticks.length : 0;
+      vol += (Number(forming.v) || 0) * frac;
+    }
+    els.rangeVal.textContent = Number.isFinite(hi) && Number.isFinite(lo) ? `$${fmtPrice(lo)} – $${fmtPrice(hi)}` : "—";
+    els.volVal.textContent = Number.isFinite(vol) ? Math.round(vol).toLocaleString("en-US") : "—";
   }
   // The clock time of the bar's forming candle right now -- the bar's
   // own start time plus however many of its 60 second-ticks have
@@ -896,6 +1146,7 @@
       executeOrder("sell", state.position.shares, true);
     }
     updatePlayPauseBtn();
+    renderPositionPanel();
     renderRecap();
     account.session = null;
     saveAccount();
@@ -982,7 +1233,13 @@
       if (shares > heldLong) shares = heldLong;
     }
 
-    const price = currentPrice();
+    // Cross the spread like a real market order would -- a buy fills at
+    // the ask, a sell fills at the bid, never at the mid-price shown as
+    // the "last" quote. This is also why a fresh position shows a small
+    // negative unrealized P&L the instant it's opened: you're down the
+    // spread before the market even has to move against you.
+    const mid = currentPrice();
+    const price = sideStr === "buy" ? askPrice(mid) : bidPrice(mid);
     let commission = ibkrTieredCommission(shares, price);
     let realizedPnl = null;
     let clamped = false;
@@ -1085,6 +1342,7 @@
     els.sellBtn.title = blockSell ? "No shorting -- buy first to open a position." : "";
 
     renderPartialExitRow();
+    renderShortcutsRow();
   }
 
   // ---------------------------------------------------------------
@@ -1170,15 +1428,24 @@
   }
   function renderSizePreview() {
     if (!els.sizePreview) return;
-    if (account.sizeMode !== "pct") { els.sizePreview.textContent = ""; return; }
     const raw = Number(els.sharesInput.value);
     const price = currentPrice();
     if (!Number.isFinite(raw) || raw <= 0 || !(price > 0)) { els.sizePreview.textContent = ""; return; }
-    const dollars = buyingPower() * (raw / 100);
-    const shares = pctToShares(raw, price);
-    els.sizePreview.textContent = shares > 0
-      ? `≈ ${shares} sh (${fmtUsd(dollars)} of ${fmtUsd(buyingPower())} buying power)`
-      : `Too small for 1 share at $${fmtPrice(price)}`;
+
+    if (account.sizeMode === "pct") {
+      const dollars = buyingPower() * (raw / 100);
+      const shares = pctToShares(raw, price);
+      if (shares <= 0) { els.sizePreview.textContent = `Too small for 1 share at $${fmtPrice(price)}`; return; }
+      const est = shares * askPrice(price);
+      const comm = ibkrTieredCommission(shares, price);
+      els.sizePreview.textContent = `≈ ${shares} sh (${fmtUsd(dollars)} of ${fmtUsd(buyingPower())} BP) · ${fmtUsd(est)} + ${fmtUsd(comm)} est. commission`;
+      return;
+    }
+    const shares = Math.floor(raw);
+    if (shares <= 0) { els.sizePreview.textContent = ""; return; }
+    const est = shares * askPrice(price);
+    const comm = ibkrTieredCommission(shares, price);
+    els.sizePreview.textContent = `${shares} sh ≈ ${fmtUsd(est)} to buy + ${fmtUsd(comm)} est. commission`;
   }
   function applySizeModeUI() {
     const isPct = account.sizeMode === "pct";
@@ -1237,12 +1504,12 @@
     if (state.position && state.position.shares > 0) {
       const ok = await UIModal.confirm("You still have an open position on this chart. Leaving now will flatten it at the current price. Continue?", { title: "Flatten & leave?", tone: "danger", confirmLabel: "Flatten & leave" });
       if (!ok) return;
-      endSession("changed chart");
-      return;
     }
+    const prevId = state.trade ? state.trade.id : null;
+    endSession("changed chart");
     account.session = null;
     saveAccount();
-    goToSetup();
+    pickRandomCandidate(prevId);
   });
   els.playPauseBtn.addEventListener("click", () => { state.playing ? stopPlayback() : startPlayback(); });
   els.stepBackBtn.addEventListener("click", stepBackOneBar);
@@ -1266,6 +1533,22 @@
   });
   els.progressSlider.addEventListener("change", () => scrubTo(Number(els.progressSlider.value)));
   els.sharesInput.addEventListener("input", renderSizePreview);
+  if (els.qtyDecBtn) {
+    els.qtyDecBtn.addEventListener("click", () => {
+      const step = account.sizeMode === "pct" ? 5 : 10;
+      const min = account.sizeMode === "pct" ? 1 : 1;
+      els.sharesInput.value = String(Math.max(min, (Number(els.sharesInput.value) || 0) - step));
+      renderSizePreview();
+    });
+  }
+  if (els.qtyIncBtn) {
+    els.qtyIncBtn.addEventListener("click", () => {
+      const step = account.sizeMode === "pct" ? 5 : 10;
+      const max = account.sizeMode === "pct" ? 100 : Infinity;
+      els.sharesInput.value = String(Math.min(max, (Number(els.sharesInput.value) || 0) + step));
+      renderSizePreview();
+    });
+  }
   if (els.sizeModeRow) {
     els.sizeModeRow.querySelectorAll(".pp-size-mode-btn").forEach((b) => {
       b.addEventListener("click", () => {
@@ -1289,6 +1572,26 @@
     executeOrder("sell", shares);
   });
   els.srBtn.addEventListener("click", runSupportResistance);
+  if (els.shortcutsGearBtn) els.shortcutsGearBtn.addEventListener("click", openShortcutsModal);
+  if (els.headShortcutsGearBtn) els.headShortcutsGearBtn.addEventListener("click", openShortcutsModal);
+
+  // Keyboard hotkeys -- only live while a chart is actually loaded and
+  // running, and never while the person is typing into a field (the
+  // quantity box, a modal input, etc.) or holding a modifier key.
+  function isTypingTarget(el) {
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (isTypingTarget(document.activeElement)) return;
+    if (els.playScreen.style.display === "none") return;
+    if (!state.trade || state.ended) return;
+    const key = e.key.toLowerCase();
+    const match = shortcuts.find((s) => s.key && s.key.toLowerCase() === key);
+    if (match) { e.preventDefault(); runShortcut(match.id); }
+  });
 
   // ---------------------------------------------------------------
   // boot

@@ -8,8 +8,55 @@
    (loaded alongside this file) — only rewind-only rules remain here.
 =================================================================== */
 
+/* ===================================================================
+   Setup screen ("landing page") redesign — hero banner + grouped
+   fields + a heavier CTA. Scoped under #quiz-setup-screen so quiz.html
+   (which shares quiz-shared.css but not this file) is untouched.
+=================================================================== */
+.rw-hero {
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(139,124,246,0.22), transparent 55%),
+    linear-gradient(135deg, var(--panel), var(--panel));
+  border: 1px solid rgba(139,124,246,0.3);
+  border-radius: var(--radius-lg);
+  padding: 26px 28px;
+  margin-bottom: 18px;
+}
+.rw-hero-text { max-width: 560px; }
+.rw-hero-eyebrow {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;
+  color: var(--primary); margin-bottom: 8px;
+}
+.rw-hero-text h2 { margin: 0 0 8px; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+.rw-hero-text p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text-dim); }
+.rw-hero-stat { text-align: center; flex-shrink: 0; }
+.rw-hero-stat .rs-num { font-family: var(--mono); font-size: 30px; font-weight: 700; color: var(--text); line-height: 1; }
+.rw-hero-stat .rs-lbl { margin-top: 4px; font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
+@media (max-width: 760px) { .rw-hero { padding: 22px; } }
+
+.rw-field-group { padding: 14px 0; border-top: 1px solid var(--border-soft); }
+.rw-field-group:first-of-type { padding-top: 0; border-top: none; }
+.rw-field-group-label {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+  color: var(--text-faint); margin-bottom: 14px;
+}
+
+/* Heavier, glowing CTA -- the settings above it are the only thing
+   standing between you and starting, so it should read as the button
+   on the page, not just another form control. */
+#quiz-setup-screen .quiz-start-btn {
+  font-size: 15px; font-weight: 700; padding: 14px 20px; margin-top: 18px;
+  box-shadow: 0 0 0 1px rgba(139,124,246,0.3), 0 8px 22px rgba(139,124,246,0.4);
+}
+#quiz-setup-screen .quiz-start-btn:hover:not(:disabled) {
+  box-shadow: 0 0 0 1px rgba(139,124,246,0.4), 0 10px 26px rgba(139,124,246,0.5);
+}
+
 .quiz-history-row .hr-count { flex: 1; color: var(--text-dim); }
 .quiz-history-row .hr-chips { display: flex; gap: 4px; flex: none; }
+
 
 /* ---------- session summary ---------- */
 .rewind-recap-stats { display: flex; gap: 28px; flex-wrap: wrap; }

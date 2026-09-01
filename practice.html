@@ -102,6 +102,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
         <span class="nav-label">Practice</span>
       </a>
+
+      <a class="nav-item" href="practice-analytics.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+        <span class="nav-label">Practice Analytics</span>
+      </a>
     </nav>
 
     <div class="sidebar-bottom">
@@ -123,7 +128,10 @@
 
     <div class="content">
       <div class="panel-head">
-        <div class="sub">Paper trade a real logged chart from the start of its data. A persistent dummy account, buy/sell like a real broker, and the same offline tick replay the Quiz tab uses.</div>
+        <button type="button" class="btn-advanced pp-head-shortcuts-btn" id="pr-shortcuts-gear-btn" title="Manage your buy/sell shortcuts">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          Order shortcuts
+        </button>
       </div>
 
       <!-- ============ SETUP SCREEN ============ -->
@@ -132,6 +140,18 @@
         <div id="pr-resume-box" class="pr-resume-box" style="display:none;">
           <div class="rb-text">You left a session in progress on <b id="pr-resume-label"></b>.</div>
           <button class="btn-confirm" id="pr-resume-btn">Resume session</button>
+        </div>
+
+        <div class="pr-hero">
+          <div class="pr-hero-text">
+            <div class="pr-hero-eyebrow">Practice</div>
+            <h2>Trade a real chart, live</h2>
+            <p>Drop into one of your logged trades from the start of the tape and buy/sell your way through it, bar by bar — no spoilers, just the chart.</p>
+          </div>
+          <div class="pr-hero-action">
+            <button class="btn-hero" id="pf-random-btn">▶ Start practicing</button>
+            <div class="pr-candidate-count" id="pf-candidate-count"></div>
+          </div>
         </div>
 
         <div class="pr-account-grid">
@@ -162,14 +182,6 @@
         <div class="panel-box" style="margin-bottom:18px;">
           <div class="panel-box-head"><span class="title">Recent fills</span></div>
           <div id="pr-fills-box"></div>
-        </div>
-
-        <div class="panel-box">
-          <div class="panel-box-head"><span class="title">Pick a chart to practice on</span></div>
-          <div class="pr-filter-row">
-            <button class="btn-confirm" id="pf-random-btn">🎲 Pick a random chart</button>
-          </div>
-          <div class="pr-candidate-count" id="pf-candidate-count"></div>
         </div>
 
       </div>
@@ -218,19 +230,35 @@
           </div>
 
           <div>
-            <div class="pp-live-block">
-              <span id="pp-live-price">$0.00</span>
-              <span id="pp-live-change" class="pp-live-change"></span>
+            <div class="pp-quote-strip">
+              <div class="qs-price-block">
+                <span id="pp-live-price">$0.00</span>
+                <span id="pp-live-change" class="pp-live-change"></span>
+              </div>
+              <div class="qs-cell"><span class="qs-label">Bid</span><span class="qs-val down" id="pp-bid-val">—</span></div>
+              <div class="qs-cell"><span class="qs-label">Ask</span><span class="qs-val up" id="pp-ask-val">—</span></div>
+              <div class="qs-cell"><span class="qs-label">Spread</span><span class="qs-val" id="pp-spread-val">—</span></div>
+              <div class="qs-cell"><span class="qs-label">Day range</span><span class="qs-val" id="pp-range-val">—</span></div>
+              <div class="qs-cell"><span class="qs-label">Volume</span><span class="qs-val" id="pp-vol-val">—</span></div>
             </div>
 
             <div class="pp-order-panel">
-              <div class="title">Place an order</div>
+              <div class="pp-ticket-head">
+                <span class="title">Order ticket</span>
+                <span class="pp-tif-tag">Market · Day</span>
+                <button type="button" class="icon-btn pp-shortcuts-gear" id="pp-shortcuts-gear-btn" title="Manage your buy/sell shortcuts" aria-label="Manage order shortcuts">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                </button>
+              </div>
+
               <div class="pp-size-mode-row" id="pp-size-mode-row">
                 <button type="button" class="pp-size-mode-btn" data-mode="shares">Shares</button>
                 <button type="button" class="pp-size-mode-btn" data-mode="pct">% of capital</button>
               </div>
               <div class="pp-size-row">
+                <button type="button" class="pp-stepper-btn" id="pp-qty-dec" aria-label="Decrease quantity" tabindex="-1">−</button>
                 <input type="number" id="pp-shares-input" min="1" step="1" value="100">
+                <button type="button" class="pp-stepper-btn" id="pp-qty-inc" aria-label="Increase quantity" tabindex="-1">+</button>
                 <span class="unit" id="pp-size-unit">shares</span>
               </div>
               <div id="pp-size-preset-row"></div>
@@ -246,6 +274,11 @@
                 </button>
               </div>
               <div class="pp-order-msg" id="pp-order-msg"></div>
+
+              <div class="pp-shortcuts-block" id="pp-shortcuts-block">
+                <div class="pp-shortcuts-label">Shortcuts</div>
+                <div class="pp-shortcuts-row" id="pp-shortcuts-row"></div>
+              </div>
 
               <div class="pp-position-block">
                 <div id="pp-pos-summary"></div>
@@ -269,7 +302,7 @@
           <div class="sr-head">
             <div>
               <h2 style="margin:0;">Support &amp; Resistance</h2>
-              <div class="sr-sub">Reads this symbol's prior daily bars (before this chart's data) and draws support/resistance lines on the chart above. Off by default — runs only when you click, so it never spends API tokens on its own.</div>
+              <div class="sr-sub">Uses this symbol's prior daily bars. Off by default.</div>
             </div>
             <button class="sr-run-btn" id="pp-sr-run-btn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.4 8.6 12 15l-3-3-4 4"></path></svg>
@@ -283,7 +316,7 @@
 
     </div>
 
-    <div class="footer">trade.log — Practice reads data/trades.json + data/trades/&lt;id&gt;.json, entirely client-side. Your dummy account lives in this browser's local storage.</div>
+    <div class="footer">trade.log</div>
   </div>
 </div>
 

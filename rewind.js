@@ -30,6 +30,7 @@
     startBtn: document.getElementById("qf-start-btn"),
     historyBox: document.getElementById("quiz-history-box"),
     focusBox: document.getElementById("quiz-focus-box"),
+    heroStat: document.getElementById("rw-hero-stat"),
     progressLabel: document.getElementById("qp-progress-label"),
     progressFill: document.getElementById("qp-progress-fill"),
     quitBtn: document.getElementById("qp-quit-btn"),
@@ -628,6 +629,15 @@
 
   function renderHistoryPanel() {
     const history = loadHistory();
+    if (els.heroStat) {
+      if (history.length) {
+        const totalTrades = history.reduce((s, h) => s + (h.count || 0), 0);
+        els.heroStat.style.display = "";
+        els.heroStat.innerHTML = `<div class="rs-num">${totalTrades}</div><div class="rs-lbl">trade${totalTrades === 1 ? "" : "s"} reviewed</div>`;
+      } else {
+        els.heroStat.style.display = "none";
+      }
+    }
     if (!history.length) {
       els.historyBox.innerHTML = `<div class="quiz-history-empty">No sessions yet — they'll show up here once you run one.</div>`;
       els.focusBox.innerHTML = "";
@@ -1538,10 +1548,16 @@
     const clockStr = new Date(bar.t.replace(" ", "T")).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const minutesIn = c.watchIdx - c.entryIdx;
     const barsLeft = c.bars.length - 1 - c.watchIdx;
+    // Always shown, not just as a last-second warning -- so you can see
+    // how much tape is left to plan around rather than getting surprised
+    // when it runs out. BAR_SECONDS === 60, so bars left and minutes left
+    // of chart data are the same number.
+    const barsLeftColor = barsLeft <= 3 ? "var(--amber)" : "var(--text-faint)";
+    const barsLeftLabel = `${barsLeft} bar${barsLeft === 1 ? "" : "s"} (~${barsLeft}m) of data left`;
 
     document.getElementById("qz-watch-clock").innerHTML =
       `${escapeHtml(clockStr)} <span class="dim" style="font-weight:400;">· ${minutesIn} min in</span>` +
-      (barsLeft <= 3 ? ` <span style="color:var(--amber);">· ${barsLeft} bar${barsLeft === 1 ? "" : "s"} of data left</span>` : "");
+      ` <span style="color:${barsLeftColor};">· ${barsLeftLabel}</span>`;
     const positionNote = c.remainingFraction < 1 - 1e-9
       ? ` You're still holding <b>${Math.round(c.remainingFraction * 100)}%</b> of the position.`
       : "";
