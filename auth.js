@@ -29,22 +29,95 @@
 
   var isLoginPage = /\/login(\.html)?\/?$/.test(window.location.pathname);
 
-  function addLogoutButton() {
-    if (document.getElementById("auth-logout-btn")) return;
+  // Builds the top-right "account" widget: a pill showing the user's
+  // email that, when clicked, drops down a small panel with their
+  // email, sign-up date, and a Log out button.
+  //
+  // IMPORTANT: this used to call document.body.appendChild() directly,
+  // but this script runs from <head> before <body> exists. Session
+  // lookups that resolve from local cache can finish before the parser
+  // even gets to <body>, so document.body was sometimes still null --
+  // that's the "Cannot read properties of null (reading 'appendChild')"
+  // crash. insertWhenReady() below waits for DOMContentLoaded if body
+  // isn't there yet, so this now always works.
+  function insertWhenReady(el) {
+    if (document.body) {
+      document.body.appendChild(el);
+    } else {
+      document.addEventListener(
+        "DOMContentLoaded",
+        function () {
+          document.body.appendChild(el);
+        },
+        { once: true }
+      );
+    }
+  }
+
+  function addAccountWidget(session) {
+    if (document.getElementById("auth-account-widget")) return;
+    var user = session.user || {};
+    var email = user.email || "Account";
+
+    var wrap = document.createElement("div");
+    wrap.id = "auth-account-widget";
+    wrap.style.cssText =
+      "position:fixed;top:12px;right:12px;z-index:9999;font:12.5px system-ui,sans-serif;";
+
     var btn = document.createElement("button");
-    btn.id = "auth-logout-btn";
-    btn.textContent = "Log out";
+    btn.id = "auth-account-btn";
+    btn.textContent = email;
     btn.style.cssText =
-      "position:fixed;top:12px;right:12px;z-index:9999;padding:6px 14px;" +
-      "border-radius:8px;border:1px solid rgba(255,255,255,.18);" +
-      "background:rgba(20,20,28,.85);color:#eee;font:12.5px system-ui,sans-serif;" +
-      "cursor:pointer;backdrop-filter:blur(4px);";
-    btn.addEventListener("click", function () {
+      "max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" +
+      "padding:6px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.18);" +
+      "background:rgba(20,20,28,.85);color:#eee;font:inherit;" +
+      "cursor:pointer;backdrop-filter:blur(4px);display:block;";
+
+    var panel = document.createElement("div");
+    panel.style.cssText =
+      "display:none;position:absolute;top:36px;right:0;min-width:220px;" +
+      "padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,.18);" +
+      "background:rgba(20,20,28,.97);color:#eee;backdrop-filter:blur(6px);" +
+      "box-shadow:0 8px 24px rgba(0,0,0,.4);";
+
+    var emailRow = document.createElement("div");
+    emailRow.textContent = "Signed in as " + email;
+    emailRow.style.cssText = "margin-bottom:6px;word-break:break-all;";
+    panel.appendChild(emailRow);
+
+    if (user.created_at) {
+      var sinceRow = document.createElement("div");
+      var created = new Date(user.created_at);
+      sinceRow.textContent = "Member since " + created.toLocaleDateString();
+      sinceRow.style.cssText = "color:#999;font-size:11.5px;margin-bottom:12px;";
+      panel.appendChild(sinceRow);
+    }
+
+    var logoutBtn = document.createElement("button");
+    logoutBtn.id = "auth-logout-btn";
+    logoutBtn.textContent = "Log out";
+    logoutBtn.style.cssText =
+      "width:100%;padding:8px 0;border:none;border-radius:8px;" +
+      "background:linear-gradient(90deg,#8457ff,#22d3ee);color:#0b0b12;" +
+      "font-weight:600;font:inherit;cursor:pointer;";
+    logoutBtn.addEventListener("click", function () {
       window.sb.auth.signOut().then(function () {
         window.location.href = "login";
       });
     });
-    document.body.appendChild(btn);
+    panel.appendChild(logoutBtn);
+
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      panel.style.display = panel.style.display === "none" ? "block" : "none";
+    });
+    document.addEventListener("click", function () {
+      panel.style.display = "none";
+    });
+
+    wrap.appendChild(btn);
+    wrap.appendChild(panel);
+    insertWhenReady(wrap);
   }
 
   // Every protected page awaits this before it's allowed to query data.
@@ -59,7 +132,7 @@
       window.location.href = "/";
       return null;
     }
-    addLogoutButton();
+    addAccountWidget(session);
     return session;
   });
 
