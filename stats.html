@@ -113,6 +113,11 @@
         <span class="nav-label">Practice</span>
       </a>
 
+
+      <a class="nav-item" href="settings.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <span class="nav-label">Settings</span>
+      </a>
 </nav>
 
     <div class="sidebar-bottom">
@@ -152,8 +157,8 @@
 
   const content = document.getElementById("stats-content");
 
-  window.fetchTradesIndex()
-    .then((rows) => render(Array.isArray(rows) ? rows : []))
+  Promise.all([window.fetchTradesIndex(), window.fetchCapitalLedger()])
+    .then(([rows, ledger]) => render(Array.isArray(rows) ? rows : [], ledger || []))
     .catch((err) => {
       content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
     });
@@ -185,12 +190,16 @@
     });
   }
 
-  function render(rows) {
+  function render(rows, ledger) {
     if (!rows.length) {
       content.innerHTML = `<div class="empty-state">No trades published yet.</div>`;
       return;
     }
     const sorted = rows.slice().sort((a, b) => (a.trade_date + a.entry_time).localeCompare(b.trade_date + b.entry_time));
+    // Real account balance per trade (Settings ledger + cumulative P&L),
+    // parallel to `sorted` -- see computeAccountBalances in auth.js.
+    const balances = window.computeAccountBalances(sorted, ledger);
+    sorted.forEach((r, i) => { r._balance = balances[i]; });
 
     const totalPnl = sorted.reduce((s, r) => s + (r.pnl_after_comm || 0), 0);
     const wins = sorted.filter((r) => r.win).length;
@@ -282,16 +291,17 @@
     const series = chart.addAreaSeries({
       lineColor: "#5b93f0", topColor: "rgba(91,147,240,0.28)", bottomColor: "rgba(91,147,240,0.02)", lineWidth: 2,
     });
-    // equity_after is already computed by the pipeline; fall back to a
-    // running sum if an older index entry is missing it. Lightweight-charts
-    // needs one strictly-increasing time key per point, but a day can have
-    // several trades, so collapse same-day trades to that day's final
-    // equity value.
+    // `_balance` (real account balance -- Settings ledger + cumulative
+    // P&L, see computeAccountBalances in auth.js) is computed for every
+    // row before this runs; fall back to a running P&L sum on the rare
+    // chance it's missing. Lightweight-charts needs one strictly-
+    // increasing time key per point, but a day can have several trades,
+    // so collapse same-day trades to that day's final balance.
     let running = 0;
     const byDate = new Map();
     for (const r of sorted) {
       running += r.pnl_after_comm || 0;
-      const value = typeof r.equity_after === "number" ? r.equity_after : running;
+      const value = typeof r._balance === "number" ? r._balance : running;
       byDate.set(r.trade_date, value);
     }
     const data = Array.from(byDate.entries())

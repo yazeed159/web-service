@@ -127,6 +127,15 @@ ${scriptExtra || ""}
   }
 
   function lessonItemHtml(l) {
+    if (typeof l === "string") {
+      // Lessons occasionally round-trip as a raw JSON string instead of
+      // an object -- parse it back so it renders the same as any other
+      // lesson instead of dumping raw JSON text into the shared page.
+      try {
+        const parsed = JSON.parse(l);
+        if (parsed && typeof parsed === "object") l = parsed;
+      } catch (e) { /* genuinely plain text -- fall through below */ }
+    }
     if (typeof l === "string") return `<li>${escapeHtml(l)}</li>`;
     const tagBadge = l.tag ? `<span class="lesson-tag">${escapeHtml(String(l.tag).replace(/_/g, " "))}</span>` : "";
     return `<li>${escapeHtml(l.lesson || l.text || "")}${tagBadge}</li>`;

@@ -4,30 +4,16 @@
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="auth.js"></script>
-<script src="grade.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>trade.log — detail</title>
+<title>Settings — trade.log</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="core.css">
 <link rel="stylesheet" href="chat-widget.css">
 <link rel="stylesheet" href="global-search.css">
-<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<link rel="stylesheet" href="ui-modal.css">
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <defs>
-    <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#8457ff"/>
-      <stop offset="100%" stop-color="#22d3ee"/>
-    </linearGradient>
-    <linearGradient id="modernEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#8457ff"/>
-      <stop offset="100%" stop-color="#22d3ee"/>
-    </linearGradient>
-  </defs>
-</svg>
-
 
 <div class="app-shell">
 
@@ -55,7 +41,7 @@
         <span class="nav-label">Day View</span>
       </a>
 
-      <a class="nav-item active" href="index.html#tradeview">
+      <a class="nav-item" href="index.html#tradeview">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
         <span class="nav-label">Trade View</span>
       </a>
@@ -102,7 +88,6 @@
         <span class="nav-label">Backtester</span>
       </a>
 
-
       <a class="nav-item" href="rewind.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
         <span class="nav-label">Rewind</span>
@@ -113,22 +98,21 @@
         <span class="nav-label">Practice</span>
       </a>
 
-
-      <a class="nav-item" href="settings.html">
+      <a class="nav-item active" href="settings.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
         <span class="nav-label">Settings</span>
       </a>
-</nav>
+    </nav>
 
     <div class="sidebar-bottom">
-      <div class="pipeline-status"><span class="dot"></span><span>Trade detail</span></div>
+      <div class="pipeline-status"><span class="dot"></span><span>Settings</span></div>
     </div>
   </aside>
 
   <div class="main">
     <header class="topbar">
       <div class="topbar-left">
-        <h1 id="page-title">Trade detail</h1>
+        <h1 id="page-title">Settings</h1>
       </div>
       <div class="topbar-right">
         <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
@@ -138,28 +122,171 @@
     </header>
 
     <div class="content">
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-        <a href="index.html#tradeview" class="back-link">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-          All trades
-        </a>
-        <button class="icon-btn" id="share-trade-btn" title="Export this trade as a shareable static page" style="width:auto; padding:5px 12px; font-size:12px; gap:6px;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
-          <span id="share-trade-label">Share trade</span>
-        </button>
+
+      <div class="panel-box" style="margin-bottom:16px;">
+        <div class="panel-box-head">
+          <span class="title">Account Capital</span>
+        </div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px; margin-bottom:16px;">
+          Record deposits and withdrawals for your real trading account. This is what lets the
+          Dashboard's equity curve and drawdown numbers show your actual account balance instead
+          of just cumulative trade P&amp;L — add nothing here and everything behaves exactly like
+          it did before.
+        </p>
+
+        <div class="stat-grid" id="capital-summary" style="margin-bottom:20px;">
+          <div class="stat">
+            <div class="label-row"><span class="label">Current Balance</span></div>
+            <div class="value" id="cap-balance">—</div>
+          </div>
+          <div class="stat">
+            <div class="label-row"><span class="label">Total Deposited</span></div>
+            <div class="value" id="cap-deposited">—</div>
+          </div>
+          <div class="stat">
+            <div class="label-row"><span class="label">Total Withdrawn</span></div>
+            <div class="value" id="cap-withdrawn">—</div>
+          </div>
+        </div>
+
+        <form id="cap-form" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:18px;">
+          <div>
+            <label style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Date</label>
+            <input type="date" class="filter-input" id="cap-date" required>
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Type</label>
+            <select class="filter-input" id="cap-type">
+              <option value="deposit">Deposit</option>
+              <option value="withdrawal">Withdrawal</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Amount</label>
+            <input type="text" inputmode="decimal" class="filter-input" id="cap-amount" placeholder="$0.00" required style="max-width:140px;">
+          </div>
+          <div style="flex:1; min-width:160px;">
+            <label style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Note (optional)</label>
+            <input type="text" class="filter-input" id="cap-note" placeholder="e.g. initial funding" style="width:100%;">
+          </div>
+          <button type="submit" class="btn-confirm" id="cap-add-btn">Add</button>
+        </form>
+
+        <div id="cap-list"></div>
       </div>
 
-      <div id="trade-content">
-        <div class="loading-line">Loading trade…</div>
-      </div>
     </div>
-
-    <div class="footer">trade.log — chart renders client-side from this trade's <span class="mono">bars</span> array</div>
   </div>
 </div>
 
-<script src="share-export.js"></script>
-<script src="trade.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  const KEY = "capital_ledger";
+  const fmtMoney = (v) => (v >= 0 ? "+" : "\u2212") + "$" + Math.abs(v).toFixed(2);
+  const fmtPlain = (v) => "$" + Math.abs(v).toFixed(2);
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  const dateEl = document.getElementById("cap-date");
+  const typeEl = document.getElementById("cap-type");
+  const amountEl = document.getElementById("cap-amount");
+  const noteEl = document.getElementById("cap-note");
+  const formEl = document.getElementById("cap-form");
+  const listEl = document.getElementById("cap-list");
+  const balanceEl = document.getElementById("cap-balance");
+  const depositedEl = document.getElementById("cap-deposited");
+  const withdrawnEl = document.getElementById("cap-withdrawn");
+
+  dateEl.value = new Date().toISOString().slice(0, 10);
+
+  let entries = [];
+
+  function parseAmount(str) {
+    const cleaned = String(str || "").replace(/[^0-9.]/g, "");
+    return cleaned === "" ? NaN : parseFloat(cleaned);
+  }
+
+  function save() {
+    if (window.KV) window.KV.set(KEY, entries);
+  }
+
+  function render() {
+    const deposited = entries.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0);
+    const withdrawn = entries.filter((e) => e.amount < 0).reduce((s, e) => s + Math.abs(e.amount), 0);
+    balanceEl.textContent = fmtPlain(deposited - withdrawn);
+    depositedEl.textContent = fmtPlain(deposited);
+    withdrawnEl.textContent = fmtPlain(withdrawn);
+
+    if (!entries.length) {
+      listEl.innerHTML = `<div class="empty-state small">No deposits or withdrawals recorded yet.</div>`;
+      return;
+    }
+    const sorted = entries.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    const rows = sorted.map((e) => `<tr>
+        <td>${escapeHtml(e.date)}</td>
+        <td>${e.amount >= 0 ? "Deposit" : "Withdrawal"}</td>
+        <td class="mono ${e.amount >= 0 ? "up" : "down"}">${fmtMoney(e.amount)}</td>
+        <td>${e.note ? escapeHtml(e.note) : '<span class="dim">—</span>'}</td>
+        <td><button type="button" class="btn-icon" data-del="${escapeHtml(e._id)}" title="Delete" aria-label="Delete">&times;</button></td>
+      </tr>`).join("");
+    listEl.innerHTML = `<div class="table-scroll"><table class="report-table">
+      <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+
+    listEl.querySelectorAll("[data-del]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const ok = await UIModal.confirm("Delete this entry? This can't be undone.", { title: "Delete entry?", tone: "danger", confirmLabel: "Delete" });
+        if (!ok) return;
+        entries = entries.filter((e) => e._id !== btn.getAttribute("data-del"));
+        save();
+        render();
+      });
+    });
+  }
+
+  formEl.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const amt = parseAmount(amountEl.value);
+    if (!isFinite(amt) || amt <= 0) {
+      amountEl.focus();
+      return;
+    }
+    const signed = typeEl.value === "withdrawal" ? -amt : amt;
+    entries.push({
+      _id: (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)),
+      date: dateEl.value || new Date().toISOString().slice(0, 10),
+      amount: signed,
+      note: noteEl.value.trim(),
+    });
+    save();
+    render();
+    amountEl.value = "";
+    noteEl.value = "";
+  });
+
+  window.AUTH_READY.then((session) => {
+    if (!session) {
+      listEl.innerHTML = `<div class="empty-state small">Sign in to manage your account capital.</div>`;
+      formEl.querySelectorAll("input,select,button").forEach((el) => (el.disabled = true));
+      return;
+    }
+    return window.KV.ready.then(() => {
+      const remote = window.KV.get(KEY);
+      entries = Array.isArray(remote) ? remote.filter((e) => e && e.date && isFinite(e.amount)) : [];
+      // Backfill an _id for entries saved before delete support existed.
+      entries.forEach((e) => { if (!e._id) e._id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8); });
+      render();
+    });
+  });
+})();
+</script>
+
+<script src="ui-modal.js"></script>
 <script src="global-search.js"></script>
 <script src="chat-widget.js"></script>
 <script src="nav.js"></script>

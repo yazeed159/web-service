@@ -460,6 +460,16 @@
   }
 
   function lessonItem(l) {
+    if (typeof l === "string") {
+      // Lessons occasionally round-trip through a text column as a raw
+      // JSON string instead of an object (e.g. a stringified array
+      // element) -- parse it back into one so it renders the same as
+      // any other lesson instead of dumping raw JSON text on the page.
+      try {
+        const parsed = JSON.parse(l);
+        if (parsed && typeof parsed === "object") l = parsed;
+      } catch (e) { /* genuinely plain text -- fall through below */ }
+    }
     if (typeof l === "string") return `<li style="margin-bottom:6px; font-size:12.5px;">${escapeHtml(l)}</li>`;
     const how = l.how_to_know
       ? `<div style="font-size:11px; opacity:.65; margin-top:2px;">How you'd know: ${escapeHtml(l.how_to_know)}</div>`

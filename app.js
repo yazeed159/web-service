@@ -51,13 +51,19 @@
     });
   }
 
-  window.fetchTradesIndex()
-    .then((data) => {
+  Promise.all([window.fetchTradesIndex(), window.fetchCapitalLedger()])
+    .then(([data, ledger]) => {
       trades = data.slice().sort((a, b) => (a.trade_date + a.entry_time).localeCompare(b.trade_date + b.entry_time));
       if (!trades.length) {
         renderEmptyEverywhere();
         return;
       }
+      // Real account-balance figure per trade (starting capital/deposits
+      // from the Settings ledger + cumulative P&L) -- kept on `_balance`
+      // rather than overwriting `equity_after`; see computeAccountBalances
+      // in auth.js. With no ledger entries this is identical to equity_after.
+      const balances = window.computeAccountBalances(trades, ledger);
+      trades.forEach((t, i) => { t._balance = balances[i]; });
       const last = trades[trades.length - 1];
       document.getElementById("last-updated").textContent = "Through " + last.trade_date;
       document.getElementById("date-range").textContent =
@@ -490,10 +496,14 @@
   // ================================================================
   function renderEquity() {
     const ordered = trades;
-    const points = [{ e: 0 }, ...ordered.map((t) => ({ e: t.equity_after }))];
+    // Origin point is the real balance *before* the first trade (starting
+    // capital from the Settings ledger, or 0 if nothing's been added there
+    // -- same as before this existed). Everything else plots `_balance`.
+    const startBalance = ordered.length ? ordered[0]._balance - (ordered[0].pnl_after_comm || 0) : 0;
+    const points = [{ e: startBalance }, ...ordered.map((t) => ({ e: t._balance }))];
     const values = points.map((p) => p.e);
-    const min = Math.min(0, ...values);
-    const max = Math.max(0, ...values);
+    const min = Math.min(startBalance, ...values);
+    const max = Math.max(startBalance, ...values);
     const range = max - min || 1;
     const W = 1000, H = 140, PAD = 8;
 
@@ -504,10 +514,10 @@
     });
 
     const pathD = coords.map((c, i) => (i === 0 ? "M" : "L") + c[0].toFixed(1) + "," + c[1].toFixed(1)).join(" ");
-    const zeroY = H - PAD - ((0 - min) / range) * (H - PAD * 2);
+    const zeroY = H - PAD - ((startBalance - min) / range) * (H - PAD * 2);
     const fillD = pathD + ` L${coords[coords.length - 1][0].toFixed(1)},${zeroY} L0,${zeroY} Z`;
 
-    const finalPositive = values[values.length - 1] >= 0;
+    const finalPositive = values[values.length - 1] >= startBalance;
     const svg = document.getElementById("equity-svg");
     svg.innerHTML = `
       <line x1="0" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" class="equity-zero" />
@@ -1270,12 +1280,13 @@
   // ================================================================
   // REPORTS — Drawdown
   // ================================================================
-  // Walks the equity curve (equity_after, already chronological) tracking
-  // the running peak. A drawdown "period" runs from the last new high to
-  // the next new high (or to the end of the data if it hasn't recovered).
+  // Walks the equity curve (real account balance -- `_balance`, see
+  // computeAccountBalances in auth.js; already chronological) tracking the
+  // running peak. A drawdown "period" runs from the last new high to the
+  // next new high (or to the end of the data if it hasn't recovered).
   function computeDrawdownStats() {
     if (!trades.length) return null;
-    let runPeak = trades[0].equity_after;
+    let runPeak = trades[0]._balance;
     let runPeakTrade = trades[0];
     let runTroughTrade = trades[0];
     let inDD = false;
@@ -1283,28 +1294,28 @@
     let maxDD = 0, maxDDPeak = trades[0], maxDDTrough = trades[0];
 
     trades.forEach((t) => {
-      if (t.equity_after >= runPeak) {
+      if (t._balance >= runPeak) {
         if (inDD) {
           periods.push({ peak: runPeakTrade, trough: runTroughTrade, recover: t });
           inDD = false;
         }
-        runPeak = t.equity_after;
+        runPeak = t._balance;
         runPeakTrade = t;
         runTroughTrade = t;
       } else {
         inDD = true;
-        if (t.equity_after < runTroughTrade.equity_after) runTroughTrade = t;
+        if (t._balance < runTroughTrade._balance) runTroughTrade = t;
       }
-      const dd = t.equity_after - runPeak;
+      const dd = t._balance - runPeak;
       if (dd < maxDD) { maxDD = dd; maxDDPeak = runPeakTrade; maxDDTrough = t; }
     });
     if (inDD) periods.push({ peak: runPeakTrade, trough: runTroughTrade, recover: null });
 
     const last = trades[trades.length - 1];
-    const currentDD = last.equity_after - runPeak;
-    const maxDDPct = maxDDPeak.equity_after !== 0 ? (maxDD / Math.abs(maxDDPeak.equity_after)) * 100 : null;
+    const currentDD = last._balance - runPeak;
+    const maxDDPct = maxDDPeak._balance !== 0 ? (maxDD / Math.abs(maxDDPeak._balance)) * 100 : null;
 
-    periods.forEach((p) => (p.size = p.trough.equity_after - p.peak.equity_after));
+    periods.forEach((p) => (p.size = p.trough._balance - p.peak._balance));
     periods.sort((a, b) => a.size - b.size);
 
     return { maxDD, maxDDPct, maxDDPeak, maxDDTrough, currentDD, periods };
@@ -1332,8 +1343,8 @@
       return;
     }
     const rows = d.periods.slice(0, 10).map((p) => `<tr>
-        <td><a href="trade.html?id=${encodeURIComponent(p.peak.id)}">${p.peak.trade_date} <span class="dim" style="font-size:11px;">(${fmtMoney(p.peak.equity_after)})</span></a></td>
-        <td><a href="trade.html?id=${encodeURIComponent(p.trough.id)}">${p.trough.trade_date} <span class="dim" style="font-size:11px;">(${fmtMoney(p.trough.equity_after)})</span></a></td>
+        <td><a href="trade.html?id=${encodeURIComponent(p.peak.id)}">${p.peak.trade_date} <span class="dim" style="font-size:11px;">(${fmtMoney(p.peak._balance)})</span></a></td>
+        <td><a href="trade.html?id=${encodeURIComponent(p.trough.id)}">${p.trough.trade_date} <span class="dim" style="font-size:11px;">(${fmtMoney(p.trough._balance)})</span></a></td>
         <td class="mono down">${fmtMoney(p.size)}</td>
         <td>${p.recover ? `<a href="trade.html?id=${encodeURIComponent(p.recover.id)}">${p.recover.trade_date}</a>` : `<span class="dim">Ongoing</span>`}</td>
       </tr>`).join("");

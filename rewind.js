@@ -2094,7 +2094,14 @@
     const userCommission = c.entered ? userEntryCommission + userExitCommission : null;
     const userNet = (userGross != null && userCommission != null) ? userGross - userCommission : null;
 
-    const lessonsHtml = (trade.lessons || []).map((l) => {
+    function normalizeLesson(l) {
+      if (typeof l !== "string") return l;
+      try {
+        const parsed = JSON.parse(l);
+        return (parsed && typeof parsed === "object") ? parsed : l;
+      } catch (e) { return l; /* genuinely plain text */ }
+    }
+    const lessonsHtml = (trade.lessons || []).map(normalizeLesson).map((l) => {
       if (typeof l === "string") return `<li>${escapeHtml(l)}</li>`;
       const how = l.how_to_know ? ` <span class="dim">— ${escapeHtml(l.how_to_know)}</span>` : "";
       return `<li><b>${escapeHtml((l.tag || "").replace(/_/g, " "))}</b>: ${escapeHtml(l.lesson || l.text || "")}${how}</li>`;

@@ -268,6 +268,50 @@
   // shape: the trades row and its trade_details row merged into one
   // object (verdict, indicators, bars, better_entry/better_exit, etc.
   // live in trade_details; symbol/prices/pnl/etc. live in trades).
+  // Capital ledger -- deposits/withdrawals the user records on the
+  // Settings page (KV key "capital_ledger": array of {date, amount, note},
+  // positive amount = deposit, negative = withdrawal). No entries yet ->
+  // [] -> computeAccountBalances below degrades to plain cumulative P&L,
+  // i.e. unchanged behavior for anyone who hasn't touched Settings.
+  window.fetchCapitalLedger = function () {
+    return window.AUTH_READY.then(function (session) {
+      if (!session || !window.KV) return [];
+      return window.KV.ready.then(function () {
+        var entries = window.KV.get("capital_ledger");
+        if (!Array.isArray(entries)) return [];
+        return entries
+          .filter(function (e) { return e && typeof e.date === "string" && isFinite(e.amount); })
+          .slice()
+          .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+      });
+    });
+  };
+
+  // Given trades (sorted ascending by trade_date/entry_time, each with
+  // pnl_after_comm) and a date-sorted capital ledger, returns a same-
+  // length array of real account-balance figures: the ledger balance as
+  // of that trade's date (ledger entries dated on/before a trade count
+  // toward it -- entries only carry a date, not a time, so same-day is
+  // treated as "before") plus cumulative P&L up to and including that
+  // trade. Deliberately kept separate from `equity_after` (pure
+  // cumulative P&L) -- the Risk Calculator and the Cumulative P&L report
+  // chart both depend on that figure staying exactly what it's always
+  // been, so this never overwrites it, just adds an aligned array.
+  window.computeAccountBalances = function (trades, ledger) {
+    var cum = 0, li = 0, balance = 0;
+    var out = new Array(trades.length);
+    for (var i = 0; i < trades.length; i++) {
+      var t = trades[i];
+      while (li < ledger.length && ledger[li].date <= t.trade_date) {
+        balance += ledger[li].amount;
+        li++;
+      }
+      cum += t.pnl_after_comm || 0;
+      out[i] = balance + cum;
+    }
+    return out;
+  };
+
   window.fetchTradeDetail = function (id) {
     return window.AUTH_READY.then(function (session) {
       if (!session) return null;
