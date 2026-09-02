@@ -124,6 +124,10 @@
             setMsg(res.error.message, "error");
             return;
           }
+          if (mode === "signup" && res.data && res.data.user && !res.data.session) {
+            setMsg("Check your email to confirm your account, then sign in.", "ok");
+            return;
+          }
           window.location.href = "/";
         });
       });

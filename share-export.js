@@ -221,7 +221,6 @@ ${scriptExtra || ""}
     rightPriceScale: { borderColor: "#232830" },
     timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-    handleScroll: { vertTouchDrag: false },
   });
   var candleSeries = chart.addCandlestickSeries({ upColor:"#2fd08a", downColor:"#f2555a", borderVisible:false, wickUpColor:"#2fd08a", wickDownColor:"#f2555a" });
   candleSeries.setData(bars.map(function(b){ return { time: toUnix(b.t), open:b.o, high:b.h, low:b.l, close:b.c }; }));

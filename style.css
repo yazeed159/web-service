@@ -81,11 +81,12 @@ button { font-family: var(--sans); }
 .sidebar.collapsed { width: var(--sidebar-w-collapsed); }
 
 .sidebar-top {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center;
   padding: 20px 16px 18px;
   border-bottom: 1px solid var(--border-soft);
   min-height: var(--topbar-h);
 }
+.sidebar.collapsed .sidebar-top { justify-content: center; padding: 20px 8px 18px; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; overflow: hidden; }
 .brand .mark {
   flex: none;
@@ -100,12 +101,17 @@ button { font-family: var(--sans); }
 .sidebar.collapsed .brand .name { display: none; }
 
 .sidebar-toggle {
-  flex: none; width: 26px; height: 26px; border-radius: 6px;
-  background: transparent; border: 1px solid var(--border);
+  position: absolute;
+  top: 24px; right: -13px;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--panel-2); border: 1px solid var(--border);
   color: var(--text-faint); cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s;
+  transition: all 0.15s, top 0.18s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  z-index: 21;
 }
-.sidebar-toggle:hover { color: var(--text); border-color: var(--text-dim); }
+.sidebar.collapsed .sidebar-toggle { top: 18px; }
+.sidebar-toggle:hover { color: var(--text); border-color: var(--text-dim); background: var(--panel-3); }
 .sidebar-toggle svg { width: 13px; height: 13px; transition: transform 0.18s ease; }
 .sidebar.collapsed .sidebar-toggle svg { transform: rotate(180deg); }
 

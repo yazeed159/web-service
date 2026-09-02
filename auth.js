@@ -59,28 +59,6 @@
     var user = session.user || {};
     var email = user.email || "Account";
 
-    // Every app-shell page puts a 40px hamburger button (#mobile-nav-btn)
-    // flush against the same top-right corner once the viewport narrows
-    // past 760px (see core.css's .icon-btn media query) -- and this
-    // widget's base position below is fixed top:12px/right:12px with a
-    // z-index high enough to always paint above it, so on a phone the
-    // two sat directly on top of each other: the email pill visually
-    // covered the hamburger AND ate its taps. This override (kept in a
-    // <style> tag rather than core.css so it applies even on pages that
-    // don't load core.css, like import-legacy.html) shifts the pill left
-    // and shrinks it just enough to clear that button's footprint. Only
-    // injected once, same as the widget itself.
-    if (!document.getElementById("auth-account-widget-style")) {
-      var style = document.createElement("style");
-      style.id = "auth-account-widget-style";
-      style.textContent =
-        "@media (max-width:760px){" +
-        "#auth-account-widget{right:58px !important;}" +
-        "#auth-account-btn{max-width:130px !important;padding:6px 10px !important;font-size:12px !important;}" +
-        "}";
-      insertWhenReady(style);
-    }
-
     var wrap = document.createElement("div");
     wrap.id = "auth-account-widget";
     wrap.style.cssText =

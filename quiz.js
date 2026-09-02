@@ -618,7 +618,6 @@
       rightPriceScale: { borderColor: "#232830", minimumWidth: 88 },
       timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-      handleScroll: { vertTouchDrag: false },
     };
     const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: opts.height || 380 });
     const series = chart.addCandlestickSeries({

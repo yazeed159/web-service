@@ -212,7 +212,6 @@
         grid: { vertLines: { color: "#1b1e26" }, horzLines: { color: "#1b1e26" } },
         rightPriceScale: { borderColor: "#262a34" },
         timeScale: { borderColor: "#262a34" },
-        handleScroll: { vertTouchDrag: false },
       });
       window.addEventListener("resize", () => rptEquityChart && rptEquityChart.applyOptions({ width: els.equityChart.clientWidth }));
     }
@@ -834,7 +833,6 @@
       rightPriceScale: { borderColor: "#232830", minimumWidth: 92 },
       timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-      handleScroll: { vertTouchDrag: false },
     };
 
     rptCandleChart = LightweightCharts.createChart(candleEl, { ...commonOpts, width: candleEl.clientWidth, height: candleEl.clientHeight || 380 });
