@@ -9,6 +9,8 @@
 <title>Calculator — trade.log</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="core.css">
+<link rel="stylesheet" href="chat-widget.css">
+<link rel="stylesheet" href="global-search.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -88,15 +90,6 @@
         <span class="nav-label">Patterns</span>
       </a>
 
-      <a class="nav-item" href="playbooks.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
-        <span class="nav-label">Playbooks</span>
-      </a>
-      <a class="nav-item" href="notes.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <span class="nav-label">Notes Search</span>
-      </a>
-
       <a class="nav-item active" href="calculator.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="12" x2="8.01" y2="12"></line><line x1="12" y1="12" x2="12.01" y2="12"></line><line x1="16" y1="12" x2="16.01" y2="12"></line><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg>
         <span class="nav-label">Calculator</span>
@@ -107,10 +100,6 @@
         <span class="nav-label">Backtester</span>
       </a>
 
-      <a class="nav-item" href="chat.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-        <span class="nav-label">AI Chat</span>
-      </a>
 
       <a class="nav-item" href="rewind.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
@@ -122,10 +111,6 @@
         <span class="nav-label">Practice</span>
       </a>
 
-      <a class="nav-item" href="practice-analytics.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-        <span class="nav-label">Practice Analytics</span>
-      </a>
 </nav>
 
     <div class="sidebar-bottom">
@@ -235,6 +220,8 @@
   </div>
 </div>
 
+<script src="global-search.js"></script>
+<script src="chat-widget.js"></script>
 <script src="nav.js"></script>
 <script>
 
@@ -278,6 +265,30 @@
     if (!isFinite(startingBalance)) startingBalance = 25000;
     let latestEquityAfter = 0;
 
+    // These 4 settings used to live only in this browser's localStorage.
+    // Every setter below now also mirrors its value to Supabase
+    // (user_kv, via KV in auth.js) so a wiped cache or a new device
+    // doesn't reset them. On load, a synced value (if any) wins and
+    // overwrites both the in-memory var and localStorage; otherwise
+    // whatever's local right now is pushed up as the seed.
+    if (window.KV) {
+      window.KV.sync(LS_KEYS.riskPct, (v) => { if (isFinite(v)) { riskPct = v; localStorage.setItem(LS_KEYS.riskPct, String(v)); refreshControlsAndCalc(); } });
+      window.KV.sync(LS_KEYS.stopMode, (v) => { if (typeof v === "string") { stopMode = v; localStorage.setItem(LS_KEYS.stopMode, v); refreshControlsAndCalc(); } });
+      window.KV.sync(LS_KEYS.stopPct, (v) => { if (isFinite(v)) { stopPct = v; localStorage.setItem(LS_KEYS.stopPct, String(v)); refreshControlsAndCalc(); } });
+      window.KV.sync(LS_KEYS.startingBalance, (v) => { if (isFinite(v) && v > 0) { startingBalance = v; localStorage.setItem(LS_KEYS.startingBalance, String(v)); refreshControlsAndCalc(); } });
+    }
+    // Re-paints the chip/button active states + balance display + result
+    // after a synced value patches one of the vars above post-render.
+    function refreshControlsAndCalc() {
+      riskChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.risk) === riskPct));
+      stopModeBtns.forEach((b) => b.classList.toggle("active", b.dataset.mode === stopMode));
+      stopChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.stoppct) === stopPct));
+      stopPctChipsWrap.style.display = stopMode === "pct" ? "flex" : "none";
+      stopPriceWrap.style.display = stopMode === "price" ? "flex" : "none";
+      renderBalance();
+      calculate();
+    }
+
     function parseNumber(str) {
       if (!str) return NaN;
       const cleaned = String(str).replace(/[^0-9.\-]/g, "");
@@ -302,6 +313,7 @@
     function setRiskPct(v) {
       riskPct = v;
       localStorage.setItem(LS_KEYS.riskPct, String(v));
+      if (window.KV) window.KV.set(LS_KEYS.riskPct, v);
       riskChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.risk) === v));
       calculate();
     }
@@ -312,6 +324,7 @@
     function setStopMode(mode) {
       stopMode = mode;
       localStorage.setItem(LS_KEYS.stopMode, mode);
+      if (window.KV) window.KV.set(LS_KEYS.stopMode, mode);
       stopModeBtns.forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
       stopPctChipsWrap.style.display = mode === "pct" ? "flex" : "none";
       stopPriceWrap.style.display = mode === "price" ? "flex" : "none";
@@ -324,6 +337,7 @@
     function setStopPct(v) {
       stopPct = v;
       localStorage.setItem(LS_KEYS.stopPct, String(v));
+      if (window.KV) window.KV.set(LS_KEYS.stopPct, v);
       stopChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.stoppct) === v));
       calculate();
     }
@@ -341,6 +355,7 @@
       if (isFinite(v) && v > 0) {
         startingBalance = v;
         localStorage.setItem(LS_KEYS.startingBalance, String(v));
+        if (window.KV) window.KV.set(LS_KEYS.startingBalance, v);
         renderBalance();
         calculate();
       }

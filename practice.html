@@ -9,6 +9,8 @@
 <title>Practice — trade.log</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="core.css">
+<link rel="stylesheet" href="chat-widget.css">
+<link rel="stylesheet" href="global-search.css">
 <link rel="stylesheet" href="quiz-shared.css">
 <link rel="stylesheet" href="rewind.css">
 <link rel="stylesheet" href="practice.css">
@@ -80,15 +82,6 @@
         <span class="nav-label">Patterns</span>
       </a>
 
-      <a class="nav-item" href="playbooks.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
-        <span class="nav-label">Playbooks</span>
-      </a>
-      <a class="nav-item" href="notes.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <span class="nav-label">Notes Search</span>
-      </a>
-
       <a class="nav-item" href="calculator.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="12" x2="8.01" y2="12"></line><line x1="12" y1="12" x2="12.01" y2="12"></line><line x1="16" y1="12" x2="16.01" y2="12"></line><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg>
         <span class="nav-label">Calculator</span>
@@ -99,10 +92,6 @@
         <span class="nav-label">Backtester</span>
       </a>
 
-      <a class="nav-item" href="chat.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-        <span class="nav-label">AI Chat</span>
-      </a>
 
       <a class="nav-item" href="rewind.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
@@ -114,10 +103,6 @@
         <span class="nav-label">Practice</span>
       </a>
 
-      <a class="nav-item" href="practice-analytics.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-        <span class="nav-label">Practice Analytics</span>
-      </a>
     </nav>
 
     <div class="sidebar-bottom">
@@ -139,11 +124,17 @@
 
     <div class="content">
       <div class="panel-head">
+        <div class="pr-view-tabs" id="pr-view-tabs">
+          <button type="button" class="pr-view-tab active" data-view="practice">Practice</button>
+          <button type="button" class="pr-view-tab" data-view="analytics">Analytics</button>
+        </div>
         <button type="button" class="btn-advanced pp-head-shortcuts-btn" id="pr-shortcuts-gear-btn" title="Manage your buy/sell shortcuts">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
           Order shortcuts
         </button>
       </div>
+
+      <div id="pr-practice-view">
 
       <!-- ============ SETUP SCREEN ============ -->
       <div id="pr-setup-screen">
@@ -325,6 +316,64 @@
 
       </div>
 
+      </div>
+      <!-- ============ /pr-practice-view ============ -->
+
+      <!-- ============ ANALYTICS SCREEN (was practice-analytics.html) ============ -->
+      <div id="pr-analytics-screen" style="display:none;">
+
+        <div class="panel-head">
+          <div class="sub">Built from your practice account's fill history on this page — resets whenever you reset that account.</div>
+        </div>
+
+        <div id="pa-empty-state" class="panel-box" style="display:none;">
+          <div class="empty-state">No practice trades yet. Switch to the Practice tab, pick a chart, and place a few fills — your analytics will show up here, including how long you held each one.</div>
+        </div>
+
+        <div id="pa-body" style="display:none;">
+
+          <div class="stat-grid" id="pa-stat-grid" style="margin-bottom:18px;"></div>
+
+          <div class="pr-account-grid">
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Equity curve</span></div>
+              <div class="pr-equity-wrap">
+                <svg id="pa-equity-svg" viewBox="0 0 1000 200" preserveAspectRatio="none"></svg>
+                <div class="pr-equity-empty" id="pa-equity-empty" style="display:none;">Close a few trades to build your equity curve.</div>
+              </div>
+            </div>
+
+            <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Streaks</span></div>
+              <div class="streak-strip" id="pa-streak-strip"></div>
+              <div class="panel-box-head" style="margin-top:18px;"><span class="title">Best / worst trade</span></div>
+              <div id="pa-highlight-pair" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;"></div>
+            </div>
+          </div>
+
+          <div class="panel-box" style="margin-bottom:18px;">
+            <div class="panel-box-head"><span class="title">Time in trade</span></div>
+            <div class="stat-grid" id="pa-duration-stats" style="margin-bottom:18px;"></div>
+            <div id="pa-duration-breakdown"></div>
+          </div>
+
+          <div class="panel-box" style="margin-bottom:18px;">
+            <div class="panel-box-head"><span class="title">By chart practiced</span></div>
+            <div id="pa-symbol-table"></div>
+          </div>
+
+          <div class="panel-box">
+            <div class="panel-box-head">
+              <span class="title">Closed trades</span>
+              <span class="sub" id="pa-trades-count" style="font-size:12px; color:var(--text-faint);"></span>
+            </div>
+            <div id="pa-trades-table"></div>
+          </div>
+
+        </div>
+
+      </div>
+
     </div>
 
     <div class="footer">trade.log</div>
@@ -333,6 +382,51 @@
 
 <script src="ui-modal.js"></script>
 <script src="practice.js"></script>
+<script src="practice-analytics.js"></script>
+<script>
+(function () {
+  "use strict";
+  // Practice / Analytics tab switcher -- was a separate sidebar page
+  // (practice-analytics.html); now it's a second view inside this page.
+  // practice.js still owns switching between its own setup/play screens
+  // *within* the Practice view (pr-setup-screen / pr-play-screen) -- this
+  // only toggles between that whole view and the Analytics view.
+  var tabs = document.getElementById("pr-view-tabs");
+  if (!tabs) return;
+  var practiceView = document.getElementById("pr-practice-view");
+  var analyticsView = document.getElementById("pr-analytics-screen");
+  var shortcutsBtn = document.getElementById("pr-shortcuts-gear-btn");
+
+  function activate(view) {
+    tabs.querySelectorAll(".pr-view-tab").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-view") === view);
+    });
+    if (view === "analytics") {
+      practiceView.style.display = "none";
+      analyticsView.style.display = "";
+      if (shortcutsBtn) shortcutsBtn.style.display = "none";
+    } else {
+      analyticsView.style.display = "none";
+      practiceView.style.display = "";
+      if (shortcutsBtn) shortcutsBtn.style.display = "";
+    }
+  }
+
+  tabs.addEventListener("click", function (e) {
+    var btn = e.target.closest(".pr-view-tab");
+    if (!btn) return;
+    activate(btn.getAttribute("data-view"));
+  });
+
+  // Old practice-analytics.html bookmarks/links redirect here with
+  // ?tab=analytics -- land straight on that tab instead of Practice.
+  if (/(?:^\?|&)tab=analytics(?:&|$)/.test(window.location.search)) {
+    activate("analytics");
+  }
+})();
+</script>
+<script src="global-search.js"></script>
+<script src="chat-widget.js"></script>
 <script src="nav.js"></script>
 <script src="modern.js"></script>
 </body>

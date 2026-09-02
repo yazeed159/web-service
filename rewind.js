@@ -694,6 +694,9 @@
       list.push(entry);
       while (list.length > HISTORY_MAX) list.shift();
       localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+      // Mirror to Supabase (user_kv) so rewind session history survives a
+      // cleared cache or a new device -- see KV in auth.js.
+      if (window.KV) window.KV.set(HISTORY_KEY, list);
     } catch (e) { /* ignore — quiz still works without persistence */ }
   }
 
@@ -711,6 +714,17 @@
       els.candidateCount.textContent = "Couldn't load your trades.";
       els.startBtn.disabled = true;
     });
+
+  // Once auth.js has this user's synced history down, a remote copy wins
+  // (cross-device source of truth); otherwise whatever's local right now
+  // gets pushed up as the seed.
+  if (window.KV) {
+    window.KV.sync(HISTORY_KEY, function (remote) {
+      if (!Array.isArray(remote)) return;
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(remote)); } catch (e) { /* ignore */ }
+      if (typeof renderHistoryPanel === "function") renderHistoryPanel();
+    });
+  }
 
   function populateSetupOptions() {
     const setups = Array.from(new Set(state.index.map((r) => r.setup_type).filter(Boolean))).sort();
@@ -838,7 +852,7 @@
     }).join("");
 
     // Only from log-sourced sessions -- backtest run labels aren't real
-    // journal setup_types, so linking them into playbooks.html would 404.
+    // journal setup_types, so linking them into journal.html would 404.
     const reviewTotals = {};
     history.filter((h) => h.source !== "backtest").forEach((h) => {
       Object.entries(h.toReview || {}).forEach(([k, v]) => { reviewTotals[k] = (reviewTotals[k] || 0) + v; });
@@ -847,7 +861,7 @@
     if (!top.length) { els.focusBox.innerHTML = ""; return; }
     els.focusBox.innerHTML = `<div class="panel-box-head" style="margin-bottom:8px;"><span class="title">Setups worth revisiting</span></div>
       <div class="quiz-focus-list">
-        ${top.map(([setup, n]) => `<a class="quiz-focus-item" href="playbooks.html?setup=${encodeURIComponent(setup)}">
+        ${top.map(([setup, n]) => `<a class="quiz-focus-item" href="journal.html?setup=${encodeURIComponent(setup)}">
           <span>${escapeHtml(setup.replace(/_/g, " "))}</span>
           <span class="fi-count">×${n}</span>
         </a>`).join("")}
@@ -895,6 +909,7 @@
       rightPriceScale: { borderColor: "#232830", minimumWidth: 88 },
       timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      handleScroll: { vertTouchDrag: false },
     };
     const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: mobileChartHeight(opts.height || 380) });
     const series = chart.addCandlestickSeries({

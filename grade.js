@@ -37,6 +37,23 @@
   }
   function writeStore(store) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); } catch (e) { /* ignore -- self-grading just won't persist this session */ }
+    // Mirror to Supabase (user_kv) so grades survive a cleared cache or a
+    // new device -- see KV in auth.js. Fire-and-forget; local write above
+    // already happened so nothing is lost even if this fails offline.
+    if (window.KV) window.KV.set(STORAGE_KEY, store);
+  }
+
+  // Once auth.js has pulled this user's synced grades down, reconcile: a
+  // remote copy wins (it's the cross-device source of truth); if there
+  // isn't one yet, whatever's in localStorage right now gets pushed up
+  // as the seed. Either way local storage ends up matching Supabase.
+  if (window.KV) {
+    window.KV.sync(STORAGE_KEY, function (remote) {
+      writeLocalOnly(remote);
+    });
+  }
+  function writeLocalOnly(store) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); } catch (e) { /* ignore */ }
   }
 
   // Resolves the effective grade for a trade row (index or detail --

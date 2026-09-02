@@ -88,9 +88,14 @@
   }
   function saveLocalIndex(list) {
     try { localStorage.setItem(LOCAL_INDEX_KEY, JSON.stringify(list)); } catch (e) { /* ignore */ }
+    if (window.KV) window.KV.set(LOCAL_INDEX_KEY, list);
   }
   function saveLocalReport(id, report) {
     try { localStorage.setItem(`report:${id}`, JSON.stringify(report)); } catch (e) { /* ignore */ }
+    // Mirror the report body + index to Supabase (user_kv) so a
+    // CSV-imported report survives a cleared cache or opens on a
+    // different device -- see KV in auth.js.
+    if (window.KV) window.KV.set(`report:${id}`, report);
     const idx = loadLocalIndex().filter((e) => e.id !== id);
     idx.unshift({
       id, label: report.label, created_at: report.created_at,
@@ -99,10 +104,15 @@
     saveLocalIndex(idx);
   }
   function loadLocalReport(id) {
-    try { return JSON.parse(localStorage.getItem(`report:${id}`)); } catch (e) { return null; }
+    try {
+      const local = JSON.parse(localStorage.getItem(`report:${id}`));
+      if (local) return local;
+    } catch (e) { /* fall through to remote */ }
+    return window.KV ? window.KV.get(`report:${id}`) || null : null;
   }
   function deleteLocalReport(id) {
     try { localStorage.removeItem(`report:${id}`); localStorage.removeItem(`journal:${id}`); } catch (e) { /* ignore */ }
+    if (window.KV) window.KV.delete(`report:${id}`);
     saveLocalIndex(loadLocalIndex().filter((e) => e.id !== id));
   }
 
@@ -179,6 +189,135 @@
     };
   }
 
+  // ================= extra analytics (Overview tab) =================
+  // All three of these are pure functions of `trades`/`stats` the page
+  // already has in hand -- no new backend fields needed. Each is wrapped
+  // so a bad field on one trade can't take out the other panels or leave
+  // them on a stale/half-rendered state.
+  let rptEquityChart = null;
+
+  function renderEquityCurve(stats) {
+    const curve = (stats && stats.equity_curve) || [];
+    const box = document.getElementById("rpt-equity-box");
+    if (curve.length < 2) {
+      box.style.display = "none";
+      return;
+    }
+    box.style.display = "";
+    if (!rptEquityChart) {
+      rptEquityChart = LightweightCharts.createChart(els.equityChart, {
+        width: els.equityChart.clientWidth,
+        height: els.equityChart.clientHeight || 220,
+        layout: { background: { color: "transparent" }, textColor: "#8b8fa3" },
+        grid: { vertLines: { color: "#1b1e26" }, horzLines: { color: "#1b1e26" } },
+        rightPriceScale: { borderColor: "#262a34" },
+        timeScale: { borderColor: "#262a34" },
+        handleScroll: { vertTouchDrag: false },
+      });
+      window.addEventListener("resize", () => rptEquityChart && rptEquityChart.applyOptions({ width: els.equityChart.clientWidth }));
+    }
+    rptEquityChart.timeScale().fitContent();
+    // Trades can share a date (several fills on the same day) — Lightweight
+    // Charts' line series needs strictly increasing/unique time values, so
+    // this keeps the LAST equity value per date, same convention the
+    // dashboard's own cumulative-P&L chart uses.
+    const byDate = new Map();
+    for (const p of curve) { if (p && p.date) byDate.set(p.date, p.equity); }
+    const points = Array.from(byDate.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([date, equity]) => ({ time: date, value: equity }));
+    const net = points.length ? points[points.length - 1].value : 0;
+    if (rptEquitySeries) rptEquityChart.removeSeries(rptEquitySeries);
+    rptEquitySeries = rptEquityChart.addAreaSeries({
+      lineColor: net >= 0 ? "#2fd08a" : "#f2555a",
+      topColor: net >= 0 ? "rgba(47,208,138,0.28)" : "rgba(242,85,90,0.28)",
+      bottomColor: "rgba(0,0,0,0)",
+      lineWidth: 2,
+    });
+    rptEquitySeries.setData(points);
+    rptEquityChart.timeScale().fitContent();
+  }
+  let rptEquitySeries = null;
+
+  function renderRMultDistribution(trades) {
+    const rTrades = trades.filter((t) => typeof t.r_multiple === "number" && isFinite(t.r_multiple));
+    if (!rTrades.length) { els.rmultBox.innerHTML = ""; els.rmultBox.style.display = "none"; return; }
+    els.rmultBox.style.display = "";
+    const buckets = [
+      { label: "< -2R", test: (r) => r < -2, positive: false },
+      { label: "-2R to -1R", test: (r) => r >= -2 && r < -1, positive: false },
+      { label: "-1R to 0R", test: (r) => r >= -1 && r < 0, positive: false },
+      { label: "0R to 1R", test: (r) => r >= 0 && r < 1, positive: true },
+      { label: "1R to 2R", test: (r) => r >= 1 && r < 2, positive: true },
+      { label: "2R to 3R", test: (r) => r >= 2 && r < 3, positive: true },
+      { label: "> 3R", test: (r) => r >= 3, positive: true },
+    ].map((b) => ({ ...b, count: rTrades.filter((t) => b.test(t.r_multiple)).length }));
+    const maxCount = Math.max(1, ...buckets.map((b) => b.count));
+    els.rmultBox.innerHTML = `
+      <div class="panel-box-head"><span class="title">R-Multiple Distribution</span></div>
+      <p style="color:var(--text-faint); font-size:12.5px; margin:-6px 0 14px;">${rTrades.length} of ${trades.length} trade${trades.length === 1 ? "" : "s"} carry an R value. A healthy edge should skew toward the right of zero.</p>
+      ${buckets.map((b) => `
+        <div class="bar-row">
+          <div class="bar-label">${b.label}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(b.count / maxCount) * 100}%; background:${b.positive ? "var(--green)" : "var(--red)"};"></div></div>
+          <div class="bar-count">${b.count}x</div>
+        </div>
+      `).join("")}
+    `;
+  }
+
+  function renderSymbolBreakdown(trades) {
+    const bySymbol = new Map();
+    for (const t of trades) {
+      const sym = t.symbol || "?";
+      if (!bySymbol.has(sym)) bySymbol.set(sym, []);
+      bySymbol.get(sym).push(t);
+    }
+    const entries = Array.from(bySymbol.entries()).sort((a, b) => b[1].length - a[1].length).slice(0, 10);
+    if (!entries.length) { els.symbolBox.innerHTML = ""; els.symbolBox.style.display = "none"; return; }
+    els.symbolBox.style.display = "";
+    const maxCount = Math.max(1, ...entries.map(([, ts]) => ts.length));
+    els.symbolBox.innerHTML = `
+      <div class="panel-box-head"><span class="title">Top Symbols</span></div>
+      ${entries.map(([sym, ts]) => {
+        const wins = ts.filter((t) => t.win).length;
+        const winRate = Math.round((wins / ts.length) * 100);
+        const net = ts.reduce((s, t) => s + (t.pnl_dollars || 0), 0);
+        return `
+        <div class="bar-row">
+          <div class="bar-label">${escapeHtml(sym)}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(ts.length / maxCount) * 100}%; background:${net >= 0 ? "var(--green)" : "var(--red)"};" title="${winRate}% win, ${fmtMoney(net)}"></div></div>
+          <div class="bar-count">${ts.length}x</div>
+        </div>`;
+      }).join("")}
+    `;
+  }
+
+  function renderDowBreakdown(trades) {
+    const withDate = trades.filter((t) => t.date);
+    if (!withDate.length) { els.dowBox.innerHTML = ""; els.dowBox.style.display = "none"; return; }
+    els.dowBox.style.display = "";
+    const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const byDow = new Map();
+    for (const t of withDate) {
+      const dow = new Date(t.date + "T12:00:00").getDay();
+      if (!byDow.has(dow)) byDow.set(dow, []);
+      byDow.get(dow).push(t);
+    }
+    const entries = Array.from(byDow.entries()).sort((a, b) => a[0] - b[0]);
+    const maxCount = Math.max(1, ...entries.map(([, ts]) => ts.length));
+    els.dowBox.innerHTML = `
+      <div class="panel-box-head"><span class="title">Performance by Day of Week</span></div>
+      ${entries.map(([dow, ts]) => {
+        const net = ts.reduce((s, t) => s + (t.pnl_dollars || 0), 0);
+        return `
+        <div class="bar-row">
+          <div class="bar-label">${DOW[dow]}</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(ts.length / maxCount) * 100}%; background:${net >= 0 ? "var(--green)" : "var(--red)"};" title="${fmtMoney(net)}"></div></div>
+          <div class="bar-count">${ts.length}x</div>
+        </div>`;
+      }).join("")}
+    `;
+  }
+
   // ================= DOM refs =================
   const els = {
     rangePill: document.getElementById("rpt-range-pill"),
@@ -198,6 +337,10 @@
     subtitle: document.getElementById("rpt-subtitle"),
     statGrid: document.getElementById("rpt-stat-grid"),
     detailBox: document.getElementById("rpt-detail-box"),
+    equityChart: document.getElementById("rpt-equity-chart"),
+    rmultBox: document.getElementById("rpt-rmult-box"),
+    symbolBox: document.getElementById("rpt-symbol-box"),
+    dowBox: document.getElementById("rpt-dow-box"),
     tradesHead: document.getElementById("rpt-trades-head"),
     tradesBody: document.getElementById("rpt-trades-body"),
     tradesCount: document.getElementById("rpt-trades-count"),
@@ -476,7 +619,19 @@
       || `<tr><td colspan="${cols.length}"><div class="empty-state small">No trades.</div></td></tr>`;
     els.tradesCount.textContent = `${trades.length} trade${trades.length === 1 ? "" : "s"}`;
 
+    // Each analytics panel is independent -- a bad field on one trade
+    // (a missing R value, an odd date) shouldn't be able to take out
+    // the others or leave a panel half-drawn.
+    safeCall(() => renderEquityCurve(stats), "renderEquityCurve");
+    safeCall(() => renderRMultDistribution(trades), "renderRMultDistribution");
+    safeCall(() => renderSymbolBreakdown(trades), "renderSymbolBreakdown");
+    safeCall(() => renderDowBreakdown(trades), "renderDowBreakdown");
+
     showOnly("loaded");
+  }
+
+  function safeCall(fn, label) {
+    try { fn(); } catch (err) { console.error(`[report.js] ${label} failed:`, err); }
   }
 
   function exportFileBase(label) {
@@ -679,6 +834,7 @@
       rightPriceScale: { borderColor: "#232830", minimumWidth: 92 },
       timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      handleScroll: { vertTouchDrag: false },
     };
 
     rptCandleChart = LightweightCharts.createChart(candleEl, { ...commonOpts, width: candleEl.clientWidth, height: candleEl.clientHeight || 380 });
@@ -918,6 +1074,19 @@
     });
   }
 
+  // Once auth.js has this user's synced index down, a remote copy wins
+  // (cross-device source of truth) and the import/empty-state list gets
+  // repainted; otherwise whatever's local right now gets pushed up as
+  // the seed (which also seeds every report:<id> body it references,
+  // since saveLocalReport already ran when each one was first imported).
+  if (window.KV) {
+    window.KV.sync(LOCAL_INDEX_KEY, (remote) => {
+      if (!Array.isArray(remote)) return;
+      try { localStorage.setItem(LOCAL_INDEX_KEY, JSON.stringify(remote)); } catch (e) { /* ignore */ }
+      if (typeof renderLocalList === "function") renderLocalList();
+    });
+  }
+
   // ================= boot =================
   function init() {
     const id = qs("id");
@@ -925,12 +1094,22 @@
 
     if (id.startsWith("local-")) {
       const report = loadLocalReport(id);
-      if (!report) {
-        els.errorText.textContent = "This CSV report isn't in this browser's storage (maybe it was cleared, or you're on a different device/browser). Import the CSV again to rebuild it.";
-        showOnly("error");
+      if (report) { renderLoaded(report, id); return; }
+      // Not found locally yet -- if KV (Supabase) hasn't finished its
+      // initial load, wait for it and retry once before giving up; a
+      // report saved on a different browser/device only lives there
+      // until KV.ready resolves.
+      if (window.KV && !window.KV.isLoaded()) {
+        window.KV.ready.then(() => {
+          const remote = loadLocalReport(id);
+          if (remote) { renderLoaded(remote, id); return; }
+          els.errorText.textContent = "This CSV report isn't in this browser's storage (maybe it was cleared, or you're on a different device/browser). Import the CSV again to rebuild it.";
+          showOnly("error");
+        });
         return;
       }
-      renderLoaded(report, id);
+      els.errorText.textContent = "This CSV report isn't in this browser's storage (maybe it was cleared, or you're on a different device/browser). Import the CSV again to rebuild it.";
+      showOnly("error");
       return;
     }
 

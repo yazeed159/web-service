@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="auth.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>trade.log — import trades</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="core.css">
+<style>
+  body {
+    margin: 0; min-height: 100vh; padding: 48px 20px;
+    background: var(--bg); color: var(--text); font-family: var(--sans);
+  }
+  .card {
+    max-width: 720px; margin: 0 auto; padding: 32px; border-radius: var(--radius-lg);
+    background: var(--panel); border: 1px solid var(--border);
+  }
+  h1 {
+    font-size: 20px; margin: 0 0 6px; font-weight: 700;
+    background: linear-gradient(90deg, var(--primary), var(--blue));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  p.sub { color: var(--text-dim); font-size: 13.5px; margin: 0 0 24px; line-height: 1.55; }
+  p.sub code {
+    font-family: var(--mono); background: var(--panel-3); padding: 1px 5px;
+    border-radius: 4px; font-size: 12.5px;
+  }
+  label { display: block; font-size: 13px; color: var(--text-dim); margin: 0 0 8px; font-weight: 600; }
+  .drop {
+    border: 1px dashed var(--border); border-radius: var(--radius);
+    background: var(--panel-2); padding: 18px; display: flex; align-items: center;
+    justify-content: space-between; gap: 12px;
+  }
+  input[type="file"] { color: var(--text-dim); font-size: 13px; max-width: 100%; }
+  button.primary {
+    margin-top: 20px; padding: 11px 22px; border: none; border-radius: var(--radius-sm);
+    background: linear-gradient(90deg, var(--primary), var(--blue)); color: #0a0b0f;
+    font-weight: 700; font-size: 14px; cursor: pointer;
+  }
+  button.primary:disabled { opacity: .45; cursor: default; }
+  #status { margin-top: 16px; font-size: 13px; font-family: var(--mono); }
+  #status.ok { color: var(--green); }
+  #status.err { color: var(--red); }
+  table { width: 100%; margin-top: 22px; border-collapse: collapse; font-size: 12.5px; }
+  th, td {
+    text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border-soft);
+    font-family: var(--mono); white-space: nowrap;
+  }
+  th { color: var(--text-faint); font-weight: 600; text-transform: uppercase; font-size: 10.5px; letter-spacing: .04em; }
+  td.win { color: var(--green); }
+  td.loss { color: var(--red); }
+  .table-wrap { overflow-x: auto; }
+  .note { margin-top: 18px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--amber-soft); color: var(--amber); font-size: 12.5px; line-height: 1.5; }
+  .progress-wrap { margin-top: 16px; display: none; }
+  .progress-bar-track {
+    height: 8px; border-radius: 4px; background: var(--panel-3); overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%; width: 0%; border-radius: 4px;
+    background: linear-gradient(90deg, var(--primary), var(--blue));
+    transition: width .3s ease;
+  }
+  .progress-label {
+    margin-top: 8px; font-size: 12.5px; font-family: var(--mono); color: var(--text-dim);
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  }
+  button.cancel {
+    padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--panel-2); color: var(--text-dim); font-size: 12.5px; font-weight: 600; cursor: pointer;
+  }
+  button.cancel:disabled { opacity: .5; cursor: default; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Import trades from CSV</h1>
+    <p class="sub">
+      Upload a CSV of raw trade executions to backfill past days into the trade log. Any reasonable column
+      names work — <code>Symbol</code>/<code>Ticker</code>, <code>DateTime</code>/<code>Date</code>,
+      <code>Quantity</code>/<code>Shares</code>, <code>TradePrice</code>/<code>Price</code>,
+      <code>Buy/Sell</code>/<code>Side</code>, <code>Commission</code> (all optional except symbol, date,
+      and price). Rows are FIFO-matched into round-trip trades below.
+    </p>
+
+    <label for="csv-file">Trade CSV</label>
+    <div class="drop">
+      <input type="file" id="csv-file" accept=".csv">
+      <button class="primary" id="run-btn" disabled>Import</button>
+    </div>
+
+    <div id="status"></div>
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-fill"></div></div>
+      <div class="progress-label">
+        <span id="progress-text">Starting...</span>
+        <button class="cancel" id="cancel-btn">Cancel</button>
+      </div>
+    </div>
+    <div class="table-wrap"><table id="results" style="display:none">
+      <thead>
+        <tr>
+          <th>Symbol</th><th>Date</th><th>Entry</th><th>Exit</th>
+          <th>Entry $</th><th>Exit $</th><th>Side</th><th>Shares</th><th>P&amp;L</th><th>Result</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table></div>
+    <div class="note" id="next-note" style="display:none">
+      Matched. Charting each trade, getting the AI verdict, and saving them into your journal now —
+      this runs one trade at a time, so it can take a few minutes for a larger import. You can leave
+      this page; it'll keep running on the server either way.
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+      var fileEl = document.getElementById("csv-file");
+      var runBtn = document.getElementById("run-btn");
+      var statusEl = document.getElementById("status");
+      var resultsEl = document.getElementById("results");
+      var tbody = resultsEl.querySelector("tbody");
+      var nextNote = document.getElementById("next-note");
+      var progressWrap = document.getElementById("progress-wrap");
+      var progressFill = document.getElementById("progress-fill");
+      var progressText = document.getElementById("progress-text");
+      var cancelBtn = document.getElementById("cancel-btn");
+      var pollTimer = null;
+      var currentJob = { base: null, jobId: null };
+
+      fileEl.addEventListener("change", function () {
+        runBtn.disabled = !fileEl.files.length;
+      });
+
+      function setStatus(msg, cls) {
+        statusEl.textContent = msg;
+        statusEl.className = cls || "";
+      }
+
+      function showProgress(completed, total, current) {
+        progressWrap.style.display = "block";
+        cancelBtn.disabled = false;
+        cancelBtn.textContent = "Cancel";
+        var pct = total ? Math.round((completed / total) * 100) : 0;
+        progressFill.style.width = pct + "%";
+        var label = "Trade " + completed + " of " + total;
+        if (current && current.symbol) label += " — up next: " + current.symbol + " " + (current.trade_date || "");
+        progressText.textContent = label;
+      }
+
+      function hideProgress() {
+        progressWrap.style.display = "none";
+        currentJob = { base: null, jobId: null };
+      }
+
+      function renderRows(trades, publishById) {
+        tbody.innerHTML = "";
+        trades.forEach(function (t) {
+          var pub = publishById ? publishById[t.id || (t["Symbol"] + "-" + (t["Trade Date"] || "").replace(/-/g, "") + "-" + (t["Entry Time"] || "").replace(/:/g, ""))] : null;
+          var journalStatus = pub ? pub.status : "pending";
+          var tr = document.createElement("tr");
+          tr.innerHTML =
+            "<td>" + t["Symbol"] + "</td>" +
+            "<td>" + t["Trade Date"] + "</td>" +
+            "<td>" + t["Entry Time"] + "</td>" +
+            "<td>" + t["Exit Time"] + "</td>" +
+            "<td>" + t["Entry Price"] + "</td>" +
+            "<td>" + t["Exit Price"] + "</td>" +
+            "<td>" + t["Side"] + "</td>" +
+            "<td>" + t["No. of Shares"] + "</td>" +
+            "<td class=\"" + (t["Result"] === "Win" ? "win" : "loss") + "\">" + t["P&L After Comm"] + "</td>" +
+            "<td class=\"" + (journalStatus === "published" ? "win" : (journalStatus === "failed" || journalStatus === "skipped" ? "loss" : "")) + "\">" + journalStatus + "</td>";
+          tbody.appendChild(tr);
+        });
+        resultsEl.style.display = trades.length ? "table" : "none";
+      }
+
+      function finishJob(body, matchedTrades, wasCancelled) {
+        clearInterval(pollTimer);
+        hideProgress();
+        var publishById = {};
+        (body.publish_results || []).forEach(function (r) { publishById[r.id] = r; });
+        renderRows(body.trades || matchedTrades, publishById);
+        var published = (body.publish_results || []).filter(function (r) { return r.status === "published"; }).length;
+        var failed = (body.publish_results || []).filter(function (r) { return r.status === "failed"; }).length;
+        var skippedN = (body.publish_results || []).filter(function (r) { return r.status === "skipped"; }).length;
+        nextNote.style.display = "none";
+        var prefix = wasCancelled ? "Cancelled after " + (body.completed || 0) + " of " + (body.total || 0) + " trades. " : "";
+        setStatus(prefix + published + " published, " + failed + " failed, " + skippedN + " skipped.", failed || wasCancelled ? "err" : "ok");
+        runBtn.disabled = false;
+      }
+
+      function pollJob(base, jobId, matchedTrades) {
+        currentJob = { base: base, jobId: jobId };
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(function () {
+          fetch(base + "/import-trades/" + jobId)
+            .then(function (res) { return res.json(); })
+            .then(function (body) {
+              if (body.status === "done") {
+                finishJob(body, matchedTrades, false);
+              } else if (body.status === "cancelled") {
+                finishJob(body, matchedTrades, true);
+              } else {
+                // "processing" or "cancelling"
+                showProgress(body.completed || 0, body.total || matchedTrades.length, body.current);
+                if (body.status === "cancelling") {
+                  cancelBtn.disabled = true;
+                  cancelBtn.textContent = "Cancelling...";
+                  setStatus("Cancelling -- finishing up the current trade and publishing what's done so far...", "");
+                }
+              }
+            })
+            .catch(function () { /* transient poll error -- try again next tick */ });
+        }, 5000);
+      }
+
+      cancelBtn.addEventListener("click", function () {
+        if (!currentJob.jobId) return;
+        cancelBtn.disabled = true;
+        cancelBtn.textContent = "Cancelling...";
+        setStatus("Cancelling -- finishing up the current trade and publishing what's done so far...", "");
+        fetch(currentJob.base + "/import-trades/" + currentJob.jobId + "/cancel", { method: "POST" })
+          .catch(function () { /* the next poll tick will still pick up wherever the job lands */ });
+      });
+
+      runBtn.addEventListener("click", function () {
+        var file = fileEl.files[0];
+        if (!file) return;
+
+        var base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
+        if (!base) {
+          setStatus("Set window.CHART_SERVICE_URL in config.js first.", "err");
+          return;
+        }
+
+        window.AUTH_READY.then(function (session) {
+          if (!session) {
+            setStatus("Please log in first.", "err");
+            return;
+          }
+
+          runBtn.disabled = true;
+          resultsEl.style.display = "none";
+          nextNote.style.display = "none";
+          hideProgress();
+          setStatus("Uploading and matching...");
+
+          var formData = new FormData();
+          formData.append("trade_csv", file);
+
+          fetch(base + "/import-trades", {
+            method: "POST",
+            headers: { "Authorization": "Bearer " + session.access_token },
+            body: formData,
+          })
+            .then(function (res) { return res.json().then(function (body) { return { ok: res.ok, body: body }; }); })
+            .then(function (result) {
+              if (!result.ok) {
+                setStatus("Error: " + (result.body.error || "import failed"), "err");
+                runBtn.disabled = false;
+                return;
+              }
+              var trades = result.body.trades || [];
+              renderRows(trades, null);
+              nextNote.style.display = trades.length ? "block" : "none";
+              var skippedNote = result.body.skipped_rows ? (" (" + result.body.skipped_rows + " row(s) skipped)") : "";
+              setStatus(trades.length + " trade(s) matched" + skippedNote + " -- charting & publishing...", "ok");
+              if (trades.length && result.body.job_id) {
+                showProgress(0, trades.length, null);
+                pollJob(base, result.body.job_id, trades);
+              } else {
+                runBtn.disabled = false;
+              }
+            })
+            .catch(function (err) {
+              setStatus("Request failed: " + err.message, "err");
+              runBtn.disabled = false;
+            });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

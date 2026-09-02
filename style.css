@@ -109,7 +109,7 @@ button { font-family: var(--sans); }
 .sidebar-toggle svg { width: 13px; height: 13px; transition: transform 0.18s ease; }
 .sidebar.collapsed .sidebar-toggle svg { transform: rotate(180deg); }
 
-.sidebar-nav { flex: 1; padding: 14px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+.sidebar-nav { flex: 1; min-height: 0; padding: 14px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .nav-section-label {
   font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint);
   padding: 12px 10px 6px; font-weight: 600; white-space: nowrap;

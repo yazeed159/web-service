@@ -16,6 +16,41 @@
   const statGrid = document.getElementById("stat-grid");
   const dayGroups = document.getElementById("day-groups");
 
+  // Runs `fn`, and if it throws, logs the real error to the console
+  // (so it's debuggable) instead of letting it bubble up and abort
+  // whatever section-rendering sequence called it. Every render* call
+  // in the pipeline below is wrapped in this -- previously one bad
+  // field on one trade (missing/empty in a way a single renderX
+  // didn't expect) would throw, and since renderReports() etc. call
+  // 10-16 render functions back-to-back synchronously, that exception
+  // aborted every render call still queued after it. Only the outer
+  // .catch() would fire, and it only ever touched 3 elements
+  // (dayGroups/statGrid/last-updated) -- every other section's
+  // "Loading…" placeholder (detail-*, wld-*, dd-*, compare-*, tagb-*,
+  // report-*, ...) was simply never reached again and sat there
+  // looking stuck forever, even though the underlying data was fine.
+  function safeRender(fn, label) {
+    try {
+      fn();
+    } catch (err) {
+      console.error(`[app.js] ${label} failed:`, err);
+    }
+  }
+
+  // Final safety net: after every render attempt above has run (in
+  // whatever order, whichever ones threw), sweep the DOM for any
+  // "Loading…" placeholder that never got replaced -- whether from a
+  // renderX we forgot to wrap, one that updates a different element
+  // than expected, or a future bug we haven't hit yet -- and turn it
+  // into a visible, honest "couldn't load" state instead of leaving
+  // the person staring at a spinner that will never resolve.
+  function clearStrandedLoadingStates() {
+    document.querySelectorAll(".loading-line").forEach((el) => {
+      const container = el.parentElement || el;
+      container.innerHTML = '<div class="empty-state small">Couldn\'t load this section — check the console for details.</div>';
+    });
+  }
+
   window.fetchTradesIndex()
     .then((data) => {
       trades = data.slice().sort((a, b) => (a.trade_date + a.entry_time).localeCompare(b.trade_date + b.entry_time));
@@ -32,21 +67,23 @@
       calYear = lastDate.getFullYear();
       calMonth = lastDate.getMonth();
 
-      renderStats();
-      renderScore();
-      renderMiniCal();
-      renderEquity();
-      renderRecentTrades();
-      renderGroups();
-      renderCalendar();
-      initReportFilters();
-      applyReportFiltersAndRender();
+      safeRender(renderStats, "renderStats");
+      safeRender(renderScore, "renderScore");
+      safeRender(renderMiniCal, "renderMiniCal");
+      safeRender(renderEquity, "renderEquity");
+      safeRender(renderRecentTrades, "renderRecentTrades");
+      safeRender(renderGroups, "renderGroups");
+      safeRender(renderCalendar, "renderCalendar");
+      safeRender(initReportFilters, "initReportFilters");
+      safeRender(applyReportFiltersAndRender, "applyReportFiltersAndRender");
+      clearStrandedLoadingStates();
     })
     .catch((err) => {
       const msg = `Couldn't load your trades (${escapeHtml(String(err.message))}). Make sure you're signed in and Supabase is reachable.`;
       dayGroups.innerHTML = `<div class="empty-state">${msg}</div>`;
       statGrid.innerHTML = "";
       document.getElementById("last-updated").textContent = "No data";
+      clearStrandedLoadingStates();
     });
 
   function renderEmptyEverywhere() {
@@ -82,7 +119,7 @@
     [
       "wld-summary", "wld-top-win", "wld-top-loss", "dd-summary", "dd-periods",
       "compare-a", "compare-b", "tagb-setup", "tagb-lessons",
-    ].forEach((id) => (document.getElementById(id).innerHTML = '<div class="empty-state small">No data yet.</div>'));
+    ].forEach((id) => { const el = document.getElementById(id); if (el) el.innerHTML = '<div class="empty-state small">No data yet.</div>'; });
     document.getElementById("advanced-grid").innerHTML = "";
   }
 
@@ -256,11 +293,25 @@
     document.getElementById("sidebar").classList.remove("mobile-open");
   }
 
+  // Clicking a tab used to call setTab() directly without touching the URL,
+  // so the address bar stayed on whatever hash the page happened to load
+  // with. That meant: click Trade View, open a trade, hit Back -- the
+  // browser restores index.html at that same stale hash (usually none),
+  // which boots straight back to Dashboard instead of the tab you were
+  // actually on. Updating location.hash on every tab change gives each
+  // tab its own history entry, so Back actually returns to it.
+  function goToTab(tab) {
+    if ((location.hash || "").replace(/^#/, "") === tab) {
+      setTab(tab); // hash isn't changing, so hashchange won't fire -- apply directly
+    } else {
+      location.hash = tab;
+    }
+  }
   document.querySelectorAll(".nav-item[data-tab]").forEach((btn) => {
-    btn.addEventListener("click", () => setTab(btn.dataset.tab));
+    btn.addEventListener("click", () => goToTab(btn.dataset.tab));
   });
   document.querySelectorAll("[data-goto]").forEach((btn) => {
-    btn.addEventListener("click", () => setTab(btn.dataset.goto));
+    btn.addEventListener("click", () => goToTab(btn.dataset.goto));
   });
 
   // Other pages (backtester.html, journal.html, report.html, etc.) link
@@ -494,8 +545,30 @@
   }
   function bindTradeRows(container) {
     container.querySelectorAll("tr[data-id]").forEach((row) => {
-      row.addEventListener("click", () => {
-        window.location.href = `trade.html?id=${encodeURIComponent(row.dataset.id)}`;
+      const url = `trade.html?id=${encodeURIComponent(row.dataset.id)}`;
+      // These rows are <tr>s, not real <a> links, so the browser's native
+      // "open in new tab" behaviors (middle/scroll-wheel click, ctrl/cmd-click)
+      // never fired -- only a plain left click did anything. Wire those up
+      // explicitly so the rows behave like the trade links everywhere else
+      // on the site.
+      row.style.cursor = "pointer";
+      row.tabIndex = 0;
+      row.setAttribute("role", "link");
+      row.addEventListener("click", (e) => {
+        if (e.ctrlKey || e.metaKey || e.shiftKey) {
+          window.open(url, "_blank", "noopener");
+        } else {
+          window.location.href = url;
+        }
+      });
+      row.addEventListener("auxclick", (e) => {
+        if (e.button === 1) { // middle / scroll-wheel button
+          e.preventDefault();
+          window.open(url, "_blank", "noopener");
+        }
+      });
+      row.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") window.location.href = url;
       });
     });
   }
@@ -816,22 +889,26 @@
   // REPORTS
   // ================================================================
   function renderReports() {
-    renderDetailedStats();
-    renderDetailSubtabs();
-    renderPeriodDistPerf();
-    renderStreaks();
-    renderHighlights();
-    renderSymbolBreakdown();
-    renderDowBreakdown();
-    renderTimeOfDayBreakdown();
-    renderDurationBreakdown();
-    renderLeaderboards();
-    renderSectorCountryBreakdown();
-    renderWinLossDays();
-    renderDrawdown();
-    renderCompare();
-    renderTagBreakdown();
-    renderAdvanced();
+    // Each of these owns its own, unrelated slice of the page (a
+    // different tab/panel's worth of divs) -- one throwing on some
+    // edge-case field shouldn't stop the other fifteen from running.
+    // See safeRender()'s comment near the top of this file for why.
+    safeRender(renderDetailedStats, "renderDetailedStats");
+    safeRender(renderDetailSubtabs, "renderDetailSubtabs");
+    safeRender(renderPeriodDistPerf, "renderPeriodDistPerf");
+    safeRender(renderStreaks, "renderStreaks");
+    safeRender(renderHighlights, "renderHighlights");
+    safeRender(renderSymbolBreakdown, "renderSymbolBreakdown");
+    safeRender(renderDowBreakdown, "renderDowBreakdown");
+    safeRender(renderTimeOfDayBreakdown, "renderTimeOfDayBreakdown");
+    safeRender(renderDurationBreakdown, "renderDurationBreakdown");
+    safeRender(renderLeaderboards, "renderLeaderboards");
+    safeRender(renderSectorCountryBreakdown, "renderSectorCountryBreakdown");
+    safeRender(renderWinLossDays, "renderWinLossDays");
+    safeRender(renderDrawdown, "renderDrawdown");
+    safeRender(renderCompare, "renderCompare");
+    safeRender(renderTagBreakdown, "renderTagBreakdown");
+    safeRender(renderAdvanced, "renderAdvanced");
   }
 
   function renderStreaks() {
@@ -1571,22 +1648,22 @@
   }
 
   function renderDetailSubtabs() {
-    renderDetailDow();
-    renderDetailHour();
-    renderDetailPrice();
-    renderDetailSize();
-    renderDetailSymbolTable();
-    renderDetailSymbolTop20Bottom20();
-    renderDetailSide();
-    renderDetailSetup();
-    renderDetailLessons();
-    renderDetailWinLossRatio();
-    renderDetailExpectationBar();
-    renderDetailDistribution();
-    renderDetailExpectancy();
-    renderDetailRvol();
-    renderDetailAvgVol();
-    renderBreakdownTable("detail-float", groupByField("float_tag"), "Float");
+    safeRender(renderDetailDow, "renderDetailDow");
+    safeRender(renderDetailHour, "renderDetailHour");
+    safeRender(renderDetailPrice, "renderDetailPrice");
+    safeRender(renderDetailSize, "renderDetailSize");
+    safeRender(renderDetailSymbolTable, "renderDetailSymbolTable");
+    safeRender(renderDetailSymbolTop20Bottom20, "renderDetailSymbolTop20Bottom20");
+    safeRender(renderDetailSide, "renderDetailSide");
+    safeRender(renderDetailSetup, "renderDetailSetup");
+    safeRender(renderDetailLessons, "renderDetailLessons");
+    safeRender(renderDetailWinLossRatio, "renderDetailWinLossRatio");
+    safeRender(renderDetailExpectationBar, "renderDetailExpectationBar");
+    safeRender(renderDetailDistribution, "renderDetailDistribution");
+    safeRender(renderDetailExpectancy, "renderDetailExpectancy");
+    safeRender(renderDetailRvol, "renderDetailRvol");
+    safeRender(renderDetailAvgVol, "renderDetailAvgVol");
+    safeRender(() => renderBreakdownTable("detail-float", groupByField("float_tag"), "Float"), "renderBreakdownTable(detail-float)");
   }
 
   // ---- Days/Times ----

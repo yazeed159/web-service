@@ -1,0 +1,102 @@
+/* ===================================================================
+   chat-widget.css — floating "AI Chat" launcher + popup panel.
+   Loaded on every app-shell page alongside chat-widget.js. Replaces
+   the old full-page chat.html-via-sidebar pattern: a small round
+   button sits bottom-right, and clicking it opens a compact chat
+   panel that can be expanded to a large "maximized" panel without
+   ever leaving the current page.
+=================================================================== */
+
+.chatw-launcher {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(139, 124, 246, 0.4);
+  z-index: 500;
+  border: none;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.chatw-launcher:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(139, 124, 246, 0.5); }
+.chatw-launcher:active { transform: translateY(0) scale(.96); }
+.chatw-launcher svg { width: 24px; height: 24px; }
+.chatw-launcher .chatw-icon-close { display: none; }
+.chatw-launcher.open .chatw-icon-chat { display: none; }
+.chatw-launcher.open .chatw-icon-close { display: block; }
+
+.chatw-panel {
+  position: fixed;
+  right: 22px;
+  bottom: 90px;
+  width: 380px;
+  height: min(600px, 72vh);
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.45);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 499;
+  opacity: 0;
+  transform: translateY(12px) scale(.98);
+  pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease;
+}
+.chatw-panel.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+.chatw-panel.maximized {
+  right: 24px;
+  bottom: 24px;
+  width: min(760px, calc(100vw - 48px));
+  height: min(86vh, 860px);
+}
+
+.chatw-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--panel-2);
+  flex: none;
+}
+.chatw-panel-head .chatw-head-icon {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  display: flex; align-items: center; justify-content: center; flex: none;
+}
+.chatw-panel-head .chatw-head-icon svg { width: 14px; height: 14px; color: #fff; }
+.chatw-panel-title { font-weight: 600; font-size: 13.5px; color: var(--text); flex: 1 1 auto; }
+.chatw-panel-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.chatw-icon-action {
+  width: 28px; height: 28px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid transparent; color: var(--text-faint);
+  cursor: pointer;
+}
+.chatw-icon-action:hover { color: var(--text); background: var(--panel-3); border-color: var(--border); }
+.chatw-icon-action svg { width: 15px; height: 15px; }
+
+.chatw-body { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; padding: 12px 14px; overflow: hidden; }
+.chatw-body .chat-shell { flex: 1 1 auto; min-height: 0; height: 100%; padding: 0; border: none; background: transparent; }
+.chatw-body .chat-messages { flex: 1 1 auto; }
+
+@media (max-width: 520px) {
+  .chatw-launcher { right: 16px; bottom: 16px; width: 50px; height: 50px; }
+  .chatw-panel {
+    right: 10px; left: 10px; bottom: 78px;
+    width: auto; height: min(70vh, 560px);
+  }
+  .chatw-panel.maximized {
+    right: 8px; left: 8px; top: 8px; bottom: 8px;
+    width: auto; height: auto;
+  }
+}

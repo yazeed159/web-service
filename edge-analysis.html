@@ -9,7 +9,41 @@
 <title>Edge Analysis — trade.log</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="core.css">
+<link rel="stylesheet" href="chat-widget.css">
+<link rel="stylesheet" href="global-search.css">
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  /* Edge Analysis — page-local interactivity polish */
+  html { scroll-behavior: smooth; }
+  .edge-jumpnav {
+    position: sticky; top: var(--topbar-h); z-index: 9;
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    padding: 10px 12px; margin: 0 0 18px;
+    background: var(--glass, rgba(22,24,33,0.82));
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border, var(--border-soft));
+    border-radius: var(--radius, 10px);
+  }
+  .edge-jumpnav .pill { cursor: pointer; user-select: none; }
+  .edge-jumpnav .pill.active {
+    background: var(--primary-soft, rgba(139,124,246,0.15));
+    color: var(--primary, #8b7cf6);
+    border-color: rgba(139,124,246,0.45);
+    box-shadow: 0 0 0 1px rgba(139,124,246,0.25), 0 0 14px rgba(132,87,255,0.25);
+  }
+  #edge-content .bar-fill { transition: width 0.9s cubic-bezier(0.16,1,0.3,1); }
+  .panel-box[id^="section-"] { scroll-margin-top: calc(var(--topbar-h) + 70px); }
+  #edge-health .stat { cursor: default; }
+  .decay-head { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; padding-right: 4px; }
+  .decay-head span.sortable { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 3px; }
+  .decay-head span.sortable:hover { color: var(--text); }
+  .decay-head .sort-arrow { opacity: 0; font-size: 9px; }
+  .decay-head span.sort-active .sort-arrow { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    #edge-content .bar-fill { transition: none; }
+  }
+</style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -89,15 +123,6 @@
         <span class="nav-label">Patterns</span>
       </a>
 
-      <a class="nav-item" href="playbooks.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
-        <span class="nav-label">Playbooks</span>
-      </a>
-      <a class="nav-item" href="notes.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <span class="nav-label">Notes Search</span>
-      </a>
-
       <a class="nav-item" href="calculator.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="12" x2="8.01" y2="12"></line><line x1="12" y1="12" x2="12.01" y2="12"></line><line x1="16" y1="12" x2="16.01" y2="12"></line><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg>
         <span class="nav-label">Calculator</span>
@@ -108,10 +133,6 @@
         <span class="nav-label">Backtester</span>
       </a>
 
-      <a class="nav-item" href="chat.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-        <span class="nav-label">AI Chat</span>
-      </a>
 
       <a class="nav-item" href="rewind.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
@@ -123,10 +144,6 @@
         <span class="nav-label">Practice</span>
       </a>
 
-      <a class="nav-item" href="practice-analytics.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-        <span class="nav-label">Practice Analytics</span>
-      </a>
 </nav>
 
     <div class="sidebar-bottom">
@@ -170,12 +187,31 @@
   let allSorted = [];
   let regretResults = [];
   let rowSeq = 0;
+  const summaryState = { totalTrades: 0, baseline: 0, flaggedSetups: 0, totalSetups: 0, sizingTellActive: null, regretCapture: null };
+  let decayGroups = {};
+  let decayRows = [];
+  let decaySort = { key: "n", dir: -1 };
 
   window.fetchTradesIndex()
     .then((rows) => render(Array.isArray(rows) ? rows : []))
     .catch((err) => {
       content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
     });
+
+  // See app.js's identical helper for why this exists: renderDecay /
+  // renderVolume / renderSizing each own a totally different section of
+  // this page, so one throwing on some edge-case field shouldn't stop
+  // the others from rendering or leave their "Loading…" placeholder
+  // stuck forever.
+  function safeRender(fn, label) {
+    try { fn(); } catch (err) { console.error(`[edge-analysis] ${label} failed:`, err); }
+  }
+  function clearStrandedLoadingStates() {
+    content.querySelectorAll(".loading-line").forEach((el) => {
+      const container = el.parentElement || el;
+      container.innerHTML = '<div class="empty-state small">Couldn\'t load this section — check the console for details.</div>';
+    });
+  }
 
   // ---------- shared helpers (same conventions as stats.html / journal.html) ----------
   function escapeHtml(s) {
@@ -221,12 +257,84 @@
       grid: { vertLines: { color: "#1b1e26" }, horzLines: { color: "#1b1e26" } },
       rightPriceScale: { borderColor: "#262a34" },
       timeScale: { borderColor: "#262a34" },
+      handleScroll: { vertTouchDrag: false },
     }, extraOpts || {}));
     window.addEventListener("resize", () => chart.applyOptions({ width: el.clientWidth }));
     return chart;
   }
   const HINT = 'color:var(--text-faint); font-size:12.5px; margin:-6px 0 16px; line-height:1.5;';
   const GROUP_LABEL = 'font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em; margin:0 0 6px;';
+
+  // Bars render at width:0 with their real target stashed in data-w, so
+  // they can grow in instead of just appearing already-filled -- called
+  // right after any bar-row markup is dropped into the DOM.
+  function animateBarFills(root) {
+    if (!root) return;
+    const bars = root.querySelectorAll(".bar-fill[data-w]");
+    if (!bars.length) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        bars.forEach((b) => { b.style.width = b.dataset.w + "%"; });
+      });
+    });
+  }
+
+  // ---------- edge-health summary strip ----------
+  function renderEdgeHealthSummary() {
+    const el = document.getElementById("edge-health");
+    if (!el) return;
+    const flagPct = summaryState.totalSetups ? Math.round((summaryState.flaggedSetups / summaryState.totalSetups) * 100) : null;
+    const sizingLabel = summaryState.sizingTellActive === null ? "—" : (summaryState.sizingTellActive ? "Active" : "Clean");
+    const sizingCls = summaryState.sizingTellActive === true ? "down" : (summaryState.sizingTellActive === false ? "up" : "");
+    const regretLabel = summaryState.regretCapture === null ? "Not run yet" : `${Math.round(summaryState.regretCapture * 100)}%`;
+    const regretCls = summaryState.regretCapture === null ? "" : (summaryState.regretCapture >= 0.6 ? "up" : "down");
+    el.innerHTML = `
+      <div class="stat">
+        <div class="label-row"><span class="label">Trades Analyzed</span></div>
+        <div class="value">${summaryState.totalTrades}</div>
+        <div class="sub-value">${summaryState.baseline}% baseline win rate</div>
+      </div>
+      <div class="stat">
+        <div class="label-row"><span class="label">Setups Flagged</span></div>
+        <div class="value ${summaryState.flaggedSetups > 0 ? "down" : "up"}">${summaryState.flaggedSetups} / ${summaryState.totalSetups}</div>
+        <div class="sub-value">${flagPct === null ? "—" : flagPct + "%"} fading or recency-driven</div>
+      </div>
+      <div class="stat">
+        <div class="label-row"><span class="label">Sizing Tell</span></div>
+        <div class="value ${sizingCls}">${sizingLabel}</div>
+        <div class="sub-value">sizing up before a bad stretch</div>
+      </div>
+      <div class="stat">
+        <div class="label-row"><span class="label">Best-Bar Capture</span></div>
+        <div class="value ${regretCls}">${regretLabel}</div>
+        <div class="sub-value">avg. of best bar-close, when run</div>
+      </div>
+    `;
+  }
+
+  // ---------- sticky jump-nav with scrollspy ----------
+  function initJumpnav() {
+    const nav = document.getElementById("edge-jumpnav");
+    if (!nav) return;
+    const pills = Array.from(nav.querySelectorAll(".pill[data-section]"));
+    pills.forEach((pill) => {
+      pill.addEventListener("click", () => {
+        const target = document.getElementById(pill.dataset.section);
+        if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+    if (!("IntersectionObserver" in window)) return;
+    const sections = pills.map((p) => document.getElementById(p.dataset.section)).filter(Boolean);
+    const setActive = (id) => {
+      pills.forEach((p) => p.classList.toggle("active", p.dataset.section === id));
+    };
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) setActive(entry.target.id);
+      });
+    }, { rootMargin: "-30% 0px -60% 0px", threshold: 0 });
+    sections.forEach((s) => io.observe(s));
+  }
 
   // ---------- page shell ----------
   function render(rows) {
@@ -238,16 +346,26 @@
     const baseline = pctWin(allSorted);
 
     content.innerHTML = `
-      <div class="filters" style="margin-bottom:18px; gap:8px;">
-        <a href="#section-decay" class="pill" style="text-decoration:none;">Edge Decay</a>
-        <a href="#section-volume" class="pill" style="text-decoration:none;">Volume &amp; Float</a>
-        <a href="#section-regret" class="pill" style="text-decoration:none;">Regret Curve</a>
-        <a href="#section-sizing" class="pill" style="text-decoration:none;">Position Sizing</a>
+      <div class="stat-grid" id="edge-health" style="margin-bottom:18px;"></div>
+
+      <div class="edge-jumpnav" id="edge-jumpnav">
+        <span class="pill active" data-section="section-decay">Edge Decay</span>
+        <span class="pill" data-section="section-volume">Volume &amp; Float</span>
+        <span class="pill" data-section="section-regret">Regret Curve</span>
+        <span class="pill" data-section="section-sizing">Position Sizing</span>
       </div>
 
       <div class="panel-box" id="section-decay" style="margin-bottom:16px;">
         <div class="panel-box-head"><span class="title">Setup Edge Decay</span></div>
         <p style="${HINT}">Every setup's trades split into an earlier and later half, plus a check on whether the last 3 trades are doing more work than the rest of the sample. Click a row to see the trades behind it.</p>
+        <div class="decay-head" style="display:flex; align-items:center; gap:10px;">
+          <span class="sortable" data-sort="setup" style="width:170px;">Setup <span class="sort-arrow">▲</span></span>
+          <span style="flex:1;"></span>
+          <span class="sortable" data-sort="overall" style="width:44px; text-align:right; justify-content:flex-end;">Win % <span class="sort-arrow">▲</span></span>
+          <span style="width:140px; flex-shrink:0;"></span>
+          <span class="sortable" data-sort="n" style="width:44px; text-align:right; justify-content:flex-end;">N <span class="sort-arrow">▲</span></span>
+          <span style="width:120px; flex-shrink:0;"></span>
+        </div>
         <div id="decay-body"></div>
         <div class="filters" style="margin:18px 0 10px;"><select id="decay-setup-select"></select></div>
         <div id="decay-chart" style="height:220px;"></div>
@@ -293,19 +411,25 @@
       </div>
     `;
 
-    renderDecay(allSorted);
-    renderVolume(allSorted, baseline);
-    renderSizing(allSorted);
-    document.getElementById("regret-run-btn").addEventListener("click", runRegretAnalysis);
+    summaryState.totalTrades = allSorted.length;
+    summaryState.baseline = baseline;
+
+    safeRender(() => renderDecay(allSorted), "renderDecay");
+    safeRender(() => renderVolume(allSorted, baseline), "renderVolume");
+    safeRender(() => renderSizing(allSorted), "renderSizing");
+    safeRender(renderEdgeHealthSummary, "renderEdgeHealthSummary");
+    safeRender(initJumpnav, "initJumpnav");
+    clearStrandedLoadingStates();
+    const regretBtn = document.getElementById("regret-run-btn");
+    if (regretBtn) regretBtn.addEventListener("click", runRegretAnalysis);
   }
 
   // ================= 1. SETUP EDGE DECAY =================
   function renderDecay(sorted) {
-    const el = document.getElementById("decay-body");
     const groups = groupBy(sorted, (r) => r.setup_type || "unlabeled");
-    const entries = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
+    decayGroups = groups;
 
-    el.innerHTML = entries.map(([setup, trades]) => {
+    decayRows = Object.entries(groups).map(([setup, trades]) => {
       const n = trades.length;
       const overall = pctWin(trades);
       const half = Math.floor(n / 2);
@@ -322,25 +446,60 @@
       else if (firstRate !== null && secondRate !== null && (secondRate - firstRate) <= -20) { flag = "fading"; flagCls = "loss"; }
       else if (firstRate !== null && secondRate !== null && (secondRate - firstRate) >= 20) { flag = "improving"; flagCls = "win"; }
 
-      const uid = `edge-trades-${rowSeq++}`;
-      return `
-        <div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer; flex-wrap:wrap;">
-          <div class="bar-label" style="width:170px;">${escapeHtml(setup.replace(/_/g, " "))}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${overall}%; background:${overall >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
-          <div style="width:44px; text-align:right; flex-shrink:0;">${overall}%</div>
-          <div style="width:140px; text-align:right; flex-shrink:0; color:var(--text-faint); font-family:var(--mono); font-size:11px;">${firstRate === null ? "—" : firstRate + "%"} → ${secondRate === null ? "—" : secondRate + "%"}</div>
-          <div style="width:44px; text-align:right; flex-shrink:0; color:var(--text-faint);">${n}x</div>
-          <span class="pill ${flagCls}" style="width:120px; text-align:center; flex-shrink:0;">${flag}</span>
-        </div>
-        ${tradeListHtml(trades, uid)}
-      `;
-    }).join("") || `<div class="empty-state small">No setup_type data yet.</div>`;
-    bindTradeToggles(el);
+      return { setup, trades, n, overall, firstRate, secondRate, flag, flagCls };
+    });
 
+    summaryState.totalSetups = decayRows.length;
+    summaryState.flaggedSetups = decayRows.filter((r) => r.flagCls === "loss").length;
+
+    document.querySelectorAll(".decay-head .sortable").forEach((headEl) => {
+      headEl.addEventListener("click", () => {
+        const key = headEl.dataset.sort;
+        if (decaySort.key === key) decaySort.dir *= -1;
+        else decaySort = { key, dir: key === "setup" ? 1 : -1 };
+        renderDecayRows();
+      });
+    });
+    renderDecayRows();
+
+    const entries = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
     const sel = document.getElementById("decay-setup-select");
     sel.innerHTML = entries.map(([s]) => `<option value="${escapeHtml(s)}">${escapeHtml(s.replace(/_/g, " "))} (${groups[s].length}x)</option>`).join("");
     sel.onchange = () => renderDecayChart(groups[sel.value] || []);
     if (entries.length) renderDecayChart(groups[entries[0][0]]);
+  }
+
+  function renderDecayRows() {
+    const el = document.getElementById("decay-body");
+    const { key, dir } = decaySort;
+    const rows = decayRows.slice().sort((a, b) => {
+      if (key === "setup") return dir * String(a.setup).localeCompare(String(b.setup));
+      return dir * (a[key] - b[key]);
+    });
+
+    el.innerHTML = rows.map((r) => {
+      const uid = `edge-trades-${rowSeq++}`;
+      return `
+        <div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer; flex-wrap:wrap;">
+          <div class="bar-label" style="width:170px;">${escapeHtml(r.setup.replace(/_/g, " "))}</div>
+          <div class="bar-track"><div class="bar-fill" data-w="${r.overall}" style="width:0%; background:${r.overall >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
+          <div style="width:44px; text-align:right; flex-shrink:0;">${r.overall}%</div>
+          <div style="width:140px; text-align:right; flex-shrink:0; color:var(--text-faint); font-family:var(--mono); font-size:11px;">${r.firstRate === null ? "—" : r.firstRate + "%"} → ${r.secondRate === null ? "—" : r.secondRate + "%"}</div>
+          <div style="width:44px; text-align:right; flex-shrink:0; color:var(--text-faint);">${r.n}x</div>
+          <span class="pill ${r.flagCls}" style="width:120px; text-align:center; flex-shrink:0;">${r.flag}</span>
+        </div>
+        ${tradeListHtml(r.trades, uid)}
+      `;
+    }).join("") || `<div class="empty-state small">No setup_type data yet.</div>`;
+    bindTradeToggles(el);
+    animateBarFills(el);
+
+    document.querySelectorAll(".decay-head .sortable").forEach((headEl) => {
+      const active = headEl.dataset.sort === key;
+      headEl.classList.toggle("sort-active", active);
+      const arrow = headEl.querySelector(".sort-arrow");
+      if (arrow) arrow.textContent = active ? (dir === 1 ? "▲" : "▼") : "▲";
+    });
   }
 
   function renderDecayChart(trades) {
@@ -378,7 +537,7 @@
       const uid = `edge-trades-${rowSeq++}`;
       return `<div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
         <div class="bar-label" style="width:210px; text-transform:none;">${escapeHtml(tag.replace(/_/g, " "))}${n < 5 ? ` <span class="pill" title="Fewer than 5 trades — treat as a rough signal, not a verdict.">n=${n}</span>` : ""}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${rate}%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
+        <div class="bar-track"><div class="bar-fill" data-w="${rate}" style="width:0%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
         <div style="width:44px; text-align:right; flex-shrink:0;">${rate}%</div>
         <div style="width:76px; text-align:right; flex-shrink:0; color:${delta >= 0 ? "var(--green)" : "var(--red)"}; font-family:var(--mono); font-size:11px;">${delta >= 0 ? "+" : ""}${delta}pt</div>
         <div style="width:80px; text-align:right; flex-shrink:0; color:${pnl >= 0 ? "var(--green)" : "var(--red)"};">${fmtMoney(pnl)}</div>
@@ -387,6 +546,7 @@
       ${tradeListHtml(trades, uid)}`;
     }).join("");
     bindTradeToggles(el);
+    animateBarFills(el);
   }
 
   function renderRvolQuintiles(rows) {
@@ -403,13 +563,14 @@
       const lo = bucket[0].relative_volume.toFixed(2), hi = bucket[bucket.length - 1].relative_volume.toFixed(2);
       html += `<div class="bar-row">
         <div class="bar-label" style="width:170px;">${labels[i]}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${rate}%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
+        <div class="bar-track"><div class="bar-fill" data-w="${rate}" style="width:0%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
         <div style="width:44px; text-align:right; flex-shrink:0;">${rate}%</div>
         <div style="width:110px; text-align:right; flex-shrink:0; color:var(--text-faint); font-family:var(--mono); font-size:11px;">${lo}x–${hi}x</div>
         <div style="width:40px; text-align:right; flex-shrink:0; color:var(--text-faint);">${bucket.length}x</div>
       </div>`;
     }
     el.innerHTML = html;
+    animateBarFills(el);
   }
 
   // ================= 3. REGRET CURVE (bar-level) =================
@@ -487,6 +648,8 @@
     if (!regretResults.length) {
       summaryEl.innerHTML = `<div class="empty-state small">No usable bar data in the trades checked.</div>`;
       histEl.innerHTML = "";
+      summaryState.regretCapture = null;
+      renderEdgeHealthSummary();
       return;
     }
     const withCapture = regretResults.filter((r) => r.computed.capture !== null);
@@ -494,6 +657,9 @@
     const gaveBack = withCapture.filter((r) => r.computed.gaveBackBars > 0).length;
     const exitedEarly = withCapture.filter((r) => r.computed.gaveBackBars < 0).length;
     const moneyLeft = withCapture.reduce((s, r) => s + Math.max(0, r.computed.bestPnl - r.computed.actualPnl) * (r.row.shares || 0), 0);
+
+    summaryState.regretCapture = avgCapture;
+    renderEdgeHealthSummary();
 
     summaryEl.innerHTML = `
       <div class="stat-grid" style="margin-bottom:16px;">
@@ -534,11 +700,12 @@
         const pct = total ? Math.round((rows.length / total) * 1000) / 10 : 0;
         return `<div class="bar-row">
           <div class="bar-label" style="width:240px; text-transform:none;">${b.label}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:var(--blue);"></div></div>
+          <div class="bar-track"><div class="bar-fill" data-w="${pct}" style="width:0%; background:var(--blue);"></div></div>
           <div style="width:50px; text-align:right; flex-shrink:0;">${pct}%</div>
           <div style="width:40px; text-align:right; flex-shrink:0; color:var(--text-faint);">${rows.length}x</div>
         </div>`;
       }).join("") : "";
+    animateBarFills(histEl);
   }
 
   function renderRegretTradeSelect() {
@@ -594,6 +761,8 @@
       bodyEl.innerHTML = `<div class="empty-state small">Need more trades with share counts to bucket by size (have ${bySize.length}).</div>`;
       tellEl.innerHTML = "";
       document.getElementById("sizing-chart").innerHTML = "";
+      summaryState.sizingTellActive = null;
+      renderEdgeHealthSummary();
       return;
     }
 
@@ -609,7 +778,7 @@
       const lo = Math.min(...bucket.map((r) => r.shares)), hi = Math.max(...bucket.map((r) => r.shares));
       html += `<div class="bar-row">
         <div class="bar-label" style="width:150px;">${labels[i]}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${rate}%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
+        <div class="bar-track"><div class="bar-fill" data-w="${rate}" style="width:0%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
         <div style="width:44px; text-align:right; flex-shrink:0;">${rate}%</div>
         <div style="width:120px; text-align:right; flex-shrink:0; color:var(--text-faint); font-family:var(--mono); font-size:11px;">${lo}–${hi} sh</div>
         <div style="width:80px; text-align:right; flex-shrink:0; color:${pnl >= 0 ? "var(--green)" : "var(--red)"};">${fmtMoney(pnl)}</div>
@@ -617,6 +786,7 @@
       </div>`;
     }
     bodyEl.innerHTML = html;
+    animateBarFills(bodyEl);
 
     // "size-up tell": trades sized 1.5x+ the trailing 5-trade average share count,
     // and the win rate of whatever immediately follows one.
@@ -634,6 +804,12 @@
     const followTrades = Array.from(followSet);
     const sizeUpRate = sizeUpTrades.length ? pctWin(sizeUpTrades) : null;
     const followRate = followTrades.length ? pctWin(followTrades) : null;
+
+    // Same "meaningfully worse, not just noise" margin used for the decay
+    // flags elsewhere on this page -- inconclusive (null) until there's
+    // at least a handful of size-up follow-through trades to judge from.
+    summaryState.sizingTellActive = followTrades.length < 3 ? null : (followRate <= baseline - 15);
+    renderEdgeHealthSummary();
 
     tellEl.innerHTML = `
       <div class="stat-grid" style="margin-bottom:0;">
@@ -664,6 +840,9 @@
 
 })();
 </script>
+<script src="global-search.js"></script>
+<script src="chat-widget.js"></script>
 <script src="nav.js"></script>
+<script src="modern.js"></script>
 </body>
 </html>

@@ -57,7 +57,9 @@ as-is on GitHub Pages (or any static host).
   count (flagged if under 5), net P&L, average P&L per trade, and the
   most common `lesson_tags` entry logged against that setup. Click a
   card to jump to `journal.html` pre-filtered to just that setup.
-- **`notes.html`** ("Notes Search" in the nav) — full-text search across
+- **`notes.html`** (redirects to `journal.html` — the feature itself now
+  lives behind the search icon in the top bar of every page, or press
+  "/") — full-text search across
   every trade's freeform text: `verdict`, `lessons[]`, `walk_away_rule`,
   the AI's `better_entry`/`better_exit` `.reason` strings, and
   `symbol_info.description` — the fields `journal.html` deliberately
@@ -158,18 +160,21 @@ dashboard/
   stats.html             "Performance" — equity curve, setup win rates, slippage, feedback tally
   patterns.html           recurring lesson-tag clusters
   playbooks.html          per-setup_type scorecards, links into journal.html
-  notes.html               full-text search across trade verdicts/lessons/notes
+  notes.html               redirects — Notes Search is now the search icon in every page's top bar
   backtester.html         ORB / gap-gainer strategy backtester (see below)
-  chat.html                AI Chat — ask questions about your trade history (see below)
+  chat.html                redirects — AI Chat is now the floating chat bubble on every page (see below)
   rewind.html              Rewind — chart-reading practice on your own logged trades (see below)
+  practice.html            Practice — paper-trade a logged chart bar by bar; Analytics tab folds in what was practice-analytics.html
   trade.html              per-trade page (reads ?id=... from the URL)
   style.css               shared design tokens + app-shell/sidebar layout
   features.css              additive styles for journal/stats/patterns/playbooks/backtester/chat (filters, data table, bar rows, playbook cards, run cards, progress bar, chat bubbles)
   rewind.css                  additive styles for the Rewind tab
+  chat-widget.css / chat-widget.js     floating AI Chat bubble + popup panel, loaded on every page (wraps chat.js)
+  global-search.css / global-search.js  topbar search icon + modal (was notes.html), loaded on every page
   app.js                  home page logic
   trade.js                  trade page + chart logic
   backtester.js            backtester tab logic (start job, poll status, render results/history)
-  chat.js                  AI Chat tab logic (builds trade context, talks to the n8n chat webhook)
+  chat.js                  AI Chat logic (builds trade context, talks to the n8n chat webhook) — now runs inside the floating widget
   rewind.js                Rewind tab logic (per-trade flow, chart cropping/markers, feedback, localStorage history)
   data/
     trades.json          index: one row per trade, feeds the home table and journal/stats/patterns/playbooks pages
@@ -251,9 +256,11 @@ tab uses, pointing at your `chart_service.py`, which now also serves:
   (default 2000) caps how many prints one call can return for a busy
   ticker/minute.
 
-## AI Chat tab
+## AI Chat
 
-`chat.html` is a conversational interface for asking questions about your
+`chat.js`, running inside the floating chat bubble on every page (click it
+bottom-right; it has a maximize button for a bigger view), is a
+conversational interface for asking questions about your
 trade history — win rates on specific setups, recurring mistakes, cost of
 late exits, walkthroughs of individual trades, and so on. It reads the same
 `data/trades.json` index that `journal.html` / `stats.html` / `patterns.html`
@@ -261,7 +268,8 @@ already use, boils it down into an aggregate summary plus a compact
 per-trade index, and sends that (plus the running conversation) to an n8n
 webhook on every message. Nothing runs until you actually send a message,
 and each turn re-sends the full context, so the n8n side (and the LLM
-behind it) never has to hold state between turns.
+behind it) never has to hold state between turns. (`chat.html` still exists
+only as a redirect for old bookmarks.)
 
 **Setup:** point `window.N8N_CHAT_URL` in `config.js` at your own n8n
 webhook (`n8n/chat-workflow.json` in this repo is the workflow export —

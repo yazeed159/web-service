@@ -244,6 +244,19 @@
 .pp-head-shortcuts-btn { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; flex: none; }
 .pp-head-shortcuts-btn svg { width: 15px; height: 15px; }
 
+/* ---------- Practice / Analytics tab switcher ---------- */
+.pr-view-tabs {
+  display: inline-flex; align-items: center; gap: 2px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 3px; margin-right: auto; flex: none;
+}
+.pr-view-tab {
+  appearance: none; border: none; background: transparent; color: var(--text-dim);
+  font-size: 12.5px; font-weight: 600; padding: 6px 14px; border-radius: 6px; cursor: pointer;
+}
+.pr-view-tab:hover { color: var(--text); }
+.pr-view-tab.active { background: var(--primary-soft); color: var(--primary); }
+
 /* ---------- quote strip: bid/ask/spread/range/volume, broker Level-1 style ---------- */
 .pp-quote-strip {
   display: flex; align-items: center; gap: 0; flex-wrap: wrap;

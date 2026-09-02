@@ -119,7 +119,7 @@ button { font-family: var(--sans); }
 .sidebar-toggle svg { width: 13px; height: 13px; transition: transform 0.18s ease; }
 .sidebar.collapsed .sidebar-toggle svg { transform: rotate(180deg); }
 
-.sidebar-nav { flex: 1; padding: 14px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+.sidebar-nav { flex: 1; min-height: 0; padding: 14px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .nav-section-label {
   font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint);
   padding: 12px 10px 6px; font-weight: 600; white-space: nowrap;
@@ -497,7 +497,20 @@ body:has(.sidebar.mobile-open) { overflow: hidden; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 760px) {
-  .sidebar { position: fixed; left: 0; height: 100vh; transform: translateX(-100%); box-shadow: 20px 0 40px rgba(0,0,0,0.4); }
+  /* 100vh on mobile Safari/Chrome is the height with the browser's
+     address/toolbar chrome hidden, not the actually-visible viewport --
+     so a fixed, 100vh-tall sidebar routinely extends past the bottom of
+     what's really on screen whenever that chrome is showing. Because
+     it's position:fixed, that overflow isn't reachable by scrolling
+     the page (and page scroll is disabled anyway while the drawer is
+     open) or by scrolling .sidebar-nav internally, since the box itself
+     -- not its content -- is what's oversized: the last nav items and
+     the bottom pipeline-status row just render below the visible edge
+     with no way to bring them into view. 100dvh tracks the real,
+     current viewport (shrinking as the browser chrome appears) where
+     supported, so the whole sidebar always fits what's actually
+     visible; 100vh stays as the fallback for older browsers. */
+  .sidebar { position: fixed; left: 0; height: 100vh; height: 100dvh; transform: translateX(-100%); box-shadow: 20px 0 40px rgba(0,0,0,0.4); }
   .sidebar.mobile-open { transform: translateX(0); }
   .content { padding: 18px 14px 80px; }
   .topbar { padding: 0 14px; }
@@ -667,19 +680,8 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .trade-sibling-nav .trade-nav-link:hover { color: var(--text) !important; }
 
 .playbook-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
-.playbook-card {
-  background: var(--panel); border: 1px solid var(--border-soft); border-radius: var(--radius);
-  padding: 16px 18px; cursor: pointer; transition: border-color .15s ease;
-}
-.playbook-card:hover { border-color: var(--primary); }
-.playbook-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
-.playbook-name { font-size: 13.5px; font-weight: 700; text-transform: capitalize; }
-.playbook-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-bottom: 10px; }
 .pb-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 600; margin-bottom: 3px; }
 .pb-value { font-family: var(--mono); font-size: 15px; font-weight: 700; }
-.playbook-tag-line { font-size: 11.5px; color: var(--text-dim); padding-top: 10px; border-top: 1px solid var(--border-soft); }
-.playbook-tag-line.dim { color: var(--text-faint); font-style: italic; }
-.playbook-card-foot { font-size: 11.5px; color: var(--primary); margin-top: 10px; }
 
 /* ---------- Reports → Detailed stats grid + sub-tabs (index.html) ---------- */
 .stat-table-grid {
@@ -1005,14 +1007,13 @@ body::before {
 /* ---------- Glass panels / cards ---------- */
 .panel-box, .card, .chart-panel, .equity-panel, .day-group,
 .pnl-breakdown .cell, .stat, .cal-summary-strip .cell, .streak-strip .cell,
-.playbook-card, .cal-cell, table.data-table, .day-detail-panel .panel-box {
+.cal-cell, table.data-table, .day-detail-panel .panel-box {
   background: var(--glass);
   backdrop-filter: blur(10px);
   border: 1px solid var(--glass-border);
   transition: border-color 0.25s var(--ease), transform 0.25s var(--ease), box-shadow 0.25s var(--ease), background 0.25s var(--ease);
 }
-.panel-box:hover, .card:hover, .chart-panel:hover, .equity-panel:hover,
-.playbook-card:hover {
+.panel-box:hover, .card:hover, .chart-panel:hover, .equity-panel:hover {
   border-color: var(--glass-border-hi);
   box-shadow: 0 16px 40px -20px rgba(0,0,0,0.6), 0 0 0 1px var(--glass-border-hi);
   transform: translateY(-2px);

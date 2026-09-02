@@ -458,7 +458,21 @@
       list.push(entry);
       while (list.length > HISTORY_MAX) list.shift();
       localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+      // Mirror to Supabase (user_kv) so quiz history survives a cleared
+      // cache or a new device -- see KV in auth.js.
+      if (window.KV) window.KV.set(HISTORY_KEY, list);
     } catch (e) { /* ignore — quiz still works without persistence */ }
+  }
+
+  // Once auth.js has this user's synced history down, a remote copy wins
+  // (cross-device source of truth); otherwise whatever's local right now
+  // gets pushed up as the seed.
+  if (window.KV) {
+    window.KV.sync(HISTORY_KEY, function (remote) {
+      if (!Array.isArray(remote)) return;
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(remote)); } catch (e) { /* ignore */ }
+      if (typeof renderHistoryPanel === "function") renderHistoryPanel();
+    });
   }
 
   // ---------------------------------------------------------------
@@ -563,7 +577,7 @@
     if (!top.length) { els.focusBox.innerHTML = ""; return; }
     els.focusBox.innerHTML = `<div class="panel-box-head" style="margin-bottom:8px;"><span class="title">Setups to review</span></div>
       <div class="quiz-focus-list">
-        ${top.map(([setup, n]) => `<a class="quiz-focus-item" href="playbooks.html?setup=${encodeURIComponent(setup)}">
+        ${top.map(([setup, n]) => `<a class="quiz-focus-item" href="journal.html?setup=${encodeURIComponent(setup)}">
           <span>${escapeHtml(setup.replace(/_/g, " "))}</span>
           <span class="fi-count">missed ${n}×</span>
         </a>`).join("")}
@@ -604,6 +618,7 @@
       rightPriceScale: { borderColor: "#232830", minimumWidth: 88 },
       timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      handleScroll: { vertTouchDrag: false },
     };
     const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: opts.height || 380 });
     const series = chart.addCandlestickSeries({

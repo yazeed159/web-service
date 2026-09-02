@@ -1,7 +1,7 @@
 /* polish.css
  * Extra styles for chat.html + backtester.html only. Loaded AFTER
  * style.css + features.css and never redefines their selectors --
- * only adds new classes, so index/journal/stats/patterns/playbooks/
+ * only adds new classes, so index/journal/stats/patterns/
  * trade/calculator are untouched. A couple of universal, low-risk
  * additions (button press feel, run-card lift) are scoped narrowly
  * enough not to change layout anywhere else.

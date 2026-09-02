@@ -65,11 +65,15 @@
   function loadAccount() {
     try {
       const raw = localStorage.getItem(ACCOUNT_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.fills)) return null;
-      return parsed;
-    } catch (e) { return null; }
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === "object" && Array.isArray(parsed.fills) && parsed.fills.length) return parsed;
+    } catch (e) { /* fall through to remote */ }
+    // Nothing (usable) local -- this page doesn't run practice.js's own
+    // reconciliation, so check the synced copy directly (call after
+    // window.KV.ready has resolved).
+    const remote = window.KV ? window.KV.get(ACCOUNT_KEY) : undefined;
+    if (remote && typeof remote === "object" && Array.isArray(remote.fills)) return remote;
+    return null;
   }
 
   // ---------------- group fills into round-trip closed trades ----------------
@@ -330,13 +334,18 @@
   }
 
   // ---------------- boot ----------------
-  const account = loadAccount();
-  const indexMap = new Map();
+  // Wait on KV (see auth.js) so a fills history logged in practice.js on
+  // another browser/device is reconciled into localStorage before we
+  // read it -- otherwise this page would only ever see whatever's local.
+  (window.KV ? window.KV.ready : Promise.resolve(null)).then(() => {
+    const account = loadAccount();
+    const indexMap = new Map();
 
-  if (!account || !account.fills.length) {
-    els.emptyState.style.display = "";
-    els.body.style.display = "none";
-  } else {
+    if (!account || !account.fills.length) {
+      els.emptyState.style.display = "";
+      els.body.style.display = "none";
+      return;
+    }
     // Best-effort enrichment: map each practiced chartId back to its
     // real symbol/trade_date so tables can show something more useful
     // than a raw id and link into the real trade. Analytics still
@@ -348,5 +357,5 @@
       })
       .catch(() => {})
       .then(() => render(account, indexMap));
-  }
+  });
 })();

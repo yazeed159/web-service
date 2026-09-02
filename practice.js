@@ -278,9 +278,26 @@
   }
   function saveAccount() {
     try { localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account)); } catch (e) { /* ignore -- practice still works without persistence */ }
+    // Mirror to Supabase (user_kv) so the paper account isn't stranded on
+    // one browser -- see KV in auth.js.
+    if (window.KV) window.KV.set(ACCOUNT_KEY, account);
   }
 
   let account = loadAccount();
+
+  // Once auth.js has this user's synced account down, a remote copy wins
+  // (cross-device source of truth); otherwise whatever's local right now
+  // gets pushed up as the seed. Re-renders the account panel if the page
+  // is already showing stale data by the time this resolves.
+  if (window.KV) {
+    window.KV.sync(ACCOUNT_KEY, function (remote) {
+      if (!remote || typeof remote !== "object" || !Number.isFinite(remote.balance)) return;
+      account = remote;
+      if (!Array.isArray(account.fills)) account.fills = [];
+      try { localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account)); } catch (e) { /* ignore */ }
+      if (typeof renderAccountPanel === "function") renderAccountPanel();
+    });
+  }
 
   // ---------------------------------------------------------------
   // order shortcuts -- user-defined one-click buy/sell buttons, each
@@ -328,8 +345,18 @@
   }
   function saveShortcuts() {
     try { localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(shortcuts)); } catch (e) { /* ignore */ }
+    if (window.KV) window.KV.set(SHORTCUTS_KEY, shortcuts);
   }
   let shortcuts = loadShortcuts();
+
+  if (window.KV) {
+    window.KV.sync(SHORTCUTS_KEY, function (remote) {
+      if (!Array.isArray(remote)) return;
+      shortcuts = remote.filter((s) => s && typeof s === "object").map(normalizeShortcut);
+      try { localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(shortcuts)); } catch (e) { /* ignore */ }
+      if (typeof renderShortcutsRow === "function") renderShortcutsRow();
+    });
+  }
 
   // Shares a shortcut resolves to right now, at the current tick's
   // price and account state -- same "decide the quantity at the
@@ -960,6 +987,7 @@
       rightPriceScale: { borderColor: "#232830", minimumWidth: 88 },
       timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      handleScroll: { vertTouchDrag: false },
     };
     const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: 420 });
     const series = chart.addCandlestickSeries({

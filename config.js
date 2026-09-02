@@ -1,8 +1,15 @@
 // Site-wide settings.
-// Change your n8n import-form link ONCE here — every page picks it up automatically.
-window.N8N_IMPORT_URL = "https://yazeed105.app.n8n.cloud/form/aa6afb02-f2f0-4d5b-b77a-59f9cfecdf6a";
-window.N8N_SR_URL = "https://yazeed105.app.n8n.cloud/webhook/support-resistance";
-window.N8N_CHAT_URL = "https://yazeed105.app.n8n.cloud/webhook/trade-chat";
+// Change your import-trades page link ONCE here — every page picks it up automatically.
+window.N8N_IMPORT_URL = "import-trades.html";
+
+// SR / Chat / Backtest AI now go straight to chart_service.py on Render
+// (ai_routes.py's blueprint) instead of n8n webhooks -- same request/
+// response contracts, just served from the same host as CHART_SERVICE_URL
+// below. Kept as separate window.* names (not derived from
+// CHART_SERVICE_URL) in case you ever want to point them at a different
+// host again.
+window.N8N_SR_URL = "https://chart-service-wroj.onrender.com/support-resistance";
+window.N8N_CHAT_URL = "https://chart-service-wroj.onrender.com/trade-chat";
 
 // "Configure with AI" panel on the Backtester tab (backtester.html /
 // backtester-ai.js). Same request/response pattern as N8N_CHAT_URL:
@@ -13,7 +20,7 @@ window.N8N_CHAT_URL = "https://yazeed105.app.n8n.cloud/webhook/trade-chat";
 // for the exact contract -- wire this to a new webhook node in n8n
 // (same "Build Prompt -> LLM -> Parse Reply -> Respond" shape as the
 // existing "Chat Webhook Trigger" branch).
-window.N8N_BACKTEST_AI_URL = "https://yazeed105.app.n8n.cloud/webhook/backtest-ai";
+window.N8N_BACKTEST_AI_URL = "https://chart-service-wroj.onrender.com/backtest-ai";
 
 // Backtester tab's "Send to Journal" button (backtester.js). POSTs the
 // current run's trades to an n8n webhook so each trade can get the SAME
@@ -28,7 +35,7 @@ window.N8N_BACKTEST_AI_URL = "https://yazeed105.app.n8n.cloud/webhook/backtest-a
 // (backtest_reports/<job_id>.json) only. Reopening the run later (View
 // Report) then shows it as that run's own self-contained mini report,
 // with zero effect on real trading stats/dashboards.
-window.N8N_BACKTEST_IMPORT_URL = "https://yazeed105.app.n8n.cloud/webhook/backtest-import";
+window.N8N_BACKTEST_IMPORT_URL = "https://chart-service-wroj.onrender.com/backtest-import";
 
 // Base URL for chart_service.py -- used directly (no n8n) by both:
 //  - Backtester tab (backtester.html / backtester.js), for /backtest/* routes

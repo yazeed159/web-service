@@ -59,6 +59,28 @@
     var user = session.user || {};
     var email = user.email || "Account";
 
+    // Every app-shell page puts a 40px hamburger button (#mobile-nav-btn)
+    // flush against the same top-right corner once the viewport narrows
+    // past 760px (see core.css's .icon-btn media query) -- and this
+    // widget's base position below is fixed top:12px/right:12px with a
+    // z-index high enough to always paint above it, so on a phone the
+    // two sat directly on top of each other: the email pill visually
+    // covered the hamburger AND ate its taps. This override (kept in a
+    // <style> tag rather than core.css so it applies even on pages that
+    // don't load core.css, like import-legacy.html) shifts the pill left
+    // and shrinks it just enough to clear that button's footprint. Only
+    // injected once, same as the widget itself.
+    if (!document.getElementById("auth-account-widget-style")) {
+      var style = document.createElement("style");
+      style.id = "auth-account-widget-style";
+      style.textContent =
+        "@media (max-width:760px){" +
+        "#auth-account-widget{right:58px !important;}" +
+        "#auth-account-btn{max-width:130px !important;padding:6px 10px !important;font-size:12px !important;}" +
+        "}";
+      insertWhenReady(style);
+    }
+
     var wrap = document.createElement("div");
     wrap.id = "auth-account-widget";
     wrap.style.cssText =
@@ -141,6 +163,105 @@
   window.sb.auth.onAuthStateChange(function (_event, session) {
     if (!session && !isLoginPage) window.location.href = "login";
   });
+
+  // ------------------------------------------------------------------
+  // KV -- generic per-user key/value sync against the `user_kv` table,
+  // for everything that used to live ONLY in localStorage (practice
+  // account, rewind/quiz history, calculator + backtester settings,
+  // locally-imported backtest reports, trade grades' pre-Sept-2026
+  // history, etc). Nothing here removes localStorage -- every module
+  // still reads/writes it directly for an instant, offline-safe first
+  // paint -- this just makes sure the same value also lands in
+  // Supabase, so switching browsers or clearing site data doesn't lose
+  // it. See README/grade.js-style comments in each module for the
+  // per-feature key names.
+  //
+  //   KV.ready               -- Promise<session|null>, resolves once the
+  //                              whole user_kv table has been pulled down
+  //   KV.get(key)             -- sync read of the cached remote value
+  //                              (undefined until KV.ready resolves, or
+  //                              if nothing's been synced under that key)
+  //   KV.set(key, value)      -- fire-and-forget upsert; updates the
+  //                              local cache immediately
+  //   KV.sync(key, onRemote)  -- call once per feature at page load:
+  //                              once KV.ready resolves, if Supabase
+  //                              already has a value for `key` it wins
+  //                              (onRemote(value) is called so the
+  //                              caller can overwrite its localStorage
+  //                              copy + re-render); otherwise, whatever
+  //                              is currently in localStorage under that
+  //                              same key gets pushed up as the seed
+  //                              (one-time migration, so old
+  //                              browser-only data isn't stranded).
+  window.KV = (function () {
+    var cache = {};
+    var loaded = false;
+
+    var ready = window.AUTH_READY.then(function (session) {
+      if (!session) return null;
+      return window.sb
+        .from("user_kv")
+        .select("key,value")
+        .then(function (res) {
+          if (!res.error && res.data) {
+            res.data.forEach(function (row) {
+              cache[row.key] = row.value;
+            });
+          } else if (res.error) {
+            console.error("KV: initial load failed:", res.error.message);
+          }
+          loaded = true;
+          return session;
+        });
+    });
+
+    function get(key) {
+      return Object.prototype.hasOwnProperty.call(cache, key) ? cache[key] : undefined;
+    }
+
+    function set(key, value) {
+      cache[key] = value;
+      ready.then(function (session) {
+        if (!session) return;
+        return window.sb
+          .from("user_kv")
+          .upsert({ user_id: session.user.id, key: key, value: value })
+          .then(function (res) {
+            if (res.error) console.error("KV.set(" + key + ") failed:", res.error.message);
+          });
+      });
+    }
+
+    function del(key) {
+      delete cache[key];
+      ready.then(function (session) {
+        if (!session) return;
+        return window.sb
+          .from("user_kv")
+          .delete()
+          .eq("user_id", session.user.id)
+          .eq("key", key);
+      });
+    }
+
+    function sync(key, onRemote) {
+      ready.then(function (session) {
+        if (!session) return;
+        var remote = get(key);
+        if (remote !== undefined) {
+          if (typeof onRemote === "function") onRemote(remote);
+        } else {
+          var raw = null;
+          try { raw = localStorage.getItem(key); } catch (e) { /* ignore */ }
+          if (raw !== null) {
+            try { set(key, JSON.parse(raw)); } catch (e) { /* not JSON, skip */ }
+          }
+        }
+      });
+    }
+
+    return { ready: ready, get: get, set: set, delete: del, sync: sync, isLoaded: function () { return loaded; } };
+  })();
 
   // ------------------------------------------------------------------
   // Data helpers. These replace the old fetch("data/trades.json") /

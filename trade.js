@@ -493,6 +493,14 @@
       rightPriceScale: { borderColor: "#232830", minimumWidth: 92 },
       timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      // Lightweight Charts' default vertTouchDrag pans the price scale on
+      // a one-finger vertical swipe -- on a phone, where the chart is
+      // often as tall as the viewport, that means any vertical swipe that
+      // starts on the chart never reaches the page, and the page becomes
+      // un-scrollable past it. Horizontal touch drag (panning through
+      // time) and pinch-to-zoom stay on; only the vertical one-finger
+      // gesture is freed up so it falls through to normal page scroll.
+      handleScroll: { vertTouchDrag: false },
     };
     const candleChart = LightweightCharts.createChart(candleEl, { ...commonOpts, width: candleEl.clientWidth, height: 420 });
 
