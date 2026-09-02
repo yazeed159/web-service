@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="auth.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>trade.log — import legacy trades</title>
+<link rel="icon" href="data:,">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; padding: 40px 20px;
+    font-family: system-ui, -apple-system, sans-serif;
+    background: radial-gradient(circle at 20% 20%, #1b1530, #0b0b12 60%);
+    color: #eee;
+  }
+  .card {
+    max-width: 640px; margin: 0 auto; padding: 32px; border-radius: 16px;
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+  }
+  h1 {
+    font-size: 20px; margin: 0 0 6px;
+    background: linear-gradient(90deg, #8457ff, #22d3ee);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  p.sub { color: #999; font-size: 13.5px; margin: 0 0 24px; line-height: 1.5; }
+  label { display: block; font-size: 13px; color: #bbb; margin: 18px 0 6px; font-weight: 600; }
+  input[type="file"] {
+    width: 100%; padding: 10px; border-radius: 8px;
+    border: 1px dashed rgba(255,255,255,.25); background: rgba(0,0,0,.25); color: #ccc; font-size: 13px;
+  }
+  button.primary {
+    margin-top: 24px; padding: 11px 20px; border: none; border-radius: 8px;
+    background: linear-gradient(90deg, #8457ff, #22d3ee); color: #0b0b12; font-weight: 600; font-size: 14px;
+    cursor: pointer;
+  }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  #log {
+    margin-top: 20px; padding: 14px; border-radius: 8px; background: rgba(0,0,0,.35);
+    font: 12.5px/1.6 ui-monospace, monospace; white-space: pre-wrap; max-height: 320px; overflow-y: auto;
+    color: #bbb;
+  }
+  #log .ok { color: #4ade80; }
+  #log .err { color: #ff6b6b; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Import legacy trades</h1>
+    <p class="sub">
+      One-time tool to backfill your old <code>data/trades.json</code> + <code>data/trades/*.json</code>
+      files into Supabase. Runs entirely in your browser using your own logged-in session — it only ever
+      writes rows tagged with your own user id, the same as everything else on the site.
+      Safe to run more than once (it upserts, so re-importing just overwrites the same rows).
+    </p>
+
+    <label for="index-file">1. Select your old data/trades.json</label>
+    <input type="file" id="index-file" accept=".json">
+
+    <label for="detail-files">2. Select your old data/trades folder (all the per-trade .json files)</label>
+    <input type="file" id="detail-files" webkitdirectory multiple>
+
+    <button class="primary" id="run-btn" disabled>Run import</button>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+      var indexFileEl = document.getElementById("index-file");
+      var detailFilesEl = document.getElementById("detail-files");
+      var runBtn = document.getElementById("run-btn");
+      var logEl = document.getElementById("log");
+
+      var indexRows = null;
+      var detailFilesList = [];
+
+      function log(msg, cls) {
+        var line = document.createElement("div");
+        if (cls) line.className = cls;
+        line.textContent = msg;
+        logEl.appendChild(line);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      function maybeEnableRun() {
+        runBtn.disabled = !(indexRows && detailFilesList.length);
+      }
+
+      indexFileEl.addEventListener("change", function () {
+        var file = indexFileEl.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          try {
+            var parsed = JSON.parse(reader.result);
+            indexRows = Array.isArray(parsed) ? parsed : [];
+            log("Loaded index: " + indexRows.length + " trades.", "ok");
+          } catch (e) {
+            log("Couldn't parse that file as JSON: " + e.message, "err");
+            indexRows = null;
+          }
+          maybeEnableRun();
+        };
+        reader.readAsText(file);
+      });
+
+      detailFilesEl.addEventListener("change", function () {
+        detailFilesList = Array.from(detailFilesEl.files).filter(function (f) {
+          return f.name.toLowerCase().endsWith(".json");
+        });
+        log("Selected " + detailFilesList.length + " detail files.", "ok");
+        maybeEnableRun();
+      });
+
+      function readJsonFile(file) {
+        return new Promise(function (resolve, reject) {
+          var reader = new FileReader();
+          reader.onload = function () {
+            try { resolve(JSON.parse(reader.result)); }
+            catch (e) { reject(e); }
+          };
+          reader.onerror = reject;
+          reader.readAsText(file);
+        });
+      }
+
+      function chunk(arr, size) {
+        var out = [];
+        for (var i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+        return out;
+      }
+
+      runBtn.addEventListener("click", function () {
+        runBtn.disabled = true;
+        log("Starting import...");
+
+        window.AUTH_READY.then(function (session) {
+          if (!session) {
+            log("Not logged in -- refresh and sign in first.", "err");
+            return;
+          }
+          var userId = session.user.id;
+
+          // ---- 1. trades table, from the index file -----------------
+          var tradeRows = indexRows.map(function (row) {
+            var copy = Object.assign({}, row);
+            delete copy.verdict_label; // no matching column in schema.sql -- full text lives in trade_details.verdict
+            copy.user_id = userId;
+            return copy;
+          });
+
+          var tradeBatches = chunk(tradeRows, 100);
+          var tradeUpserts = tradeBatches.reduce(function (p, batch, i) {
+            return p.then(function () {
+              return window.sb.from("trades").upsert(batch, { onConflict: "user_id,id" }).then(function (res) {
+                if (res.error) { log("trades batch " + (i + 1) + " failed: " + res.error.message, "err"); }
+                else { log("trades batch " + (i + 1) + "/" + tradeBatches.length + " OK (" + batch.length + " rows).", "ok"); }
+              });
+            });
+          }, Promise.resolve());
+
+          // ---- 2. trade_details table, from the per-trade files -----
+          tradeUpserts.then(function () {
+            return Promise.all(detailFilesList.map(readJsonFile));
+          }).then(function (details) {
+            var detailRows = details.map(function (d) {
+              return {
+                trade_id: d.id,
+                user_id: userId,
+                time_in_trade: d.time_in_trade || null,
+                verdict: d.verdict || null,
+                indicators: d.indicators || null,
+                bars: d.bars || null,
+                better_entry: d.better_entry || null,
+                better_exit: d.better_exit || null,
+                suggested_stop: d.suggested_stop != null ? d.suggested_stop : null,
+                suggested_target: d.suggested_target != null ? d.suggested_target : null,
+                risk_reward: d.risk_reward || null,
+                walk_away_rule: d.walk_away_rule || null,
+                lessons: d.lessons || null,
+                symbol_info: d.symbol_info || null
+              };
+            });
+
+            var detailBatches = chunk(detailRows, 20); // bars/indicators can be large -- smaller batches
+            return detailBatches.reduce(function (p, batch, i) {
+              return p.then(function () {
+                return window.sb.from("trade_details").upsert(batch, { onConflict: "user_id,trade_id" }).then(function (res) {
+                  if (res.error) { log("trade_details batch " + (i + 1) + " failed: " + res.error.message, "err"); }
+                  else { log("trade_details batch " + (i + 1) + "/" + detailBatches.length + " OK (" + batch.length + " rows).", "ok"); }
+                });
+              });
+            }, Promise.resolve());
+          }).then(function () {
+            log("Import finished. Go check journal.html.", "ok");
+            runBtn.disabled = false;
+          }).catch(function (err) {
+            log("Import stopped: " + err.message, "err");
+            runBtn.disabled = false;
+          });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
