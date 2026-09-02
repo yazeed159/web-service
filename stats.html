@@ -157,7 +157,7 @@
       </div>
     </div>
 
-    <div class="footer">trade.log — generated from data/trades.json</div>
+    <div class="footer">trade.log — generated from your trade history</div>
   </div>
 </div>
 
@@ -167,11 +167,10 @@
 
   const content = document.getElementById("stats-content");
 
-  fetch("data/trades.json")
-    .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+  window.fetchTradesIndex()
     .then((rows) => render(Array.isArray(rows) ? rows : []))
     .catch((err) => {
-      content.innerHTML = `<div class="empty-state">Couldn't load data/trades.json (${escapeHtml(String(err.message))}). This page needs the trades index published by the pipeline.</div>`;
+      content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
     });
 
   function escapeHtml(s) {

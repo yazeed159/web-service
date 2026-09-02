@@ -164,11 +164,10 @@
   "use strict";
   const content = document.getElementById("patterns-content");
 
-  fetch("data/trades.json")
-    .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+  window.fetchTradesIndex()
     .then((rows) => render(Array.isArray(rows) ? rows : []))
     .catch((err) => {
-      content.innerHTML = `<div class="empty-state">Couldn't load data/trades.json (${escapeHtml(String(err.message))}).</div>`;
+      content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
     });
 
   function escapeHtml(s) {

@@ -1131,8 +1131,7 @@
     // "bt:..." id, so a cache miss here means something's wrong rather
     // than something to fetch.
     if (state.source === "backtest") return Promise.reject(new Error("This practice setup is no longer available."));
-    return fetch(`data/trades/${encodeURIComponent(id)}.json`)
-      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    return window.fetchTradeDetail(id)
       .then((trade) => { state.detailCache[id] = trade; return trade; });
   }
 

@@ -165,7 +165,7 @@
       </div>
     </div>
 
-    <div class="footer">trade.log — generated from data/trades.json</div>
+    <div class="footer">trade.log — generated from your trade history</div>
   </div>
 </div>
 
@@ -244,9 +244,8 @@
         const i = next++;
         const row = rows[i];
         try {
-          const r = await fetch(`data/trades/${encodeURIComponent(row.id)}.json`);
-          if (!r.ok) throw new Error("HTTP " + r.status);
-          const detail = await r.json();
+          const detail = await window.fetchTradeDetail(row.id);
+          if (!detail) throw new Error("Trade not found");
           out[i] = { id: row.id, symbol: row.symbol, trade_date: row.trade_date, win: row.win, pnl_after_comm: row.pnl_after_comm, fields: extractFields(detail) };
         } catch (e) {
           indexFailed++;
@@ -262,8 +261,7 @@
 
   function buildIndex() {
     statusEl.textContent = "Loading trade index…";
-    fetch("data/trades.json")
-      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    window.fetchTradesIndex()
       .then(async (rows) => {
         rows = Array.isArray(rows) ? rows : [];
         if (!rows.length) {
@@ -292,7 +290,7 @@
       })
       .catch((err) => {
         statusEl.textContent = "";
-        resultsEl.innerHTML = `<div class="empty-state">Couldn't load data/trades.json (${escapeHtml(String(err.message))}).</div>`;
+        resultsEl.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
       });
   }
 

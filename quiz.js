@@ -835,8 +835,7 @@
 
   function fetchDetail(id) {
     if (state.detailCache[id]) return Promise.resolve(state.detailCache[id]);
-    return fetch(`data/trades/${encodeURIComponent(id)}.json`)
-      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    return window.fetchTradeDetail(id)
       .then((trade) => { state.detailCache[id] = trade; return trade; });
   }
 

@@ -427,8 +427,7 @@
 
     // --- Pull latest equity + recent symbols from the journal so account
     // size and quick-fill reference prices don't need to be typed in. ---
-    fetch("data/trades.json")
-      .then((r) => (r.ok ? r.json() : []))
+    window.fetchTradesIndex()
       .then((trades) => {
         if (!Array.isArray(trades) || trades.length === 0) return;
         const last = trades[trades.length - 1];

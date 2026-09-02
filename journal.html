@@ -232,8 +232,7 @@
     return TAG_LABELS[tag] || String(tag).replace(/_/g, " ");
   }
 
-  fetch("data/trades.json")
-    .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+  window.fetchTradesIndex()
     .then((rows) => {
       allRows = Array.isArray(rows) ? rows : [];
       const setups = Array.from(new Set(allRows.map((r) => r.setup_type).filter(Boolean))).sort();
@@ -264,7 +263,7 @@
       applyFilters();
     })
     .catch((err) => {
-      content.innerHTML = `<div class="empty-state">Couldn't load data/trades.json (${escapeHtml(String(err.message))}).</div>`;
+      content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
     });
 
   function escapeHtml(s) {

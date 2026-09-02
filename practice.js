@@ -633,7 +633,7 @@
   // thing to trade against, starting from its very first bar.
   // ---------------------------------------------------------------
   function fetchDetail(id) {
-    return fetch(`data/trades/${encodeURIComponent(id)}.json`).then((r) => (r.ok ? r.json() : null));
+    return window.fetchTradeDetail(id).catch(() => null);
   }
 
   // ---------------------------------------------------------------
