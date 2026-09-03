@@ -18,7 +18,7 @@
   // ---- inject the topbar trigger button --------------------------------
   const trigger = document.createElement("button");
   trigger.type = "button";
-  trigger.className = "icon-btn";
+  trigger.className = "icon-btn icon-btn-visible";
   trigger.id = "gs-open-btn";
   trigger.title = "Search notes";
   trigger.setAttribute("aria-label", "Search notes");

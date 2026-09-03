@@ -348,7 +348,7 @@
     content.innerHTML = `
       <p style="color:var(--text-faint); font-size:12.5px; margin:0 0 10px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
         <span>${sorted.length} trade${sorted.length === 1 ? "" : "s"} · net <span class="${totalPnl >= 0 ? "up" : "down"}">${fmtMoney(totalPnl)}</span></span>
-        <button class="icon-btn" id="share-view-btn" title="Export this filtered set as a shareable static page" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
+        <button class="icon-btn icon-btn-visible" id="share-view-btn" title="Export this filtered set as a shareable static page" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
           <span id="share-view-label">Share this view</span>
         </button>

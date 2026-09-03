@@ -9,63 +9,230 @@
 <title>trade.log — sign in</title>
 <link rel="icon" href="data:,">
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0b0f;
+    --sidebar-bg: #0d0e13;
+    --panel: #14161c;
+    --panel-2: #191c24;
+    --border: #262a34;
+    --border-soft: #1b1e26;
+    --text: #eceef2;
+    --text-dim: #8b8fa3;
+    --text-faint: #565a6b;
+    --green: #2fd08a;
+    --red: #f2555a;
+    --primary: #8b7cf6;
+    --primary-2: #6e5bf0;
+    --primary-soft: rgba(139, 124, 246, 0.14);
+    --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --sans: 'Inter', system-ui, sans-serif;
+  }
+
   * { box-sizing: border-box; }
+  html { color-scheme: dark; }
   body {
-    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    font-family: system-ui, -apple-system, sans-serif;
-    background: radial-gradient(circle at 20% 20%, #1b1530, #0b0b12 60%);
-    color: #eee;
+    margin: 0; min-height: 100vh;
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
   }
-  .card {
-    width: 340px; padding: 32px; border-radius: 16px;
-    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
-    backdrop-filter: blur(6px);
+  :focus-visible { outline: 1.5px solid var(--primary); outline-offset: 2px; }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 1.15fr minmax(380px, 460px);
+    min-height: 100vh;
   }
-  h1 {
-    font-size: 20px; margin: 0 0 4px; text-align: center;
-    background: linear-gradient(90deg, #8457ff, #22d3ee);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
+
+  /* ---------- Hero / proof-of-product side ---------- */
+  .hero {
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border-soft);
+    padding: 44px 56px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 34px;
   }
-  p.sub { text-align: center; color: #999; font-size: 13px; margin: 0 0 24px; }
-  label { display: block; font-size: 12.5px; color: #bbb; margin: 14px 0 6px; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .brand .mark {
+    width: 30px; height: 30px; border-radius: 8px; flex: none;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-weight: 700; font-size: 14px; color: #0b0714;
+    box-shadow: 0 0 0 1px rgba(139,124,246,0.25), 0 4px 14px rgba(139,124,246,0.25);
+  }
+  .brand .name { font-weight: 700; letter-spacing: -0.01em; font-size: 15.5px; color: var(--text); }
+  .brand .name .muted { color: var(--text-dim); font-weight: 400; }
+
+  .hero-copy h1 {
+    font-size: 26px; line-height: 1.3; font-weight: 700; letter-spacing: -0.015em;
+    margin: 0 0 8px; max-width: 26ch;
+  }
+  .hero-copy p { margin: 0; color: var(--text-dim); font-size: 14px; max-width: 40ch; line-height: 1.5; }
+
+  .curve-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px 8px;
+  }
+  .curve-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .curve-head .label { font-size: 12px; color: var(--text-dim); }
+  .curve-head .value { font-family: var(--mono); font-size: 18px; font-weight: 600; color: var(--green); }
+  .curve-panel svg { display: block; width: 100%; height: 96px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+  .stat-cell { background: var(--panel); padding: 14px 16px; }
+  .stat-cell .num { font-family: var(--mono); font-size: 18px; font-weight: 600; }
+  .stat-cell .lbl { font-size: 11.5px; color: var(--text-faint); margin-top: 3px; }
+
+  .ticker { display: flex; flex-direction: column; gap: 8px; }
+  .ticker .ticker-label { font-size: 12px; color: var(--text-faint); margin-bottom: 2px; }
+  .trow {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; background: var(--panel); border: 1px solid var(--border-soft); border-radius: 8px;
+    font-size: 13px;
+  }
+  .trow .sym { font-family: var(--mono); font-weight: 600; width: 46px; flex: none; }
+  .trow .side { color: var(--text-faint); width: 54px; flex: none; }
+  .trow .setup { color: var(--text-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trow .pnl { font-family: var(--mono); font-weight: 600; flex: none; }
+  .up { color: var(--green); }
+  .down { color: var(--red); }
+
+  /* ---------- Form side ---------- */
+  .formside { display: flex; align-items: center; justify-content: center; padding: 32px; }
+  .formwrap { width: 100%; max-width: 340px; }
+  .formwrap h2 { font-size: 19px; margin: 0 0 4px; font-weight: 700; letter-spacing: -0.01em; }
+  .formwrap p.sub { font-size: 13px; color: var(--text-dim); margin: 0 0 26px; }
+
+  label { display: block; font-size: 12.5px; color: var(--text-dim); margin: 14px 0 6px; }
   input {
     width: 100%; padding: 10px 12px; border-radius: 8px;
-    border: 1px solid rgba(255,255,255,.15); background: rgba(0,0,0,.3); color: #eee; font-size: 14px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 14px;
+    font-family: var(--sans);
   }
-  input:focus { outline: none; border-color: #8457ff; }
+  input:focus { outline: none; border-color: var(--primary); }
+
+  .field-pass { position: relative; }
+  .field-pass input { padding-right: 60px; }
+  .pw-toggle {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    background: transparent; border: none; color: var(--text-faint);
+    font-size: 11.5px; font-weight: 600; font-family: var(--sans);
+    padding: 5px 8px; border-radius: 6px; cursor: pointer;
+  }
+  .pw-toggle:hover { color: var(--text-dim); background: var(--panel-2); }
+
+  .field-confirm { max-height: 0; overflow: hidden; opacity: 0; transition: max-height 0.18s ease, opacity 0.18s ease; }
+  .field-confirm.show { max-height: 96px; opacity: 1; }
+
   button.primary {
     width: 100%; margin-top: 22px; padding: 11px; border: none; border-radius: 8px;
-    background: linear-gradient(90deg, #8457ff, #22d3ee); color: #0b0b12; font-weight: 600; font-size: 14px;
-    cursor: pointer;
+    background: linear-gradient(135deg, var(--primary), var(--primary-2));
+    color: #0b0714; font-weight: 600; font-size: 14px; cursor: pointer;
   }
+  button.primary:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(139,124,246,0.35); }
   button.primary:disabled { opacity: .5; cursor: default; }
-  .toggle { text-align: center; margin-top: 18px; font-size: 13px; color: #999; }
-  .toggle a { color: #8457ff; cursor: pointer; text-decoration: underline; }
+
+  .toggle { text-align: center; margin-top: 18px; font-size: 13px; color: var(--text-dim); }
+  .toggle a { color: var(--primary); cursor: pointer; text-decoration: underline; }
   .msg { margin-top: 14px; font-size: 13px; text-align: center; min-height: 18px; }
-  .msg.error { color: #ff6b6b; }
-  .msg.ok { color: #4ade80; }
+  .msg.error { color: var(--red); }
+  .msg.ok { color: var(--green); }
+
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: 1fr; }
+    .hero { border-right: none; border-bottom: 1px solid var(--border-soft); padding: 32px 24px; gap: 22px; }
+    .hero-copy h1 { font-size: 21px; }
+    .ticker { display: none; }
+    .formside { padding: 32px 24px 48px; }
+  }
 </style>
 </head>
 <body>
-  <div class="card">
-    <h1>trade.log</h1>
-    <p class="sub" id="mode-sub">Sign in to your journal</p>
+  <div class="shell">
 
-    <form id="auth-form">
-      <label for="email">Email</label>
-      <input id="email" type="email" autocomplete="email" required>
+    <div class="hero">
+      <a href="index.html" class="brand">
+        <span class="mark">T</span>
+        <span class="name">trade<span class="muted">.log</span></span>
+      </a>
 
-      <label for="password">Password</label>
-      <input id="password" type="password" autocomplete="current-password" required minlength="6">
+      <div class="hero-copy">
+        <h1>Every trade, logged and reviewed.</h1>
+        <p>Track entries, exits, and setups — then find out which ones actually make you money.</p>
+      </div>
 
-      <button class="primary" id="submit-btn" type="submit">Sign in</button>
-      <div class="msg" id="msg"></div>
-    </form>
+      <div class="curve-panel">
+        <div class="curve-head">
+          <span class="label">Equity curve, last 90 days</span>
+          <span class="value">+18.4%</span>
+        </div>
+        <svg viewBox="0 0 400 96" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="curveFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#2fd08a" stop-opacity="0.28"/>
+              <stop offset="100%" stop-color="#2fd08a" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M0,80 L20,78 L40,72 L60,74 L80,60 L100,64 L120,50 L140,54 L160,40 L180,46 L200,52 L220,44 L240,30 L260,36 L280,24 L300,28 L320,18 L340,22 L360,10 L380,14 L400,6 L400,96 L0,96 Z" fill="url(#curveFill)"/>
+          <path d="M0,80 L20,78 L40,72 L60,74 L80,60 L100,64 L120,50 L140,54 L160,40 L180,46 L200,52 L220,44 L240,30 L260,36 L280,24 L300,28 L320,18 L340,22 L360,10 L380,14 L400,6" fill="none" stroke="#2fd08a" stroke-width="2"/>
+        </svg>
+      </div>
 
-    <div class="toggle">
-      <span id="toggle-text">No account yet?</span>
-      <a id="toggle-link">Create one</a>
+      <div class="stat-row">
+        <div class="stat-cell"><div class="num up">64%</div><div class="lbl">Win rate</div></div>
+        <div class="stat-cell"><div class="num">2.1</div><div class="lbl">Profit factor</div></div>
+        <div class="stat-cell"><div class="num up">+4W</div><div class="lbl">Current streak</div></div>
+      </div>
+
+      <div class="ticker">
+        <div class="ticker-label">Recent trades</div>
+        <div class="trow"><span class="sym">NQ</span><span class="side">Long</span><span class="setup">Opening range breakout</span><span class="pnl up">+2.4R</span></div>
+        <div class="trow"><span class="sym">AAPL</span><span class="side">Short</span><span class="setup">Failed retest</span><span class="pnl down">−0.8R</span></div>
+        <div class="trow"><span class="sym">ES</span><span class="side">Long</span><span class="setup">Trend pullback</span><span class="pnl up">+3.2R</span></div>
+      </div>
     </div>
+
+    <div class="formside">
+      <div class="formwrap">
+        <h2 id="form-heading">Sign in</h2>
+        <p class="sub" id="mode-sub">Enter your email and password to continue.</p>
+
+        <form id="auth-form">
+          <label for="email">Email</label>
+          <input id="email" type="email" autocomplete="email" required>
+
+          <label for="password">Password</label>
+          <div class="field-pass">
+            <input id="password" type="password" autocomplete="current-password" required minlength="6">
+            <button class="pw-toggle" type="button" id="toggle-password" aria-label="Show password">Show</button>
+          </div>
+
+          <div class="field-confirm" id="confirm-wrap">
+            <label for="confirm-password">Confirm password</label>
+            <div class="field-pass">
+              <input id="confirm-password" type="password" autocomplete="new-password" minlength="6">
+              <button class="pw-toggle" type="button" id="toggle-confirm-password" aria-label="Show password">Show</button>
+            </div>
+          </div>
+
+          <button class="primary" id="submit-btn" type="submit">Sign in</button>
+          <div class="msg" id="msg"></div>
+        </form>
+
+        <div class="toggle">
+          <span id="toggle-text">No account yet?</span>
+          <a id="toggle-link">Create one</a>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script>
@@ -76,29 +243,52 @@
       var form = document.getElementById("auth-form");
       var emailEl = document.getElementById("email");
       var passwordEl = document.getElementById("password");
+      var confirmPasswordEl = document.getElementById("confirm-password");
+      var confirmWrap = document.getElementById("confirm-wrap");
       var submitBtn = document.getElementById("submit-btn");
       var msgEl = document.getElementById("msg");
+      var formHeading = document.getElementById("form-heading");
       var modeSub = document.getElementById("mode-sub");
       var toggleText = document.getElementById("toggle-text");
       var toggleLink = document.getElementById("toggle-link");
+      var togglePassword = document.getElementById("toggle-password");
+      var toggleConfirmPassword = document.getElementById("toggle-confirm-password");
 
       function setMsg(text, kind) {
         msgEl.textContent = text || "";
         msgEl.className = "msg" + (kind ? " " + kind : "");
       }
 
+      function wirePasswordToggle(btn, input) {
+        btn.addEventListener("click", function () {
+          var showing = input.type === "text";
+          input.type = showing ? "password" : "text";
+          btn.textContent = showing ? "Show" : "Hide";
+          btn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+        });
+      }
+      wirePasswordToggle(togglePassword, passwordEl);
+      wirePasswordToggle(toggleConfirmPassword, confirmPasswordEl);
+
       toggleLink.addEventListener("click", function () {
         mode = mode === "signin" ? "signup" : "signin";
         if (mode === "signup") {
-          modeSub.textContent = "Create your journal account";
+          formHeading.textContent = "Create your account";
+          modeSub.textContent = "Set a password to start logging trades.";
           submitBtn.textContent = "Create account";
           toggleText.textContent = "Already have an account?";
           toggleLink.textContent = "Sign in";
+          confirmWrap.classList.add("show");
+          confirmPasswordEl.required = true;
         } else {
-          modeSub.textContent = "Sign in to your journal";
+          formHeading.textContent = "Sign in";
+          modeSub.textContent = "Enter your email and password to continue.";
           submitBtn.textContent = "Sign in";
           toggleText.textContent = "No account yet?";
           toggleLink.textContent = "Create one";
+          confirmWrap.classList.remove("show");
+          confirmPasswordEl.required = false;
+          confirmPasswordEl.value = "";
         }
         setMsg("");
       });
@@ -111,6 +301,12 @@
         }
         var email = emailEl.value.trim();
         var password = passwordEl.value;
+
+        if (mode === "signup" && password !== confirmPasswordEl.value) {
+          setMsg("Passwords don't match.", "error");
+          return;
+        }
+
         submitBtn.disabled = true;
         setMsg("");
 
@@ -122,6 +318,10 @@
           submitBtn.disabled = false;
           if (res.error) {
             setMsg(res.error.message, "error");
+            return;
+          }
+          if (mode === "signup" && res.data && res.data.user && !res.data.session) {
+            setMsg("Check your email to confirm your account, then sign in.", "ok");
             return;
           }
           window.location.href = "/";

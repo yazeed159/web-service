@@ -192,6 +192,12 @@ button { font-family: var(--sans); }
 @media (max-width: 760px) {
   .icon-btn { display: flex; }
 }
+/* .icon-btn is display:none by default outside the mobile topbar (see
+   above) -- opt an icon-btn into always being visible, on any viewport,
+   with this modifier class instead of a one-off !important override
+   per call site (see e.g. practice.css's .pp-shortcuts-gear, which
+   predates this and does its own local version of the same override). */
+.icon-btn.icon-btn-visible { display: flex !important; }
 
 .content { padding: 26px 28px 90px; max-width: 1320px; width: 100%; margin: 0 auto; }
 

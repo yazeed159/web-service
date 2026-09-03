@@ -1997,8 +1997,12 @@
       ddEl.innerHTML = `<div class="empty-state small">No data yet.</div>`;
       return;
     }
-    const startEquity = trades[0].equity_after - trades[0].pnl_after_comm;
-    const cumPnl = trades.map((t) => t.equity_after - startEquity);
+    // Use the real account balance (`_balance` -- Settings ledger +
+    // cumulative P&L, see computeAccountBalances in auth.js) so a deposit
+    // or withdrawal moves these charts the same way it already moves the
+    // Max/Current drawdown figures and Drawdown periods table above.
+    const startBalance = trades[0]._balance - (trades[0].pnl_after_comm || 0);
+    const cumPnl = trades.map((t) => t._balance - startBalance);
     let runPeak = -Infinity;
     const drawdown = cumPnl.map((v) => { runPeak = Math.max(runPeak, v); return v - runPeak; });
     pnlEl.innerHTML = svgLineAreaChart(cumPnl, { color: "var(--green)" });

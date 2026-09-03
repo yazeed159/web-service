@@ -100,3 +100,79 @@
     width: auto; height: auto;
   }
 }
+
+/* ===================================================================
+   Message layout + avatars — shared by every page that has the popup.
+   (Previously lived only in polish.css, which is only loaded on
+   backtester.html/report.html, so the popup rendered without avatar
+   shape/spacing everywhere else.)
+=================================================================== */
+@keyframes chatw-riseIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes chatw-popIn {
+  from { opacity: 0; transform: translateY(6px) scale(.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes chatw-softPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(47,208,138,0.45); }
+  50%      { box-shadow: 0 0 0 4px rgba(47,208,138,0); }
+}
+
+.chat-shell { animation: chatw-riseIn .35s ease both; }
+.chat-data-status { animation: chatw-riseIn .35s ease both; }
+.chat-data-status-dot.ok { animation: chatw-softPulse 2.2s ease infinite; }
+
+.chat-messages {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 6px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 6px), transparent 100%);
+  scroll-behavior: smooth;
+}
+
+.chat-msg { gap: 10px; align-items: flex-end; animation: chatw-popIn .3s cubic-bezier(.2,.7,.3,1) both; }
+.chat-msg-ai { flex-direction: row; }
+.chat-msg-user { flex-direction: row-reverse; }
+
+.chat-avatar {
+  flex: none; width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+}
+.chat-avatar.ai {
+  background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: #fff;
+  box-shadow: 0 2px 10px rgba(139,124,246,0.4);
+}
+.chat-avatar.ai svg { width: 13px; height: 13px; }
+.chat-avatar.user { background: var(--panel-3); color: var(--text-dim); border: 1px solid var(--border); }
+
+.chat-bubble {
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  transition: transform .15s ease;
+}
+.chat-msg-user .chat-bubble {
+  background: linear-gradient(135deg, var(--primary-soft), rgba(139,124,246,0.08));
+}
+.chat-msg-ai .chat-bubble { position: relative; }
+
+.chat-typing { padding: 12px 14px; }
+
+.chat-chips { animation: chatw-riseIn .35s ease .1s both; }
+.chat-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: transform .15s ease, border-color .15s ease, color .15s ease, background .15s ease;
+}
+.chat-chip:hover { transform: translateY(-1px); background: var(--primary-soft); }
+.chat-chip:active { transform: translateY(0); }
+.chat-chip svg { width: 11px; height: 11px; opacity: .7; }
+
+.chat-input-row { position: relative; }
+.chat-input {
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.chat-input:focus { box-shadow: 0 0 0 3px var(--primary-soft); background: var(--panel-3); }
+.chat-send-btn {
+  transition: transform .15s cubic-bezier(.2,.8,.3,1.3), background .15s ease, box-shadow .15s ease;
+}
+.chat-send-btn:hover:not(:disabled) { transform: translateY(-1px) scale(1.04); box-shadow: 0 4px 14px rgba(139,124,246,0.35); }
+.chat-send-btn:active:not(:disabled) { transform: scale(0.94); }

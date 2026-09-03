@@ -182,11 +182,11 @@
           </div>
           <div style="display:flex; align-items:center; gap:12px;">
             <span>Scroll to zoom · drag to pan</span>
-            <button class="icon-btn" id="replay-btn" title="Second-by-second replay, entry to exit" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
+            <button class="icon-btn icon-btn-visible" id="replay-btn" title="Second-by-second replay, entry to exit" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
               Replay
             </button>
-            <button class="icon-btn" id="export-chart-btn" title="Export chart as PNG" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
+            <button class="icon-btn icon-btn-visible" id="export-chart-btn" title="Export chart as PNG" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
               PNG
             </button>
@@ -205,14 +205,14 @@
             </div>
           </div>
           <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
-            <button class="icon-btn" id="replay-play-btn" title="Play/pause" style="width:auto; padding:4px 10px; font-size:11.5px;">▶ Play</button>
+            <button class="icon-btn icon-btn-visible" id="replay-play-btn" title="Play/pause" style="width:auto; padding:4px 10px; font-size:11.5px;">▶ Play</button>
             <input type="range" id="replay-scrub" min="0" max="0" value="0" step="1" style="flex:1;">
             <select id="replay-speed" title="Playback speed" style="background:var(--panel,#0f1216); color:inherit; border:1px solid var(--border,#232830); border-radius:6px; font-size:11.5px; padding:3px 6px;">
               <option value="1">1×</option>
               <option value="0.5">2×</option>
               <option value="0.25">4×</option>
             </select>
-            <button class="icon-btn" id="replay-close-btn" title="Close replay" style="width:auto; padding:4px 8px; font-size:11.5px;">✕</button>
+            <button class="icon-btn icon-btn-visible" id="replay-close-btn" title="Close replay" style="width:auto; padding:4px 8px; font-size:11.5px;">✕</button>
           </div>
         </div>
         <div id="macd-chart"></div>
@@ -222,7 +222,7 @@
         <div class="card">
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
             <h2 style="margin:0;">Verdict</h2>
-            <button class="icon-btn" id="copy-verdict-btn" title="Copy verdict text" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
+            <button class="icon-btn icon-btn-visible" id="copy-verdict-btn" title="Copy verdict text" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
               <span id="copy-verdict-label">Copy</span>
             </button>
