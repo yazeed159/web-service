@@ -104,6 +104,38 @@
   .quiz-stop-grid { grid-template-columns: 1fr; gap: 14px 0; }
 }
 
+/* ---------- watch stage: live position management row ----------
+   Stop display + "Move stop" (click-to-relocate on the chart) and the
+   Add-to-position input, sitting persistently above the scale-out row so
+   neither rebuilds (and loses focus/typed values) on every bar tick. */
+.qz-manage-row {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  margin: 0 0 10px; padding: 10px 12px;
+  background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+}
+.qz-manage-group { display: flex; align-items: center; gap: 8px; }
+.qz-manage-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-faint); font-weight: 600; }
+.qz-manage-group b { font-family: var(--mono); font-size: 13.5px; color: var(--text); }
+.qz-manage-row input[type="number"] {
+  background: var(--panel); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--radius-sm); padding: 7px 9px; font-size: 13px; font-family: var(--mono);
+  width: 76px;
+}
+.qz-move-stop-btn { padding: 7px 12px; font-size: 12.5px; color: var(--blue); }
+.qz-move-stop-btn.active {
+  color: var(--amber); border-color: rgba(232,169,76,.5); background: var(--amber-soft);
+  animation: qzMoveStopPulse 1.4s ease-in-out infinite;
+}
+@keyframes qzMoveStopPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(232,169,76,.35); } 50% { box-shadow: 0 0 0 4px rgba(232,169,76,0); } }
+.quiz-answer-btn.add { padding: 7px 14px; font-size: 12.5px; border-color: rgba(47,208,138,.35); color: var(--green); }
+.quiz-answer-btn.add:hover { background: var(--green-soft); }
+#qz-manage-error:empty { display: none; }
+#qz-manage-error { font-size: 11.5px; color: var(--amber); flex-basis: 100%; }
+
+@media (max-width: 560px) {
+  .qz-manage-row { gap: 10px 16px; }
+}
+
 /* ===================================================================
    Button polish — scoped to rewind.html + practice.html (the only
    pages that load this stylesheet), so the rest of the app's buttons
@@ -187,4 +219,38 @@ button:focus-visible, .quiz-mode-btn:focus-visible, .quiz-answer-btn:focus-visib
      stack full-width instead of squeezing onto one line. */
   .quiz-next-row { flex-wrap: wrap; }
   .quiz-next-row > * { flex: 1 1 100%; text-align: center; }
+}
+
+/* ---------- setup screen: rewind progress panel ----------
+   Per-setup "X of Y reviewed" rows, mirrored against the
+   `rewind:reviewed` Supabase-backed set (see rewind.js) so a trade
+   already stepped through to the reveal doesn't come back up as a
+   candidate. Each row (except the "All setups" summary) gets its own
+   reset button; the panel header has one more to clear everything. */
+.rw-progress-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 0; border-bottom: 1px solid var(--border-soft);
+}
+.rw-progress-row:last-child { border-bottom: none; }
+.rw-progress-row.rw-progress-overall { font-weight: 600; }
+.rw-progress-name {
+  flex: 0 0 160px; font-size: 13px; color: var(--text); text-transform: capitalize;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rw-progress-bar {
+  flex: 1; height: 6px; border-radius: 3px; background: var(--panel-3); overflow: hidden;
+}
+.rw-progress-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width .25s ease; }
+.rw-progress-count {
+  flex: 0 0 auto; font-size: 12.5px; font-family: var(--mono); color: var(--text-dim); white-space: nowrap;
+}
+.rw-progress-reset {
+  flex: 0 0 auto; background: none; border: none; color: var(--primary); cursor: pointer;
+  font-size: 12px; font-family: var(--sans); padding: 0;
+}
+.rw-progress-reset:hover { text-decoration: underline; }
+.rw-progress-reset-spacer { flex: 0 0 auto; width: 36px; }
+@media (max-width: 480px) {
+  .rw-progress-name { flex-basis: 90px; }
+  .rw-progress-reset-spacer { width: 0; }
 }

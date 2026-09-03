@@ -16,6 +16,16 @@
   const HISTORY_KEY = "rewind:history";
   const HISTORY_MAX = 50;
 
+  // Set of trade ids (object map id -> true) already stepped through to
+  // the reveal stage, mirrored to Supabase (user_kv) the same way
+  // HISTORY_KEY is -- see loadReviewed/saveReviewed below. Only
+  // log-sourced trades are tracked (backtest ids are synthetic and
+  // regenerated per run, so "already seen" doesn't mean much there).
+  // Kept out of `state` and always read fresh from localStorage, same
+  // pattern as loadHistory(), so a KV.sync() callback updating
+  // localStorage doesn't also need to keep an in-memory copy in sync.
+  const REVIEWED_KEY = "rewind:reviewed";
+
   const els = {
     setupScreen: document.getElementById("quiz-setup-screen"),
     playScreen: document.getElementById("quiz-play-screen"),
@@ -30,6 +40,9 @@
     btRunSelect: document.getElementById("qf-bt-run"),
     btHint: document.getElementById("qf-bt-hint"),
     blindCheck: document.getElementById("qf-blind"),
+    includeReviewedCheck: document.getElementById("qf-include-reviewed"),
+    progressList: document.getElementById("rw-progress-list"),
+    resetAllBtn: document.getElementById("rw-reset-all-btn"),
     tickModeRow: document.getElementById("qf-tickmode-row"),
     tickModeHint: document.getElementById("qf-tickmode-hint"),
     candidateCount: document.getElementById("qf-candidate-count"),
@@ -394,6 +407,10 @@
     els.sourceHint.style.display = state.source === "backtest" ? "" : "none";
     els.logFields.style.display = state.source === "backtest" ? "none" : "";
     els.btFields.style.display = state.source === "backtest" ? "" : "none";
+    if (els.includeReviewedCheck) {
+      const row = document.getElementById("qf-include-reviewed-row");
+      if (row) row.style.display = state.source === "backtest" ? "none" : "";
+    }
     if (state.source === "backtest") {
       if (!state.backtestRuns.length) loadBacktestRuns();
       loadBacktestRunTrades(els.btRunSelect.value || null);
@@ -700,6 +717,30 @@
     } catch (e) { /* ignore — quiz still works without persistence */ }
   }
 
+  function loadReviewed() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(REVIEWED_KEY) || "{}");
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch (e) { return {}; }
+  }
+  function saveReviewed(map) {
+    try {
+      localStorage.setItem(REVIEWED_KEY, JSON.stringify(map));
+      // Mirror to Supabase (user_kv) so "already rewinded" state survives
+      // a cleared cache or a new device, same as HISTORY_KEY above.
+      if (window.KV) window.KV.set(REVIEWED_KEY, map);
+    } catch (e) { /* ignore — rewind still works without persistence */ }
+  }
+  // Called the first time a trade reaches the reveal stage (see
+  // goToReveal below). Backtest-sourced trades are never marked --
+  // their ids are synthetic and regenerated per run.
+  function markReviewed(id) {
+    const map = loadReviewed();
+    if (map[id]) return;
+    map[id] = true;
+    saveReviewed(map);
+  }
+
   // ---------------------------------------------------------------
   // boot: load the index, populate the setup screen
   // ---------------------------------------------------------------
@@ -709,6 +750,7 @@
       populateSetupOptions();
       renderCandidateCount();
       renderHistoryPanel();
+      renderProgressPanel();
     })
     .catch(() => {
       els.candidateCount.textContent = "Couldn't load your trades.";
@@ -723,6 +765,12 @@
       if (!Array.isArray(remote)) return;
       try { localStorage.setItem(HISTORY_KEY, JSON.stringify(remote)); } catch (e) { /* ignore */ }
       if (typeof renderHistoryPanel === "function") renderHistoryPanel();
+    });
+    window.KV.sync(REVIEWED_KEY, function (remote) {
+      if (!remote || typeof remote !== "object" || Array.isArray(remote)) return;
+      try { localStorage.setItem(REVIEWED_KEY, JSON.stringify(remote)); } catch (e) { /* ignore */ }
+      renderProgressPanel();
+      renderCandidateCount();
     });
   }
 
@@ -744,6 +792,7 @@
       result: els.resultSelect.value,
       count: countBtn ? Number(countBtn.dataset.count) : 10,
       blind: els.blindCheck.checked,
+      includeReviewed: els.includeReviewedCheck ? els.includeReviewedCheck.checked : false,
       tickMode: tickBtn ? tickBtn.dataset.tickmode : "sim",
     };
   }
@@ -762,9 +811,15 @@
   }
 
   function filterIndex(filters) {
+    // Skip anything already stepped through to the reveal (see
+    // markReviewed/goToReveal) unless the "include already-rewinded
+    // trades" box is checked -- this is what keeps a rewind session
+    // from serving up the same trade twice.
+    const reviewed = filters.includeReviewed ? null : loadReviewed();
     return state.index.filter((r) => {
       if (!r.id) return false;
       if (filters.setup && r.setup_type !== filters.setup) return false;
+      if (reviewed && reviewed[r.id]) return false;
       return matchesOutcome(r, filters);
     });
   }
@@ -795,6 +850,7 @@
 
   els.setupSelect.addEventListener("change", renderCandidateCount);
   els.resultSelect.addEventListener("change", renderCandidateCount);
+  if (els.includeReviewedCheck) els.includeReviewedCheck.addEventListener("change", renderCandidateCount);
   els.countRow.querySelectorAll(".quiz-mode-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       els.countRow.querySelectorAll(".quiz-mode-btn").forEach((b) => b.classList.remove("active"));
@@ -866,6 +922,81 @@
           <span class="fi-count">×${n}</span>
         </a>`).join("")}
       </div>`;
+  }
+
+  // "X of Y reviewed" -- overall plus one row per journal setup_type,
+  // each (other than the "All setups" summary row) with its own reset
+  // button. Backtest trades don't factor in here at all: `state.index`
+  // is always your real journal, same list populateSetupOptions() uses.
+  function renderProgressPanel() {
+    if (!els.progressList) return;
+    const rows = state.index.filter((r) => r.id);
+    if (!rows.length) {
+      els.progressList.innerHTML = `<div class="quiz-history-empty">No logged trades yet.</div>`;
+      if (els.resetAllBtn) els.resetAllBtn.style.display = "none";
+      return;
+    }
+    const reviewed = loadReviewed();
+    const bySetup = {};
+    rows.forEach((r) => {
+      const key = r.setup_type || "unlabeled";
+      (bySetup[key] || (bySetup[key] = [])).push(r.id);
+    });
+    const setupKeys = Object.keys(bySetup).sort();
+
+    function rowHtml(label, ids, setupKey) {
+      const total = ids.length;
+      const done = ids.filter((id) => reviewed[id]).length;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      const resetBtn = setupKey
+        ? `<button type="button" class="rw-progress-reset" data-setup="${escapeHtml(setupKey)}">Reset</button>`
+        : `<span class="rw-progress-reset-spacer"></span>`;
+      return `<div class="rw-progress-row${setupKey ? "" : " rw-progress-overall"}">
+        <span class="rw-progress-name">${escapeHtml(label)}</span>
+        <div class="rw-progress-bar"><div class="rw-progress-fill" style="width:${pct}%"></div></div>
+        <span class="rw-progress-count">${done} / ${total}</span>
+        ${resetBtn}
+      </div>`;
+    }
+
+    const allIds = rows.map((r) => r.id);
+    els.progressList.innerHTML = rowHtml("All setups", allIds, null)
+      + setupKeys.map((s) => rowHtml(s.replace(/_/g, " "), bySetup[s], s)).join("");
+
+    if (els.resetAllBtn) {
+      els.resetAllBtn.style.display = allIds.some((id) => reviewed[id]) ? "" : "none";
+    }
+
+    els.progressList.querySelectorAll(".rw-progress-reset").forEach((btn) => {
+      btn.addEventListener("click", () => resetReviewedFor(btn.dataset.setup, bySetup[btn.dataset.setup]));
+    });
+  }
+
+  async function resetReviewedFor(setupKey, ids) {
+    const label = setupKey === "unlabeled" ? "unlabeled setups" : setupKey.replace(/_/g, " ");
+    const ok = await UIModal.confirm(
+      `Reset rewind progress for "${label}"? ${ids.length} trade${ids.length === 1 ? "" : "s"} will be eligible to come up again.`,
+      { title: "Reset progress?", tone: "danger", confirmLabel: "Reset" }
+    );
+    if (!ok) return;
+    const map = loadReviewed();
+    ids.forEach((id) => { delete map[id]; });
+    saveReviewed(map);
+    renderProgressPanel();
+    renderCandidateCount();
+  }
+
+  if (els.resetAllBtn) {
+    els.resetAllBtn.addEventListener("click", async () => {
+      const ok = await UIModal.confirm(
+        "Reset all rewind progress? Every logged trade will be eligible to come up again.",
+        { title: "Reset all progress?", tone: "danger", confirmLabel: "Reset all" }
+      );
+      if (!ok) return;
+      saveReviewed({});
+      renderProgressPanel();
+      renderCandidateCount();
+    });
   }
 
   // ---------------------------------------------------------------
@@ -1205,16 +1336,21 @@
       replayHandle: null,
       userExitPrice: null,
       exitSecond: null,
-      userShares: SIZE_BASELINE,
-      // Scaling out: each entry is one closed tranche of the ORIGINAL
-      // position -- { fraction, price, barIdx, tickIdx, tag }, tag is
-      // "sell" (you clicked a Sell button), "stop" (your stop got hit), or
-      // "held" (whatever was still open when the data ran out, synthesized
-      // at reveal time). Fractions across the whole array always sum to 1
-      // once the trade is fully closed. remainingFraction is how much of
-      // the original size is still open right now.
+      userShares: SIZE_BASELINE, // your INITIAL size, chosen in the stop stage -- stays fixed afterward; only feeds the sizing-conviction grade
+      // Full position history, in share units. `buys` starts with your
+      // initial fill (tag "entry") and gets one more entry per "Add to
+      // position" click (tag "add"). `exits` gets one entry per closed
+      // tranche -- tag "sell" (you clicked Sell), "stop" (your stop got
+      // hit), or "held" (whatever was still open when the data ran out,
+      // synthesized at reveal time). openShares is how much of the
+      // position is open right now; avgCost is the running average-cost
+      // basis of that open size -- only buys move it, selling never
+      // changes the cost of whatever's left.
+      buys: [],
       exits: [],
-      remainingFraction: 1,
+      openShares: 0,
+      avgCost: null,
+      moveStopArmed: false, // true while "Move stop" is armed and the next chart click should relocate the stop
     };
     renderEntryStage();
   }
@@ -1574,24 +1710,40 @@
   function confirmStop(stopPrice) {
     const c = state.current;
     c.stopPrice = stopPrice;
+    c.buys = [{ shares: c.userShares, price: c.userEntryPrice, barIdx: c.entryIdx, tickIdx: c.entryTickIdx, tag: "entry" }];
+    c.openShares = c.userShares;
+    c.avgCost = c.userEntryPrice;
     const slot = document.getElementById("quiz-stop-slot");
     if (slot) slot.querySelectorAll("button, input").forEach((elm) => (elm.disabled = true));
     renderWatchStage();
   }
 
-  // Records a closed tranche of the ORIGINAL position -- clamps to
-  // whatever's actually still open so a stray double-click can't oversell.
-  // Returns the fraction actually applied (0 if nothing was left to sell).
-  function recordExit(c, fraction, price, barIdx, tickIdx, tag) {
-    const applied = Math.max(0, Math.min(fraction, c.remainingFraction));
+  // Records a closed tranche, in SHARE units -- clamps to whatever's
+  // actually still open so a stray double-click (or a stop firing after
+  // you'd already sold) can't oversell. Returns the shares actually
+  // closed (0 if nothing was left to sell).
+  function recordExit(c, shares, price, barIdx, tickIdx, tag) {
+    const applied = Math.max(0, Math.min(shares, c.openShares));
     if (applied <= 1e-9 || !Number.isFinite(price)) return 0;
-    c.exits.push({ fraction: applied, price, barIdx, tickIdx, tag });
-    c.remainingFraction = Math.max(0, c.remainingFraction - applied);
+    c.exits.push({ shares: applied, price, barIdx, tickIdx, tag });
+    c.openShares = Math.max(0, c.openShares - applied);
     if (!c.checkpointAction) c.checkpointAction = "exit";
     c.exitBarIdx = barIdx;
     c.exitSecond = tickIdx;
     c.userExitPrice = price; // last exit's price -- kept for anything that only cares about "how it finally ended"
     return applied;
+  }
+
+  // Records adding to the position mid-trade -- rolls the added shares
+  // into the running average-cost basis of whatever's open. Selling never
+  // touches this; only buying does. Returns the shares actually added.
+  function recordAdd(c, shares, price, barIdx, tickIdx) {
+    if (!(shares > 0) || !Number.isFinite(price)) return 0;
+    c.buys.push({ shares, price, barIdx, tickIdx, tag: "add" });
+    const newOpen = c.openShares + shares;
+    c.avgCost = ((c.avgCost != null ? c.avgCost : price) * c.openShares + price * shares) / newOpen;
+    c.openShares = newOpen;
+    return shares;
   }
 
   // ---------- Stage C: watch continuously from your entry until you exit ----------
@@ -1645,6 +1797,19 @@
       </div>
       <div class="quiz-chart-wrap"><div id="quiz-candle-chart"></div></div>
       <div class="quiz-prompt" id="qz-watch-prompt"></div>
+      <div class="qz-manage-row" id="qz-manage-row">
+        <div class="qz-manage-group">
+          <span class="qz-manage-label">Stop</span>
+          <b id="qz-stop-live-price">$${fmtPrice(c.stopPrice)}</b>
+          <button type="button" class="btn-advanced qz-move-stop-btn" id="qz-move-stop-btn">Move stop <span class="kbd">S</span></button>
+        </div>
+        <div class="qz-manage-group">
+          <span class="qz-manage-label">Add to position</span>
+          <input type="number" min="1" step="1" id="qz-add-shares" value="${c.userShares}">
+          <button type="button" class="quiz-answer-btn add" id="qz-add-btn">+ Add <span class="kbd">A</span></button>
+        </div>
+        <span class="quiz-stop-hint" id="qz-manage-error"></span>
+      </div>
       <div class="quiz-partial-row" id="qz-partial-row"></div>
       <div id="quiz-replay-slot"></div>
     `;
@@ -1653,7 +1818,10 @@
     // Scale-out buttons -- wired once here (not rebuilt every tick/bar like
     // the replay panel's Exit button) so they stay live and clickable the
     // whole way through the watch stage, including the brief gap between
-    // one bar's tape ending and the next one's ticks arriving.
+    // one bar's tape ending and the next one's ticks arriving. Sell ¼/½
+    // act on whatever's open RIGHT NOW, not the original size -- so it
+    // still means the same thing after you've added to (or already
+    // trimmed) the position.
     document.getElementById("qz-partial-row").addEventListener("click", (e) => {
       const btn = e.target.closest("button[data-sell]");
       if (!btn || btn.disabled) return;
@@ -1663,14 +1831,28 @@
       const price = handle && typeof handle.getPrice === "function" ? handle.getPrice() : null;
       if (!Number.isFinite(price)) return;
       const tickIdx = handle && typeof handle.getIndex === "function" ? handle.getIndex() : null;
-      const applied = recordExit(c, frac, price, c.watchIdx, tickIdx, "sell");
+      const shares = Math.max(1, Math.round(c.openShares * frac));
+      const applied = recordExit(c, shares, price, c.watchIdx, tickIdx, "sell");
       if (applied <= 0) return;
-      if (c.remainingFraction <= 1e-9) {
+      if (c.openShares <= 1e-9) {
         if (c.replayHandle) { c.replayHandle.stop(); c.replayHandle = null; }
         goToReveal();
       } else {
         renderPartialRow();
       }
+    });
+
+    // Add-to-position + move-stop controls -- wired once here too, on the
+    // persistent #qz-manage-row (unlike #qz-partial-row this is never
+    // re-rendered mid-stage, so a half-typed share count in the Add input
+    // survives from bar to bar instead of getting wiped every tick).
+    document.getElementById("qz-add-btn").addEventListener("click", () => doAddToPosition());
+    document.getElementById("qz-add-shares").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); doAddToPosition(); }
+    });
+    document.getElementById("qz-move-stop-btn").addEventListener("click", () => {
+      c.moveStopArmed = !c.moveStopArmed;
+      setMoveStopBtnState();
     });
 
     teardownChart(c.chartHandle);
@@ -1679,8 +1861,8 @@
     // second instead of showing up as an already-closed candle.
     const historyBars = c.bars.slice(0, c.watchIdx);
     const watchPriceLines = [
-      { price: entryPrice, color: COLOR_YOUR_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "your entry" },
-      { price: c.stopPrice, color: COLOR_YOUR_STOP, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your stop" },
+      { key: "entry", price: entryPrice, color: COLOR_YOUR_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "your entry" },
+      { key: "stop", price: c.stopPrice, color: COLOR_YOUR_STOP, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your stop" },
     ];
     // Deliberately no "real entry"/"real exit" lines or pointers here --
     // the trade is still live at this stage, and showing where the real
@@ -1702,26 +1884,110 @@
     // the tape runs dry.
     attachEndOfDataLine(chartEl, c.chartHandle, toUnix(c.bars[c.bars.length - 1].t));
 
+    // Clicking the chart while "Move stop" is armed relocates the stop to
+    // that price -- same click-to-place gesture the stop stage already
+    // uses, just gated behind the button so an ordinary click (panning,
+    // checking a level) doesn't silently drag your stop around.
+    c.chartHandle.chart.subscribeClick((param) => {
+      const cc = state.current;
+      if (!cc || cc !== c || cc.stage !== "watch" || !cc.moveStopArmed) return;
+      if (!param.point || !cc.chartHandle.series) return;
+      const price = cc.chartHandle.series.coordinateToPrice(param.point.y);
+      if (price == null) return;
+      setLiveStop(price);
+    });
+
     renderPartialRow();
+    setMoveStopBtnState();
     renderWatchBar();
     } catch (err) { showStageError(err); }
   }
 
-  // Refreshes the persistent scale-out row: how much of the position is
-  // still open, what's already been sold and at what price, and which
-  // Sell buttons still make sense given what's left.
+  // Repositions the stop while the trade is live -- from the "Move stop"
+  // button + chart click, not the one-time stop stage. Rejects a price
+  // that would trigger immediately against the current live tick (same
+  // as a real broker bouncing a marketable stop) instead of silently
+  // accepting it and firing on the very next tick.
+  function setLiveStop(price) {
+    const c = state.current;
+    if (!c || c.stage !== "watch" || !Number.isFinite(price) || price <= 0) return;
+    const handle = c.replayHandle;
+    const liveTick = handle && typeof handle.getPrice === "function" ? handle.getPrice() : null;
+    const errorEl = document.getElementById("qz-manage-error");
+    if (Number.isFinite(liveTick)) {
+      const wouldTrigger = c.side === "short" ? price <= liveTick : price >= liveTick;
+      if (wouldTrigger) {
+        if (errorEl) {
+          errorEl.textContent = `That's through the current price ($${fmtPrice(liveTick)}) — it'd trigger immediately.`;
+          setTimeout(() => { if (state.current === c && errorEl.isConnected) errorEl.textContent = ""; }, 2600);
+        }
+        return;
+      }
+    }
+    c.stopPrice = price;
+    const ref = c.chartHandle.priceLineRefs && c.chartHandle.priceLineRefs.stop;
+    if (ref) ref.applyOptions({ price });
+    const label = document.getElementById("qz-stop-live-price");
+    if (label) label.textContent = `$${fmtPrice(price)}`;
+    if (errorEl) errorEl.textContent = "";
+    c.moveStopArmed = false;
+    setMoveStopBtnState();
+  }
+
+  function setMoveStopBtnState() {
+    const c = state.current;
+    const btn = document.getElementById("qz-move-stop-btn");
+    if (!btn || !c) return;
+    btn.classList.toggle("active", !!c.moveStopArmed);
+    btn.innerHTML = c.moveStopArmed
+      ? `Click chart to place it <span class="kbd">Esc</span>`
+      : `Move stop <span class="kbd">S</span>`;
+  }
+
+  // Adds shares to the open position at the current live tick, folding
+  // them into the running average-cost basis and refreshing the entry
+  // line on the chart to read "avg cost" once it's no longer just the
+  // single original fill.
+  function doAddToPosition() {
+    const c = state.current;
+    if (!c || c.stage !== "watch") return;
+    const input = document.getElementById("qz-add-shares");
+    const shares = Math.round(Number(input && input.value));
+    const errorEl = document.getElementById("qz-manage-error");
+    if (!Number.isFinite(shares) || shares <= 0) {
+      if (errorEl) errorEl.textContent = "Enter a valid number of shares to add.";
+      return;
+    }
+    const handle = c.replayHandle;
+    const price = handle && typeof handle.getPrice === "function" ? handle.getPrice() : null;
+    if (!Number.isFinite(price)) {
+      if (errorEl) errorEl.textContent = "No live price to add at right now.";
+      return;
+    }
+    const tickIdx = handle && typeof handle.getIndex === "function" ? handle.getIndex() : null;
+    recordAdd(c, shares, price, c.watchIdx, tickIdx);
+    if (errorEl) errorEl.textContent = "";
+    const ref = c.chartHandle.priceLineRefs && c.chartHandle.priceLineRefs.entry;
+    if (ref) ref.applyOptions({ price: c.avgCost, title: "avg cost" });
+    renderPartialRow();
+  }
+
+  // Refreshes the persistent scale-out row: how many shares are still
+  // open (the actual number, not just a percentage), what's already been
+  // sold or added and at what price, and which Sell buttons still make
+  // sense given what's left.
   function renderPartialRow() {
     const c = state.current;
     if (!c || c.stage !== "watch") return;
     const row = document.getElementById("qz-partial-row");
     if (!row) return;
-    const pctOpen = Math.round(c.remainingFraction * 100);
-    const soldParts = c.exits.filter((e) => e.tag === "sell").map((e) => `${Math.round(e.fraction * 100)}% at $${fmtPrice(e.price)}`);
+    const soldParts = c.exits.filter((e) => e.tag === "sell").map((e) => `${e.shares} sh at $${fmtPrice(e.price)}`);
+    const addedParts = c.buys.filter((b) => b.tag === "add").map((b) => `${b.shares} sh at $${fmtPrice(b.price)}`);
     row.innerHTML = `
-      <span class="qp-status">${pctOpen}% of position open${soldParts.length ? ` <span class="dim">\u00b7 sold ${escapeHtml(soldParts.join(", "))}</span>` : ""}</span>
+      <span class="qp-status">Holding <b>${c.openShares} sh</b>${soldParts.length ? ` <span class="dim">\u00b7 sold ${escapeHtml(soldParts.join(", "))}</span>` : ""}${addedParts.length ? ` <span class="dim">\u00b7 added ${escapeHtml(addedParts.join(", "))}</span>` : ""}</span>
       <div class="qp-btns">
-        <button type="button" class="quiz-answer-btn partial" data-sell="0.25"${c.remainingFraction < 0.25 - 1e-9 ? " disabled" : ""}>Sell &frac14; <span class="kbd">2</span></button>
-        <button type="button" class="quiz-answer-btn partial" data-sell="0.5"${c.remainingFraction < 0.5 - 1e-9 ? " disabled" : ""}>Sell &frac12; <span class="kbd">3</span></button>
+        <button type="button" class="quiz-answer-btn partial" data-sell="0.25"${c.openShares < 1 ? " disabled" : ""}>Sell &frac14; <span class="kbd">2</span></button>
+        <button type="button" class="quiz-answer-btn partial" data-sell="0.5"${c.openShares < 1 ? " disabled" : ""}>Sell &frac12; <span class="kbd">3</span></button>
       </div>
     `;
   }
@@ -1745,7 +2011,10 @@
       : (historyBars.length ? historyBars[historyBars.length - 1].c : entryPrice);
     // "Unrealized so far" for the remainder should read off your own
     // fill (you only just entered), not the close of the bar before it.
-    const unrealized = pnlPerShare(entryPrice, isEntryRemainder ? entryPrice : tickPrevClose, c.side);
+    // Once you've added to the position, it's measured off the blended
+    // average cost of what's actually still open, not the original fill.
+    const costBasis = c.avgCost != null ? c.avgCost : entryPrice;
+    const unrealized = pnlPerShare(costBasis, isEntryRemainder ? entryPrice : tickPrevClose, c.side);
     const clockStr = new Date(bar.t.replace(" ", "T")).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const minutesIn = c.watchIdx - c.entryIdx;
     const barsLeft = c.bars.length - 1 - c.watchIdx;
@@ -1759,13 +2028,11 @@
     document.getElementById("qz-watch-clock").innerHTML =
       `${escapeHtml(clockStr)} <span class="dim" style="font-weight:400;">· ${minutesIn} min in</span>` +
       ` <span style="color:${barsLeftColor};">· ${barsLeftLabel}</span>`;
-    const positionNote = c.remainingFraction < 1 - 1e-9
-      ? ` You're still holding <b>${Math.round(c.remainingFraction * 100)}%</b> of the position.`
-      : "";
+    const avgCostNote = c.buys.length > 1 ? ` <span class="dim">(avg cost $${fmtPrice(c.avgCost)})</span>` : "";
     document.getElementById("qz-watch-prompt").innerHTML = `
-      You're in at <b>$${fmtPrice(entryPrice)}</b>, stop at <b>$${fmtPrice(c.stopPrice)}</b>.
-      Unrealized so far on the open portion: <b style="color:${unrealized >= 0 ? "var(--green)" : "var(--red)"}">${fmtSignedPerShare(unrealized)}/sh</b>.${positionNote}
-      Keep watching for as long as you like — <b>sell some, sell it all, whenever you'd get out</b>.
+      You're in at <b>$${fmtPrice(entryPrice)}</b>${avgCostNote}, stop at <b>$${fmtPrice(c.stopPrice)}</b>, holding <b>${c.openShares} sh</b>.
+      Unrealized so far on the open size: <b style="color:${unrealized >= 0 ? "var(--green)" : "var(--red)"}">${fmtSignedPerShare(unrealized)}/sh</b>.
+      Keep watching for as long as you like — <b>sell some, add more, or get out whenever you'd get out</b>.
     `;
     renderPartialRow();
 
@@ -1812,7 +2079,7 @@
         hideProgress: true,
         liveClockEl,
         actions: [
-          { id: "exit", label: c.remainingFraction < 1 - 1e-9 ? `Exit remaining ${Math.round(c.remainingFraction * 100)}%` : "Exit all", kbd: "E", cls: "exit" },
+          { id: "exit", label: `Exit all (${c.openShares} sh)`, kbd: "E", cls: "exit" },
         ],
         chartHandle: c.chartHandle,
         bar,
@@ -1830,7 +2097,7 @@
             c.stopOutIdx = c.watchIdx;
             // A stop only closes out whatever's still open -- any earlier
             // partial sells keep their own locked-in prices.
-            recordExit(c, c.remainingFraction, c.stopPrice, c.watchIdx, tickIdx, "stop");
+            recordExit(c, c.openShares, c.stopPrice, c.watchIdx, tickIdx, "stop");
             goToReveal();
           }
         },
@@ -1845,10 +2112,10 @@
           renderWatchBar();
         },
         onAct: (actionId, tickIdx, price) => {
-          // Exit all -- closes whatever fraction is still open, whether
-          // that's the full original position or whatever's left after
-          // earlier partial sells.
-          recordExit(c, c.remainingFraction, price, c.watchIdx, tickIdx, "sell");
+          // Exit all -- closes whatever's still open, whether that's the
+          // full position, whatever's left after earlier partial sells,
+          // or a bigger size than you started with after adding.
+          recordExit(c, c.openShares, price, c.watchIdx, tickIdx, "sell");
           goToReveal();
         },
       });
@@ -1891,32 +2158,58 @@
     const entryGrade = gradeEntry(trade.win, c.entered);
 
     let stopGrade = null, exitGrade = null, userPnlPerShare = null, userExitFillPrice = null;
+    let userRealizedTotal = null, userSharesClosed = null, userTotalShares = null, userFinalAvgCost = null;
     if (c.entered) {
       stopGrade = gradeStop(side, entryPrice, c.stopPrice, trade.suggested_stop);
       const actualPnl = pnlPerShare(entryPrice, trade.exit_price, side);
 
-      // c.exits is fully normalized by the time reveal calls this -- its
-      // fractions always sum to 1 (goToReveal tops up whatever was still
-      // open with a "held to end" tranche first). Blend across however
-      // many tranches you actually closed: one clean exit collapses back
-      // to the old single-price math, scaling out just averages more terms
-      // in, each weighted by how much of the position it covered.
-      const totalFrac = c.exits.reduce((s, e) => s + e.fraction, 0) || 1;
-      userPnlPerShare = c.exits.reduce((s, e) => s + e.fraction * pnlPerShare(entryPrice, e.price, side), 0) / totalFrac;
-      userExitFillPrice = c.exits.reduce((s, e) => s + e.fraction * e.price, 0) / totalFrac;
+      // Walk every buy and sell in the order they happened, tracking a
+      // running average-cost basis -- this is what makes "add to
+      // position" and "sell some" both fold correctly into one blended
+      // P&L, instead of assuming a fixed size bought once at entryPrice.
+      // c.exits is fully normalized by the time reveal calls this (it
+      // always accounts for every share bought -- goToReveal tops up
+      // whatever was still open with a "held to end" tranche first).
+      const legs = c.buys.map((b) => Object.assign({ type: "buy" }, b))
+        .concat(c.exits.map((e) => Object.assign({ type: "sell" }, e)))
+        .sort((a, b) => {
+          const barDiff = (a.barIdx == null ? 0 : a.barIdx) - (b.barIdx == null ? 0 : b.barIdx);
+          if (barDiff !== 0) return barDiff;
+          return (a.tickIdx == null ? 0 : a.tickIdx) - (b.tickIdx == null ? 0 : b.tickIdx);
+        });
+      let openShares = 0, costBasis = entryPrice, realizedTotal = 0, sharesSold = 0, exitPriceWeighted = 0;
+      legs.forEach((leg) => {
+        if (leg.type === "buy") {
+          costBasis = openShares > 0 ? (costBasis * openShares + leg.price * leg.shares) / (openShares + leg.shares) : leg.price;
+          openShares += leg.shares;
+        } else {
+          const perShare = side === "short" ? costBasis - leg.price : leg.price - costBasis;
+          realizedTotal += perShare * leg.shares;
+          sharesSold += leg.shares;
+          exitPriceWeighted += leg.price * leg.shares;
+          openShares -= leg.shares;
+        }
+      });
+      userTotalShares = c.buys.reduce((s, b) => s + b.shares, 0);
+      userRealizedTotal = realizedTotal;
+      userSharesClosed = sharesSold;
+      userFinalAvgCost = costBasis;
+      userPnlPerShare = sharesSold > 0 ? realizedTotal / sharesSold : 0;
+      userExitFillPrice = sharesSold > 0 ? exitPriceWeighted / sharesSold : null;
 
       const manualTranches = c.exits.filter((e) => e.tag !== "held");
       const scaledOut = c.exits.filter((e) => e.tag === "sell").length > 1;
+      const addedIn = c.buys.length > 1;
 
       if (c.stoppedOutEarly) {
-        const stopFrac = c.exits.filter((e) => e.tag === "stop").reduce((s, e) => s + e.fraction, 0);
-        exitGrade = stopFrac < 1 - 1e-9
+        const stopShares = c.exits.filter((e) => e.tag === "stop").reduce((s, e) => s + e.shares, 0);
+        exitGrade = stopShares < sharesSold - 1e-9
           ? { label: `Scaled out first, then stopped out of the rest at $${fmtPrice(c.stopPrice)}.`, tone: "warn" }
           : { label: `Stopped out at $${fmtPrice(c.stopPrice)} while you were watching.`, tone: "warn" };
       } else if (manualTranches.length) {
         const diff = actualPnl - userPnlPerShare;
         const threshold = Math.max(0.15 * Math.abs(actualPnl || 0.01), 0.01);
-        const prefix = scaledOut ? `Scaled out across ${manualTranches.length} sells (avg $${fmtPrice(userExitFillPrice)}). ` : "";
+        const prefix = scaledOut ? `Scaled out across ${manualTranches.length} sells (avg $${fmtPrice(userExitFillPrice)}). ` : (addedIn ? `Added to the position along the way (avg cost $${fmtPrice(costBasis)}). ` : "");
         if (diff > threshold) exitGrade = { label: `${prefix}You exited early — the move kept going. Riding it to the real exit made ${fmtSignedPerShare(diff)}/sh more.`, tone: "warn" };
         else if (diff < -threshold) exitGrade = { label: `${prefix}Good exit — price gave back a lot of that move afterward.`, tone: "good" };
         else exitGrade = { label: `${prefix}Reasonable exit, close to how the trade actually played out.`, tone: "good" };
@@ -1940,7 +2233,7 @@
       else sizeGrade = { label: `Standard size (${c.userShares} sh).`, tone: "neutral" };
     }
 
-    return { entryGrade, stopGrade, exitGrade, sizeGrade, userPnlPerShare, userExitFillPrice };
+    return { entryGrade, stopGrade, exitGrade, sizeGrade, userPnlPerShare, userExitFillPrice, userRealizedTotal, userSharesClosed, userTotalShares, userFinalAvgCost };
   }
 
   // ---------- Stage D: full reveal ----------
@@ -1952,8 +2245,8 @@
     // at the real exit price -- same as before when you never clicked
     // Exit at all, but now it also covers the leftover slice after a
     // partial scale-out where you never got around to closing the rest.
-    if (c.entered && c.remainingFraction > 1e-9) {
-      recordExit(c, c.remainingFraction, trade.exit_price, c.exitIdx, null, "held");
+    if (c.entered && c.openShares > 1e-9) {
+      recordExit(c, c.openShares, trade.exit_price, c.exitIdx, null, "held");
     }
     const grading = computeGrading(c);
     c.stage = "reveal";
@@ -1963,6 +2256,10 @@
     // adding a second entry for the same trade.
     if (!state.recordedIds.has(trade.id)) {
       state.recordedIds.add(trade.id);
+      // Log the trade as rewinded (skipped for backtest-generated
+      // trades -- see REVIEWED_KEY above) so it's excluded from future
+      // candidate pools until reset.
+      if (trade._source !== "backtest") markReviewed(trade.id);
       state.results.push({
         id: trade.id, symbol: trade.symbol, setup_type: trade.setup_type, win: !!trade.win,
         source: trade._source === "backtest" ? "backtest" : "log",
@@ -1989,20 +2286,26 @@
     if (c.entered && c.userEntryPrice != null) {
       pointerDefs.push({ time: toUnix(entryBar.t), price: c.userEntryPrice, color: COLOR_YOUR_ENTRY, above: true, tooltip: `TEST ENTRY $${fmtPrice(c.userEntryPrice)}` });
     }
+    // One pointer per share you added mid-trade.
+    c.buys.filter((b) => b.tag === "add").forEach((b) => {
+      if (b.barIdx == null) return;
+      const bar = c.bars[b.barIdx];
+      if (!bar) return;
+      pointerDefs.push({ time: toUnix(bar.t), price: b.price, color: COLOR_YOUR_ENTRY, above: true, tooltip: `ADDED ${b.shares} sh $${fmtPrice(b.price)}` });
+    });
     // One pointer per tranche you actually closed yourself (sell or stop)
     // -- skips synthetic "held" tranches since that price just duplicates
     // the real-exit line already on the chart. A single clean exit reads
     // as "TEST EXIT" same as before; more than one gets labeled with the
-    // fraction so a scale-out is legible at a glance.
+    // share count so a scale-out is legible at a glance.
     const manualTranches = c.exits.filter((e) => e.tag !== "held");
     manualTranches.forEach((e) => {
       if (e.barIdx == null) return;
       const bar = c.bars[e.barIdx];
       if (!bar) return;
-      const pct = Math.round(e.fraction * 100);
       const label = e.tag === "stop"
-        ? (manualTranches.length > 1 ? `STOPPED OUT (${pct}%) $${fmtPrice(e.price)}` : `STOPPED OUT $${fmtPrice(e.price)}`)
-        : (manualTranches.length > 1 ? `SOLD ${pct}% $${fmtPrice(e.price)}` : `TEST EXIT $${fmtPrice(e.price)}`);
+        ? (manualTranches.length > 1 ? `STOPPED OUT (${e.shares} sh) $${fmtPrice(e.price)}` : `STOPPED OUT $${fmtPrice(e.price)}`)
+        : (manualTranches.length > 1 ? `SOLD ${e.shares} sh $${fmtPrice(e.price)}` : `TEST EXIT $${fmtPrice(e.price)}`);
       pointerDefs.push({ time: toUnix(bar.t), price: e.price, color: e.tag === "stop" ? COLOR_STOP_EVENT : COLOR_YOUR_EXIT, above: false, tooltip: label });
     });
 
@@ -2021,11 +2324,10 @@
     // is readable off the right axis even without hovering. A stop
     // tranche is skipped here since that price already has a line via
     // "your stop".
-    manualTranches.filter((e) => e.tag !== "stop").forEach((e, idx) => {
-      const pct = Math.round(e.fraction * 100);
+    manualTranches.filter((e) => e.tag !== "stop").forEach((e) => {
       priceLines.push({
         price: e.price, color: COLOR_YOUR_EXIT, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true,
-        title: manualTranches.length > 1 ? `exit ${pct}%` : "test exit",
+        title: manualTranches.length > 1 ? `exit ${e.shares} sh` : "test exit",
       });
     });
 
@@ -2052,8 +2354,9 @@
          <div class="rb-line"><span class="${pillFor(grading.exitGrade.tone)}">${escapeHtml(grading.exitGrade.label)}</span></div>`
       : `<div class="rb-line dim">You passed, so no exit to grade.</div>`;
 
+    const totalSharesTraded = Number.isFinite(grading.userTotalShares) ? grading.userTotalShares : c.userShares;
     const sizeRowHtml = grading.sizeGrade
-      ? `<div class="rb-line">You sized: <b>${c.userShares} sh</b> <span class="dim">(actual trade: ${trade.shares} sh)</span></div>
+      ? `<div class="rb-line">You sized: <b>${c.userShares} sh</b>${totalSharesTraded !== c.userShares ? ` <span class="dim">(${totalSharesTraded} sh total after adding)</span>` : ""} <span class="dim">(actual trade: ${trade.shares} sh)</span></div>
          <div class="rb-line"><span class="${pillFor(grading.sizeGrade.tone)}">${escapeHtml(grading.sizeGrade.label)}</span></div>`
       : `<div class="rb-line dim">You passed, so no size to grade.</div>`;
 
@@ -2073,24 +2376,17 @@
     const tradeCommission = ibkrTieredCommission(tradeShares, trade.entry_price) + ibkrTieredCommission(tradeShares, trade.exit_price);
     const tradePnlBeforeComm = Number(trade.pnl_before_comm);
     const tradeNet = Number.isFinite(tradePnlBeforeComm) ? tradePnlBeforeComm - tradeCommission : Number(trade.pnl_after_comm) || 0;
-    const userGross = c.entered && Number.isFinite(grading.userPnlPerShare) ? grading.userPnlPerShare * c.userShares : null;
-    const userEntryCommission = (c.entered && c.userEntryPrice != null) ? ibkrTieredCommission(c.userShares, c.userEntryPrice) : 0;
-    // Each tranche is its own real order -- sum commission per tranche
-    // instead of applying one rate to a single blended price. Share counts
-    // are allocated by cumulative rounding so they add up to exactly
-    // c.userShares even when fractions like 1/4 don't divide it evenly.
-    const userExitCommission = (() => {
-      if (!c.entered) return 0;
-      let cumFrac = 0, cumShares = 0, total = 0;
-      c.exits.forEach((e) => {
-        cumFrac += e.fraction;
-        const newCumShares = Math.round(cumFrac * c.userShares);
-        const shares = newCumShares - cumShares;
-        cumShares = newCumShares;
-        if (shares > 0) total += ibkrTieredCommission(shares, e.price);
-      });
-      return total;
-    })();
+    // Total dollar P&L across every tranche (not just the initial size),
+    // already computed leg-by-leg against the running average cost in
+    // computeGrading -- no need to re-derive it from a per-share average
+    // here, which would silently break once size changed mid-trade.
+    const userGross = c.entered && Number.isFinite(grading.userRealizedTotal) ? grading.userRealizedTotal : null;
+    // Each buy and each sell is its own real order -- sum commission per
+    // tranche (in actual share units now, so this is exact even after
+    // adding to the position) instead of applying one rate to a single
+    // blended price.
+    const userEntryCommission = c.entered ? c.buys.reduce((s, b) => s + ibkrTieredCommission(b.shares, b.price), 0) : 0;
+    const userExitCommission = c.entered ? c.exits.reduce((s, e) => s + ibkrTieredCommission(e.shares, e.price), 0) : 0;
     const userCommission = c.entered ? userEntryCommission + userExitCommission : null;
     const userNet = (userGross != null && userCommission != null) ? userGross - userCommission : null;
 
@@ -2128,7 +2424,7 @@
         <div class="quiz-reveal-box"><div class="rb-label">Position size</div>${sizeRowHtml}</div>
         <div class="quiz-reveal-box" style="grid-column:1/-1;"><div class="rb-label">Real numbers</div>
           <div class="rb-line">Entry <b>$${fmtPrice(trade.entry_price)}</b> actual${c.entered && c.userEntryPrice != null ? ` · <b>$${fmtPrice(c.userEntryPrice)}</b> yours` : ""} at <b>${escapeHtml(trade.entry_time)}</b> → Exit <b>$${fmtPrice(trade.exit_price)}</b> at <b>${escapeHtml(trade.exit_time)}</b> <span class="dim">(${escapeHtml(trade.time_in_trade || "—")} in trade)</span></div>
-          <div class="rb-line">Shares: <b>${tradeShares}</b> actual${c.entered ? ` · <b>${c.userShares}</b> yours` : ""} &nbsp;·&nbsp; Commission: <b>$${tradeCommission.toFixed(2)}</b> actual${c.entered && userCommission != null ? ` · <b>$${userCommission.toFixed(2)}</b> yours` : ""}</div>
+          <div class="rb-line">Shares: <b>${tradeShares}</b> actual${c.entered ? ` · <b>${totalSharesTraded}</b> yours` : ""} &nbsp;·&nbsp; Commission: <b>$${tradeCommission.toFixed(2)}</b> actual${c.entered && userCommission != null ? ` · <b>$${userCommission.toFixed(2)}</b> yours` : ""}</div>
           <div class="rb-line">Net P&amp;L: <b style="color:${tradeNet >= 0 ? "var(--green)" : "var(--red)"}">${tradeNet >= 0 ? "+" : "-"}$${Math.abs(tradeNet).toFixed(2)}</b> actual${c.entered && userNet != null ? ` · <b style="color:${userNet >= 0 ? "var(--green)" : "var(--red)"}">${userNet >= 0 ? "+" : "-"}$${Math.abs(userNet).toFixed(2)}</b> yours` : ""}</div>
         </div>
       </div>
@@ -2171,6 +2467,9 @@
       if (e.key === "e" || e.key === "E" || e.key === "1") document.getElementById("qz-exit")?.click();
       if (e.key === "2") document.querySelector('#qz-partial-row button[data-sell="0.25"]')?.click();
       if (e.key === "3") document.querySelector('#qz-partial-row button[data-sell="0.5"]')?.click();
+      if (e.key === "s" || e.key === "S") document.getElementById("qz-move-stop-btn")?.click();
+      if (e.key === "a" || e.key === "A") document.getElementById("qz-add-btn")?.click();
+      if (e.key === "Escape" && c.moveStopArmed) { c.moveStopArmed = false; setMoveStopBtnState(); }
     } else if (c.stage === "stop" && e.key === "Enter") {
       // Enter locks in from either input too, not just a click on the
       // button -- the whole point of tightening this stage's layout was
@@ -2198,6 +2497,7 @@
     els.setupScreen.style.display = "";
     renderHistoryPanel();
     renderCandidateCount();
+    renderProgressPanel();
   }
 
   // ---------------------------------------------------------------

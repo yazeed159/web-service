@@ -365,6 +365,20 @@
     return lv.label || (lv.touches ? lv.touches + "x touched" : "");
   }
 
+  // The LLM-authored label can be a full sentence ("Tested three times
+  // and lines up with the 50-day MA..."), which is fine in the sr-result
+  // list below but overwhelms the chart's price-line tag. Keep the tag
+  // to a short phrase and let the full text live in the list instead.
+  function srChartTag(lv) {
+    const note = srLevelNote(lv);
+    if (!note) return "";
+    const cut = note.split(/[.;,]/)[0].trim();
+    const words = cut.split(/\s+/);
+    let short = words.slice(0, 5).join(" ");
+    if (words.length > 5 || short.length < cut.length) short += "…";
+    return short.length > 28 ? short.slice(0, 27).trim() + "…" : short;
+  }
+
   function renderSrResult(data) {
     const resultEl = document.getElementById("sr-result");
     const support = Array.isArray(data.support) ? data.support : [];
@@ -399,19 +413,19 @@
     const support = Array.isArray(data.support) ? data.support : [];
     const resistance = Array.isArray(data.resistance) ? data.resistance : [];
     resistance.forEach((lv) => {
-      const note = srLevelNote(lv);
+      const tag = srChartTag(lv);
       srCandleSeries.createPriceLine({
         price: Number(lv.price), color: "#f2555a", lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true,
-        title: note ? `resistance (${note})` : "resistance",
+        title: tag ? `resistance (${tag})` : "resistance",
       });
     });
     support.forEach((lv) => {
-      const note = srLevelNote(lv);
+      const tag = srChartTag(lv);
       srCandleSeries.createPriceLine({
         price: Number(lv.price), color: "#2fd08a", lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true,
-        title: note ? `support (${note})` : "support",
+        title: tag ? `support (${tag})` : "support",
       });
     });
   }

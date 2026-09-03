@@ -54,10 +54,15 @@
     }
   }
 
+  // Renders as a small round avatar icon (initial letter) rather than
+  // the full email address -- the email/join-date/logout/settings all
+  // live in the dropdown panel instead of sitting in the topbar as
+  // permanent text.
   function addAccountWidget(session) {
     if (document.getElementById("auth-account-widget")) return;
     var user = session.user || {};
     var email = user.email || "Account";
+    var initial = email.charAt(0).toUpperCase() || "?";
 
     var wrap = document.createElement("div");
     wrap.id = "auth-account-widget";
@@ -66,16 +71,20 @@
 
     var btn = document.createElement("button");
     btn.id = "auth-account-btn";
-    btn.textContent = email;
+    btn.type = "button";
+    btn.title = email;
+    btn.setAttribute("aria-label", "Account menu (" + email + ")");
+    btn.textContent = initial;
     btn.style.cssText =
-      "max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" +
-      "padding:6px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.18);" +
-      "background:rgba(20,20,28,.85);color:#eee;font:inherit;" +
-      "cursor:pointer;backdrop-filter:blur(4px);display:block;";
+      "width:32px;height:32px;border-radius:50%;padding:0;" +
+      "display:flex;align-items:center;justify-content:center;" +
+      "border:1px solid rgba(255,255,255,.18);" +
+      "background:rgba(20,20,28,.85);color:#eee;font:600 13px inherit;" +
+      "cursor:pointer;backdrop-filter:blur(4px);";
 
     var panel = document.createElement("div");
     panel.style.cssText =
-      "display:none;position:absolute;top:36px;right:0;min-width:220px;" +
+      "display:none;position:absolute;top:40px;right:0;min-width:220px;" +
       "padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,.18);" +
       "background:rgba(20,20,28,.97);color:#eee;backdrop-filter:blur(6px);" +
       "box-shadow:0 8px 24px rgba(0,0,0,.4);";
@@ -93,8 +102,16 @@
       panel.appendChild(sinceRow);
     }
 
+    var settingsLink = document.createElement("a");
+    settingsLink.href = "settings.html";
+    settingsLink.textContent = "Account settings";
+    settingsLink.style.cssText =
+      "display:block;margin-bottom:10px;color:#9d8bff;text-decoration:none;font-size:12.5px;";
+    panel.appendChild(settingsLink);
+
     var logoutBtn = document.createElement("button");
     logoutBtn.id = "auth-logout-btn";
+    logoutBtn.type = "button";
     logoutBtn.textContent = "Log out";
     logoutBtn.style.cssText =
       "width:100%;padding:8px 0;border:none;border-radius:8px;" +

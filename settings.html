@@ -12,6 +12,36 @@
 <link rel="stylesheet" href="chat-widget.css">
 <link rel="stylesheet" href="global-search.css">
 <link rel="stylesheet" href="ui-modal.css">
+<style>
+  .int-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); margin-bottom: 10px; overflow: hidden; }
+  .int-card:last-child { margin-bottom: 0; }
+  .int-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; }
+  .int-icon { flex: none; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: var(--panel-3); color: var(--text-dim); }
+  .int-main { flex: 1; min-width: 0; }
+  .int-main .int-name { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .int-main .int-desc { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+  .int-status-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); }
+  .int-status-dot.on { background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+  .int-chevron { flex: none; color: var(--text-faint); transition: transform 0.15s var(--ease); }
+  .int-card.open .int-chevron { transform: rotate(90deg); }
+  .int-body { display: none; padding: 0 16px 18px; border-top: 1px solid var(--border-soft); }
+  .int-card.open .int-body { display: block; }
+  .int-field { margin-top: 14px; }
+  .int-field label { display: block; font-size: 11px; color: var(--text-faint); margin-bottom: 4px; }
+  .int-field-row { display: flex; gap: 6px; }
+  .int-field-row input { flex: 1; min-width: 0; }
+  .int-help { font-size: 11.5px; margin-top: 10px; }
+  .int-help a { color: var(--primary); text-decoration: none; }
+  .int-help a:hover { text-decoration: underline; }
+  .int-actions { display: flex; gap: 8px; margin-top: 14px; align-items: center; }
+  .int-actions .btn-confirm { padding: 7px 16px; font-size: 12.5px; }
+  .int-disconnect { font-size: 12px; color: var(--red); background: none; border: none; cursor: pointer; margin-left: auto; padding: 4px; }
+  .int-disconnect:hover { text-decoration: underline; }
+  .int-saved-note { font-size: 11.5px; color: var(--green); margin-left: 4px; opacity: 0; transition: opacity 0.2s; }
+  .int-saved-note.show { opacity: 1; }
+  .pill.int-progress-full { background: var(--green-soft); color: var(--green); border-color: rgba(47,208,138,0.3); }
+  .pill.int-progress-partial { background: var(--amber-soft); color: var(--amber); border-color: rgba(232,169,76,0.3); }
+</style>
 </head>
 <body>
 
@@ -175,6 +205,20 @@
         <div id="cap-list"></div>
       </div>
 
+      <div class="panel-box" style="margin-bottom:16px;">
+        <div class="panel-box-head">
+          <span class="title">Integrations</span>
+          <span class="pill" id="int-progress">0 of 2 connected</span>
+        </div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px; margin-bottom:18px;">
+          Personal keys the automation pipelines (import, alerts) run under. Scoped to your
+          account only — nobody else on this site can see them. Everything here is optional;
+          the journal works fully without any of it.
+        </p>
+
+        <div class="int-list" id="int-list"></div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -280,6 +324,216 @@
       entries = Array.isArray(remote) ? remote.filter((e) => e && e.date && isFinite(e.amount)) : [];
       // Backfill an _id for entries saved before delete support existed.
       entries.forEach((e) => { if (!e._id) e._id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8); });
+      render();
+    });
+  });
+})();
+</script>
+
+<script>
+(function () {
+  "use strict";
+
+  // Broker/notification credentials daily_sync.py's get_broker_accounts()
+  // reads server-side with the Supabase SERVICE ROLE key (bypasses RLS,
+  // reads every user's row). This page writes ONE row per user into the
+  // `broker_accounts` table using the normal anon-key + RLS session, same
+  // as every other Supabase write in this app -- see auth.js's KV.set for
+  // the identical upsert({user_id: session.user.id, ...}) pattern this
+  // mirrors. Table needs (once, in Supabase):
+  //   create table broker_accounts (
+  //     id uuid primary key default gen_random_uuid(),
+  //     user_id uuid not null unique references auth.users(id) on delete cascade,
+  //     ibkr_flex_token text, ibkr_flex_query_id text, telegram_chat_id text,
+  //     updated_at timestamptz not null default now()
+  //   );
+  //   alter table broker_accounts enable row level security;
+  //   create policy "select own broker account" on broker_accounts for select using (auth.uid() = user_id);
+  //   create policy "insert own broker account" on broker_accounts for insert with check (auth.uid() = user_id);
+  //   create policy "update own broker account" on broker_accounts for update using (auth.uid() = user_id);
+  //
+  // NOTE: Telegram is ONE bot for the whole site (TELEGRAM_BOT_TOKEN lives
+  // in Render's env vars, not here) -- each user only supplies their own
+  // chat_id below, not a bot token.
+  const EYE_OPEN = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+  const EYE_CLOSED = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.6 21.6 0 0 1 5.06-6.06M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 8 11 8a21.6 21.6 0 0 1-2.61 3.81M14.12 14.12a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+
+  const INTEGRATIONS = [
+    {
+      id: "ibkr",
+      name: "IBKR Flex Query",
+      desc: "Lets the daily sync pull fills straight from your IBKR account instead of a manual CSV.",
+      icon: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M7 14l4-4 3 3 5-6"></path></svg>',
+      fields: [
+        { key: "ibkr_flex_token", label: "Flex Web Service Token", placeholder: "e.g. 187xxxxxxxxxxxxxxx", secret: true },
+        { key: "ibkr_flex_query_id", label: "Flex Query ID", placeholder: "e.g. 912345", secret: false },
+      ],
+      helpText: "Where do I find this?",
+      helpUrl: "https://www.interactivebrokers.com/campus/ibkr-api-page/flex-web-service/",
+    },
+    {
+      id: "telegram",
+      name: "Telegram Alerts",
+      desc: "Get your trade alerts and daily recap pushed to Telegram, sent from this site's own bot.",
+      icon: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"></path><path d="M22 2 15 22l-4-9-9-4 20-7z"></path></svg>',
+      fields: [
+        { key: "telegram_chat_id", label: "Your Chat ID", placeholder: "e.g. 5123456789", secret: false },
+      ],
+      helpText: "Where do I find this?",
+      helpUrl: "https://core.telegram.org/bots#how-do-i-create-a-bot",
+      note: "This site sends from one shared bot -- you only need your own numeric chat ID, not a bot token. Message the bot once, then forward any of its messages to @userinfobot (or check the bot's /start reply) to get your chat ID.",
+    },
+  ];
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  const listEl = document.getElementById("int-list");
+  const progressEl = document.getElementById("int-progress");
+  let openId = null;
+  let row = {}; // the user's single broker_accounts row -- all fields from every card share it
+  let currentUserId = null;
+
+  function isConnected(defn) {
+    return defn.fields.every((f) => row[f.key] && String(row[f.key]).trim());
+  }
+
+  function render() {
+    const connectedCount = INTEGRATIONS.filter(isConnected).length;
+    progressEl.textContent = connectedCount + " of " + INTEGRATIONS.length + " connected";
+    progressEl.classList.toggle("int-progress-full", connectedCount === INTEGRATIONS.length);
+    progressEl.classList.toggle("int-progress-partial", connectedCount > 0 && connectedCount < INTEGRATIONS.length);
+
+    listEl.innerHTML = INTEGRATIONS.map((defn) => {
+      const connected = isConnected(defn);
+      const open = openId === defn.id;
+      const fieldsHtml = defn.fields.map((f) => {
+        const inputId = "int-" + defn.id + "-" + f.key;
+        return `
+          <div class="int-field">
+            <label for="${inputId}">${escapeHtml(f.label)}</label>
+            <div class="int-field-row">
+              <input class="filter-input" id="${inputId}" type="${f.secret ? "password" : "text"}"
+                     placeholder="${escapeHtml(f.placeholder)}" value="${escapeHtml(row[f.key] || "")}"
+                     autocomplete="off" data-int="${defn.id}" data-field="${f.key}">
+              ${f.secret ? `<button type="button" class="btn-icon" data-toggle-visibility="${inputId}" title="Show/hide" aria-label="Show/hide">${EYE_OPEN}</button>` : ""}
+            </div>
+          </div>`;
+      }).join("");
+      return `
+        <div class="int-card${open ? " open" : ""}" data-card="${defn.id}">
+          <div class="int-row" data-toggle-card="${defn.id}">
+            <div class="int-icon">${defn.icon}</div>
+            <div class="int-main">
+              <div class="int-name">${escapeHtml(defn.name)} <span class="int-status-dot${connected ? " on" : ""}"></span></div>
+              <div class="int-desc">${escapeHtml(defn.desc)}</div>
+            </div>
+            <span class="pill${connected ? " int-progress-full" : ""}">${connected ? "Connected" : "Not connected"}</span>
+            <span class="int-chevron"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
+          </div>
+          <div class="int-body">
+            ${fieldsHtml}
+            ${defn.note ? `<div class="int-help" style="color:var(--text-faint);">${escapeHtml(defn.note)}</div>` : ""}
+            <div class="int-help"><a href="${escapeHtml(defn.helpUrl)}" target="_blank" rel="noopener">${escapeHtml(defn.helpText)} ↗</a></div>
+            <div class="int-actions">
+              <button type="button" class="btn-confirm" data-save="${defn.id}">Save</button>
+              <span class="int-saved-note" id="int-saved-${defn.id}">Saved</span>
+              ${connected ? `<button type="button" class="int-disconnect" data-disconnect="${defn.id}">Disconnect</button>` : ""}
+            </div>
+          </div>
+        </div>`;
+    }).join("");
+
+    wireCard();
+  }
+
+  function saveFields(defn, fieldValues) {
+    if (!currentUserId) return Promise.resolve();
+    const payload = Object.assign({ user_id: currentUserId }, fieldValues);
+    return window.sb.from("broker_accounts").upsert(payload).then((res) => {
+      if (res.error) {
+        console.error("broker_accounts upsert(" + defn.id + ") failed:", res.error.message);
+        return false;
+      }
+      Object.assign(row, fieldValues);
+      return true;
+    });
+  }
+
+  function wireCard() {
+    listEl.querySelectorAll("[data-toggle-card]").forEach((rowEl) => {
+      rowEl.addEventListener("click", () => {
+        const id = rowEl.getAttribute("data-toggle-card");
+        openId = openId === id ? null : id;
+        render();
+      });
+    });
+    listEl.querySelectorAll("[data-toggle-visibility]").forEach((btn) => {
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const input = document.getElementById(btn.getAttribute("data-toggle-visibility"));
+        if (!input) return;
+        const showing = input.type === "text";
+        input.type = showing ? "password" : "text";
+        btn.innerHTML = showing ? EYE_OPEN : EYE_CLOSED;
+      });
+    });
+    listEl.querySelectorAll(".int-body input").forEach((input) => {
+      input.addEventListener("click", (ev) => ev.stopPropagation());
+    });
+    listEl.querySelectorAll("[data-save]").forEach((btn) => {
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const id = btn.getAttribute("data-save");
+        const defn = INTEGRATIONS.find((d) => d.id === id);
+        const next = {};
+        defn.fields.forEach((f) => {
+          const input = document.getElementById("int-" + id + "-" + f.key);
+          next[f.key] = input ? input.value.trim() : "";
+        });
+        btn.disabled = true;
+        saveFields(defn, next).then(() => {
+          btn.disabled = false;
+          render();
+          const savedNote = document.getElementById("int-saved-" + id);
+          if (savedNote) {
+            savedNote.classList.add("show");
+            setTimeout(() => savedNote.classList.remove("show"), 1600);
+          }
+        });
+      });
+    });
+    listEl.querySelectorAll("[data-disconnect]").forEach((btn) => {
+      btn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const id = btn.getAttribute("data-disconnect");
+        const defn = INTEGRATIONS.find((d) => d.id === id);
+        const ok = await UIModal.confirm(`Remove your saved ${defn.name} credentials?`, { title: "Disconnect?", tone: "danger", confirmLabel: "Disconnect" });
+        if (!ok) return;
+        const blank = {};
+        defn.fields.forEach((f) => { blank[f.key] = null; });
+        await saveFields(defn, blank);
+        render();
+      });
+    });
+  }
+
+  window.AUTH_READY.then((session) => {
+    if (!session) {
+      listEl.innerHTML = `<div class="empty-state small">Sign in to manage your integrations.</div>`;
+      return;
+    }
+    currentUserId = session.user.id;
+    return window.sb.from("broker_accounts").select("*").eq("user_id", currentUserId).maybeSingle().then((res) => {
+      if (res.error && res.error.code !== "PGRST116") {
+        // PGRST116 = no row yet (maybeSingle already handles that as null, but
+        // Supabase versions differ on the exact code) -- anything else is a
+        // real problem, most likely the table/policies above not existing yet.
+        listEl.innerHTML = `<div class="empty-state small">Couldn't load integrations (${escapeHtml(res.error.message)}). Has the broker_accounts table been created yet?</div>`;
+        return;
+      }
+      row = res.data || {};
       render();
     });
   });

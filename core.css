@@ -293,6 +293,9 @@ button { font-family: var(--sans); }
 .equity-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
 .equity-head .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); font-weight: 600; }
 .equity-head .value { font-family: var(--mono); font-size: 15px; font-weight: 700; }
+#equity-hint { font-size: 11.5px; color: var(--text-faint); margin-top: 6px; }
+#equity-hint a { color: var(--primary); text-decoration: none; }
+#equity-hint a:hover { text-decoration: underline; }
 #equity-svg { width: 100%; height: 140px; display: block; }
 .equity-path { fill: none; stroke: var(--green); stroke-width: 1.75; }
 .equity-path.neg { stroke: var(--red); }
@@ -306,6 +309,10 @@ button { font-family: var(--sans); }
   text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--text-faint); padding: 8px 16px; font-weight: 600;
 }
+.trade-table thead th[data-sort] { cursor: pointer; user-select: none; }
+.trade-table thead th[data-sort]:hover { color: var(--text); }
+.trade-table thead th.sorted::after { content: " \25be"; opacity: .6; }
+.trade-table thead th.sorted.asc::after { content: " \25b4"; }
 .trade-table tbody tr { border-top: 1px solid var(--border-soft); cursor: pointer; transition: background 0.12s; }
 .trade-table tbody tr:hover { background: var(--panel-2); }
 .trade-table td { padding: 10px 16px; white-space: nowrap; }
@@ -670,6 +677,17 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .tag-trade-list li { padding: 5px 0; border-bottom: 1px solid var(--border-soft); }
 .tag-trade-list a { color: var(--text); text-decoration: none; font-size: 12.5px; }
 .tag-trade-list a:hover { text-decoration: underline; }
+.tag-trade-list li.tag-trade-list-more { border-bottom: none; padding: 8px 0 2px; text-align: center; }
+
+/* Shared "load more" control -- used anywhere a list of trades is paged in
+   instead of dumped into the DOM all at once (breakdown/tag trade lists,
+   the main Journal table, etc). */
+.btn-load-more {
+  background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+  font-family: var(--sans); font-size: 12px; font-weight: 600; cursor: pointer;
+  padding: 7px 16px; border-radius: 999px; transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+.btn-load-more:hover { border-color: var(--primary); color: var(--text); background: var(--primary-soft); }
 
 .lesson-tag {
   display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase;

@@ -2,6 +2,7 @@
   "use strict";
 
   let trades = [];
+  let hasCapitalLedger = false; // set once trades load -- see renderEquity()
   let activeFilter = "all";
   let searchTerm = "";
   let reportFilters = { symbol: "", tags: [], side: "all", duration: "all", setup: "all" };
@@ -64,6 +65,7 @@
       // in auth.js. With no ledger entries this is identical to equity_after.
       const balances = window.computeAccountBalances(trades, ledger);
       trades.forEach((t, i) => { t._balance = balances[i]; });
+      hasCapitalLedger = ledger.length > 0;
       const last = trades[trades.length - 1];
       document.getElementById("last-updated").textContent = "Through " + last.trade_date;
       document.getElementById("date-range").textContent =
@@ -264,19 +266,54 @@
   // Reports — click-to-expand trade lists (same pattern as patterns.html's
   // tag-trade-list: click a leaderboard/breakdown row to reveal the exact
   // trades behind it, each linking straight to trade.html?id=...).
+  //
+  // Rendered TRADE_LIST_PAGE_SIZE at a time with a "Load more" button
+  // rather than dumping every trade behind a symbol/tag/day into the DOM
+  // at once -- a heavily-traded symbol or a "loss days" bucket can run
+  // into the hundreds, and that was making those sections (collapsed or
+  // not) enormous.
   // ----------------------------------------------------------------
   let reportRowSeq = 0;
+  const TRADE_LIST_PAGE_SIZE = 25;
+  const tradeListState = new Map(); // uid -> { rows, shown }
+
+  function tradeListItemHtml(r) {
+    return `<li><a href="trade.html?id=${encodeURIComponent(r.id)}">${escapeHtml(r.symbol)} — ${escapeHtml(r.trade_date)} <span class="${r.win ? "up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></a></li>`;
+  }
+  function tradeListMoreHtml(uid, remaining) {
+    return `<li class="tag-trade-list-more"><button type="button" class="btn-load-more" data-load-more="${uid}">Load more (${remaining} left)</button></li>`;
+  }
   function tradeListHtml(rowsList, uid) {
     const sorted = rowsList.slice().sort((a, b) => (b.trade_date || "").localeCompare(a.trade_date || ""));
-    return `<ul class="tag-trade-list" id="${uid}">
-      ${sorted.map((r) => `<li><a href="trade.html?id=${encodeURIComponent(r.id)}">${escapeHtml(r.symbol)} — ${escapeHtml(r.trade_date)} <span class="${r.win ? "up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></a></li>`).join("")}
-    </ul>`;
+    const shown = Math.min(TRADE_LIST_PAGE_SIZE, sorted.length);
+    tradeListState.set(uid, { rows: sorted, shown });
+    const items = sorted.slice(0, shown).map(tradeListItemHtml).join("");
+    const more = shown < sorted.length ? tradeListMoreHtml(uid, sorted.length - shown) : "";
+    return `<ul class="tag-trade-list" id="${uid}">${items}${more}</ul>`;
   }
   function bindTradeToggles(container) {
     container.querySelectorAll("[data-trade-toggle]").forEach((row) => {
       row.addEventListener("click", () => {
         const list = document.getElementById(row.getAttribute("data-trade-toggle"));
         if (list) list.classList.toggle("open");
+      });
+    });
+    container.querySelectorAll("[data-load-more]").forEach((btn) => {
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const uid = btn.getAttribute("data-load-more");
+        const state = tradeListState.get(uid);
+        if (!state) return;
+        const nextShown = Math.min(state.shown + TRADE_LIST_PAGE_SIZE, state.rows.length);
+        const newItemsHtml = state.rows.slice(state.shown, nextShown).map(tradeListItemHtml).join("");
+        state.shown = nextShown;
+        const moreLi = btn.closest("li");
+        moreLi.insertAdjacentHTML("beforebegin", newItemsHtml);
+        if (state.shown < state.rows.length) {
+          btn.textContent = `Load more (${state.rows.length - state.shown} left)`;
+        } else {
+          moreLi.remove();
+        }
       });
     });
   }
@@ -494,6 +531,15 @@
   // ================================================================
   // EQUITY CURVE (shared by dashboard)
   // ================================================================
+  //
+  // `_balance` is starting-capital-from-Settings + cumulative P&L (see
+  // computeAccountBalances in auth.js). If the person has never logged
+  // anything in Settings' capital ledger, starting capital is 0, so this
+  // curve is really just cumulative P&L -- often a small, unremarkable
+  // number that looks nothing like an actual account balance. Labeling
+  // that "account balance" regardless made the whole panel read as
+  // broken ("no numbers, just a decline"), so the label and a hint
+  // below the chart now say plainly which figure is being shown.
   function renderEquity() {
     const ordered = trades;
     // Origin point is the real balance *before* the first trade (starting
@@ -536,6 +582,15 @@
     `;
     document.getElementById("equity-total").textContent = fmtMoney(values[values.length - 1]);
     document.getElementById("equity-total").className = "value mono " + (values[values.length - 1] >= 0 ? "up" : "down");
+
+    const labelEl = document.getElementById("equity-label");
+    const hintEl = document.getElementById("equity-hint");
+    if (labelEl) labelEl.textContent = hasCapitalLedger ? "Equity curve — account balance" : "Equity curve — cumulative P&L";
+    if (hintEl) {
+      hintEl.innerHTML = hasCapitalLedger
+        ? ""
+        : 'Add your starting capital in <a href="settings.html">Settings</a> to see your real account balance here instead of just cumulative P&amp;L.';
+    }
   }
 
   // ================================================================
@@ -551,6 +606,7 @@
       <td class="mono">$${t.entry_price.toFixed(2)} → $${t.exit_price.toFixed(2)}</td>
       <td class="mono dim">${t.shares}</td>
       <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
+      <td>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(t), { size: 12 }) : "—"}</td>
     </tr>`;
   }
   function bindTradeRows(container) {
@@ -587,7 +643,7 @@
     const recent = trades.slice(-5).reverse();
     const rows = recent.map(tradeRowHtml).join("");
     const el = document.getElementById("recent-trades");
-    el.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Date</th><th>Entry</th><th>Price</th><th>Shares</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    el.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Date</th><th>Entry</th><th>Price</th><th>Shares</th><th>Net P&amp;L</th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     bindTradeRows(el);
   }
 
@@ -600,6 +656,32 @@
     if (activeFilter === "loss") list = list.filter((t) => !t.win);
     if (searchTerm) list = list.filter((t) => t.symbol.toLowerCase().includes(searchTerm));
     return list;
+  }
+
+  // Sort applied *within* each day's table (the day grouping itself
+  // always stays newest-day-first -- only the row order inside each
+  // group changes). Defaults to entry_time, same as before this was
+  // made clickable. "grade" resolves through TradeGrade same as
+  // journal.html's table sort, so a trade's local self-grade (see
+  // grade.js) sorts correctly even before it's a published field.
+  let tvSortKey = "entry_time";
+  let tvSortDir = "asc";
+  const TV_SORT_COLS = [
+    ["symbol", "Symbol"], ["entry_time", "Entry"], ["exit_time", "Exit"],
+    ["entry_price", "Price"], ["shares", "Shares"], ["commission", "Comm."],
+    ["pnl_after_comm", "Net P&amp;L"], ["grade", "Grade"],
+  ];
+  function tvSortValue(t, key) {
+    if (key === "grade") return window.TradeGrade ? (window.TradeGrade.get(t) || 0) : 0;
+    return t[key];
+  }
+  function sortDayTrades(dayTrades) {
+    return dayTrades.slice().sort((a, b) => {
+      let av = tvSortValue(a, tvSortKey), bv = tvSortValue(b, tvSortKey);
+      if (typeof av === "string") { av = av || ""; bv = bv || ""; return tvSortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av); }
+      av = av || 0; bv = bv || 0;
+      return tvSortDir === "asc" ? av - bv : bv - av;
+    });
   }
 
   function renderGroups() {
@@ -616,10 +698,13 @@
     });
 
     const days = Array.from(byDay.keys()).sort((a, b) => b.localeCompare(a));
+    const headHtml = TV_SORT_COLS.map(([key, label]) =>
+      `<th data-sort="${key}" class="${tvSortKey === key ? "sorted " + tvSortDir : ""}">${label}</th>`
+    ).join("");
 
     dayGroups.innerHTML = days
       .map((day) => {
-        const dayTrades = byDay.get(day).sort((a, b) => a.entry_time.localeCompare(b.entry_time));
+        const dayTrades = sortDayTrades(byDay.get(day));
         const dayNet = dayTrades.reduce((s, t) => s + t.pnl_after_comm, 0);
         const dateLabel = new Date(day + "T12:00:00").toLocaleDateString(undefined, {
           weekday: "short", month: "short", day: "numeric", year: "numeric",
@@ -637,6 +722,7 @@
               <td class="mono dim">${t.shares}</td>
               <td class="mono dim">$${t.commission.toFixed(2)}</td>
               <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
+              <td>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(t), { size: 12 }) : "—"}</td>
             </tr>`;
           })
           .join("");
@@ -652,9 +738,7 @@
           </div>
           <div class="table-scroll"><table class="trade-table">
             <thead>
-              <tr>
-                <th>Symbol</th><th>Entry</th><th>Exit</th><th>Price</th><th>Shares</th><th>Comm.</th><th>Net P&amp;L</th>
-              </tr>
+              <tr>${headHtml}</tr>
             </thead>
             <tbody>${rows}</tbody>
           </table></div>
@@ -662,6 +746,14 @@
       })
       .join("");
 
+    dayGroups.querySelectorAll("th[data-sort]").forEach((th) => {
+      th.addEventListener("click", () => {
+        const key = th.getAttribute("data-sort");
+        if (tvSortKey === key) tvSortDir = tvSortDir === "asc" ? "desc" : "asc";
+        else { tvSortKey = key; tvSortDir = "asc"; }
+        renderGroups();
+      });
+    });
     bindTradeRows(dayGroups);
   }
 
@@ -749,9 +841,10 @@
         <td class="mono">$${t.entry_price.toFixed(2)} → $${t.exit_price.toFixed(2)}</td>
         <td class="mono dim">${t.shares}</td>
         <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
+        <td>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(t), { size: 12 }) : "—"}</td>
       </tr>`).join("");
     const body = document.getElementById("day-detail-body");
-    body.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Entry</th><th>Exit</th><th>Price</th><th>Shares</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    body.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Entry</th><th>Exit</th><th>Price</th><th>Shares</th><th>Net P&amp;L</th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     bindTradeRows(body);
     panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }

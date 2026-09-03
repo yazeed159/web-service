@@ -305,6 +305,16 @@
     renderTable(filtered);
   }
 
+  // Rendered TABLE_PAGE_SIZE rows at a time with a "Load more" button
+  // rather than dumping the entire (possibly thousands-long) filtered
+  // trade list into the DOM at once. Resets to the first page whenever
+  // the filters or sort change (i.e. every fresh renderTable call);
+  // "Load more" just grows the visible slice without re-rendering the
+  // rows already on screen.
+  const TABLE_PAGE_SIZE = 50;
+  let tableRows = [];
+  let tableShown = 0;
+
   function renderTable(rows) {
     if (!rows.length) {
       content.innerHTML = `<div class="empty-state">No trades match these filters.</div>`;
@@ -318,6 +328,8 @@
       av = av || 0; bv = bv || 0;
       return sortDir === "asc" ? av - bv : bv - av;
     });
+    tableRows = sorted;
+    tableShown = Math.min(TABLE_PAGE_SIZE, sorted.length);
 
     const totalPnl = rows.reduce((s, r) => s + (r.pnl_after_comm || 0), 0);
     const cols = [
@@ -345,6 +357,32 @@
       return tags.map(([t, cls]) => `<span class="pill ${cls}">${escapeHtml(tagLabel(t))}</span>`).join(" ");
     }
 
+    function rowHtml(r) {
+      return `
+        <tr>
+          <td colspan="9" style="padding:0;">
+            <a class="row-link" href="trade.html?id=${encodeURIComponent(r.id)}" style="display:grid; grid-template-columns: ${GRID_COLS}; align-items:center; padding:8px 10px; gap:6px;">
+              <span>${escapeHtml(r.trade_date)}</span>
+              <span>${escapeHtml(r.symbol)}</span>
+              <span>${escapeHtml((r.setup_type || "—").replace(/_/g, " "))}</span>
+              <span>$${Number(r.entry_price).toFixed(2)}</span>
+              <span>$${Number(r.exit_price).toFixed(2)}</span>
+              <span class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</span>
+              <span class="pill ${r.win ? "win" : "loss"}">${r.win ? "WIN" : "LOSS"}</span>
+              <span>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(r), { size: 12 }) : "—"}</span>
+              <span style="display:flex; flex-wrap:wrap; gap:4px;">${volumePills(r)}</span>
+            </a>
+          </td>
+        </tr>`;
+    }
+    function loadMoreRowHtml() {
+      const remaining = tableRows.length - tableShown;
+      if (remaining <= 0) return "";
+      return `<tr id="table-load-more-row"><td colspan="9" style="padding:14px 10px; text-align:center;">
+        <button type="button" class="btn-load-more" id="table-load-more-btn">Load more (${remaining} left)</button>
+      </td></tr>`;
+    }
+
     content.innerHTML = `
       <p style="color:var(--text-faint); font-size:12.5px; margin:0 0 10px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
         <span>${sorted.length} trade${sorted.length === 1 ? "" : "s"} · net <span class="${totalPnl >= 0 ? "up" : "down"}">${fmtMoney(totalPnl)}</span></span>
@@ -360,24 +398,9 @@
             ${cols.map(([key, label]) => `<th data-sort="${key}" class="${sortKey === key ? "sorted " + sortDir : ""}">${label}</th>`).join("")}
             <th>Tags</th>
           </tr></thead>
-          <tbody>
-            ${sorted.map((r) => `
-              <tr>
-                <td colspan="9" style="padding:0;">
-                  <a class="row-link" href="trade.html?id=${encodeURIComponent(r.id)}" style="display:grid; grid-template-columns: ${GRID_COLS}; align-items:center; padding:8px 10px; gap:6px;">
-                    <span>${escapeHtml(r.trade_date)}</span>
-                    <span>${escapeHtml(r.symbol)}</span>
-                    <span>${escapeHtml((r.setup_type || "—").replace(/_/g, " "))}</span>
-                    <span>$${Number(r.entry_price).toFixed(2)}</span>
-                    <span>$${Number(r.exit_price).toFixed(2)}</span>
-                    <span class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</span>
-                    <span class="pill ${r.win ? "win" : "loss"}">${r.win ? "WIN" : "LOSS"}</span>
-                    <span>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(r), { size: 12 }) : "—"}</span>
-                    <span style="display:flex; flex-wrap:wrap; gap:4px;">${volumePills(r)}</span>
-                  </a>
-                </td>
-              </tr>
-            `).join("")}
+          <tbody id="journal-tbody">
+            ${sorted.slice(0, tableShown).map(rowHtml).join("")}
+            ${loadMoreRowHtml()}
           </tbody>
         </table>
         </div>
@@ -392,6 +415,22 @@
         applyFilters();
       });
     });
+
+    const loadMoreBtn = document.getElementById("table-load-more-btn");
+    if (loadMoreBtn) {
+      loadMoreBtn.addEventListener("click", () => {
+        const nextShown = Math.min(tableShown + TABLE_PAGE_SIZE, tableRows.length);
+        const newRowsHtml = tableRows.slice(tableShown, nextShown).map(rowHtml).join("");
+        tableShown = nextShown;
+        const moreRow = document.getElementById("table-load-more-row");
+        moreRow.insertAdjacentHTML("beforebegin", newRowsHtml);
+        if (tableShown < tableRows.length) {
+          loadMoreBtn.textContent = `Load more (${tableRows.length - tableShown} left)`;
+        } else {
+          moreRow.remove();
+        }
+      });
+    }
 
     const shareBtn = document.getElementById("share-view-btn");
     if (shareBtn) {

@@ -18,12 +18,33 @@
   const ACCOUNT_KEY = "practice:account:v2";
   const DEFAULT_STARTING_BALANCE = 25000;
 
+  // Set of trade/chart ids (object map id -> true) already run through a
+  // full practice session (see markPracticed/endSession below), mirrored
+  // to Supabase (user_kv) the same way ACCOUNT_KEY/SHORTCUTS_KEY are --
+  // so a chart you've already practiced on doesn't keep coming back up
+  // as the random pick. Backtest-sourced charts are never marked --
+  // their ids are synthetic and regenerated per run, same reasoning as
+  // rewind.js's REVIEWED_KEY. Always read fresh from localStorage
+  // (no in-memory copy), same pattern as loadAccount/loadShortcuts.
+  const PRACTICED_KEY = "practice:practiced";
+
   // Handoff key report.html's "Practice this trade" button writes a
   // backtest trade into before opening this page -- lets you paper-trade
   // a symbol the systematic backtester flagged, same as you can for a
   // real logged journal trade, just without a data/trades/<id>.json file
   // to fetch (the backtest trade already carries its own bars).
   const PENDING_BACKTEST_KEY = "practice:pending_backtest_trade";
+
+  // Handoff key calculator.html's "Track this trade" button writes a
+  // *hypothetical* plan into (entry/stop/target/shares/risk numbers, no
+  // bars, possibly no symbol) -- unlike PENDING_BACKTEST_KEY this can't
+  // drive straight into a session, since there's no chart on earth that's
+  // guaranteed to trade at those exact prices. Left in localStorage (not
+  // consumed at load) until the person actually starts a chart, at which
+  // point applyPendingPlanToSession() uses it to pre-size the order ticket
+  // and, only if the loaded chart's symbol matches, mark the planned
+  // stop/target on it.
+  const CALC_PLAN_KEY = "practice:pending_trade_plan";
 
   const els = {
     setupScreen: document.getElementById("pr-setup-screen"),
@@ -44,8 +65,16 @@
     resumeBtn: document.getElementById("pr-resume-btn"),
     resumeLabel: document.getElementById("pr-resume-label"),
 
+    planBox: document.getElementById("pr-plan-box"),
+    planText: document.getElementById("pr-plan-text"),
+    planDismissBtn: document.getElementById("pr-plan-dismiss-btn"),
+    planNote: document.getElementById("pp-plan-note"),
+
     randomBtn: document.getElementById("pf-random-btn"),
     candidateCount: document.getElementById("pf-candidate-count"),
+    includePracticedCheck: document.getElementById("pf-include-practiced"),
+    progressList: document.getElementById("pr-progress-list"),
+    resetAllBtn: document.getElementById("pr-reset-all-btn"),
 
     // play screen
     symLine: document.getElementById("pp-symbol-line"),
@@ -358,6 +387,36 @@
     });
   }
 
+  function loadPracticed() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(PRACTICED_KEY) || "{}");
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch (e) { return {}; }
+  }
+  function savePracticed(map) {
+    try {
+      localStorage.setItem(PRACTICED_KEY, JSON.stringify(map));
+      if (window.KV) window.KV.set(PRACTICED_KEY, map);
+    } catch (e) { /* ignore -- practice still works without persistence */ }
+  }
+  // Called once a session on a given chart ends, however it ends (data
+  // ran out, replay, change chart, or skip-to-end -- see endSession).
+  function markPracticed(id) {
+    const map = loadPracticed();
+    if (map[id]) return;
+    map[id] = true;
+    savePracticed(map);
+  }
+
+  if (window.KV) {
+    window.KV.sync(PRACTICED_KEY, function (remote) {
+      if (!remote || typeof remote !== "object" || Array.isArray(remote)) return;
+      try { localStorage.setItem(PRACTICED_KEY, JSON.stringify(remote)); } catch (e) { /* ignore */ }
+      renderProgressPanel();
+      updateCandidateCount();
+    });
+  }
+
   // Shares a shortcut resolves to right now, at the current tick's
   // price and account state -- same "decide the quantity at the
   // instant you click" spirit as the % of buying power size mode.
@@ -519,6 +578,11 @@
     ended: false,
   };
 
+  // Plan handed off from calculator.html, if any -- read at boot, kept
+  // around (not consumed) until a chart session actually starts, since
+  // unlike the backtest handoff it can't drive a session by itself.
+  let pendingPlan = null;
+
   const SPEEDS = [0.5, 1, 2, 5, 10];
   const BASE_TICK_MS = 140;
   const SHARE_PRESETS = [50, 100, 200, 500];
@@ -561,6 +625,90 @@
       }
     } else {
       els.resumeBox.style.display = "none";
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // calculator.html "Track this trade" handoff
+  // ---------------------------------------------------------------
+  function planSummaryText(plan) {
+    const dir = plan.direction === "short" ? "short" : "long";
+    const sym = plan.symbol ? `${plan.symbol} — ` : "";
+    const parts = [`${sym}${dir} ${plan.shares.toLocaleString()} sh @ ${fmtUsd(plan.entry)}`, `stop ${fmtUsd(plan.stop)}`];
+    if (isFinite(plan.target)) parts.push(`target ${fmtUsd(plan.target)}`);
+    parts.push(`risking ${fmtUsd(plan.riskAmount)}`);
+    if (isFinite(plan.rr) && plan.rr !== null) parts.push(`${plan.rr.toFixed(2)}R`);
+    return `Planned trade from the Calculator: ${parts.join(" · ")}.`;
+  }
+
+  function renderPendingPlanBanner() {
+    if (!els.planBox) return;
+    if (!pendingPlan) { els.planBox.style.display = "none"; return; }
+    els.planBox.style.display = "";
+    els.planText.textContent = planSummaryText(pendingPlan) + " Start a chart below and it'll size your first order to match.";
+  }
+
+  function loadPendingTradePlan() {
+    let raw;
+    try { raw = localStorage.getItem(CALC_PLAN_KEY); } catch (e) { raw = null; }
+    if (!raw) return;
+    try {
+      const plan = JSON.parse(raw);
+      if (plan && plan.shares > 0 && isFinite(plan.entry) && isFinite(plan.stop)) pendingPlan = plan;
+    } catch (e) { /* ignore malformed handoff */ }
+    renderPendingPlanBanner();
+  }
+
+  if (els.planDismissBtn) {
+    els.planDismissBtn.addEventListener("click", () => {
+      pendingPlan = null;
+      try { localStorage.removeItem(CALC_PLAN_KEY); } catch (e) {}
+      renderPendingPlanBanner();
+    });
+  }
+
+  // Applied once a chart session actually starts (never on resume -- a
+  // resumed session already has its own sizing/position in progress).
+  // Pre-sizes the order ticket to the plan's share count regardless of
+  // symbol (the risk math travels fine across symbols), but only draws
+  // the planned stop/target price lines on the chart when the loaded
+  // chart's symbol matches the plan's -- on a different symbol those
+  // price levels would sit in a completely unrelated price range and
+  // just be misleading.
+  function applyPendingPlanToSession(trade) {
+    if (!pendingPlan) return;
+    const plan = pendingPlan;
+    pendingPlan = null;
+    try { localStorage.removeItem(CALC_PLAN_KEY); } catch (e) {}
+    renderPendingPlanBanner();
+
+    if (plan.shares > 0) {
+      if (account.sizeMode !== "shares") { account.sizeMode = "shares"; }
+      if (els.sharesInput) els.sharesInput.value = String(plan.shares);
+      applySizeModeUI();
+    }
+
+    const symbolMatches = !!(plan.symbol && trade.symbol && plan.symbol.toUpperCase() === trade.symbol.toUpperCase());
+    if (symbolMatches && state.chartHandle && state.chartHandle.series) {
+      if (isFinite(plan.stop)) {
+        state.chartHandle.series.createPriceLine({
+          price: Number(plan.stop), color: "#f2555a", lineWidth: 1,
+          lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "planned stop",
+        });
+      }
+      if (isFinite(plan.target)) {
+        state.chartHandle.series.createPriceLine({
+          price: Number(plan.target), color: "#2fd08a", lineWidth: 1,
+          lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "planned target",
+        });
+      }
+    }
+
+    if (els.planNote) {
+      els.planNote.style.display = "";
+      els.planNote.textContent = symbolMatches
+        ? `Order sized to your ${plan.shares.toLocaleString()}-share plan; planned stop/target marked on the chart.`
+        : `Order sized to your ${plan.shares.toLocaleString()}-share plan from the Calculator (this chart's a different symbol, so its stop/target aren't drawn here).`;
     }
   }
 
@@ -642,17 +790,109 @@
   // nobody was browsing the list -- they wanted a chart to trade.
   // ---------------------------------------------------------------
   function updateCandidateCount() {
-    const n = state.index.length;
-    els.candidateCount.innerHTML = `<b>${n}</b> chart${n === 1 ? "" : "s"} available`;
+    const total = state.index.length;
+    const includeAll = els.includePracticedCheck && els.includePracticedCheck.checked;
+    if (includeAll) {
+      els.candidateCount.innerHTML = `<b>${total}</b> chart${total === 1 ? "" : "s"} available`;
+      return;
+    }
+    const practiced = loadPracticed();
+    const remaining = state.index.filter((r) => !practiced[r.id]).length;
+    els.candidateCount.innerHTML = remaining === total
+      ? `<b>${total}</b> chart${total === 1 ? "" : "s"} available`
+      : `<b>${remaining}</b> of <b>${total}</b> chart${total === 1 ? "" : "s"} not yet practiced`;
   }
 
   function pickRandomCandidate(excludeId) {
     const rows = state.index;
     if (!rows.length) return;
-    const pool = excludeId && rows.length > 1 ? rows.filter((r) => r.id !== excludeId) : rows;
+    const includeAll = els.includePracticedCheck && els.includePracticedCheck.checked;
+    const practiced = includeAll ? null : loadPracticed();
+    // Prefer charts not yet practiced; if every remaining chart has
+    // already been practiced (or the box is checked), fall back to the
+    // full list rather than refusing to pick anything.
+    let pool = practiced ? rows.filter((r) => !practiced[r.id]) : rows;
+    if (!pool.length) pool = rows;
+    if (excludeId && pool.length > 1) pool = pool.filter((r) => r.id !== excludeId);
     const pick = pool[Math.floor(Math.random() * pool.length)];
     loadChart(pick.id);
   }
+
+  // "X of Y practiced" -- overall plus one row per journal setup_type,
+  // each (other than the "All setups" summary row) with its own reset
+  // button. Mirrors rewind.js's renderProgressPanel/REVIEWED_KEY --
+  // reuses its CSS (rewind.css is already loaded on this page).
+  function renderProgressPanel() {
+    if (!els.progressList) return;
+    const rows = state.index.filter((r) => r.id);
+    if (!rows.length) {
+      els.progressList.innerHTML = `<div class="quiz-history-empty">No logged trades yet.</div>`;
+      if (els.resetAllBtn) els.resetAllBtn.style.display = "none";
+      return;
+    }
+    const practiced = loadPracticed();
+    const bySetup = {};
+    rows.forEach((r) => {
+      const key = r.setup_type || "unlabeled";
+      (bySetup[key] || (bySetup[key] = [])).push(r.id);
+    });
+    const setupKeys = Object.keys(bySetup).sort();
+
+    function rowHtml(label, ids, setupKey) {
+      const total = ids.length;
+      const done = ids.filter((id) => practiced[id]).length;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      const resetBtn = setupKey
+        ? `<button type="button" class="rw-progress-reset" data-setup="${escapeHtml(setupKey)}">Reset</button>`
+        : `<span class="rw-progress-reset-spacer"></span>`;
+      return `<div class="rw-progress-row${setupKey ? "" : " rw-progress-overall"}">
+        <span class="rw-progress-name">${escapeHtml(label)}</span>
+        <div class="rw-progress-bar"><div class="rw-progress-fill" style="width:${pct}%"></div></div>
+        <span class="rw-progress-count">${done} / ${total}</span>
+        ${resetBtn}
+      </div>`;
+    }
+
+    const allIds = rows.map((r) => r.id);
+    els.progressList.innerHTML = rowHtml("All setups", allIds, null)
+      + setupKeys.map((s) => rowHtml(s.replace(/_/g, " "), bySetup[s], s)).join("");
+
+    if (els.resetAllBtn) {
+      els.resetAllBtn.style.display = allIds.some((id) => practiced[id]) ? "" : "none";
+    }
+
+    els.progressList.querySelectorAll(".rw-progress-reset").forEach((btn) => {
+      btn.addEventListener("click", () => resetPracticedFor(btn.dataset.setup, bySetup[btn.dataset.setup]));
+    });
+  }
+
+  async function resetPracticedFor(setupKey, ids) {
+    const label = setupKey === "unlabeled" ? "unlabeled setups" : setupKey.replace(/_/g, " ");
+    const ok = await UIModal.confirm(
+      `Reset practice progress for "${label}"? ${ids.length} chart${ids.length === 1 ? "" : "s"} will be eligible to come up again.`,
+      { title: "Reset progress?", tone: "danger", confirmLabel: "Reset" }
+    );
+    if (!ok) return;
+    const map = loadPracticed();
+    ids.forEach((id) => { delete map[id]; });
+    savePracticed(map);
+    renderProgressPanel();
+    updateCandidateCount();
+  }
+
+  if (els.resetAllBtn) {
+    els.resetAllBtn.addEventListener("click", async () => {
+      const ok = await UIModal.confirm(
+        "Reset all practice progress? Every logged chart will be eligible to come up again.",
+        { title: "Reset all progress?", tone: "danger", confirmLabel: "Reset all" }
+      );
+      if (!ok) return;
+      savePracticed({});
+      renderProgressPanel();
+      updateCandidateCount();
+    });
+  }
+  if (els.includePracticedCheck) els.includePracticedCheck.addEventListener("change", updateCandidateCount);
 
   // ---------------------------------------------------------------
   // loading a chart -- fetches the same per-trade bar window
@@ -808,6 +1048,11 @@
     renderPositionPanel();
     renderFillLog();
     updatePlayPauseBtn();
+
+    // Only a brand-new session picks up a pending calculator plan --
+    // resuming an in-progress one already has its own sizing/position.
+    if (els.planNote) els.planNote.style.display = "none";
+    if (!resumeFrom) applyPendingPlanToSession(trade);
   }
 
   function replayCurrentTrade() {
@@ -891,6 +1136,21 @@
   function srLevelNote(lv) {
     return lv.label || (lv.touches ? lv.touches + "x touched" : "");
   }
+
+  // The LLM-authored label can be a full sentence ("Tested three times
+  // and lines up with the 50-day MA..."), which is fine in the sr-result
+  // list below but overwhelms the chart's price-line tag. Keep the tag
+  // to a short phrase and let the full text live in the list instead.
+  function srChartTag(lv) {
+    const note = srLevelNote(lv);
+    if (!note) return "";
+    const cut = note.split(/[.;,]/)[0].trim();
+    const words = cut.split(/\s+/);
+    let short = words.slice(0, 5).join(" ");
+    if (words.length > 5 || short.length < cut.length) short += "…";
+    return short.length > 28 ? short.slice(0, 27).trim() + "…" : short;
+  }
+
   let srRequestInFlight = false;
   function runSupportResistance() {
     if (srRequestInFlight || !state.trade) return;
@@ -955,19 +1215,19 @@
     const support = Array.isArray(data.support) ? data.support : [];
     const resistance = Array.isArray(data.resistance) ? data.resistance : [];
     resistance.forEach((lv) => {
-      const note = srLevelNote(lv);
+      const tag = srChartTag(lv);
       state.chartHandle.series.createPriceLine({
         price: Number(lv.price), color: "#f2555a", lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true,
-        title: note ? `resistance (${note})` : "resistance",
+        title: tag ? `resistance (${tag})` : "resistance",
       });
     });
     support.forEach((lv) => {
-      const note = srLevelNote(lv);
+      const tag = srChartTag(lv);
       state.chartHandle.series.createPriceLine({
         price: Number(lv.price), color: "#2fd08a", lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true,
-        title: note ? `support (${note})` : "support",
+        title: tag ? `support (${tag})` : "support",
       });
     });
   }
@@ -1231,6 +1491,10 @@
   function endSession(reason) {
     stopPlayback();
     state.ended = true;
+    // Log this chart as practiced (skipped for backtest-generated charts
+    // -- see PRACTICED_KEY above) so it's excluded from future random
+    // picks until reset -- regardless of *how* the session ended.
+    if (state.trade && state.trade.source !== "backtest") markPracticed(state.trade.id);
     // flatten any open position at the last available price, just like
     // a broker would force-close at the close of the available tape
     if (state.position && state.position.shares > 0) {
@@ -1588,13 +1852,14 @@
     els.setupScreen.style.display = "";
     renderAccountPanel();
     updateCandidateCount();
+    renderProgressPanel();
   }
 
   // ---------------------------------------------------------------
   // wiring
   // ---------------------------------------------------------------
   els.resetBtn.addEventListener("click", resetAccount);
-  els.randomBtn.addEventListener("click", pickRandomCandidate);
+  els.randomBtn.addEventListener("click", () => pickRandomCandidate());
   els.replayBtn.addEventListener("click", async () => {
     if (!state.trade) return;
     if (state.position && state.position.shares > 0) {
@@ -1706,11 +1971,14 @@
   // ---------------------------------------------------------------
   // boot
   // ---------------------------------------------------------------
+  loadPendingTradePlan();
+
   window.fetchTradesIndex()
     .then((rows) => {
       state.index = Array.isArray(rows) ? rows : [];
       renderAccountPanel();
       updateCandidateCount();
+      renderProgressPanel();
     })
     .catch(() => {
       els.candidateCount.textContent = "Couldn't load your trades.";

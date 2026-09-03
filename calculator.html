@@ -11,6 +11,17 @@
 <link rel="stylesheet" href="core.css">
 <link rel="stylesheet" href="chat-widget.css">
 <link rel="stylesheet" href="global-search.css">
+<style>
+  .calc-r-row-btn{width:100%;background:none;border:none;border-top:1px solid #232a38;text-align:left;cursor:pointer;font:inherit;color:inherit;}
+  .calc-r-row-btn:first-child{border-top:none;}
+  .calc-r-row-btn:hover{background:var(--primary-soft);}
+  .calc-r-row-btn:hover .r-label,.calc-r-row-btn:hover .r-val{color:var(--primary);}
+  #calc-r-target-row{background:var(--primary-soft);}
+  #calc-r-target-row .r-label,#calc-r-target-row .r-val{color:var(--primary);font-weight:700;}
+  .calc-track-row{margin:14px 0;text-align:center;}
+  .calc-track-row .btn-confirm{display:inline-block;text-decoration:none;}
+  .calc-track-row .calc-hint{margin-top:6px;}
+</style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -199,22 +210,62 @@
             <div class="calc-hint" id="calc-stop-computed"></div>
           </div>
 
+          <div class="calc-row">
+            <div class="calc-row-head"><label>Target price</label></div>
+            <div class="calc-input-wrap">
+              <input type="text" class="filter-input" id="calc-target" value="">
+              <div class="calc-stepper" data-target="calc-target"><button type="button" data-dir="1">▲</button><button type="button" data-dir="-1">▼</button></div>
+            </div>
+            <div class="calc-hint" id="calc-target-hint">optional — tap an R level on the right to fill this in</div>
+          </div>
+
+          <div class="calc-row">
+            <div class="calc-row-head"><label>Est. win rate</label><span class="calc-hint">for expected value</span></div>
+            <div class="chip-row" id="calc-winrate-chips">
+              <button type="button" class="calc-chip" data-winrate="30">30%</button>
+              <button type="button" class="calc-chip" data-winrate="40">40%</button>
+              <button type="button" class="calc-chip active" data-winrate="50">50%</button>
+              <button type="button" class="calc-chip" data-winrate="60">60%</button>
+              <button type="button" class="calc-chip" data-winrate="70">70%</button>
+            </div>
+          </div>
+
         </div>
 
         <div class="calc-results">
           <div class="calc-stat-grid">
-            <div class="calc-stat"><div class="lbl">Risk amount</div><div class="val" id="calc-risk-amount">—</div></div>
+            <div class="calc-stat"><div class="lbl">Risk budget</div><div class="val" id="calc-risk-amount">—</div><div class="sub" id="calc-risk-amount-sub">—</div></div>
             <div class="calc-stat"><div class="lbl">Max shares</div><div class="val" id="calc-max-shares">—</div></div>
             <div class="calc-stat"><div class="lbl">Position cost</div><div class="val" id="calc-position-cost">—</div><div class="sub" id="calc-position-pct">—</div></div>
             <div class="calc-stat"><div class="lbl">Per-share risk</div><div class="val" id="calc-per-share-risk">—</div></div>
+            <div class="calc-stat"><div class="lbl">Round-trip commission</div><div class="val" id="calc-commission">—</div><div class="sub">entry + stop-out, IBKR tiered</div></div>
+            <div class="calc-stat"><div class="lbl">Net risk (after fees)</div><div class="val" id="calc-net-risk">—</div><div class="sub" id="calc-net-risk-sub">—</div></div>
+          </div>
+
+          <div class="calc-track-row" id="calc-track-row" style="display:none;">
+            <a class="btn-confirm" id="calc-track-btn" href="practice.html" target="_blank" rel="noopener">Track this trade in Practice →</a>
+            <div class="calc-hint" id="calc-track-hint">opens Practice sized to this plan — pick a chart there to trade it</div>
           </div>
 
           <div>
             <div class="section-label" style="margin-bottom:8px;">R-Multiple Reference</div>
-            <div class="calc-r-table">
-              <div class="calc-r-row"><span class="r-label">1R target</span><span class="r-val" id="calc-r1">—</span></div>
-              <div class="calc-r-row"><span class="r-label">2R target</span><span class="r-val" id="calc-r2">—</span></div>
-              <div class="calc-r-row"><span class="r-label">3R target</span><span class="r-val" id="calc-r3">—</span></div>
+            <div class="calc-hint" style="margin-bottom:6px;">tap a level to fill in the target price</div>
+            <div class="calc-r-table" id="calc-r-table">
+              <button type="button" class="calc-r-row calc-r-row-btn" id="calc-r1-row"><span class="r-label">1R target</span><span class="r-val" id="calc-r1">—</span></button>
+              <button type="button" class="calc-r-row calc-r-row-btn" id="calc-r2-row"><span class="r-label">2R target</span><span class="r-val" id="calc-r2">—</span></button>
+              <button type="button" class="calc-r-row calc-r-row-btn" id="calc-r3-row"><span class="r-label">3R target</span><span class="r-val" id="calc-r3">—</span></button>
+              <div class="calc-r-row" id="calc-r-target-row" style="display:none;"><span class="r-label">Your target</span><span class="r-val" id="calc-r-target">—</span></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-label" style="margin-bottom:8px;">Trade Quality</div>
+            <div id="calc-quality-empty" class="calc-hint">enter a target price to see risk/reward and expected value</div>
+            <div class="calc-stat-grid" id="calc-quality-grid" style="display:none;">
+              <div class="calc-stat"><div class="lbl">Net reward</div><div class="val" id="calc-net-reward">—</div><div class="sub">after fees, at target</div></div>
+              <div class="calc-stat"><div class="lbl">Risk:reward (net)</div><div class="val" id="calc-rr-ratio">—</div></div>
+              <div class="calc-stat"><div class="lbl">Breakeven win rate</div><div class="val" id="calc-breakeven">—</div><div class="sub">min win% to profit long-run</div></div>
+              <div class="calc-stat"><div class="lbl">Expected value</div><div class="val" id="calc-ev">—</div><div class="sub" id="calc-ev-sub">—</div></div>
             </div>
           </div>
         </div>
@@ -238,10 +289,12 @@
       riskPct: "calc_risk_pct",
       stopMode: "calc_stop_mode",
       stopPct: "calc_stop_pct",
+      winRate: "calc_win_rate",
     };
 
     const entryEl = document.getElementById("calc-entry");
     const stopEl = document.getElementById("calc-stop");
+    const targetEl = document.getElementById("calc-target");
     const startingBalanceEl = document.getElementById("calc-starting-balance");
     const balanceDisplay = document.getElementById("calc-balance-display");
     const balanceSub = document.getElementById("calc-balance-sub");
@@ -252,6 +305,8 @@
     const stopPctChipsWrap = document.getElementById("calc-stop-pct-chips");
     const symbolRow = document.getElementById("calc-recent-symbols-row");
     const symbolListEl = document.getElementById("calc-symbol-list");
+    const trackRowEl = document.getElementById("calc-track-row");
+    const trackBtnEl = document.getElementById("calc-track-btn");
 
     const maxSharesEl = document.getElementById("calc-max-shares");
     const riskAmountEl = document.getElementById("calc-risk-amount");
@@ -261,6 +316,22 @@
     const r1El = document.getElementById("calc-r1");
     const r2El = document.getElementById("calc-r2");
     const r3El = document.getElementById("calc-r3");
+    const r1RowEl = document.getElementById("calc-r1-row");
+    const r2RowEl = document.getElementById("calc-r2-row");
+    const r3RowEl = document.getElementById("calc-r3-row");
+    const rTargetRowEl = document.getElementById("calc-r-target-row");
+    const rTargetEl = document.getElementById("calc-r-target");
+    const riskAmountSubEl = document.getElementById("calc-risk-amount-sub");
+    const commissionEl = document.getElementById("calc-commission");
+    const netRiskEl = document.getElementById("calc-net-risk");
+    const netRiskSubEl = document.getElementById("calc-net-risk-sub");
+    const qualityEmptyEl = document.getElementById("calc-quality-empty");
+    const qualityGridEl = document.getElementById("calc-quality-grid");
+    const netRewardEl = document.getElementById("calc-net-reward");
+    const rrRatioEl = document.getElementById("calc-rr-ratio");
+    const breakevenEl = document.getElementById("calc-breakeven");
+    const evEl = document.getElementById("calc-ev");
+    const evSubEl = document.getElementById("calc-ev-sub");
     const positionCostStat = positionCostEl.closest(".calc-stat");
 
     let riskPct = parseFloat(localStorage.getItem(LS_KEYS.riskPct)) || 1;
@@ -268,7 +339,48 @@
     let stopPct = parseFloat(localStorage.getItem(LS_KEYS.stopPct)) || 1;
     let startingBalance = parseFloat(localStorage.getItem(LS_KEYS.startingBalance));
     if (!isFinite(startingBalance)) startingBalance = 25000;
+    let winRate = parseFloat(localStorage.getItem(LS_KEYS.winRate));
+    if (!isFinite(winRate) || winRate <= 0 || winRate >= 100) winRate = 50;
     let latestEquityAfter = 0;
+
+    // Which recent-symbol chip (if any) is behind the current entry price --
+    // cleared the moment the person types over it, since at that point the
+    // entry no longer necessarily belongs to that symbol. Carried into the
+    // "Track this trade" handoff below so Practice can match it against the
+    // chart it loads and only then draw the planned stop/target on it.
+    let selectedSymbol = null;
+    entryEl.addEventListener("input", () => { selectedSymbol = null; });
+
+    // Snapshot of the current plan once max shares > 0, refreshed on every
+    // calculate() call, and picked up by the "Track this trade" button at
+    // click time -- same "write to localStorage, let the other tab read it"
+    // handoff report.html's "Practice this trade" button uses (there:
+    // practice:pending_backtest_trade), but this one carries a hypothetical
+    // plan (entry/stop/target/shares) rather than an actual chart's bars, so
+    // it gets its own key and Practice treats it very differently: it can't
+    // replay "the" trade since no chart has this exact price action, so it
+    // just pre-sizes the next order and, only if the chart it loads happens
+    // to be the same symbol, marks the planned stop/target on it.
+    const CALC_PLAN_KEY = "practice:pending_trade_plan";
+    let lastPlan = null;
+
+    // IBKR's "Tiered" US stock commission schedule -- same constants and
+    // formula as ibkrTieredCommission() in practice.js (which the sim
+    // account and rewind.js scoring both use): $0.0035/share, a $0.35
+    // floor per order, and a 1%-of-trade-value ceiling. Duplicated here
+    // (rather than loading practice.js, which wires up a whole separate
+    // paper-trading page's worth of DOM listeners) so "max shares" and
+    // "risk amount" reflect what a fill would really cost, not a gross
+    // number that ignores fees entirely.
+    const IBKR_PER_SHARE = 0.0035;
+    const IBKR_MIN_PER_ORDER = 0.35;
+    const IBKR_MAX_PCT_OF_TRADE_VALUE = 0.01;
+    function ibkrTieredCommission(shares, price) {
+      if (!(shares > 0) || !(price > 0)) return 0;
+      const raw = shares * IBKR_PER_SHARE;
+      const ceiling = shares * price * IBKR_MAX_PCT_OF_TRADE_VALUE;
+      return Math.max(IBKR_MIN_PER_ORDER, Math.min(raw, ceiling));
+    }
 
     // These 4 settings used to live only in this browser's localStorage.
     // Every setter below now also mirrors its value to Supabase
@@ -281,6 +393,7 @@
       window.KV.sync(LS_KEYS.stopMode, (v) => { if (typeof v === "string") { stopMode = v; localStorage.setItem(LS_KEYS.stopMode, v); refreshControlsAndCalc(); } });
       window.KV.sync(LS_KEYS.stopPct, (v) => { if (isFinite(v)) { stopPct = v; localStorage.setItem(LS_KEYS.stopPct, String(v)); refreshControlsAndCalc(); } });
       window.KV.sync(LS_KEYS.startingBalance, (v) => { if (isFinite(v) && v > 0) { startingBalance = v; localStorage.setItem(LS_KEYS.startingBalance, String(v)); refreshControlsAndCalc(); } });
+      window.KV.sync(LS_KEYS.winRate, (v) => { if (isFinite(v) && v > 0 && v < 100) { winRate = v; localStorage.setItem(LS_KEYS.winRate, String(v)); refreshControlsAndCalc(); } });
     }
     // Re-paints the chip/button active states + balance display + result
     // after a synced value patches one of the vars above post-render.
@@ -288,6 +401,7 @@
       riskChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.risk) === riskPct));
       stopModeBtns.forEach((b) => b.classList.toggle("active", b.dataset.mode === stopMode));
       stopChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.stoppct) === stopPct));
+      winRateChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.winrate) === winRate));
       stopPctChipsWrap.style.display = stopMode === "pct" ? "flex" : "none";
       stopPriceWrap.style.display = stopMode === "price" ? "flex" : "none";
       renderBalance();
@@ -348,6 +462,17 @@
     }
     stopChips.forEach((c) => c.addEventListener("click", () => setStopPct(parseFloat(c.dataset.stoppct))));
 
+    // --- Win rate chips (assumption used for expected value only) ---
+    const winRateChips = Array.from(document.querySelectorAll("#calc-winrate-chips .calc-chip"));
+    function setWinRate(v) {
+      winRate = v;
+      localStorage.setItem(LS_KEYS.winRate, String(v));
+      if (window.KV) window.KV.set(LS_KEYS.winRate, v);
+      winRateChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.winrate) === v));
+      calculate();
+    }
+    winRateChips.forEach((c) => c.addEventListener("click", () => setWinRate(parseFloat(c.dataset.winrate))));
+
     // --- Starting balance edit ---
     balanceEditBtn.addEventListener("click", () => {
       const showing = balanceEditWrap.style.display !== "none";
@@ -381,6 +506,20 @@
       });
     });
 
+    // Total dollar loss if stopped out at `shares`, including the entry
+    // fill's commission AND the commission on the losing exit -- this is
+    // what actually leaves the account, not just shares * per-share-risk.
+    function riskCostForShares(shares, entry, stop) {
+      if (!(shares > 0)) return 0;
+      const perShareRisk = Math.abs(entry - stop);
+      return perShareRisk * shares + ibkrTieredCommission(shares, entry) + ibkrTieredCommission(shares, stop);
+    }
+    // Total cash the entry fill itself ties up, including its commission.
+    function cashCostForShares(shares, entry) {
+      if (!(shares > 0)) return 0;
+      return shares * entry + ibkrTieredCommission(shares, entry);
+    }
+
     function calculate() {
       const account = currentBalance();
       const entry = parseNumber(entryEl.value);
@@ -400,6 +539,7 @@
       const riskAmount = account * (riskPct / 100);
 
       riskAmountEl.textContent = fmtUsd(riskAmount);
+      riskAmountSubEl.textContent = `${riskPct}% of ${fmtUsd(account)}`;
       perShareRiskEl.textContent = isFinite(perShareRisk) ? fmtUsd(perShareRisk) : "\u2014";
 
       if (!isFinite(perShareRisk) || perShareRisk <= 0) {
@@ -407,40 +547,181 @@
         positionCostEl.textContent = "\u2014";
         positionPctEl.textContent = "\u2014";
         positionCostStat.classList.remove("warn");
+        commissionEl.textContent = "\u2014";
+        netRiskEl.textContent = "\u2014";
+        netRiskSubEl.textContent = "\u2014";
         r1El.textContent = "\u2014";
         r2El.textContent = "\u2014";
         r3El.textContent = "\u2014";
+        [r1RowEl, r2RowEl, r3RowEl].forEach((row) => { delete row.dataset.price; });
+        rTargetRowEl.style.display = "none";
+        qualityEmptyEl.style.display = "";
+        qualityGridEl.style.display = "none";
+        qualityEmptyEl.textContent = "enter an entry price and a stop to see position size and reward";
+        lastPlan = null;
+        trackRowEl.style.display = "none";
         return;
       }
 
-      let maxShares = Math.floor(riskAmount / perShareRisk);
-      const cashLimitedShares = isFinite(entry) && entry > 0 ? Math.floor(account / entry) : Infinity;
-      const cashLimited = maxShares > cashLimitedShares;
-      if (cashLimited) maxShares = Math.max(0, cashLimitedShares);
+      // Naive risk-only cap, ignoring commission and cash -- true max
+      // shares (with fees + cash both applied) can only be <= this, so
+      // it's a safe upper bound to binary-search down from. Cost as a
+      // function of share count is monotonic non-decreasing (more shares
+      // never costs less), so a plain binary search converges correctly.
+      const riskOnlyMaxShares = Math.floor(riskAmount / perShareRisk);
+      function feasible(shares) {
+        return riskCostForShares(shares, entry, stop) <= riskAmount + 1e-6
+          && cashCostForShares(shares, entry) <= account + 1e-6;
+      }
+      let lo = 0, hi = Math.max(0, riskOnlyMaxShares);
+      while (lo < hi) {
+        const mid = Math.ceil((lo + hi + 1) / 2);
+        if (feasible(mid)) lo = mid; else hi = mid - 1;
+      }
+      const maxShares = lo;
+
+      // Which constraint is actually binding, for the "capped by..." label.
+      const nextCashOk = cashCostForShares(maxShares + 1, entry) <= account + 1e-6;
+      const cashLimited = !nextCashOk;
 
       maxSharesEl.textContent = maxShares.toLocaleString();
 
-      const positionCost = isFinite(entry) ? maxShares * entry : NaN;
+      const entryCommission = ibkrTieredCommission(maxShares, entry);
+      const stopCommission = ibkrTieredCommission(maxShares, stop);
+      const roundTripCommission = entryCommission + stopCommission;
+      const netRisk = riskCostForShares(maxShares, entry, stop);
+      const positionCost = cashCostForShares(maxShares, entry);
+
       positionCostEl.textContent = isFinite(positionCost) ? fmtUsd(positionCost) : "\u2014";
-      positionCostStat.classList.toggle("warn", cashLimited);
+      positionCostStat.classList.toggle("warn", cashLimited && maxShares > 0);
       positionPctEl.textContent = isFinite(positionCost) && account > 0
         ? (cashLimited ? "capped by account size" : `${((positionCost / account) * 100).toFixed(1)}% of account`)
         : "\u2014";
 
-      r1El.textContent = fmtUsd(riskAmount);
-      r2El.textContent = fmtUsd(riskAmount * 2);
-      r3El.textContent = fmtUsd(riskAmount * 3);
+      commissionEl.textContent = maxShares > 0 ? fmtUsd(roundTripCommission) : "\u2014";
+      netRiskEl.textContent = maxShares > 0 ? fmtUsd(netRisk) : "\u2014";
+      netRiskSubEl.textContent = maxShares > 0
+        ? `vs. ${fmtUsd(riskAmount)} budget`
+        : "\u2014";
+
+      // R-multiple price levels (long: above entry; short: below entry),
+      // each clickable to fill the target field with that exit price.
+      const direction = stop < entry ? "long" : (stop > entry ? "short" : null);
+      const rSign = direction === "short" ? -1 : 1;
+      [[1, r1El, r1RowEl], [2, r2El, r2RowEl], [3, r3El, r3RowEl]].forEach(([mult, el, row]) => {
+        const price = entry + rSign * perShareRisk * mult;
+        el.textContent = `${fmtUsd(price)} (${fmtUsd(riskAmount * mult)})`;
+        row.dataset.price = price.toFixed(4);
+      });
+
+      // Base plan for "Track this trade" -- valid as soon as there's a
+      // sizeable position, target optional. Target/reward/rr/ev (when a
+      // target is entered) get merged in below once they're computed.
+      if (maxShares > 0) {
+        lastPlan = {
+          source: "calculator",
+          symbol: selectedSymbol || null,
+          direction,
+          entry, stop,
+          target: null,
+          shares: maxShares,
+          riskPct, account,
+          riskAmount, netRisk,
+          netReward: null, rr: null, ev: null,
+          winRate,
+          createdAt: Date.now(),
+        };
+        trackRowEl.style.display = "";
+      } else {
+        lastPlan = null;
+        trackRowEl.style.display = "none";
+      }
+
+      // --- Target price / reward / risk:reward / expected value ---
+      const target = parseNumber(targetEl.value);
+      const hasTarget = isFinite(target) && direction !== null;
+      const rewardPerShare = hasTarget
+        ? (direction === "long" ? target - entry : entry - target)
+        : NaN;
+
+      if (!hasTarget || !(rewardPerShare > 0) || maxShares <= 0) {
+        rTargetRowEl.style.display = "none";
+        qualityEmptyEl.style.display = "";
+        qualityGridEl.style.display = "none";
+        qualityEmptyEl.textContent = (hasTarget && !(rewardPerShare > 0))
+          ? `target should be ${direction === "long" ? "above" : "below"} entry for this ${direction}`
+          : "enter a target price to see risk/reward and expected value";
+        return;
+      }
+
+      const targetCommission = ibkrTieredCommission(maxShares, target);
+      const netReward = rewardPerShare * maxShares - entryCommission - targetCommission;
+      const targetR = rewardPerShare / perShareRisk;
+
+      rTargetRowEl.style.display = "";
+      rTargetEl.textContent = `${fmtUsd(target)} (${targetR.toFixed(2)}R, ${netReward >= 0 ? "+" : "\u2212"}${fmtUsd(Math.abs(netReward))} net)`;
+
+      qualityEmptyEl.style.display = "none";
+      qualityGridEl.style.display = "";
+
+      netRewardEl.textContent = fmtUsd(Math.abs(netReward));
+      netRewardEl.classList.toggle("up", netReward >= 0);
+      netRewardEl.classList.toggle("down", netReward < 0);
+
+      const rrRatio = netRisk > 0 ? netReward / netRisk : NaN;
+      rrRatioEl.textContent = isFinite(rrRatio) ? `${rrRatio.toFixed(2)}R` : "\u2014";
+
+      // Minimum win rate needed to break even long-run, from net
+      // risk/reward alone (independent of the win-rate assumption below).
+      const breakeven = (netRisk + netReward) > 0 ? (netRisk / (netRisk + netReward)) * 100 : NaN;
+      breakevenEl.textContent = isFinite(breakeven) ? `${breakeven.toFixed(1)}%` : "\u2014";
+
+      const ev = (winRate / 100) * netReward - (1 - winRate / 100) * netRisk;
+      evEl.textContent = (ev >= 0 ? "+" : "\u2212") + fmtUsd(Math.abs(ev));
+      evEl.classList.toggle("up", ev >= 0);
+      evEl.classList.toggle("down", ev < 0);
+      evSubEl.textContent = `at ${winRate}% assumed win rate`;
+
+      // Fold the target-dependent numbers into the plan built above.
+      if (lastPlan) {
+        lastPlan.target = target;
+        lastPlan.netReward = netReward;
+        lastPlan.rr = isFinite(rrRatio) ? rrRatio : null;
+        lastPlan.ev = ev;
+      }
     }
 
-    [entryEl, stopEl].forEach((el) => {
+    [entryEl, stopEl, targetEl].forEach((el) => {
       el.addEventListener("input", calculate);
       el.addEventListener("blur", calculate);
+    });
+
+    // --- R-level rows: tap to fill the target price with that level's price ---
+    [[r1RowEl, 1], [r2RowEl, 2], [r3RowEl, 3]].forEach(([row, mult]) => {
+      row.addEventListener("click", () => {
+        const price = row.dataset.price;
+        if (!price) return;
+        targetEl.value = price;
+        calculate();
+      });
+    });
+
+    // --- Track this trade: hand the current plan to Practice ---
+    // Written fresh on every click (not just once at page load) so it's
+    // always today's numbers, even if the person tweaks a field right
+    // before clicking. The link's normal href navigation still fires
+    // after this -- same pattern as report.html's practice handoff.
+    trackBtnEl.addEventListener("click", () => {
+      if (!lastPlan) return;
+      try { localStorage.setItem(CALC_PLAN_KEY, JSON.stringify(lastPlan)); }
+      catch (e) { /* storage full/unavailable -- link still opens practice.html normally */ }
     });
 
     // --- Init from saved prefs ---
     riskChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.risk) === riskPct));
     if (!riskChips.some((c) => parseFloat(c.dataset.risk) === riskPct)) riskChips[2].classList.add("active");
     stopChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.stoppct) === stopPct));
+    winRateChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.winrate) === winRate));
     setStopMode(stopMode);
     renderBalance();
     calculate();
@@ -474,6 +755,7 @@
             chip.innerHTML = `<span class="sym">${t.symbol}</span><span class="px">last ${fmtUsd(t.entry_price)}</span>`;
             chip.addEventListener("click", () => {
               entryEl.value = fmtUsd(t.entry_price);
+              selectedSymbol = t.symbol;
               calculate();
             });
             symbolListEl.appendChild(chip);

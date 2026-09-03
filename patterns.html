@@ -164,6 +164,28 @@
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  // Rendered TRADE_LIST_PAGE_SIZE at a time with a "Load more" button --
+  // see the identical comment in app.js -- rather than dumping every
+  // trade behind a tag into the DOM at once (a common lesson tag across
+  // hundreds of trades was making this page enormous).
+  const TRADE_LIST_PAGE_SIZE = 25;
+  const tradeListState = new Map(); // uid -> { rows, shown }
+
+  function tradeListItemHtml(r) {
+    return `<li><a href="trade.html?id=${encodeURIComponent(r.id)}">${escapeHtml(r.symbol)} — ${escapeHtml(r.trade_date)} <span class="${r.win ? "up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></a></li>`;
+  }
+  function tradeListMoreHtml(uid, remaining) {
+    return `<li class="tag-trade-list-more"><button type="button" class="btn-load-more" data-load-more="${uid}">Load more (${remaining} left)</button></li>`;
+  }
+  function tradeListHtml(rowsList, uid) {
+    const sorted = rowsList.slice().sort((a, b) => (b.trade_date || "").localeCompare(a.trade_date || ""));
+    const shown = Math.min(TRADE_LIST_PAGE_SIZE, sorted.length);
+    tradeListState.set(uid, { rows: sorted, shown });
+    const items = sorted.slice(0, shown).map(tradeListItemHtml).join("");
+    const more = shown < sorted.length ? tradeListMoreHtml(uid, sorted.length - shown) : "";
+    return `<ul class="tag-trade-list" id="${uid}">${items}${more}</ul>`;
+  }
+
   function render(rows) {
     const tagged = rows.filter((r) => Array.isArray(r.lesson_tags) && r.lesson_tags.length);
     if (!tagged.length) {
@@ -184,18 +206,17 @@
     content.innerHTML = `
       <div class="panel-box">
         <div class="panel-box-head"><span class="title">By frequency</span></div>
-        ${entries.map(([tag, trades]) => `
+        ${entries.map(([tag, trades]) => {
+          const uid = "tag-list-" + escapeHtml(tag);
+          return `
           <div class="bar-row" data-tag-toggle="${escapeHtml(tag)}" style="cursor:pointer;">
             <div class="bar-label">${escapeHtml(tag.replace(/_/g, " "))}</div>
             <div class="bar-track"><div class="bar-fill" style="width:${Math.round((trades.length / maxCount) * 100)}%;"></div></div>
             <div class="bar-count">${trades.length}x</div>
           </div>
-          <ul class="tag-trade-list" id="tag-list-${escapeHtml(tag)}">
-            ${trades.slice().sort((a, b) => b.trade_date.localeCompare(a.trade_date)).map((r) => `
-              <li><a href="trade.html?id=${encodeURIComponent(r.id)}">${escapeHtml(r.symbol)} — ${escapeHtml(r.trade_date)} <span class="${r.win ? "up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></a></li>
-            `).join("")}
-          </ul>
-        `).join("")}
+          ${tradeListHtml(trades, uid)}
+        `;
+        }).join("")}
       </div>
     `;
 
@@ -204,6 +225,24 @@
         const tag = row.getAttribute("data-tag-toggle");
         const list = document.getElementById("tag-list-" + tag);
         if (list) list.classList.toggle("open");
+      });
+    });
+    content.querySelectorAll("[data-load-more]").forEach((btn) => {
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const uid = btn.getAttribute("data-load-more");
+        const state = tradeListState.get(uid);
+        if (!state) return;
+        const nextShown = Math.min(state.shown + TRADE_LIST_PAGE_SIZE, state.rows.length);
+        const newItemsHtml = state.rows.slice(state.shown, nextShown).map(tradeListItemHtml).join("");
+        state.shown = nextShown;
+        const moreLi = btn.closest("li");
+        moreLi.insertAdjacentHTML("beforebegin", newItemsHtml);
+        if (state.shown < state.rows.length) {
+          btn.textContent = `Load more (${state.rows.length - state.shown} left)`;
+        } else {
+          moreLi.remove();
+        }
       });
     });
   }

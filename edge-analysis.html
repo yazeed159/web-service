@@ -13,8 +13,33 @@
 <link rel="stylesheet" href="global-search.css">
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
-  /* Edge Analysis — page-local interactivity polish */
+  /* Edge Analysis — page-local styling */
   html { scroll-behavior: smooth; }
+
+  /* ---- intro card ---- */
+  .edge-intro {
+    display: flex; gap: 16px; align-items: flex-start;
+    padding: 18px 20px; margin-bottom: 16px;
+    background: var(--glass, rgba(22,24,33,0.58));
+    border: 1px solid var(--glass-border, var(--border-soft));
+    border-radius: var(--radius-lg, 14px);
+  }
+  .edge-intro-icon {
+    flex-shrink: 0; width: 38px; height: 38px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--grad-signature, linear-gradient(120deg, #8457ff, #22d3ee));
+    color: #fff;
+  }
+  .edge-intro-icon svg { width: 20px; height: 20px; }
+  .edge-intro h2 { margin: 0 0 6px; font-size: 15px; font-weight: 700; font-family: var(--display, var(--sans)); }
+  .edge-intro p { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--text-dim); max-width: 76ch; }
+
+  /* ---- summary strip icons ---- */
+  #edge-health .stat { cursor: default; }
+  #edge-health .label-row { justify-content: space-between; }
+  #edge-health .label-icon { width: 14px; height: 14px; color: var(--text-faint); flex-shrink: 0; }
+
+  /* ---- sticky jump nav ---- */
   .edge-jumpnav {
     position: sticky; top: var(--topbar-h); z-index: 9;
     display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
@@ -24,24 +49,96 @@
     border: 1px solid var(--glass-border, var(--border-soft));
     border-radius: var(--radius, 10px);
   }
-  .edge-jumpnav .pill { cursor: pointer; user-select: none; }
+  .edge-jumpnav .pill { cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 6px; }
+  .edge-jumpnav .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.5; }
   .edge-jumpnav .pill.active {
     background: var(--primary-soft, rgba(139,124,246,0.15));
     color: var(--primary, #8b7cf6);
     border-color: rgba(139,124,246,0.45);
     box-shadow: 0 0 0 1px rgba(139,124,246,0.25), 0 0 14px rgba(132,87,255,0.25);
   }
-  #edge-content .bar-fill { transition: width 0.9s cubic-bezier(0.16,1,0.3,1); }
+
+  /* ---- section head with icon ---- */
   .panel-box[id^="section-"] { scroll-margin-top: calc(var(--topbar-h) + 70px); }
-  #edge-health .stat { cursor: default; }
-  .decay-head { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; padding-right: 4px; }
+  .edge-section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .edge-section-icon {
+    flex-shrink: 0; width: 26px; height: 26px; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--primary-soft); color: var(--primary);
+  }
+  .edge-section-icon svg { width: 14px; height: 14px; }
+  .edge-section-head .title { font-size: 12.5px; text-transform: none; letter-spacing: 0; color: var(--text); font-weight: 700; }
+
+  /* ---- explainer: blurb + expandable deep dive ---- */
+  .edge-explain { margin: 8px 0 18px; }
+  .edge-explain-blurb { font-size: 12.5px; line-height: 1.6; color: var(--text-dim); margin: 0 0 8px; max-width: 82ch; }
+  .edge-explain-toggle {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: none; border: none; cursor: pointer; padding: 0;
+    font-family: var(--sans); font-size: 11.5px; font-weight: 600;
+    color: var(--primary); letter-spacing: 0.02em;
+  }
+  .edge-explain-toggle:hover { color: var(--text); }
+  .edge-explain-toggle .chevron { width: 12px; height: 12px; transition: transform 0.2s var(--ease, ease); }
+  .edge-explain-toggle[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+  .edge-explain-body {
+    margin-top: 10px; padding: 12px 14px;
+    background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+    font-size: 12px; line-height: 1.65; color: var(--text-dim);
+  }
+  .edge-explain-body p { margin: 0 0 8px; }
+  .edge-explain-body p:last-child { margin-bottom: 0; }
+  .edge-explain-body ul { margin: 0 0 8px; padding-left: 18px; }
+  .edge-explain-body li { margin-bottom: 4px; }
+  .edge-explain-body b { color: var(--text); }
+  .edge-explain-body code { font-family: var(--mono); font-size: 11px; background: var(--panel-3); padding: 1px 5px; border-radius: 4px; }
+
+  /* ---- generic edge row grid (replaces old per-row inline widths) ---- */
+  .edge-row {
+    display: grid; align-items: center; gap: 4px 12px;
+    padding: 7px 4px; border-radius: 7px; font-size: 12.5px;
+  }
+  .edge-row[data-clickable] { cursor: pointer; }
+  .edge-row[data-clickable]:hover { background: var(--panel-2); }
+  .edge-row .c-label { color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .edge-row .c-bar { min-width: 60px; }
+  .edge-row .c-num { text-align: right; font-family: var(--mono); font-size: 11.5px; white-space: nowrap; }
+  .edge-row .c-flag { text-align: center; }
+
+  .decay-row { grid-template-columns: 168px minmax(60px,1fr) 46px 128px 40px 116px; }
+  .tag-row   { grid-template-columns: minmax(120px,200px) minmax(60px,1fr) 44px 64px 76px 38px; }
+  .quint-row { grid-template-columns: 150px minmax(60px,1fr) 44px 104px 38px; }
+  .size-row  { grid-template-columns: 140px minmax(60px,1fr) 44px 108px 76px 38px; }
+
+  .decay-head {
+    display: grid; grid-template-columns: 168px minmax(60px,1fr) 46px 128px 40px 116px; gap: 4px 12px;
+    font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em;
+    margin-bottom: 6px; padding: 0 4px;
+  }
   .decay-head span.sortable { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 3px; }
   .decay-head span.sortable:hover { color: var(--text); }
+  .decay-head .c-num, .decay-head .c-half { justify-content: flex-end; text-align: right; }
   .decay-head .sort-arrow { opacity: 0; font-size: 9px; }
   .decay-head span.sort-active .sort-arrow { opacity: 1; }
+
+  @media (max-width: 700px) {
+    .decay-row, .decay-head { grid-template-columns: 1fr 44px; }
+    .decay-row .c-half, .decay-head .c-half { display: none; }
+    .decay-row .c-bar { grid-column: 1 / -1; order: 3; }
+    .decay-row .c-flag { grid-column: 1 / -1; order: 4; text-align: left; margin-top: 2px; }
+    .tag-row, .quint-row, .size-row { grid-template-columns: 1fr 44px; }
+    .tag-row .c-bar, .quint-row .c-bar, .size-row .c-bar { grid-column: 1 / -1; order: 3; }
+    .tag-row .c-num.c-delta, .tag-row .c-num.c-pnl,
+    .quint-row .c-num.c-range, .size-row .c-num.c-range, .size-row .c-num.c-pnl { display: none; }
+    .edge-intro { flex-direction: column; }
+  }
+
+  #edge-content .bar-fill { transition: width 0.9s cubic-bezier(0.16,1,0.3,1); }
+
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     #edge-content .bar-fill { transition: none; }
+    .edge-explain-toggle .chevron { transition: none; }
   }
 </style>
 </head>
@@ -169,10 +266,6 @@
     </header>
 
     <div class="content">
-      <div class="panel-head">
-        <div class="sub">Deeper, skeptical cuts of <span class="mono">data/trades.json</span> (and, where noted, each trade's bar data) — built to poke holes in an edge before you trust it, not to flatter it.</div>
-      </div>
-
       <div id="edge-content">
         <div class="loading-line">Loading…</div>
       </div>
@@ -192,6 +285,7 @@
   let allSorted = [];
   let regretResults = [];
   let rowSeq = 0;
+  let explainSeq = 0;
   const summaryState = { totalTrades: 0, baseline: 0, flaggedSetups: 0, totalSetups: 0, sizingTellActive: null, regretCapture: null };
   let decayGroups = {};
   let decayRows = [];
@@ -240,17 +334,49 @@
     for (const r of rows) { const k = keyFn(r); (g[k] = g[k] || []).push(r); }
     return g;
   }
+  // Rendered TRADE_LIST_PAGE_SIZE at a time with a "Load more" button --
+  // see the identical comment in app.js -- rather than dumping every
+  // trade behind a breakdown row into the DOM at once.
+  const TRADE_LIST_PAGE_SIZE = 25;
+  const tradeListState = new Map(); // uid -> { rows, shown }
+
+  function tradeListItemHtml(r) {
+    return `<li><a href="trade.html?id=${encodeURIComponent(r.id)}">${escapeHtml(r.symbol)} — ${escapeHtml(r.trade_date)} <span class="${r.win ? "up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></a></li>`;
+  }
+  function tradeListMoreHtml(uid, remaining) {
+    return `<li class="tag-trade-list-more"><button type="button" class="btn-load-more" data-load-more="${uid}">Load more (${remaining} left)</button></li>`;
+  }
   function tradeListHtml(rowsList, uid) {
     const sorted = rowsList.slice().sort((a, b) => (b.trade_date || "").localeCompare(a.trade_date || ""));
-    return `<ul class="tag-trade-list" id="${uid}">
-      ${sorted.map((r) => `<li><a href="trade.html?id=${encodeURIComponent(r.id)}">${escapeHtml(r.symbol)} — ${escapeHtml(r.trade_date)} <span class="${r.win ? "up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></a></li>`).join("")}
-    </ul>`;
+    const shown = Math.min(TRADE_LIST_PAGE_SIZE, sorted.length);
+    tradeListState.set(uid, { rows: sorted, shown });
+    const items = sorted.slice(0, shown).map(tradeListItemHtml).join("");
+    const more = shown < sorted.length ? tradeListMoreHtml(uid, sorted.length - shown) : "";
+    return `<ul class="tag-trade-list" id="${uid}">${items}${more}</ul>`;
   }
   function bindTradeToggles(container) {
     container.querySelectorAll("[data-trade-toggle]").forEach((row) => {
       row.addEventListener("click", () => {
         const list = document.getElementById(row.getAttribute("data-trade-toggle"));
         if (list) list.classList.toggle("open");
+      });
+    });
+    container.querySelectorAll("[data-load-more]").forEach((btn) => {
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const uid = btn.getAttribute("data-load-more");
+        const state = tradeListState.get(uid);
+        if (!state) return;
+        const nextShown = Math.min(state.shown + TRADE_LIST_PAGE_SIZE, state.rows.length);
+        const newItemsHtml = state.rows.slice(state.shown, nextShown).map(tradeListItemHtml).join("");
+        state.shown = nextShown;
+        const moreLi = btn.closest("li");
+        moreLi.insertAdjacentHTML("beforebegin", newItemsHtml);
+        if (state.shown < state.rows.length) {
+          btn.textContent = `Load more (${state.rows.length - state.shown} left)`;
+        } else {
+          moreLi.remove();
+        }
       });
     });
   }
@@ -266,8 +392,6 @@
     window.addEventListener("resize", () => chart.applyOptions({ width: el.clientWidth }));
     return chart;
   }
-  const HINT = 'color:var(--text-faint); font-size:12.5px; margin:-6px 0 16px; line-height:1.5;';
-  const GROUP_LABEL = 'font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em; margin:0 0 6px;';
 
   // Bars render at width:0 with their real target stashed in data-w, so
   // they can grow in instead of just appearing already-filled -- called
@@ -283,7 +407,39 @@
     });
   }
 
+  // ---------- explainer: short blurb + expandable deep-dive, one per section ----------
+  function explainBlock(blurb, deepDiveHtml) {
+    const uid = `edge-explain-${explainSeq++}`;
+    return `
+      <div class="edge-explain">
+        <p class="edge-explain-blurb">${blurb}</p>
+        <button type="button" class="edge-explain-toggle" data-explain-toggle="${uid}" aria-expanded="false">
+          <span>How this works</span>
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="edge-explain-body" id="${uid}" hidden>${deepDiveHtml}</div>
+      </div>`;
+  }
+  function bindExplainToggles(root) {
+    (root || document).querySelectorAll("[data-explain-toggle]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const body = document.getElementById(btn.getAttribute("data-explain-toggle"));
+        const wasOpen = btn.getAttribute("aria-expanded") === "true";
+        btn.setAttribute("aria-expanded", String(!wasOpen));
+        if (body) body.hidden = wasOpen;
+      });
+    });
+  }
+  function sectionIcon(pathsSvg) {
+    return `<span class="edge-section-icon">${pathsSvg}</span>`;
+  }
+  const ICON_DECAY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"></path><path d="M15 7h6v6"></path></svg>`;
+  const ICON_VOLUME = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="4" y2="10"></line><line x1="10" y1="20" x2="10" y2="4"></line><line x1="16" y1="20" x2="16" y2="14"></line><line x1="22" y1="20" x2="22" y2="8"></line></svg>`;
+  const ICON_REGRET = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline></svg>`;
+  const ICON_SIZING = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="9"></rect><rect x="10" y="7" width="4" height="14"></rect><rect x="17" y="3" width="4" height="18"></rect></svg>`;
+
   // ---------- edge-health summary strip ----------
+  function statIcon(pathsSvg) { return `<svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${pathsSvg}</svg>`; }
   function renderEdgeHealthSummary() {
     const el = document.getElementById("edge-health");
     if (!el) return;
@@ -293,23 +449,23 @@
     const regretLabel = summaryState.regretCapture === null ? "Not run yet" : `${Math.round(summaryState.regretCapture * 100)}%`;
     const regretCls = summaryState.regretCapture === null ? "" : (summaryState.regretCapture >= 0.6 ? "up" : "down");
     el.innerHTML = `
-      <div class="stat">
-        <div class="label-row"><span class="label">Trades Analyzed</span></div>
+      <div class="stat" title="Every published trade in data/trades.json">
+        <div class="label-row"><span class="label">Trades Analyzed</span>${statIcon('<rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect>')}</div>
         <div class="value">${summaryState.totalTrades}</div>
-        <div class="sub-value">${summaryState.baseline}% baseline win rate</div>
+        <div class="sub-value">${summaryState.baseline}% overall win rate</div>
       </div>
-      <div class="stat">
-        <div class="label-row"><span class="label">Setups Flagged</span></div>
+      <div class="stat" title="Setups whose win rate is fading or looks driven by a recent hot streak — see Edge Decay below">
+        <div class="label-row"><span class="label">Setups Flagged</span>${statIcon('<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>')}</div>
         <div class="value ${summaryState.flaggedSetups > 0 ? "down" : "up"}">${summaryState.flaggedSetups} / ${summaryState.totalSetups}</div>
         <div class="sub-value">${flagPct === null ? "—" : flagPct + "%"} fading or recency-driven</div>
       </div>
-      <div class="stat">
-        <div class="label-row"><span class="label">Sizing Tell</span></div>
+      <div class="stat" title="Whether you tend to size up right before a losing stretch — see Position Sizing below">
+        <div class="label-row"><span class="label">Sizing Tell</span>${statIcon('<rect x="3" y="12" width="4" height="9"></rect><rect x="10" y="7" width="4" height="14"></rect><rect x="17" y="3" width="4" height="18"></rect>')}</div>
         <div class="value ${sizingCls}">${sizingLabel}</div>
         <div class="sub-value">sizing up before a bad stretch</div>
       </div>
-      <div class="stat">
-        <div class="label-row"><span class="label">Best-Bar Capture</span></div>
+      <div class="stat" title="How much of each trade's best available price you actually captured — run the Regret Curve below to fill this in">
+        <div class="label-row"><span class="label">Best-Bar Capture</span>${statIcon('<circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline>')}</div>
         <div class="value ${regretCls}">${regretLabel}</div>
         <div class="sub-value">avg. of best bar-close, when run</div>
       </div>
@@ -350,48 +506,80 @@
     const baseline = pctWin(allSorted);
 
     content.innerHTML = `
+      <div class="edge-intro">
+        <div class="edge-intro-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7-4 11L21 3 10 14l11 7-7-4"></path></svg></div>
+        <div>
+          <h2>Is your edge real, or did you get lucky?</h2>
+          <p>Four skeptical checks against <span class="mono">data/trades.json</span> — built to try to break your stats, not flatter them: whether each setup's win rate is holding up or fading, whether a volume/float tag beats baseline by more than noise, how much money your exit timing is leaving on the table, and whether you size up right before your worst stretches. Each section below has a plain summary and a "How this works" toggle for the exact math.</p>
+        </div>
+      </div>
+
       <div class="stat-grid" id="edge-health" style="margin-bottom:18px;"></div>
 
       <div class="edge-jumpnav" id="edge-jumpnav">
-        <span class="pill active" data-section="section-decay">Edge Decay</span>
-        <span class="pill" data-section="section-volume">Volume &amp; Float</span>
-        <span class="pill" data-section="section-regret">Regret Curve</span>
-        <span class="pill" data-section="section-sizing">Position Sizing</span>
+        <span class="pill active" data-section="section-decay"><span class="dot"></span>Edge Decay</span>
+        <span class="pill" data-section="section-volume"><span class="dot"></span>Volume &amp; Float</span>
+        <span class="pill" data-section="section-regret"><span class="dot"></span>Regret Curve</span>
+        <span class="pill" data-section="section-sizing"><span class="dot"></span>Position Sizing</span>
       </div>
 
       <div class="panel-box" id="section-decay" style="margin-bottom:16px;">
-        <div class="panel-box-head"><span class="title">Setup Edge Decay</span></div>
-        <p style="${HINT}">Every setup's trades split into an earlier and later half, plus a check on whether the last 3 trades are doing more work than the rest of the sample. Click a row to see the trades behind it.</p>
-        <div class="decay-head" style="display:flex; align-items:center; gap:10px;">
-          <span class="sortable" data-sort="setup" style="width:170px;">Setup <span class="sort-arrow">▲</span></span>
-          <span style="flex:1;"></span>
-          <span class="sortable" data-sort="overall" style="width:44px; text-align:right; justify-content:flex-end;">Win % <span class="sort-arrow">▲</span></span>
-          <span style="width:140px; flex-shrink:0;"></span>
-          <span class="sortable" data-sort="n" style="width:44px; text-align:right; justify-content:flex-end;">N <span class="sort-arrow">▲</span></span>
-          <span style="width:120px; flex-shrink:0;"></span>
+        <div class="edge-section-head">${sectionIcon(ICON_DECAY)}<span class="title">Setup Edge Decay</span></div>
+        ${explainBlock(
+          `Checks whether each setup's win rate is holding up as more trades come in — or whether it's fading, improving, or mostly a recent hot streak. Click a row to see the trades behind it.`,
+          `<p>Every setup's trades are split, in date order, into an earlier half and a later half, and win rate is compared between them. Separately, the <b>last 3 trades</b> for that setup are compared against everything before them.</p>
+           <p>A setup gets flagged as:</p>
+           <ul>
+             <li><b>too early — n&lt;10</b> — not enough trades yet to say anything reliable</li>
+             <li><b>fading</b> — win rate dropped 20+ points from the first half to the second half</li>
+             <li><b>improving</b> — win rate rose 20+ points from the first half to the second half</li>
+             <li><b>recency-driven</b> — the last 3 trades are running 30+ points hotter than everything before them, so the win rate you're seeing may mostly be a hot streak, not the setup itself</li>
+             <li><b>stable</b> — none of the above triggered</li>
+           </ul>
+           <p>The chart plots a rolling win rate as the selected setup's trades accumulate in order — a real edge should settle down as the sample grows, not keep swinging with every new trade.</p>`
+        )}
+        <div class="decay-head">
+          <span class="sortable" data-sort="setup">Setup <span class="sort-arrow">▲</span></span>
+          <span></span>
+          <span class="sortable c-num" data-sort="overall">Win % <span class="sort-arrow">▲</span></span>
+          <span class="c-half">1st → 2nd half</span>
+          <span class="sortable c-num" data-sort="n">N <span class="sort-arrow">▲</span></span>
+          <span></span>
         </div>
         <div id="decay-body"></div>
         <div class="filters" style="margin:18px 0 10px;"><select id="decay-setup-select"></select></div>
         <div id="decay-chart" style="height:220px;"></div>
-        <p style="${HINT} margin-top:8px;">Rolling win rate as each setup's trades accumulate in order — a real edge should settle down as the sample grows, not keep swinging with every new trade.</p>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:8px;">Rolling win rate as each setup's trades accumulate in order.</p>
       </div>
 
       <div class="panel-box" id="section-volume" style="margin-bottom:16px;">
-        <div class="panel-box-head"><span class="title">Volume &amp; Float Edge Check</span></div>
-        <p style="${HINT}">Baseline win rate across every published trade is <b>${baseline}%</b>. A tag only means something if it clears that baseline by a real margin on a real sample — small-n rows are flagged.</p>
-        <div style="margin-bottom:16px;"><div style="${GROUP_LABEL}">Relative Volume Tag</div><div id="rvol-breakdown"></div></div>
-        <div style="margin-bottom:16px;"><div style="${GROUP_LABEL}">Float Tag</div><div id="float-breakdown"></div></div>
-        <div style="margin-bottom:16px;"><div style="${GROUP_LABEL}">Float × Relative Volume</div><div id="combo-breakdown"></div></div>
+        <div class="edge-section-head">${sectionIcon(ICON_VOLUME)}<span class="title">Volume &amp; Float Edge Check</span></div>
+        ${explainBlock(
+          `Tests whether relative volume and float tags actually predict wins, beyond your overall baseline win rate of <b>${baseline}%</b> — or whether they're just noise riding along with a setup that already works.`,
+          `<p>Every tag (relative volume, float, and the combination of the two) is compared against your overall baseline win rate. A tag only means something if its win rate clears that baseline by a real margin — rows with under 5 trades are marked <code>n=X</code> so a coin-flip-sized sample doesn't get mistaken for a pattern.</p>
+           <p>The <b>quintile</b> chart buckets every trade with a relative-volume reading into 5 equal-sized groups, lowest to highest, and shows each bucket's win rate. If Q5 (highest) doesn't clearly beat Q1 (lowest), relative volume by itself probably isn't doing the work.</p>`
+        )}
+        <div style="margin-bottom:16px;"><div class="group-label" style="font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em; margin:0 0 6px;">Relative Volume Tag</div><div id="rvol-breakdown"></div></div>
+        <div style="margin-bottom:16px;"><div class="group-label" style="font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em; margin:0 0 6px;">Float Tag</div><div id="float-breakdown"></div></div>
+        <div style="margin-bottom:16px;"><div class="group-label" style="font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em; margin:0 0 6px;">Float × Relative Volume</div><div id="combo-breakdown"></div></div>
         <div>
-          <div style="${GROUP_LABEL}">Relative Volume Quintiles (continuous)</div>
+          <div class="group-label" style="font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em; margin:0 0 6px;">Relative Volume Quintiles (continuous)</div>
           <div id="rvol-quintiles"></div>
-          <p style="${HINT} margin-top:8px;">If Q5 doesn't clearly beat Q1 here, high relative volume by itself probably isn't the edge — it's noise riding along with a setup that already works on its own.</p>
         </div>
       </div>
 
       <div class="panel-box" id="section-regret" style="margin-bottom:16px;">
-        <div class="panel-box-head"><span class="title">Regret Curve — Exit Timing</span></div>
-        <p style="${HINT}">Replays every bar from entry onward for each trade and compares your actual exit to the best exit the bar data shows was available — the shape of your exit mistakes, not just a dollar total. Pulls each trade's detail file on demand (capped at the most recent ${REGRET_MAX} trades, since this needs bar data the index doesn't carry) and is capped to bar-close prices, so it's an approximation of what was actually achievable intrabar.</p>
+        <div class="edge-section-head">${sectionIcon(ICON_REGRET)}<span class="title">Regret Curve — Exit Timing</span></div>
+        ${explainBlock(
+          `Replays the bar-by-bar price action after your entry and compares your actual exit to the best price that was available — the shape of your exit mistakes, not just a dollar total. Pulls each trade's detail file on demand (capped at the most recent ${REGRET_MAX} trades), so run it manually below.`,
+          `<p>For each trade, this replays every price bar from your entry onward and finds the best bar-close price that was ever available, then compares it to where you actually exited. It's an approximation of what was achievable — it can only judge bar-close prices, not the full intrabar range.</p>
+           <ul>
+             <li><b>Capture %</b> — actual P&amp;L ÷ best available P&amp;L, capped between −100% and 200% so one outlier trade doesn't skew the average</li>
+             <li><b>Gave Back Profit</b> — you exited after the best bar close had already passed, so some of that profit slipped away</li>
+             <li><b>Left Early</b> — you exited before the best bar close arrived; you might have been able to hold longer</li>
+             <li><b>Bar-Perfect Gap</b> — total dollars between your actual result and exiting every trade at its best bar close</li>
+           </ul>`
+        )}
         <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;">
           <button class="btn-confirm" id="regret-run-btn">Run bar-level exit analysis</button>
           <span id="regret-status" style="color:var(--text-faint); font-size:12px;"></span>
@@ -399,19 +587,23 @@
         <div id="regret-progress" style="display:none; margin-bottom:14px;"><div class="progress-track"><div class="progress-fill" id="regret-progress-fill" style="width:0%;"></div></div></div>
         <div id="regret-summary"></div>
         <div id="regret-histogram"></div>
-        <div class="panel-box-head" style="margin-top:22px;"><span class="title">Regret Curve for One Trade</span></div>
-        <div class="filters" style="margin-bottom:10px;"><select id="regret-trade-select"><option value="">Run the analysis above first…</option></select></div>
+        <div class="edge-section-head" style="margin-top:22px;"><span class="title">Regret Curve for One Trade</span></div>
+        <div class="filters" style="margin:8px 0 10px;"><select id="regret-trade-select"><option value="">Run the analysis above first…</option></select></div>
         <div id="regret-trade-chart" style="height:240px;"></div>
         <div id="regret-trade-note" style="color:var(--text-faint); font-size:12px; margin-top:8px;"></div>
       </div>
 
       <div class="panel-box" id="section-sizing" style="margin-bottom:16px;">
-        <div class="panel-box-head"><span class="title">Position Sizing</span></div>
-        <p style="${HINT}">Win rate by share-size bucket, plus a check for the classic tell: sizing up right before a bad stretch.</p>
+        <div class="edge-section-head">${sectionIcon(ICON_SIZING)}<span class="title">Position Sizing</span></div>
+        ${explainBlock(
+          `Buckets trades by position size to see if win rate holds at bigger size, and flags the classic tell of sizing up right before a losing stretch.`,
+          `<p>Trades are sorted by share count and split into four equal-sized buckets, smallest to largest, so you can see whether your win rate holds up — or falls off — as you size up.</p>
+           <p>Separately, a trade counts as a <b>size-up</b> if its share count is 1.5× or more above the trailing 5-trade average size at that point in your history. The two stats below compare the win rate on those size-up trades, and on the 3 trades immediately following one, against your overall baseline.</p>
+           <p>The chart plots one bar per trade in chronological order — height is share size, color is win (green) or loss (red). A run of tall bars turning red is the pattern worth watching for.</p>`
+        )}
         <div id="sizing-body" style="margin-bottom:18px;"></div>
         <div id="sizing-tell" style="margin-bottom:18px;"></div>
         <div id="sizing-chart" style="height:220px;"></div>
-        <p style="${HINT} margin-top:8px;">One bar per trade, in chronological order — height is share size, color is win/loss. A run of tall bars turning red is the pattern worth watching for.</p>
       </div>
     `;
 
@@ -423,6 +615,7 @@
     safeRender(() => renderSizing(allSorted), "renderSizing");
     safeRender(renderEdgeHealthSummary, "renderEdgeHealthSummary");
     safeRender(initJumpnav, "initJumpnav");
+    safeRender(() => bindExplainToggles(content), "bindExplainToggles");
     clearStrandedLoadingStates();
     const regretBtn = document.getElementById("regret-run-btn");
     if (regretBtn) regretBtn.addEventListener("click", runRegretAnalysis);
@@ -484,13 +677,13 @@
     el.innerHTML = rows.map((r) => {
       const uid = `edge-trades-${rowSeq++}`;
       return `
-        <div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer; flex-wrap:wrap;">
-          <div class="bar-label" style="width:170px;">${escapeHtml(r.setup.replace(/_/g, " "))}</div>
-          <div class="bar-track"><div class="bar-fill" data-w="${r.overall}" style="width:0%; background:${r.overall >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
-          <div style="width:44px; text-align:right; flex-shrink:0;">${r.overall}%</div>
-          <div style="width:140px; text-align:right; flex-shrink:0; color:var(--text-faint); font-family:var(--mono); font-size:11px;">${r.firstRate === null ? "—" : r.firstRate + "%"} → ${r.secondRate === null ? "—" : r.secondRate + "%"}</div>
-          <div style="width:44px; text-align:right; flex-shrink:0; color:var(--text-faint);">${r.n}x</div>
-          <span class="pill ${r.flagCls}" style="width:120px; text-align:center; flex-shrink:0;">${r.flag}</span>
+        <div class="edge-row decay-row" data-trade-toggle="${uid}" data-clickable>
+          <div class="c-label">${escapeHtml(r.setup.replace(/_/g, " "))}</div>
+          <div class="c-bar bar-track"><div class="bar-fill" data-w="${r.overall}" style="width:0%; background:${r.overall >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
+          <div class="c-num">${r.overall}%</div>
+          <div class="c-num c-half" style="color:var(--text-faint);">${r.firstRate === null ? "—" : r.firstRate + "%"} → ${r.secondRate === null ? "—" : r.secondRate + "%"}</div>
+          <div class="c-num" style="color:var(--text-faint);">${r.n}x</div>
+          <div class="c-flag"><span class="pill ${r.flagCls}">${r.flag}</span></div>
         </div>
         ${tradeListHtml(r.trades, uid)}
       `;
@@ -539,13 +732,13 @@
       const pnl = trades.reduce((s, r) => s + (r.pnl_after_comm || 0), 0);
       const delta = Math.round((rate - baseline) * 10) / 10;
       const uid = `edge-trades-${rowSeq++}`;
-      return `<div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
-        <div class="bar-label" style="width:210px; text-transform:none;">${escapeHtml(tag.replace(/_/g, " "))}${n < 5 ? ` <span class="pill" title="Fewer than 5 trades — treat as a rough signal, not a verdict.">n=${n}</span>` : ""}</div>
-        <div class="bar-track"><div class="bar-fill" data-w="${rate}" style="width:0%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
-        <div style="width:44px; text-align:right; flex-shrink:0;">${rate}%</div>
-        <div style="width:76px; text-align:right; flex-shrink:0; color:${delta >= 0 ? "var(--green)" : "var(--red)"}; font-family:var(--mono); font-size:11px;">${delta >= 0 ? "+" : ""}${delta}pt</div>
-        <div style="width:80px; text-align:right; flex-shrink:0; color:${pnl >= 0 ? "var(--green)" : "var(--red)"};">${fmtMoney(pnl)}</div>
-        <div style="width:40px; text-align:right; flex-shrink:0; color:var(--text-faint);">${n}x</div>
+      return `<div class="edge-row tag-row" data-trade-toggle="${uid}" data-clickable>
+        <div class="c-label" style="text-transform:none;">${escapeHtml(tag.replace(/_/g, " "))}${n < 5 ? ` <span class="pill" title="Fewer than 5 trades — treat as a rough signal, not a verdict.">n=${n}</span>` : ""}</div>
+        <div class="c-bar bar-track"><div class="bar-fill" data-w="${rate}" style="width:0%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
+        <div class="c-num">${rate}%</div>
+        <div class="c-num c-delta" style="color:${delta >= 0 ? "var(--green)" : "var(--red)"};">${delta >= 0 ? "+" : ""}${delta}pt</div>
+        <div class="c-num c-pnl" style="color:${pnl >= 0 ? "var(--green)" : "var(--red)"};">${fmtMoney(pnl)}</div>
+        <div class="c-num" style="color:var(--text-faint);">${n}x</div>
       </div>
       ${tradeListHtml(trades, uid)}`;
     }).join("");
@@ -565,12 +758,12 @@
       if (!bucket.length) continue;
       const rate = pctWin(bucket);
       const lo = bucket[0].relative_volume.toFixed(2), hi = bucket[bucket.length - 1].relative_volume.toFixed(2);
-      html += `<div class="bar-row">
-        <div class="bar-label" style="width:170px;">${labels[i]}</div>
-        <div class="bar-track"><div class="bar-fill" data-w="${rate}" style="width:0%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
-        <div style="width:44px; text-align:right; flex-shrink:0;">${rate}%</div>
-        <div style="width:110px; text-align:right; flex-shrink:0; color:var(--text-faint); font-family:var(--mono); font-size:11px;">${lo}x–${hi}x</div>
-        <div style="width:40px; text-align:right; flex-shrink:0; color:var(--text-faint);">${bucket.length}x</div>
+      html += `<div class="edge-row quint-row">
+        <div class="c-label">${labels[i]}</div>
+        <div class="c-bar bar-track"><div class="bar-fill" data-w="${rate}" style="width:0%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
+        <div class="c-num">${rate}%</div>
+        <div class="c-num c-range" style="color:var(--text-faint);">${lo}x–${hi}x</div>
+        <div class="c-num" style="color:var(--text-faint);">${bucket.length}x</div>
       </div>`;
     }
     el.innerHTML = html;
@@ -698,15 +891,15 @@
       { label: "> 110% (fill beat every bar close)", test: (c) => c >= 1.1 },
     ];
     const total = withCapture.length;
-    histEl.innerHTML = total ? `<div class="panel-box-head" style="margin-top:6px;"><span class="title">Exit Efficiency Distribution</span></div>` +
+    histEl.innerHTML = total ? `<div class="edge-section-head" style="margin-top:6px;"><span class="title">Exit Efficiency Distribution</span></div>` +
       buckets.map((b) => {
         const rows = withCapture.filter((r) => b.test(r.computed.capture));
         const pct = total ? Math.round((rows.length / total) * 1000) / 10 : 0;
-        return `<div class="bar-row">
-          <div class="bar-label" style="width:240px; text-transform:none;">${b.label}</div>
-          <div class="bar-track"><div class="bar-fill" data-w="${pct}" style="width:0%; background:var(--blue);"></div></div>
-          <div style="width:50px; text-align:right; flex-shrink:0;">${pct}%</div>
-          <div style="width:40px; text-align:right; flex-shrink:0; color:var(--text-faint);">${rows.length}x</div>
+        return `<div class="edge-row" style="grid-template-columns: 240px minmax(60px,1fr) 50px 40px;">
+          <div class="c-label" style="text-transform:none;">${b.label}</div>
+          <div class="c-bar bar-track"><div class="bar-fill" data-w="${pct}" style="width:0%; background:var(--blue);"></div></div>
+          <div class="c-num">${pct}%</div>
+          <div class="c-num" style="color:var(--text-faint);">${rows.length}x</div>
         </div>`;
       }).join("") : "";
     animateBarFills(histEl);
@@ -780,13 +973,13 @@
       const rate = pctWin(bucket);
       const pnl = bucket.reduce((s, r) => s + (r.pnl_after_comm || 0), 0);
       const lo = Math.min(...bucket.map((r) => r.shares)), hi = Math.max(...bucket.map((r) => r.shares));
-      html += `<div class="bar-row">
-        <div class="bar-label" style="width:150px;">${labels[i]}</div>
-        <div class="bar-track"><div class="bar-fill" data-w="${rate}" style="width:0%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
-        <div style="width:44px; text-align:right; flex-shrink:0;">${rate}%</div>
-        <div style="width:120px; text-align:right; flex-shrink:0; color:var(--text-faint); font-family:var(--mono); font-size:11px;">${lo}–${hi} sh</div>
-        <div style="width:80px; text-align:right; flex-shrink:0; color:${pnl >= 0 ? "var(--green)" : "var(--red)"};">${fmtMoney(pnl)}</div>
-        <div style="width:40px; text-align:right; flex-shrink:0; color:var(--text-faint);">${bucket.length}x</div>
+      html += `<div class="edge-row size-row">
+        <div class="c-label">${labels[i]}</div>
+        <div class="c-bar bar-track"><div class="bar-fill" data-w="${rate}" style="width:0%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
+        <div class="c-num">${rate}%</div>
+        <div class="c-num c-range" style="color:var(--text-faint);">${lo}–${hi} sh</div>
+        <div class="c-num c-pnl" style="color:${pnl >= 0 ? "var(--green)" : "var(--red)"};">${fmtMoney(pnl)}</div>
+        <div class="c-num" style="color:var(--text-faint);">${bucket.length}x</div>
       </div>`;
     }
     bodyEl.innerHTML = html;

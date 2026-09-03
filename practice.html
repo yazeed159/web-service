@@ -149,6 +149,11 @@
           <button class="btn-confirm" id="pr-resume-btn">Resume session</button>
         </div>
 
+        <div id="pr-plan-box" class="pr-resume-box" style="display:none;">
+          <div class="rb-text" id="pr-plan-text"></div>
+          <button type="button" class="link" id="pr-plan-dismiss-btn">Dismiss</button>
+        </div>
+
         <div class="pr-hero">
           <div class="pr-hero-text">
             <div class="pr-hero-eyebrow">Practice</div>
@@ -158,6 +163,12 @@
           <div class="pr-hero-action">
             <button class="btn-hero" id="pf-random-btn">▶ Start practicing</button>
             <div class="pr-candidate-count" id="pf-candidate-count"></div>
+            <div class="quiz-check-row" id="pf-include-practiced-row">
+              <input type="checkbox" id="pf-include-practiced">
+              <label for="pf-include-practiced" style="text-transform:none; font-size:12px; color:var(--text-dim); font-weight:400;">
+                Include charts you've already practiced
+              </label>
+            </div>
           </div>
         </div>
 
@@ -189,6 +200,14 @@
         <div class="panel-box" style="margin-bottom:18px;">
           <div class="panel-box-head"><span class="title">Recent fills</span></div>
           <div id="pr-fills-box"></div>
+        </div>
+
+        <div class="panel-box" id="pr-progress-box" style="margin-bottom:18px;">
+          <div class="panel-box-head">
+            <span class="title">Practice progress</span>
+            <button type="button" class="link" id="pr-reset-all-btn" style="display:none;">Reset all</button>
+          </div>
+          <div id="pr-progress-list"></div>
         </div>
 
       </div>
@@ -270,6 +289,7 @@
               </div>
               <div id="pp-size-preset-row"></div>
               <div class="pp-size-preview" id="pp-size-preview"></div>
+              <div class="pp-plan-note" id="pp-plan-note" style="display:none;"></div>
               <div class="pp-order-btn-row">
                 <button class="pp-order-btn buy" id="pp-buy-btn">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>

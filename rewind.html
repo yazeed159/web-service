@@ -230,6 +230,15 @@
                 </div>
               </div>
 
+              <div class="quiz-filter-row" id="qf-include-reviewed-row">
+                <div class="quiz-check-row">
+                  <input type="checkbox" id="qf-include-reviewed">
+                  <label for="qf-include-reviewed" style="text-transform:none; font-size:13px; color:var(--text-dim); font-weight:400;">
+                    Include trades you've already rewinded
+                  </label>
+                </div>
+              </div>
+
               <div class="quiz-filter-row" style="margin-bottom:0;">
                 <label>Tick playback</label>
                 <div class="quiz-mode-row" id="qf-tickmode-row">
@@ -254,6 +263,14 @@
 
             <div id="quiz-focus-box" style="margin-top:18px;"></div>
           </div>
+        </div>
+
+        <div class="panel-box" id="rw-progress-box" style="margin-top:18px;">
+          <div class="panel-box-head">
+            <span class="title">Rewind progress</span>
+            <button type="button" class="link" id="rw-reset-all-btn" style="display:none;">Reset all</button>
+          </div>
+          <div id="rw-progress-list"></div>
         </div>
       </div>
 
