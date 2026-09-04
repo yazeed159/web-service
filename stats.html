@@ -99,7 +99,7 @@
 
       <div class="nav-section-label">More</div>
 
-      <a class="nav-item" id="import-trades-link" href="#" target="_blank" rel="noopener" title="Upload a CSV of past trades to import">
+      <a class="nav-item" id="import-trades-link" href="#" title="Upload a CSV of past trades to import">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
         <span class="nav-label">Import Trades</span>
       </a>
@@ -345,6 +345,42 @@
       </div>
 
       <div class="panel-box" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">$/Share Edge by Position Size</span></div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Trades sorted by share count and split into quartiles — reveals whether your per-share edge holds up, improves, or gets diluted as you size up. For the win-rate cut of the same split, see <a href="edge-analysis.html" style="color:var(--primary); text-decoration:none;">Edge Analysis</a>.</p>
+        <div id="pershare-by-size"></div>
+        <p id="pershare-size-insight" style="color:var(--text-faint); font-size:12px; margin:12px 0 0;"></p>
+      </div>
+
+      <div class="panel-box" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Best &amp; Worst by $/Share</span></div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Your most and least efficient trades per share traded — a $2,000 winner on 10,000 shares and a $200 winner on 200 shares show up here on equal footing, unlike a plain P&amp;L leaderboard.</p>
+        <div id="pershare-leaders"></div>
+      </div>
+
+      <div class="panel-box" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Win Rate by Setup</span></div>
+        <div id="setup-breakdown"></div>
+      </div>
+
+      <div class="panel-box" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Money Left on the Table</span></div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Sum of (suggested better price − actual fill) × shares, across every trade with a flagged better entry/exit.</p>
+        <div id="slippage-breakdown"></div>
+      </div>
+
+      <div class="panel-box" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Slippage by Setup</span></div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Which setups are costing the most in chased entries and early/late exits.</p>
+        <div id="slippage-by-setup"></div>
+      </div>
+
+      <div class="panel-box" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Grade vs. P&amp;L</span></div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Self-graded execution quality (1-5 stars, set on each trade's page) compared against net P&amp;L per trade — separate axis from win/loss: a clean 1-star loss and a chased 5-star win both happen.</p>
+        <div id="grade-breakdown"></div>
+      </div>
+
+      <div class="panel-box" style="margin-bottom:16px;">
         <div class="panel-box-head">
           <span class="title">Performance Trends</span>
           <div class="eq-range-toggle" id="trend-window-toggle">
@@ -383,58 +419,22 @@
       </div>
 
       <div class="panel-box" style="margin-bottom:16px;">
-        <div class="panel-box-head"><span class="title">$/Share Edge by Position Size</span></div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Trades sorted by share count and split into quartiles — reveals whether your per-share edge holds up, improves, or gets diluted as you size up. For the win-rate cut of the same split, see <a href="edge-analysis.html" style="color:var(--primary); text-decoration:none;">Edge Analysis</a>.</p>
-        <div id="pershare-by-size"></div>
-        <p id="pershare-size-insight" style="color:var(--text-faint); font-size:12px; margin:12px 0 0;"></p>
-      </div>
-
-      <div class="panel-box" style="margin-bottom:16px;">
-        <div class="panel-box-head"><span class="title">Best &amp; Worst by $/Share</span></div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Your most and least efficient trades per share traded — a $2,000 winner on 10,000 shares and a $200 winner on 200 shares show up here on equal footing, unlike a plain P&amp;L leaderboard.</p>
-        <div id="pershare-leaders"></div>
-      </div>
-
-      <div class="panel-box" style="margin-bottom:16px;">
-        <div class="panel-box-head"><span class="title">Win Rate by Setup</span></div>
-        <div id="setup-breakdown"></div>
-      </div>
-
-      <div class="panel-box" style="margin-bottom:16px;">
-        <div class="panel-box-head"><span class="title">Money Left on the Table</span></div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Sum of (suggested better price − actual fill) × shares, across every trade with a flagged better entry/exit.</p>
-        <div id="slippage-breakdown"></div>
-      </div>
-
-      <div class="panel-box" style="margin-bottom:16px;">
         <div class="panel-box-head"><span class="title">Slippage Trend</span></div>
         <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Cumulative money left on the table over time — climbing means it's getting worse, flattening means fills are getting closer to the suggested price.</p>
         <div id="slippage-trend-chart" style="height:220px;"></div>
       </div>
-
-      <div class="panel-box" style="margin-bottom:16px;">
-        <div class="panel-box-head"><span class="title">Slippage by Setup</span></div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Which setups are costing the most in chased entries and early/late exits.</p>
-        <div id="slippage-by-setup"></div>
-      </div>
-
-      <div class="panel-box" style="margin-bottom:16px;">
-        <div class="panel-box-head"><span class="title">Grade vs. P&amp;L</span></div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Self-graded execution quality (1-5 stars, set on each trade's page) compared against net P&amp;L per trade — separate axis from win/loss: a clean 1-star loss and a chased 5-star win both happen.</p>
-        <div id="grade-breakdown"></div>
-      </div>
     `;
 
     renderStreak(sorted);
-    renderTrends(sorted, currentTrendWindow);
-    bindTrendWindowToggle(sorted);
     renderPerShareBySize(sorted);
     renderPerShareLeaders(sorted);
     renderSetupBreakdown(sorted);
     renderSlippage(sorted);
-    renderSlippageTrend(sorted);
     renderSlippageBySetup(sorted);
     renderGradeBreakdown(sorted);
+    renderTrends(sorted, currentTrendWindow);
+    bindTrendWindowToggle(sorted);
+    renderSlippageTrend(sorted);
     restoreUrlState();
   }
 

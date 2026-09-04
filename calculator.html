@@ -74,7 +74,7 @@
 
       <div class="nav-section-label">More</div>
 
-      <a class="nav-item" id="import-trades-link" href="#" target="_blank" rel="noopener" title="Upload a CSV of past trades to import">
+      <a class="nav-item" id="import-trades-link" href="#" title="Upload a CSV of past trades to import">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
         <span class="nav-label">Import Trades</span>
       </a>
@@ -394,12 +394,16 @@
     function currentBalance() {
       return startingBalance + latestEquityAfter;
     }
-    function renderBalance() {
+    function renderBalance(skipInputField) {
       balanceDisplay.textContent = fmtUsd(currentBalance());
       balanceSub.textContent = latestEquityAfter
         ? `${fmtUsd(startingBalance)} start ${latestEquityAfter >= 0 ? "+" : "\u2212"} ${fmtUsd(Math.abs(latestEquityAfter))} P&L`
         : "no logged trades yet";
-      startingBalanceEl.value = fmtUsd(startingBalance);
+      // Skipped while the balance field itself is focused/being typed into --
+      // see setStartingBalance() below. Re-stamping a formatted "$25,000.00"
+      // into the field on every keystroke was yanking the cursor to the end
+      // and making it impossible to type a new number.
+      if (!skipInputField) startingBalanceEl.value = fmtUsd(startingBalance);
       balanceChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.balance) === startingBalance));
     }
 
@@ -451,11 +455,11 @@
 
     // --- Account size: preset chips + custom edit ---
     const balanceChips = Array.from(document.querySelectorAll("#calc-balance-chips .calc-chip"));
-    function setStartingBalance(v) {
+    function setStartingBalance(v, skipInputField) {
       startingBalance = v;
       localStorage.setItem(LS_KEYS.startingBalance, String(v));
       if (window.KV) window.KV.set(LS_KEYS.startingBalance, v);
-      renderBalance();
+      renderBalance(skipInputField);
       calculate();
     }
     balanceChips.forEach((c) => c.addEventListener("click", () => setStartingBalance(parseFloat(c.dataset.balance))));
@@ -466,9 +470,19 @@
       balanceEditBtn.textContent = showing ? "edit starting balance" : "done";
       if (!showing) startingBalanceEl.focus();
     });
+    // While typing, update the underlying number (so live calc results stay
+    // in sync) but leave the field's own text alone -- reformatting it mid-
+    // keystroke was what broke typing. Only snap it to "$25,000.00" once the
+    // person is done editing (blur or Enter).
     startingBalanceEl.addEventListener("input", () => {
       const v = parseNumber(startingBalanceEl.value);
-      if (isFinite(v) && v > 0) setStartingBalance(v);
+      if (isFinite(v) && v > 0) setStartingBalance(v, true);
+    });
+    startingBalanceEl.addEventListener("blur", () => {
+      renderBalance();
+    });
+    startingBalanceEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") startingBalanceEl.blur();
     });
 
     // --- Steppers (nudge entry/stop by 1 cent, or 10 cents with shift) ---

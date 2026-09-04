@@ -19,6 +19,15 @@
   // button (added further down, after the chart already exists on the
   // page) can draw price lines onto it without re-plumbing chart creation.
   let srCandleSeries = null;
+  // Every drawSrLevelsOnChart() call adds new createPriceLine()s without
+  // ever removing the last batch -- clicking "Analyze support/resistance"
+  // more than once (re-running after the first result, or just curiosity)
+  // stacked a fresh set of support/resistance lines on top of the old
+  // ones every time. Support lines are the same green (#2fd08a) as the
+  // real entry price line, so a second run could leave what looked like
+  // two overlapping green "entry" lines on the chart. Tracked here so
+  // drawSrLevelsOnChart can clear its own previous lines first.
+  let srPriceLines = [];
 
   // Set once the trade detail JSON loads, so the "Share trade" button
   // (static markup, lives outside #trade-content so it survives re-renders)
@@ -396,23 +405,29 @@
   // four line types stay visually distinguishable on one chart.
   function drawSrLevelsOnChart(data) {
     if (!srCandleSeries) return;
+    // Clear whatever this function drew last time before adding the new
+    // batch -- see the note on srPriceLines above -- so re-running the
+    // analysis replaces the lines instead of stacking a duplicate set on
+    // top of them.
+    srPriceLines.forEach((line) => srCandleSeries.removePriceLine(line));
+    srPriceLines = [];
     const support = Array.isArray(data.support) ? data.support : [];
     const resistance = Array.isArray(data.resistance) ? data.resistance : [];
     resistance.forEach((lv) => {
       const tag = srChartTag(lv);
-      srCandleSeries.createPriceLine({
+      srPriceLines.push(srCandleSeries.createPriceLine({
         price: Number(lv.price), color: "#f2555a", lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true,
+        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true, lineVisible: false,
         title: tag ? `resistance (${tag})` : "resistance",
-      });
+      }));
     });
     support.forEach((lv) => {
       const tag = srChartTag(lv);
-      srCandleSeries.createPriceLine({
+      srPriceLines.push(srCandleSeries.createPriceLine({
         price: Number(lv.price), color: "#2fd08a", lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true,
+        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true, lineVisible: false,
         title: tag ? `support (${tag})` : "support",
-      });
+      }));
     });
   }
 
@@ -807,6 +822,7 @@
       color: "#2fd08a",
       lineWidth: 1,
       lineStyle: LightweightCharts.LineStyle.Dashed,
+      lineVisible: false,
       axisLabelVisible: true,
       title: "",
     });
@@ -815,6 +831,7 @@
       color: "#f2555a",
       lineWidth: 1,
       lineStyle: LightweightCharts.LineStyle.Dashed,
+      lineVisible: false,
       axisLabelVisible: true,
       title: "",
     });
@@ -833,6 +850,7 @@
         color: BETTER_ENTRY_COLOR,
         lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.Dotted,
+        lineVisible: false,
         axisLabelVisible: true,
         title: "better entry",
       });
@@ -843,6 +861,7 @@
         color: BETTER_EXIT_COLOR,
         lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.Dotted,
+        lineVisible: false,
         axisLabelVisible: true,
         title: "better exit",
       });
