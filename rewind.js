@@ -1064,6 +1064,11 @@
     const series = chart.addCandlestickSeries({
       upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
       wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
+      // See trade.js buildCharts() -- disable the library's built-in
+      // dashed "last value" price line so it doesn't show up as a stray
+      // green/red line at the last close price alongside the price lines
+      // we draw ourselves via opts.priceLines.
+      priceLineVisible: false,
     });
     series.setData(candleData);
     chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.12, bottom: 0.2 } });

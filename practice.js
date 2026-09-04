@@ -1043,6 +1043,15 @@
   }
 
   let srRequestInFlight = false;
+  // Every drawSrLevelsOnChart() call added new createPriceLine()s without
+  // ever removing the last batch -- clicking "Analyze support/resistance"
+  // more than once stacked a fresh set of lines on top of the old ones,
+  // and the lines themselves were left fully visible (not just the axis
+  // label) instead of hidden like trade.js's matching S/R lines -- so they
+  // showed up as random red/green dashes across the chart. Tracked here so
+  // drawSrLevelsOnChart can clear its own previous lines first, and drawn
+  // with lineVisible: false to match trade.js.
+  let srPriceLines = [];
   function runSupportResistance() {
     if (srRequestInFlight || !state.trade) return;
     if (!SR_ANALYSIS_URL) {
@@ -1103,23 +1112,28 @@
   }
   function drawSrLevelsOnChart(data) {
     if (!state.chartHandle || !state.chartHandle.series) return;
+    // Clear whatever this function drew last time before adding the new
+    // batch, so re-running the analysis replaces the lines instead of
+    // stacking a duplicate set on top of them.
+    srPriceLines.forEach((line) => { try { state.chartHandle.series.removePriceLine(line); } catch (e) {} });
+    srPriceLines = [];
     const support = Array.isArray(data.support) ? data.support : [];
     const resistance = Array.isArray(data.resistance) ? data.resistance : [];
     resistance.forEach((lv) => {
       const tag = srChartTag(lv);
-      state.chartHandle.series.createPriceLine({
+      srPriceLines.push(state.chartHandle.series.createPriceLine({
         price: Number(lv.price), color: "#f2555a", lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true,
+        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true, lineVisible: false,
         title: tag ? `resistance (${tag})` : "resistance",
-      });
+      }));
     });
     support.forEach((lv) => {
       const tag = srChartTag(lv);
-      state.chartHandle.series.createPriceLine({
+      srPriceLines.push(state.chartHandle.series.createPriceLine({
         price: Number(lv.price), color: "#2fd08a", lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true,
+        lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true, lineVisible: false,
         title: tag ? `support (${tag})` : "support",
-      });
+      }));
     });
   }
 
@@ -1130,6 +1144,7 @@
   // ---------------------------------------------------------------
   function buildPlayChart() {
     if (state.chartHandle) teardownChart(state.chartHandle);
+    srPriceLines = [];
     const el = els.chartEl;
     el.innerHTML = "";
     const commonOpts = {

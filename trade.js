@@ -524,6 +524,14 @@
     const candleSeries = candleChart.addCandlestickSeries({
       upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
       wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
+      // Lightweight Charts draws its own dashed "last value" price line on
+      // every series by default, colored to match the most recent
+      // candle (green/red). Left on, it shows up as a stray dashed line
+      // at whatever price the last bar happened to close at -- easy to
+      // mistake for one of our own entry/exit/S-R lines. We draw all of
+      // those explicitly (see createPriceLine calls below), so the
+      // built-in one is redundant and just noise; turn it off.
+      priceLineVisible: false,
     });
     candleSeries.setData(candleData);
     srCandleSeries = candleSeries;

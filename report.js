@@ -849,6 +849,11 @@
     const candleSeries = rptCandleChart.addCandlestickSeries({
       upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
       wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
+      // See trade.js buildCharts() -- disable the library's built-in
+      // dashed "last value" price line so it doesn't show up as a stray
+      // green/red line at the last close price alongside our own
+      // entry/exit/S-R lines.
+      priceLineVisible: false,
     });
     candleSeries.setData(candleData);
     rptCandleChart.priceScale("right").applyOptions({ scaleMargins: { top: 0.14, bottom: 0.18 } });
@@ -864,9 +869,11 @@
     // Entry/exit price lines -- solid, actual fills. No axis title: the
     // pointer triangles below (same visual language as trade.js's
     // real-journal chart) carry that now, on hover/tap, instead of a
-    // permanent label competing with the axis.
-    candleSeries.createPriceLine({ price: trade.entry_price, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "" });
-    candleSeries.createPriceLine({ price: trade.exit_price, color: "#f2555a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "" });
+    // permanent label competing with the axis. lineVisible: false so only
+    // the axis tag shows, matching trade.js -- without it these drew as
+    // full-width dashed lines straight across the chart.
+    candleSeries.createPriceLine({ price: trade.entry_price, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lineVisible: false, axisLabelVisible: true, title: "" });
+    candleSeries.createPriceLine({ price: trade.exit_price, color: "#f2555a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lineVisible: false, axisLabelVisible: true, title: "" });
 
     // The LLM verdict step (see chart_service.py's /enrich contract) only
     // ever gives a better_entry/exit PRICE for backtest trades, no time --
@@ -875,13 +882,13 @@
     if (trade.better_entry_price) {
       candleSeries.createPriceLine({
         price: Number(trade.better_entry_price), color: "#8b7cf6", lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "better entry",
+        lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: false, axisLabelVisible: true, title: "better entry",
       });
     }
     if (trade.better_exit_price) {
       candleSeries.createPriceLine({
         price: Number(trade.better_exit_price), color: "#ec6cad", lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "better exit",
+        lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: false, axisLabelVisible: true, title: "better exit",
       });
     }
 

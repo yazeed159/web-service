@@ -156,10 +156,14 @@
     return sign + "$" + Math.abs(v).toFixed(2);
   }
   // Commission per share, in cents -- e.g. $12 comm on 200 shares is 6.0¢/share.
+  // Commission can go negative (rebates), so this renders a signed value,
+  // colored red when negative and green otherwise.
   function commPerShare(commission, shares) {
-    if (!shares) return "—";
-    const cents = (Math.abs(commission) / shares) * 100;
-    return cents.toFixed(1) + "¢";
+    if (!shares) return `<span class="dim">—</span>`;
+    const cents = (commission / shares) * 100;
+    const neg = cents < 0;
+    const text = (neg ? "-" : "") + Math.abs(cents).toFixed(1) + "¢";
+    return `<span class="${neg ? "down" : "up"}">${text}</span>`;
   }
   // Same formatting, minus the leading "+" -- for an actual balance
   // (equity curve's running total/tooltip), not a gain/loss delta. A
@@ -1004,7 +1008,7 @@
       <div class="cell"><div class="label">Win days</div><div class="value up">${winDays}</div></div>
       <div class="cell"><div class="label">Loss days</div><div class="value down">${lossDays}</div></div>
       <div class="cell"><div class="label">Commission</div><div class="value dim">$${monthComm.toFixed(2)}</div></div>
-      <div class="cell"><div class="label">P&amp;L (no comm)</div><div class="value ${monthGross >= 0 ? "up" : "down"}">${fmtMoney(monthGross)}</div></div>
+      <div class="cell"><div class="label">Gross P&amp;L</div><div class="value ${monthGross >= 0 ? "up" : "down"}">${fmtMoney(monthGross)}</div></div>
     `;
 
     let html = "";
@@ -1018,7 +1022,7 @@
       if (key === selectedDay) cls += " selected";
       html += `<div class="${cls}" data-day="${key}">
         <span class="date-num">${d}</span>
-        ${entry ? `<span class="cell-pnl">${fmtMoney(entry.net)}</span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span><span class="cell-subline">no-comm ${fmtMoney(entry.gross)} · comm $${entry.comm.toFixed(2)}</span>` : ""}
+        ${entry ? `<span class="cell-pnl">${fmtMoney(entry.net)}</span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span><span class="cell-subline">Gross <span class="${entry.gross >= 0 ? "up" : "down"}">${fmtMoney(entry.gross)}</span> · Comm $${entry.comm.toFixed(2)}</span>` : ""}
       </div>`;
     }
     document.getElementById("cal-grid").innerHTML = html;
@@ -1039,7 +1043,7 @@
     const panel = document.getElementById("day-detail-panel");
     panel.style.display = "block";
     const dateLabel = new Date(key + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", year: "numeric" });
-    document.getElementById("day-detail-title").textContent = `${dateLabel} — ${fmtMoney(entry.net)} · ${entry.count} trade${entry.count === 1 ? "" : "s"} · no-comm ${fmtMoney(entry.gross)} · comm $${entry.comm.toFixed(2)}`;
+    document.getElementById("day-detail-title").textContent = `${dateLabel} — ${fmtMoney(entry.net)} · ${entry.count} trade${entry.count === 1 ? "" : "s"} · Gross ${fmtMoney(entry.gross)} · Comm $${entry.comm.toFixed(2)}`;
     const sorted = entry.trades.slice().sort((a, b) => a.entry_time.localeCompare(b.entry_time));
     const rows = sorted.map((t) => `
       <tr data-id="${t.id}">
@@ -1049,7 +1053,7 @@
         <td class="mono">$${t.entry_price.toFixed(2)} → $${t.exit_price.toFixed(2)}</td>
         <td class="mono dim">${t.shares}</td>
         <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
-        <td class="mono dim">${commPerShare(t.commission, t.shares)}</td>
+        <td class="mono">${commPerShare(t.commission, t.shares)}</td>
         <td class="mono dim">$${(t.commission || 0).toFixed(2)}</td>
         <td>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(t), { size: 12 }) : "—"}</td>
       </tr>`).join("");
