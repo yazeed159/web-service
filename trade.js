@@ -759,17 +759,39 @@
     const BETTER_ENTRY_COLOR = "#8b7cf6"; // purple
     const BETTER_EXIT_COLOR = "#ec6cad"; // pink
 
+    // barForPrice (above) only ever decides which BAR to anchor to in
+    // TIME -- it never touches the price itself, which stays whatever the
+    // LLM said even when no bar it searched actually reached that price.
+    // Most of the time that's a harmless near-miss (off by a cent or two),
+    // but when the LLM's number was never touched by any candle all
+    // session -- a genuine hallucination, not just an off-by-one-bar
+    // guess -- drawing the pointer at that raw price puts it at a
+    // y-coordinate nothing on the chart supports, floating in empty space
+    // away from every wick: "on its own island". Clamp the *drawn*
+    // position to the nearest edge of whatever bar we landed on so the
+    // marker always sits against a real candle instead of hanging in
+    // whitespace. The tooltip still shows the LLM's actual suggested
+    // price (via betterTooltip/b.price below) -- only the pixel position
+    // is clamped, not the analysis text.
+    function clampToBar(price, bar) {
+      if (price > bar.h) return bar.h;
+      if (price < bar.l) return bar.l;
+      return price;
+    }
+
     if (trade.better_entry && trade.better_entry.price) {
       const b = trade.better_entry;
       const u = betterUnix(b.time);
       const bar = barForPrice(Number(b.price), Number.isFinite(u) ? barAt(u) : entryBar);
-      pointers.push(mkPointer(toUnix(bar.t), Number(b.price), BETTER_ENTRY_COLOR, true, betterTooltip("entry", b)));
+      const renderPrice = clampToBar(Number(b.price), bar);
+      pointers.push(mkPointer(toUnix(bar.t), renderPrice, BETTER_ENTRY_COLOR, true, betterTooltip("entry", b)));
     }
     if (trade.better_exit && trade.better_exit.price) {
       const b = trade.better_exit;
       const u = betterUnix(b.time);
       const bar = barForPrice(Number(b.price), Number.isFinite(u) ? barAt(u) : exitBar);
-      pointers.push(mkPointer(toUnix(bar.t), Number(b.price), BETTER_EXIT_COLOR, false, betterTooltip("exit", b)));
+      const renderPrice = clampToBar(Number(b.price), bar);
+      pointers.push(mkPointer(toUnix(bar.t), renderPrice, BETTER_EXIT_COLOR, false, betterTooltip("exit", b)));
     }
 
     // A zero-size div with only border-bottom set renders a triangle whose
