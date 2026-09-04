@@ -8,42 +8,44 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>trade.log — import legacy trades</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="core.css">
 <style>
-  * { box-sizing: border-box; }
   body {
-    margin: 0; min-height: 100vh; padding: 40px 20px;
-    font-family: system-ui, -apple-system, sans-serif;
-    background: radial-gradient(circle at 20% 20%, #1b1530, #0b0b12 60%);
-    color: #eee;
+    margin: 0; min-height: 100vh; padding: 48px 20px;
+    background: var(--bg); color: var(--text); font-family: var(--sans);
   }
   .card {
-    max-width: 640px; margin: 0 auto; padding: 32px; border-radius: 16px;
-    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+    max-width: 640px; margin: 0 auto; padding: 32px; border-radius: var(--radius-lg);
+    background: var(--panel); border: 1px solid var(--border);
   }
   h1 {
-    font-size: 20px; margin: 0 0 6px;
-    background: linear-gradient(90deg, #8457ff, #22d3ee);
+    font-size: 20px; margin: 0 0 6px; font-weight: 700;
+    background: linear-gradient(90deg, var(--primary), var(--blue));
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
-  p.sub { color: #999; font-size: 13.5px; margin: 0 0 24px; line-height: 1.5; }
-  label { display: block; font-size: 13px; color: #bbb; margin: 18px 0 6px; font-weight: 600; }
+  p.sub { color: var(--text-dim); font-size: 13.5px; margin: 0 0 24px; line-height: 1.55; }
+  p.sub code {
+    font-family: var(--mono); background: var(--panel-3); padding: 1px 5px;
+    border-radius: 4px; font-size: 12.5px;
+  }
+  label { display: block; font-size: 13px; color: var(--text-dim); margin: 18px 0 8px; font-weight: 600; }
   input[type="file"] {
-    width: 100%; padding: 10px; border-radius: 8px;
-    border: 1px dashed rgba(255,255,255,.25); background: rgba(0,0,0,.25); color: #ccc; font-size: 13px;
+    width: 100%; padding: 10px; border-radius: var(--radius);
+    border: 1px dashed var(--border); background: var(--panel-2); color: var(--text-dim); font-size: 13px;
   }
   button.primary {
-    margin-top: 24px; padding: 11px 20px; border: none; border-radius: 8px;
-    background: linear-gradient(90deg, #8457ff, #22d3ee); color: #0b0b12; font-weight: 600; font-size: 14px;
-    cursor: pointer;
+    margin-top: 24px; padding: 11px 22px; border: none; border-radius: var(--radius-sm);
+    background: linear-gradient(90deg, var(--primary), var(--blue)); color: #0a0b0f;
+    font-weight: 700; font-size: 14px; cursor: pointer;
   }
-  button.primary:disabled { opacity: .5; cursor: default; }
+  button.primary:disabled { opacity: .45; cursor: default; }
   #log {
-    margin-top: 20px; padding: 14px; border-radius: 8px; background: rgba(0,0,0,.35);
-    font: 12.5px/1.6 ui-monospace, monospace; white-space: pre-wrap; max-height: 320px; overflow-y: auto;
-    color: #bbb;
+    margin-top: 20px; padding: 14px; border-radius: var(--radius); background: var(--panel-3);
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap;
+    max-height: 320px; overflow-y: auto; color: var(--text-dim);
   }
-  #log .ok { color: #4ade80; }
-  #log .err { color: #ff6b6b; }
+  #log .ok { color: var(--green); }
+  #log .err { color: var(--red); }
 </style>
 </head>
 <body>

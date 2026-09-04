@@ -90,7 +90,7 @@
 .quiz-quit-btn { font-size: 12px; }
 
 .quiz-card {
-  background: var(--panel); border: 1px solid var(--border-soft); border-radius: var(--radius);
+  background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-radius: var(--radius);
   padding: 18px 20px 20px;
 }
 .quiz-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; flex-wrap: wrap; }

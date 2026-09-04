@@ -103,7 +103,7 @@
 
 .bt-run-row {
   display: flex; align-items: center; gap: 14px; margin-bottom: 22px;
-  padding: 16px 18px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--border-soft);
+  padding: 16px 18px; border-radius: var(--radius); background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--glass-border);
 }
 .bt-run-row .btn-confirm {
   position: relative; display: inline-flex; align-items: center; gap: 8px;

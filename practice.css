@@ -144,7 +144,7 @@
 .pp-live-change.down { color: var(--red); }
 
 .pp-order-panel {
-  background: var(--panel); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 16px;
+  background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-radius: var(--radius); padding: 16px;
 }
 .pp-order-panel .title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); font-weight: 600; margin-bottom: 12px; }
 

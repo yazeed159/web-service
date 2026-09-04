@@ -19,8 +19,9 @@
 .gs-modal-box {
   width: min(720px, 100%);
   max-height: min(76vh, 720px);
-  background: var(--panel);
-  border: 1px solid var(--border-soft);
+  background: var(--glass-hi);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border-hi);
   border-radius: var(--radius-lg);
   box-shadow: 0 20px 60px rgba(0,0,0,0.5);
   display: flex; flex-direction: column;

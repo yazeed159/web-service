@@ -16,12 +16,61 @@
   var SUPABASE_URL = window.SUPABASE_URL;
   var SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
 
+  // computeAccountBalances is pure math -- no Supabase dependency -- so it's
+  // defined unconditionally, before either guard below, and never needs a
+  // fallback of its own.
+  window.computeAccountBalances = function (trades, ledger) {
+    var cum = 0, li = 0, balance = 0;
+    var out = new Array(trades.length);
+    for (var i = 0; i < trades.length; i++) {
+      var t = trades[i];
+      while (li < ledger.length && ledger[li].date <= t.trade_date) {
+        balance += ledger[li].amount;
+        li++;
+      }
+      cum += t.pnl_after_comm || 0;
+      out[i] = balance + cum;
+    }
+    return out;
+  };
+
+  // Installs safe fallback stubs for the rest of this file's public API
+  // (window.AUTH_READY / window.KV / window.fetchTradesIndex / etc.) when
+  // either guard below trips and the file has to bail out early.
+  //
+  // Every page on the site calls window.fetchTradesIndex() (and several
+  // call window.AUTH_READY.then(...) directly) with no typeof check,
+  // because until now this file unconditionally defined them -- so a
+  // dropped/blocked/slow request for the Supabase CDN script (ad blocker,
+  // corporate firewall, transient CDN outage, offline) left those globals
+  // undefined and every page threw a synchronous, uncaught
+  // "window.fetchTradesIndex is not a function" / "Cannot read properties
+  // of undefined (reading 'then')" TypeError -- before the nice
+  // `.catch(err => showEmptyState(...))` handlers already written on every
+  // page ever got a chance to run. The site just silently failed to render
+  // any data with no explanation to the person looking at it.
+  //
+  // The fix: still fail, but fail as a *rejected promise* through the
+  // exact same functions callers already expect -- so their existing
+  // .catch() blocks fire with a clear, honest error message instead of
+  // the whole page's script dying partway through.
+  function installOfflineStubs(reason) {
+    var err = function () { return new Error(reason); };
+    window.AUTH_READY = Promise.resolve(null); // treat as "logged out" for anything that already handles !session gracefully (KV, the account widget)
+    window.KV = { ready: Promise.resolve(null), get: function () { return undefined; }, set: function () {}, delete: function () {}, sync: function () {}, isLoaded: function () { return false; } };
+    window.fetchTradesIndex = function () { return Promise.reject(err()); };
+    window.fetchCapitalLedger = function () { return Promise.reject(err()); };
+    window.fetchTradeDetail = function () { return Promise.reject(err()); };
+  }
+
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.error("auth.js: window.SUPABASE_URL / SUPABASE_ANON_KEY are not set -- check config.js.");
+    installOfflineStubs("Auth isn't configured (missing SUPABASE_URL/SUPABASE_ANON_KEY in config.js).");
     return;
   }
   if (!window.supabase || !window.supabase.createClient) {
     console.error("auth.js: supabase-js didn't load -- check the CDN <script> tag ran before auth.js.");
+    installOfflineStubs("Couldn't reach Supabase (the auth/data library failed to load -- check your connection, ad blocker, or firewall, then reload).");
     return;
   }
 
@@ -81,7 +130,7 @@
     // never overlap a neighboring icon again.
     var wrap = document.createElement("div");
     wrap.id = "auth-account-widget";
-    wrap.style.cssText = "position:relative;flex:none;font:12.5px system-ui,sans-serif;";
+    wrap.style.cssText = "position:relative;flex:none;font:12.5px var(--sans, system-ui, sans-serif);";
 
     var btn = document.createElement("button");
     btn.id = "auth-account-btn";
@@ -92,15 +141,15 @@
     btn.style.cssText =
       "width:32px;height:32px;border-radius:50%;padding:0;" +
       "display:flex;align-items:center;justify-content:center;" +
-      "border:1px solid rgba(255,255,255,.18);" +
-      "background:rgba(20,20,28,.85);color:#eee;font:600 13px inherit;" +
+      "border:1px solid var(--glass-border-hi, rgba(255,255,255,.18));" +
+      "background:var(--glass-hi, rgba(20,20,28,.85));color:var(--text, #eee);font:600 13px inherit;" +
       "cursor:pointer;backdrop-filter:blur(4px);";
 
     var panel = document.createElement("div");
     panel.style.cssText =
       "display:none;position:absolute;top:40px;right:0;min-width:220px;z-index:100;" +
-      "padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,.18);" +
-      "background:rgba(20,20,28,.97);color:#eee;backdrop-filter:blur(6px);" +
+      "padding:14px;border-radius:var(--radius, 10px);border:1px solid var(--glass-border-hi, rgba(255,255,255,.18));" +
+      "background:var(--glass-hi, rgba(20,20,28,.97));color:var(--text, #eee);backdrop-filter:blur(6px);" +
       "box-shadow:0 8px 24px rgba(0,0,0,.4);";
 
     var emailRow = document.createElement("div");
@@ -112,7 +161,7 @@
       var sinceRow = document.createElement("div");
       var created = new Date(user.created_at);
       sinceRow.textContent = "Member since " + created.toLocaleDateString();
-      sinceRow.style.cssText = "color:#999;font-size:11.5px;margin-bottom:12px;";
+      sinceRow.style.cssText = "color:var(--text-dim, #999);font-size:11.5px;margin-bottom:12px;";
       panel.appendChild(sinceRow);
     }
 
@@ -120,7 +169,7 @@
     settingsLink.href = "settings.html";
     settingsLink.textContent = "Account settings";
     settingsLink.style.cssText =
-      "display:block;margin-bottom:10px;color:#9d8bff;text-decoration:none;font-size:12.5px;";
+      "display:block;margin-bottom:10px;color:var(--primary, #8b7cf6);text-decoration:none;font-size:12.5px;";
     panel.appendChild(settingsLink);
 
     var logoutBtn = document.createElement("button");
@@ -128,8 +177,8 @@
     logoutBtn.type = "button";
     logoutBtn.textContent = "Log out";
     logoutBtn.style.cssText =
-      "width:100%;padding:8px 0;border:none;border-radius:8px;" +
-      "background:linear-gradient(90deg,#8457ff,#22d3ee);color:#0b0b12;" +
+      "width:100%;padding:8px 0;border:none;border-radius:var(--radius-sm, 8px);" +
+      "background:var(--grad-signature, linear-gradient(90deg,#8457ff,#22d3ee));color:var(--bg, #0b0b12);" +
       "font-weight:600;font:inherit;cursor:pointer;";
     logoutBtn.addEventListener("click", function () {
       window.sb.auth.signOut().then(function () {
@@ -318,30 +367,15 @@
     });
   };
 
-  // Given trades (sorted ascending by trade_date/entry_time, each with
-  // pnl_after_comm) and a date-sorted capital ledger, returns a same-
-  // length array of real account-balance figures: the ledger balance as
-  // of that trade's date (ledger entries dated on/before a trade count
-  // toward it -- entries only carry a date, not a time, so same-day is
-  // treated as "before") plus cumulative P&L up to and including that
-  // trade. Deliberately kept separate from `equity_after` (pure
-  // cumulative P&L) -- the Risk Calculator and the Cumulative P&L report
-  // chart both depend on that figure staying exactly what it's always
-  // been, so this never overwrites it, just adds an aligned array.
-  window.computeAccountBalances = function (trades, ledger) {
-    var cum = 0, li = 0, balance = 0;
-    var out = new Array(trades.length);
-    for (var i = 0; i < trades.length; i++) {
-      var t = trades[i];
-      while (li < ledger.length && ledger[li].date <= t.trade_date) {
-        balance += ledger[li].amount;
-        li++;
-      }
-      cum += t.pnl_after_comm || 0;
-      out[i] = balance + cum;
-    }
-    return out;
-  };
+  // computeAccountBalances is defined near the top of this file, above
+  // both guards, since it's pure math with no Supabase dependency. (Given
+  // trades sorted ascending by trade_date/entry_time, each with
+  // pnl_after_comm, and a date-sorted capital ledger, it returns a
+  // same-length array of real account-balance figures: the ledger
+  // balance as of that trade's date plus cumulative P&L up to and
+  // including that trade -- deliberately kept separate from
+  // `equity_after`, which the Risk Calculator and Cumulative P&L report
+  // chart depend on staying pure cumulative P&L.)
 
   window.fetchTradeDetail = function (id) {
     return window.AUTH_READY.then(function (session) {

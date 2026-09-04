@@ -188,18 +188,18 @@
         <span class="nav-label">Reports</span>
       </a>
 
+      <a class="nav-item" href="journal.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        <span class="nav-label">Journal</span>
+      </a>
+
+
       <div class="nav-section-label">More</div>
 
       <a class="nav-item" id="import-trades-link" href="#" target="_blank" rel="noopener" title="Upload a CSV of past trades to import">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
         <span class="nav-label">Import Trades</span>
       </a>
-
-      <a class="nav-item" href="journal.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-        <span class="nav-label">Journal</span>
-      </a>
-
       <a class="nav-item" href="stats.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.4 8.6 12 15l-3-3-4 4"></path></svg>
         <span class="nav-label">Performance</span>
@@ -780,7 +780,7 @@
     const el = document.getElementById("decay-chart");
     el.innerHTML = "";
     if (trades.length < 2) { el.innerHTML = `<div class="empty-state small">Not enough trades yet to plot a trend.</div>`; return; }
-    const chart = makeChart(el, 220, { timeScale: { borderColor: "#262a34", tickMarkFormatter: (t) => "#" + t } });
+    const chart = makeChart(el, 220, { timeScale: { borderColor: "#262a34", tickMarkFormatter: (t) => "#" + t }, localization: { timeFormatter: (t) => "Trade #" + t } });
     const series = chart.addLineSeries({ color: "#8b7cf6", lineWidth: 2 });
     let wins = 0;
     const data = trades.map((t, i) => {
@@ -1106,7 +1106,7 @@
   function renderSizingChart(chrono) {
     const el = document.getElementById("sizing-chart");
     el.innerHTML = "";
-    const chart = makeChart(el, 220, { timeScale: { borderColor: "#262a34", tickMarkFormatter: (t) => "#" + t } });
+    const chart = makeChart(el, 220, { timeScale: { borderColor: "#262a34", tickMarkFormatter: (t) => "#" + t }, localization: { timeFormatter: (t) => "Trade #" + t } });
     const series = chart.addHistogramSeries({ priceFormat: { type: "volume" } });
     series.setData(chrono.map((r, i) => ({ time: i + 1, value: r.shares, color: r.win ? "rgba(47,208,138,0.75)" : "rgba(242,85,90,0.75)" })));
     chart.timeScale().fitContent();
