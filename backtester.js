@@ -19,6 +19,21 @@
     "ngrok-skip-browser-warning": "true",
   };
 
+  // chart_service.py's /backtest/* routes now scope every run to whoever
+  // started it (see chart_service.py's _require_user / backtest_storage.py)
+  // -- backtests used to be shared/anonymous across every account. Every
+  // call that starts, polls, lists, loads, or deletes a run needs the
+  // logged-in person's Supabase access token attached; /backtest/defaults
+  // is the one exception (no user data involved, so it's left plain).
+  // window.AUTH_READY (see auth.js) resolves once per page load and is
+  // safe to .then() repeatedly -- it doesn't re-fetch the session each time.
+  function authedHeaders(extra) {
+    return window.AUTH_READY.then((session) => {
+      if (!session) throw new Error("Please log in first.");
+      return Object.assign({}, FETCH_HEADERS, extra || {}, { "Authorization": "Bearer " + session.access_token });
+    });
+  }
+
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
@@ -304,11 +319,12 @@
     els.results.innerHTML = "";
     if (hooks && hooks.onStatusChange) hooks.onStatusChange("Starting backtest…");
 
-    fetch(`${API()}/backtest/start`, {
-      method: "POST",
-      headers: FETCH_HEADERS,
-      body: JSON.stringify(payload),
-    })
+    authedHeaders()
+      .then((headers) => fetch(`${API()}/backtest/start`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      }))
       .then((r) => r.json().then((j) => { if (!r.ok) throw new Error(j.error || "HTTP " + r.status); return j; }))
       .then((j) => { saveActiveJob(j.job_id); pollJob(j.job_id, hooks); })
       .catch((err) => {
@@ -325,7 +341,8 @@
       if (!currentJobId) return;
       els.cancelBtn.disabled = true;
       els.cancelBtn.textContent = "Cancelling…";
-      fetch(`${API()}/backtest/cancel/${currentJobId}`, { method: "POST", headers: FETCH_HEADERS })
+      authedHeaders()
+        .then((headers) => fetch(`${API()}/backtest/cancel/${currentJobId}`, { method: "POST", headers }))
         .catch(() => { /* status poll will surface any real problem */ });
     });
   }
@@ -346,7 +363,8 @@
     els.runBtn.textContent = "Running…";
     clearTimeout(pollTimer);
     const tick = () => {
-      fetch(`${API()}/backtest/status/${jobId}`, { headers: FETCH_HEADERS })
+      authedHeaders()
+        .then((headers) => fetch(`${API()}/backtest/status/${jobId}`, { headers }))
         .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
         .then((job) => {
           // A job in progress already carries partial trades/stats (updated
@@ -417,7 +435,8 @@
   (function resumeActiveJobIfAny() {
     const jobId = loadActiveJob();
     if (!jobId) return;
-    fetch(`${API()}/backtest/status/${jobId}`, { headers: FETCH_HEADERS })
+    authedHeaders()
+      .then((headers) => fetch(`${API()}/backtest/status/${jobId}`, { headers }))
       .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then((job) => {
         if (job.status === "running") {
@@ -499,7 +518,8 @@
       els.history.innerHTML = `<div class="empty-state small">Set window.CHART_SERVICE_URL in config.js to see past runs.</div>`;
       return;
     }
-    fetch(`${API()}/backtest/history`, { headers: FETCH_HEADERS })
+    authedHeaders()
+      .then((headers) => fetch(`${API()}/backtest/history`, { headers }))
       .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then((entries) => {
         if (!entries.length) {
@@ -554,7 +574,8 @@
   }
 
   function deleteHistoryEntry(id) {
-    fetch(`${API()}/backtest/history/${id}`, { method: "DELETE", headers: FETCH_HEADERS })
+    authedHeaders()
+      .then((headers) => fetch(`${API()}/backtest/history/${id}`, { method: "DELETE", headers }))
       .then(() => loadHistory())
       .catch((err) => { els.runStatus.textContent = "Couldn't delete run: " + err.message; });
   }

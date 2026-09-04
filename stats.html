@@ -10,6 +10,7 @@
 <title>Performance — trade.log</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="core.css">
+<link rel="stylesheet" href="dashboard.css">
 <link rel="stylesheet" href="chat-widget.css">
 <link rel="stylesheet" href="global-search.css">
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
@@ -53,11 +54,6 @@
       <a class="nav-item" href="index.html#dayview">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line></svg>
         <span class="nav-label">Day View</span>
-      </a>
-
-      <a class="nav-item" href="index.html#tradeview">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-        <span class="nav-label">Trade View</span>
       </a>
 
       <a class="nav-item" href="index.html#reports">
@@ -139,7 +135,7 @@
 
     <div class="content">
       <div class="panel-head">
-        <div class="sub">Rolled up from every published trade in <span class="mono">data/trades.json</span>.</div>
+        <div class="sub">Trends and edge, not the account view — for balance, day-by-day and recent trades, see <a href="index.html" style="color:var(--primary); text-decoration:none;">Dashboard</a>. Rolled up from every published trade in <span class="mono">data/trades.json</span>.</div>
       </div>
 
       <div id="stats-content">
@@ -199,8 +195,12 @@
   function bindTradeToggles(container) {
     container.querySelectorAll("[data-trade-toggle]").forEach((row) => {
       row.addEventListener("click", () => {
-        const list = document.getElementById(row.getAttribute("data-trade-toggle"));
-        if (list) list.classList.toggle("open");
+        const uid = row.getAttribute("data-trade-toggle");
+        const list = document.getElementById(uid);
+        if (!list) return;
+        const nowOpen = list.classList.toggle("open");
+        if (nowOpen) openUids.add(uid); else openUids.delete(uid);
+        syncUrlState();
       });
     });
     container.querySelectorAll("[data-load-more]").forEach((btn) => {
@@ -219,7 +219,63 @@
         } else {
           moreLi.remove();
         }
+        syncUrlState();
       });
+    });
+  }
+
+  // ---------- URL state (see NavState in nav.js) ----------
+  // Every breakdown row's uid ("report-trade-list-0", "-1", ...) comes
+  // from a counter that resets to 0 each render and is handed out in a
+  // fixed order (per-share-by-size, then setup breakdown, then
+  // slippage-by-setup, then grade breakdown -- see the render() call
+  // order below), so for the same trade data it comes out identical
+  // from one page load to the next.
+  // That makes it safe to persist which uids are open, unlike a
+  // timestamp or array index that could shift.
+  const openUids = new Set();
+  function syncUrlState() {
+    const shownObj = {};
+    openUids.forEach((uid) => {
+      const state = tradeListState.get(uid);
+      if (state && state.shown > TRADE_LIST_PAGE_SIZE) shownObj[uid] = state.shown;
+    });
+    NavState.set({
+      open: openUids.size ? JSON.stringify(Array.from(openUids)) : null,
+      shown: Object.keys(shownObj).length ? JSON.stringify(shownObj) : null,
+    });
+  }
+  // Re-opens whichever breakdown rows were expanded (and re-loads
+  // however many rows had been paged into them) based on the URL.
+  // Called once at the end of render(), after every renderXxxBreakdown()
+  // call above it has populated tradeListState for this page load.
+  function restoreUrlState() {
+    let openArr = [];
+    let shownObj = {};
+    try { openArr = JSON.parse(NavState.get("open", "[]")) || []; } catch (e) { /* malformed/old URL, ignore */ }
+    try { shownObj = JSON.parse(NavState.get("shown", "{}")) || {}; } catch (e) { /* malformed/old URL, ignore */ }
+    openArr.forEach((uid) => {
+      const list = document.getElementById(uid);
+      const state = tradeListState.get(uid);
+      if (!list || !state) return;
+      list.classList.add("open");
+      openUids.add(uid);
+      const desired = shownObj[uid];
+      if (desired && desired > state.shown) {
+        const nextShown = Math.min(desired, state.rows.length);
+        const newItemsHtml = state.rows.slice(state.shown, nextShown).map(tradeListItemHtml).join("");
+        state.shown = nextShown;
+        const moreLi = list.querySelector(".tag-trade-list-more");
+        if (moreLi) {
+          moreLi.insertAdjacentHTML("beforebegin", newItemsHtml);
+          if (state.shown < state.rows.length) {
+            const btn = moreLi.querySelector("[data-load-more]");
+            if (btn) btn.textContent = `Load more (${state.rows.length - state.shown} left)`;
+          } else {
+            moreLi.remove();
+          }
+        }
+      }
     });
   }
 
@@ -242,29 +298,61 @@
 
     content.innerHTML = `
       <div class="stat-grid" style="margin-bottom:18px;">
-        <div class="stat">
-          <div class="label-row"><span class="label">Net P&amp;L</span></div>
-          <div class="value ${totalPnl >= 0 ? "up" : "down"}">${fmtMoney(totalPnl)}</div>
-          <div class="sub-value">${sorted.length} trades</div>
-        </div>
-        <div class="stat">
-          <div class="label-row"><span class="label">Win Rate</span></div>
-          <div class="value">${winRate}%</div>
-          <div class="sub-value">${wins}W / ${sorted.length - wins}L</div>
-        </div>
-        <div class="stat">
-          <div class="label-row"><span class="label">Avg Win / Loss</span></div>
-          <div class="value"><span class="up">${fmtMoney(avgWin)}</span> <span style="color:var(--text-faint)">/</span> <span class="down">${fmtMoney(avgLoss)}</span></div>
-        </div>
         <div class="stat" id="streak-cell">
           <div class="label-row"><span class="label">Current Streak</span></div>
           <div class="value">—</div>
         </div>
+        <div class="stat">
+          <div class="label-row"><span class="label">Sample</span></div>
+          <div class="value">${sorted.length}</div>
+          <div class="sub-value">${escapeHtml(sorted[0].trade_date)} → ${escapeHtml(sorted[sorted.length - 1].trade_date)}</div>
+        </div>
+        <div class="stat">
+          <div class="label-row"><span class="label">Net P&amp;L (context)</span></div>
+          <div class="value ${totalPnl >= 0 ? "up" : "down"}" style="font-size:20px;">${fmtMoney(totalPnl)}</div>
+          <div class="sub-value">${winRate}% win · ${wins}W/${sorted.length - wins}L</div>
+        </div>
       </div>
 
       <div class="panel-box" style="margin-bottom:16px;">
-        <div class="panel-box-head"><span class="title">Equity Curve</span></div>
-        <div id="equity-chart" style="height:260px;"></div>
+        <div class="panel-box-head">
+          <span class="title">Performance Trends</span>
+          <div class="eq-range-toggle" id="trend-window-toggle">
+            <button data-window="10">10</button>
+            <button data-window="20" class="active">20</button>
+            <button data-window="50">50</button>
+          </div>
+        </div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Rolling averages over your last N trades, in the order you took them — smooths out single-trade noise so you can see whether your edge is actually trending up or down.</p>
+
+        <div style="margin-top:4px;">
+          <div class="label-row" style="margin-bottom:2px;"><span class="label">Win Rate (left) &amp; Profit Factor (right)</span></div>
+          <div id="quality-trend-chart" style="height:200px;"></div>
+        </div>
+
+        <div style="margin-top:20px;">
+          <div class="label-row" style="margin-bottom:2px;"><span class="label">Quality Score — same blend as your Trader Score gauge on Dashboard, tracked over time</span></div>
+          <p style="color:var(--text-faint); font-size:12px; margin:2px 0 6px;">0–100, averaging win rate, profit factor, and avg win:loss ratio over the window above. Dashboard shows this number as of right now; this is the trend that got it there. Dashed lines mark the 40/70 bands the gauge itself uses.</p>
+          <div id="quality-score-chart" style="height:160px;"></div>
+        </div>
+
+        <div style="margin-top:20px;">
+          <div class="label-row" style="margin-bottom:2px;"><span class="label">$/Share P&amp;L — every trade, regardless of size</span></div>
+          <p style="color:var(--text-faint); font-size:12px; margin:2px 0 6px;">Each dot is one trade's net P&amp;L divided by shares traded, so a 100-share and a 1,000-share trade are judged the same way. The line is the rolling average.</p>
+          <div id="pershare-trend-chart" style="height:200px;"></div>
+        </div>
+      </div>
+
+      <div class="panel-box" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">$/Share Edge by Position Size</span></div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Trades sorted by share count and split into quartiles — reveals whether your per-share edge holds up, improves, or gets diluted as you size up. For the win-rate cut of the same split, see <a href="edge-analysis.html" style="color:var(--primary); text-decoration:none;">Edge Analysis</a>.</p>
+        <div id="pershare-by-size"></div>
+      </div>
+
+      <div class="panel-box" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Best &amp; Worst by $/Share</span></div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Your most and least efficient trades per share traded — a $2,000 winner on 10,000 shares and a $200 winner on 200 shares show up here on equal footing, unlike a plain P&amp;L leaderboard.</p>
+        <div id="pershare-leaders"></div>
       </div>
 
       <div class="panel-box" style="margin-bottom:16px;">
@@ -297,13 +385,17 @@
       </div>
     `;
 
-    renderEquityCurve(sorted);
     renderStreak(sorted);
+    renderTrends(sorted, currentTrendWindow);
+    bindTrendWindowToggle(sorted);
+    renderPerShareBySize(sorted);
+    renderPerShareLeaders(sorted);
     renderSetupBreakdown(sorted);
     renderSlippage(sorted);
     renderSlippageTrend(sorted);
     renderSlippageBySetup(sorted);
     renderGradeBreakdown(sorted);
+    restoreUrlState();
   }
 
   function avg(arr) {
@@ -311,38 +403,307 @@
     return arr.reduce((s, v) => s + v, 0) / arr.length;
   }
 
-  function renderEquityCurve(sorted) {
-    const el = document.getElementById("equity-chart");
-    const chart = LightweightCharts.createChart(el, {
+  // ---------- Performance Trends: rolling win rate / profit factor,
+  // and $/share P&L over time (all keyed on trade sequence, not
+  // calendar date -- same convention edge-analysis's sizing chart
+  // uses, since a rolling window over trade *count* is what smooths
+  // per-trade noise; a calendar x-axis would just be an equity curve,
+  // which is already on the Dashboard). ----------
+  let currentTrendWindow = 20;
+
+  function bindTrendWindowToggle(sorted) {
+    const toggle = document.getElementById("trend-window-toggle");
+    if (!toggle) return;
+    toggle.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const n = Number(btn.getAttribute("data-window"));
+        if (!n || n === currentTrendWindow) return;
+        currentTrendWindow = n;
+        toggle.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === btn));
+        renderTrends(sorted, currentTrendWindow);
+      });
+    });
+  }
+
+  function rollingSeries(sorted, windowSize, fn) {
+    const out = [];
+    for (let i = 0; i < sorted.length; i++) {
+      if (i + 1 < windowSize) continue;
+      const win = sorted.slice(i + 1 - windowSize, i + 1);
+      const v = fn(win);
+      if (v !== null) out.push({ time: i + 1, value: v });
+    }
+    return out;
+  }
+  function winRateOf(trades) {
+    if (!trades.length) return null;
+    return (trades.filter((t) => t.win).length / trades.length) * 100;
+  }
+  // Capped at 5x for chart scale -- an infinite profit factor (no losses
+  // in the window) would otherwise blow out the axis; the raw number
+  // still drives the color/position up to that cap.
+  function profitFactorOf(trades) {
+    const grossWin = trades.filter((t) => t.win).reduce((s, t) => s + (t.pnl_after_comm || 0), 0);
+    const grossLoss = Math.abs(trades.filter((t) => !t.win).reduce((s, t) => s + (t.pnl_after_comm || 0), 0));
+    if (grossLoss === 0) return grossWin > 0 ? 5 : 0;
+    return Math.min(5, grossWin / grossLoss);
+  }
+  function perShare(r) {
+    return (typeof r.shares === "number" && r.shares > 0) ? (r.pnl_after_comm || 0) / r.shares : null;
+  }
+
+  function compositeScoreOf(trades) {
+    if (!trades.length) return null;
+    const wins = trades.filter((t) => t.win);
+    const losses = trades.filter((t) => !t.win);
+    const winRate = (wins.length / trades.length) * 100;
+    const avgWinV = wins.length ? avg(wins.map((t) => t.pnl_after_comm)) : 0;
+    const avgLossV = losses.length ? avg(losses.map((t) => t.pnl_after_comm)) : 0;
+    const grossWinSum = wins.reduce((s, t) => s + (t.pnl_after_comm || 0), 0);
+    const grossLossSum = Math.abs(losses.reduce((s, t) => s + (t.pnl_after_comm || 0), 0));
+    const profitFactor = grossLossSum > 0 ? grossWinSum / grossLossSum : (grossWinSum > 0 ? Infinity : 0);
+    const winRateScore = Math.max(0, Math.min(100, winRate));
+    const pfScore = profitFactor === Infinity ? 100 : Math.max(0, Math.min(100, (profitFactor / 3) * 100));
+    const ratio = avgLossV !== 0 ? avgWinV / Math.abs(avgLossV) : 0;
+    const avgWLScore = Math.max(0, Math.min(100, (ratio / 2) * 100));
+    return Math.round((winRateScore + pfScore + avgWLScore) / 3);
+  }
+
+  function renderTrends(sorted, windowSize) {
+    renderQualityTrendChart(sorted, windowSize);
+    renderQualityScoreChart(sorted, windowSize);
+    renderPerShareTrendChart(sorted, windowSize);
+  }
+
+  // The window toggle re-renders both charts in place without a page
+  // reload, so each render function disposes its own previous chart
+  // instance first (chart.remove() tears down its canvas + listeners) --
+  // otherwise every toggle click would leak another chart and another
+  // resize listener onto the old, now-detached canvas.
+  let qualityChart = null;
+  let qualityScoreChart = null;
+  let perShareChart = null;
+
+  function makeTrendChart(el, opts) {
+    el.innerHTML = "";
+    const chart = LightweightCharts.createChart(el, Object.assign({
       width: el.clientWidth,
-      height: 260,
+      height: 200,
       layout: { background: { color: "transparent" }, textColor: "#8b8fa3" },
       grid: { vertLines: { color: "#1b1e26" }, horzLines: { color: "#1b1e26" } },
       rightPriceScale: { borderColor: "#262a34" },
-      timeScale: { borderColor: "#262a34" },
-    });
-    const series = chart.addAreaSeries({
-      lineColor: "#5b93f0", topColor: "rgba(91,147,240,0.28)", bottomColor: "rgba(91,147,240,0.02)", lineWidth: 2,
-    });
-    // `_balance` (real account balance -- Settings ledger + cumulative
-    // P&L, see computeAccountBalances in auth.js) is computed for every
-    // row before this runs; fall back to a running P&L sum on the rare
-    // chance it's missing. Lightweight-charts needs one strictly-
-    // increasing time key per point, but a day can have several trades,
-    // so collapse same-day trades to that day's final balance.
-    let running = 0;
-    const byDate = new Map();
-    for (const r of sorted) {
-      running += r.pnl_after_comm || 0;
-      const value = typeof r._balance === "number" ? r._balance : running;
-      byDate.set(r.trade_date, value);
+      timeScale: { borderColor: "#262a34", tickMarkFormatter: (t) => "#" + t },
+    }, opts || {}));
+    const onResize = () => chart.applyOptions({ width: el.clientWidth });
+    window.addEventListener("resize", onResize);
+    chart._onResize = onResize; // stashed so the next render can unregister it on disposal
+    return chart;
+  }
+  function disposeChart(chart) {
+    if (!chart) return;
+    if (chart._onResize) window.removeEventListener("resize", chart._onResize);
+    try { chart.remove(); } catch (e) { /* already gone */ }
+  }
+
+  function renderQualityTrendChart(sorted, windowSize) {
+    disposeChart(qualityChart);
+    qualityChart = null;
+    const el = document.getElementById("quality-trend-chart");
+    if (sorted.length < windowSize) {
+      el.innerHTML = `<div class="empty-state small">Need at least ${windowSize} trades for a ${windowSize}-trade rolling window (have ${sorted.length}). Try a smaller window above.</div>`;
+      return;
     }
-    const data = Array.from(byDate.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([time, value]) => ({ time, value }));
-    series.setData(data);
+    const chart = makeTrendChart(el, { leftPriceScale: { visible: true, borderColor: "#262a34" } });
+    qualityChart = chart;
+    const winRateSeries = chart.addLineSeries({
+      color: "#5b93f0", lineWidth: 2, priceScaleId: "right",
+      priceFormat: { type: "custom", formatter: (v) => v.toFixed(0) + "%" },
+    });
+    const pfSeries = chart.addLineSeries({
+      color: "#e8a94c", lineWidth: 2, priceScaleId: "left",
+      priceFormat: { type: "custom", formatter: (v) => v.toFixed(2) + "x" },
+    });
+    winRateSeries.setData(rollingSeries(sorted, windowSize, winRateOf));
+    pfSeries.setData(rollingSeries(sorted, windowSize, profitFactorOf));
     chart.timeScale().fitContent();
-    window.addEventListener("resize", () => chart.applyOptions({ width: el.clientWidth }));
+    el.insertAdjacentHTML("beforeend", `
+      <div style="display:flex; gap:14px; font-size:11px; color:var(--text-faint); margin-top:6px;">
+        <span><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:#5b93f0; margin-right:5px;"></span>Win rate</span>
+        <span><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:#e8a94c; margin-right:5px;"></span>Profit factor (capped 5x)</span>
+      </div>`);
+  }
+
+  function renderQualityScoreChart(sorted, windowSize) {
+    disposeChart(qualityScoreChart);
+    qualityScoreChart = null;
+    const el = document.getElementById("quality-score-chart");
+    if (sorted.length < windowSize) {
+      el.innerHTML = `<div class="empty-state small">Need at least ${windowSize} trades for a ${windowSize}-trade rolling window (have ${sorted.length}).</div>`;
+      return;
+    }
+    const chart = makeTrendChart(el, { height: 160 });
+    qualityScoreChart = chart;
+    const series = chart.addAreaSeries({
+      lineColor: "#8457ff", topColor: "rgba(132,87,255,0.28)", bottomColor: "rgba(132,87,255,0.02)", lineWidth: 2,
+      priceFormat: { type: "custom", formatter: (v) => v.toFixed(0) },
+    });
+    series.setData(rollingSeries(sorted, windowSize, compositeScoreOf));
+    // Same 40/70 bands renderScore() in app.js uses to color the Dashboard
+    // gauge red/amber/green -- drawn here as reference lines rather than
+    // recoloring the line itself, so one glance shows which band a given
+    // stretch of trading sat in.
+    series.createPriceLine({ price: 70, color: "rgba(47,208,138,0.45)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "good" });
+    series.createPriceLine({ price: 40, color: "rgba(242,85,90,0.45)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "caution" });
+    chart.timeScale().fitContent();
+  }
+
+  function renderPerShareTrendChart(sorted, windowSize) {
+    disposeChart(perShareChart);
+    perShareChart = null;
+    const el = document.getElementById("pershare-trend-chart");
+    const withShares = sorted.filter((r) => perShare(r) !== null);
+    if (withShares.length < 5) {
+      el.innerHTML = `<div class="empty-state small">Not enough trades with share counts yet (have ${withShares.length}).</div>`;
+      return;
+    }
+    const chart = makeTrendChart(el);
+    perShareChart = chart;
+    // Dots: an invisible line just to host setMarkers -- lightweight-charts
+    // has no native scatter series, but setMarkers on a line series is a
+    // stable, documented way to place per-point circles without drawing
+    // the connecting line itself.
+    const dotSeries = chart.addLineSeries({ color: "rgba(0,0,0,0)", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+    const dotData = withShares.map((r, i) => ({ time: i + 1, value: perShare(r) }));
+    dotSeries.setData(dotData);
+    dotSeries.setMarkers(withShares.map((r, i) => ({
+      time: i + 1, position: "inBar", shape: "circle", size: 1,
+      color: r.win ? "rgba(47,208,138,0.85)" : "rgba(242,85,90,0.85)",
+    })));
+    const avgWindow = Math.min(windowSize, withShares.length);
+    const trendSeries = chart.addLineSeries({ color: "#c084fc", lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+    trendSeries.setData(rollingSeries(withShares, avgWindow, (trades) => avg(trades.map(perShare))));
+    chart.timeScale().fitContent();
+    el.insertAdjacentHTML("beforeend", `
+      <div style="display:flex; gap:14px; font-size:11px; color:var(--text-faint); margin-top:6px;">
+        <span><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#2fd08a; margin-right:5px;"></span>Win</span>
+        <span><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#f2555a; margin-right:5px;"></span>Loss</span>
+        <span><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:#c084fc; margin-right:5px;"></span>${avgWindow}-trade rolling avg</span>
+      </div>`);
+  }
+
+  function renderPerShareBySize(sorted) {
+    const el = document.getElementById("pershare-by-size");
+    const withShares = sorted.filter((r) => typeof r.shares === "number" && r.shares > 0);
+    if (withShares.length < 8) {
+      el.innerHTML = `<div class="empty-state small">Need more trades with share counts to bucket by size (have ${withShares.length}).</div>`;
+      return;
+    }
+    const bySize = withShares.slice().sort((a, b) => a.shares - b.shares);
+    const q = Math.ceil(bySize.length / 4);
+    const labels = ["Smallest 25%", "2nd quartile", "3rd quartile", "Largest 25%"];
+    const buckets = [];
+    for (let i = 0; i < 4; i++) {
+      const bucket = bySize.slice(i * q, (i + 1) * q);
+      if (bucket.length) buckets.push({ label: labels[i], bucket });
+    }
+    const maxAbsPerShare = Math.max(1, ...buckets.map(({ bucket }) => Math.abs(avg(bucket.map(perShare)))));
+    el.innerHTML = buckets.map(({ label, bucket }) => {
+      const perShareAvg = avg(bucket.map(perShare));
+      const rate = Math.round((bucket.filter((r) => r.win).length / bucket.length) * 1000) / 10;
+      const lo = Math.min(...bucket.map((r) => r.shares)), hi = Math.max(...bucket.map((r) => r.shares));
+      const pct = Math.round((Math.abs(perShareAvg) / maxAbsPerShare) * 100);
+      const color = perShareAvg >= 0 ? "var(--green)" : "var(--red)";
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `<div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer; flex-wrap:wrap;">
+        <div class="bar-label">${label}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${color};"></div></div>
+        <div style="width:80px; text-align:right; flex-shrink:0; color:${color};">${(perShareAvg >= 0 ? "+" : "-") + "$" + Math.abs(perShareAvg).toFixed(3) + "/sh"}</div>
+        <div style="width:56px; text-align:right; flex-shrink:0; color:var(--text-faint);">${rate}% win</div>
+        <div style="width:60px; text-align:right; flex-shrink:0; color:var(--text-faint);">${bucket.length}x</div>
+        <div style="width:100%; order:99; font-size:11.5px; color:var(--text-faint); margin-top:2px;">${lo}–${hi} shares</div>
+      </div>
+      ${tradeListHtml(bucket, uid)}`;
+    }).join("") + `<div id="pershare-size-scatter" style="margin-top:16px;"></div>`;
+    bindTradeToggles(el);
+    renderShareSizeScatter(withShares);
+  }
+
+  // Real scatter (share count vs $/share), plain SVG since lightweight-
+  // charts' x-axis is time-only and can't host an arbitrary numeric axis
+  // like shares -- complements the quartile bars above with the raw,
+  // ungrouped shape of the relationship, plus a least-squares trend line
+  // so the direction (not just the bucketed averages) is visible at a
+  // glance.
+  function renderShareSizeScatter(trades) {
+    const el = document.getElementById("pershare-size-scatter");
+    if (!el) return;
+    const pts = trades.map((r) => ({ x: r.shares, y: perShare(r), win: r.win }));
+    const width = 680, height = 240, padL = 60, padR = 16, padT = 16, padB = 34;
+    const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+    let xMin = Math.min(...xs), xMax = Math.max(...xs);
+    let yMin = Math.min(0, ...ys), yMax = Math.max(0, ...ys);
+    const xPad = (xMax - xMin) * 0.06 || 1, yPad = (yMax - yMin) * 0.14 || 1;
+    xMin -= xPad; xMax += xPad; yMin -= yPad; yMax += yPad;
+    const xScale = (x) => padL + ((x - xMin) / (xMax - xMin)) * (width - padL - padR);
+    const yScale = (y) => height - padB - ((y - yMin) / (yMax - yMin)) * (height - padT - padB);
+
+    const n = pts.length;
+    const meanX = avg(pts.map((p) => p.x)), meanY = avg(pts.map((p) => p.y));
+    let num = 0, den = 0;
+    pts.forEach((p) => { num += (p.x - meanX) * (p.y - meanY); den += (p.x - meanX) ** 2; });
+    const slope = den ? num / den : 0;
+    const intercept = meanY - slope * meanX;
+    const rawXMin = Math.min(...xs), rawXMax = Math.max(...xs);
+
+    const dots = pts.map((p) => `<circle cx="${xScale(p.x).toFixed(1)}" cy="${yScale(p.y).toFixed(1)}" r="3.2" fill="${p.win ? "rgba(47,208,138,0.75)" : "rgba(242,85,90,0.75)"}"/>`).join("");
+    const trendLine = `<line x1="${xScale(rawXMin).toFixed(1)}" y1="${yScale(intercept + slope * rawXMin).toFixed(1)}" x2="${xScale(rawXMax).toFixed(1)}" y2="${yScale(intercept + slope * rawXMax).toFixed(1)}" stroke="#c084fc" stroke-width="2" stroke-dasharray="5 4"/>`;
+    const zeroY = yScale(0);
+
+    const perExtra100 = slope * 100;
+    const direction = Math.abs(perExtra100) < 0.001 ? "is essentially flat against" : (perExtra100 < 0 ? "tends to fall as" : "tends to rise as");
+    const insight = `Trend line ${direction} position size — roughly ${(perExtra100 >= 0 ? "+" : "-") + "$" + Math.abs(perExtra100).toFixed(3)} per share for every extra 100 shares traded.`;
+
+    el.innerHTML = `
+      <div class="label-row" style="margin-bottom:2px;"><span class="label">$/Share vs. Position Size — every trade</span></div>
+      <svg viewBox="0 0 ${width} ${height}" style="width:100%; height:${height}px; display:block;">
+        <line x1="${padL}" y1="${zeroY.toFixed(1)}" x2="${width - padR}" y2="${zeroY.toFixed(1)}" stroke="#262a34" stroke-width="1" stroke-dasharray="3 3"/>
+        ${trendLine}
+        ${dots}
+        <text x="${padL}" y="${height - 12}" font-size="10" fill="#8b8fa3">${Math.round(rawXMin)} sh</text>
+        <text x="${width - padR}" y="${height - 12}" font-size="10" fill="#8b8fa3" text-anchor="end">${Math.round(rawXMax)} sh</text>
+        <text x="${padL - 8}" y="${padT + 8}" font-size="10" fill="#8b8fa3" text-anchor="end">$${yMax.toFixed(2)}</text>
+        <text x="${padL - 8}" y="${height - padB}" font-size="10" fill="#8b8fa3" text-anchor="end">$${yMin.toFixed(2)}</text>
+      </svg>
+      <p style="color:var(--text-faint); font-size:12px; margin:8px 0 0;">${insight} (n=${n})</p>
+    `;
+  }
+
+  function renderPerShareLeaders(sorted) {
+    const el = document.getElementById("pershare-leaders");
+    const withShares = sorted.filter((r) => perShare(r) !== null);
+    if (withShares.length < 6) {
+      el.innerHTML = `<div class="empty-state small">Need more trades with share counts (have ${withShares.length}).</div>`;
+      return;
+    }
+    const ranked = withShares.slice().sort((a, b) => perShare(b) - perShare(a));
+    const best = ranked.slice(0, 5);
+    const worst = ranked.slice(-5).reverse();
+    const rowHtml = (r) => `<li><a href="trade.html?id=${encodeURIComponent(r.id)}" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+      <span>${escapeHtml(r.symbol)} <span class="${r.win ? "up" : "down"}" style="font-size:10.5px;">${r.win ? "WIN" : "LOSS"}</span></span>
+      <span class="mono" style="color:${perShare(r) >= 0 ? "var(--green)" : "var(--red)"}; flex-shrink:0;">${(perShare(r) >= 0 ? "+" : "-") + "$" + Math.abs(perShare(r)).toFixed(3) + "/sh"}</span>
+    </a><div style="font-size:11px; color:var(--text-faint); padding:0 2px 6px;">${escapeHtml(r.trade_date)} · ${r.shares.toLocaleString()} sh · ${fmtMoney(r.pnl_after_comm || 0)} total</div></li>`;
+    el.innerHTML = `
+      <div class="report-grid">
+        <div>
+          <div class="label-row" style="margin-bottom:4px;"><span class="label" style="color:var(--green);">Best</span></div>
+          <ul class="tag-trade-list open" style="margin:0;">${best.map(rowHtml).join("")}</ul>
+        </div>
+        <div>
+          <div class="label-row" style="margin-bottom:4px;"><span class="label" style="color:var(--red);">Worst</span></div>
+          <ul class="tag-trade-list open" style="margin:0;">${worst.map(rowHtml).join("")}</ul>
+        </div>
+      </div>
+    `;
   }
 
   function renderStreak(sorted) {

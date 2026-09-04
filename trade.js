@@ -164,6 +164,10 @@
           <div class="value ${trade.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(trade.pnl_after_comm)}</div>
         </div>
         <div class="cell">
+          <div class="label">Shares</div>
+          <div class="value">${trade.shares != null ? trade.shares.toLocaleString() : "—"}</div>
+        </div>
+        <div class="cell">
           <div class="label">&cent;/Share</div>
           <div class="value ${trade.pnl_after_comm >= 0 ? "up" : "down"}">${trade.shares ? centsPerShare(trade.pnl_after_comm, trade.shares) : "—"}</div>
         </div>
@@ -175,17 +179,17 @@
             <span class="legend-item"><span class="legend-swatch" style="background:#e8a94c"></span>VWAP</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#9aa8a1"></span>EMA9</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#5b93f0"></span>EMA20</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#2fd08a"></span>entry</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#f2555a"></span>exit</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#8b7cf6"></span>better entry</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#ec6cad"></span>better exit</span>
           </div>
           <div style="display:flex; align-items:center; gap:12px;">
             <span>Scroll to zoom · drag to pan</span>
-            <button class="icon-btn icon-btn-visible" id="replay-btn" title="Second-by-second replay, entry to exit" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
+            <a class="icon-btn icon-btn-visible" id="replay-btn" title="Rewind this trade" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px; text-decoration:none;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-              Replay
-            </button>
+              Rewind
+            </a>
+            <a class="icon-btn icon-btn-visible" id="practice-btn" title="Practice trading this symbol" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px; text-decoration:none;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              Practice
+            </a>
             <button class="icon-btn icon-btn-visible" id="export-chart-btn" title="Export chart as PNG" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
               PNG
@@ -193,28 +197,6 @@
           </div>
         </div>
         <div id="candle-chart"></div>
-        <div id="replay-panel" style="display:none; margin-top:10px; padding:12px 14px; background:var(--panel-2, #14171c); border:1px solid var(--border-soft, #232830); border-radius:8px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-            <div style="display:flex; align-items:baseline; gap:10px;">
-              <span id="replay-price" style="font-size:20px; font-weight:700; font-variant-numeric:tabular-nums;">—</span>
-              <span id="replay-pnl" style="font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums;"></span>
-            </div>
-            <div style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--text-faint,#8b98a5);">
-              <span id="replay-clock" style="font-variant-numeric:tabular-nums;"></span>
-              <span style="opacity:.6;">simulated seconds — synthesized between real 1-min bars, not real tick data</span>
-            </div>
-          </div>
-          <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
-            <button class="icon-btn icon-btn-visible" id="replay-play-btn" title="Play/pause" style="width:auto; padding:4px 10px; font-size:11.5px;">▶ Play</button>
-            <input type="range" id="replay-scrub" min="0" max="0" value="0" step="1" style="flex:1;">
-            <select id="replay-speed" title="Playback speed" style="background:var(--panel,#0f1216); color:inherit; border:1px solid var(--border,#232830); border-radius:6px; font-size:11.5px; padding:3px 6px;">
-              <option value="1">1×</option>
-              <option value="0.5">2×</option>
-              <option value="0.25">4×</option>
-            </select>
-            <button class="icon-btn icon-btn-visible" id="replay-close-btn" title="Close replay" style="width:auto; padding:4px 8px; font-size:11.5px;">✕</button>
-          </div>
-        </div>
         <div id="macd-chart"></div>
       </div>
 
@@ -222,10 +204,6 @@
         <div class="card">
           <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
             <h2 style="margin:0;">Verdict</h2>
-            <button class="icon-btn icon-btn-visible" id="copy-verdict-btn" title="Copy verdict text" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-              <span id="copy-verdict-label">Copy</span>
-            </button>
           </div>
           <div class="verdict-text">${escapeHtml(trade.verdict || "No verdict recorded.")}</div>
           ${trade.setup_type ? `<span class="setup-tag">${escapeHtml(trade.setup_type)}</span>` : ""}
@@ -289,29 +267,6 @@
       window.TradeGrade.attachInteractive(gradeRow, trade.id, current, (next) => {
         trade.grade = next; // keep in sync for this render (siblingNav/etc. don't read it, but future code might)
         paintLabel(next);
-      });
-    }
-
-    const copyBtn = document.getElementById("copy-verdict-btn");
-    if (copyBtn) {
-      copyBtn.addEventListener("click", () => {
-        const label = document.getElementById("copy-verdict-label");
-        const text = trade.verdict || "";
-        const done = () => { label.textContent = "Copied!"; setTimeout(() => (label.textContent = "Copy"), 1500); };
-        const fail = () => { label.textContent = "Couldn't copy"; setTimeout(() => (label.textContent = "Copy"), 1500); };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(text).then(done, fail);
-        } else {
-          // Fallback for browsers without the async Clipboard API.
-          const ta = document.createElement("textarea");
-          ta.value = text;
-          ta.style.position = "fixed";
-          ta.style.opacity = "0";
-          document.body.appendChild(ta);
-          ta.select();
-          try { document.execCommand("copy"); done(); } catch (e) { fail(); }
-          document.body.removeChild(ta);
-        }
       });
     }
 
@@ -510,10 +465,10 @@
       layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
       grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
       // minimumWidth guarantees room for the widest axis label we ever put
-      // up -- "better entry" / "better exit" plus the price -- so those
-      // price-line titles render in full instead of being squeezed by an
-      // axis width that would otherwise auto-size to shorter labels like
-      // the plain numeric entry/exit prices.
+      // up -- the support/resistance price-line tags (see srChartTag) can
+      // run up to ~28 characters, so give the axis enough width for those
+      // to render in full instead of being squeezed down to short numeric
+      // labels only.
       rightPriceScale: { borderColor: "#232830", minimumWidth: 92 },
       timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
@@ -527,12 +482,8 @@
     candleSeries.setData(candleData);
     srCandleSeries = candleSeries;
 
-    // The right price scale autoscales to candle highs/lows only. As you
-    // zoom in, the visible range tightens around just the candles in view,
-    // and the entry/exit pointer markers (drawn a fixed pixel offset off
-    // their exact fill price) can end up right at the pane edge. Reserving
-    // extra top/bottom margin gives them permanent headroom so they're
-    // never fighting the autoscale for room, at any zoom level.
+    // Extra top/bottom margin so the candles never butt right up against
+    // the pane edge at any zoom level.
     candleChart.priceScale("right").applyOptions({
       scaleMargins: { top: 0.14, bottom: 0.18 },
     });
@@ -545,499 +496,18 @@
     candleChart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema9Data);
     candleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema20Data);
 
-    // Find the candle a marker's timestamp falls ON, so we can compare the
-    // fill price against THAT candle's actual high/low instead of guessing
-    // position from the role (entry vs exit).
-    //
-    // Bars are 1-minute candles labeled by their START time (e.g. "09:59:00"
-    // covers 09:59:00-09:59:59). Fill times carry seconds ("09:59:48"). A
-    // *nearest*-by-absolute-diff match picks whichever bar boundary is
-    // numerically closest -- for anything in the second half of the minute
-    // (:31-:59) that's the START of the NEXT bar, not the one the fill
-    // actually happened in. Floor-matching (last bar whose start time is
-    // <= the fill time) is the correct rule for start-labeled bars.
-    function barAt(unixTime) {
-      let best = bars[0];
-      for (const b of bars) {
-        if (toUnix(b.t) <= unixTime) best = b;
-        else break;
-      }
-      return best;
-    }
-
-    // better_entry.time / better_exit.time come from the LLM verdict step
-    // and, unlike entry_time/exit_time, are never guaranteed to include a
-    // date -- most of the time they're just "HH:MM:SS". Handing a bare time
-    // straight to toUnix()/new Date() either parses as Invalid Date (NaN),
-    // which makes barAt() silently fall through its whole loop and return
-    // bars[0] -- the FIRST candle on the chart, regardless of when the
-    // trade actually happened -- or, in engines that accept a bare time,
-    // resolves it against *today's* date instead of the trade's date,
-    // landing it off the visible range entirely. Either way the dotted
-    // price line (which only depends on price) looks right while the
-    // pointer (which depends on this) ends up nowhere near it. Detect a
-    // bare time (no "YYYY-MM-DD" in it) and explicitly prepend the trade's
-    // own date before parsing, so it always resolves against the right day.
-    function betterUnix(timeStr) {
-      if (!timeStr) return NaN;
-      const hasDate = /\d{4}-\d{2}-\d{2}/.test(timeStr);
-      return toUnix(hasDate ? timeStr : `${trade.trade_date} ${timeStr}`);
-    }
-
-    // The LLM's suggested time and suggested price are two independent
-    // guesses, and they don't always agree with each other: it can name a
-    // real minute that resolves to a real candle (so betterUnix/barAt above
-    // both succeed) while the *price* it gave was never actually touched
-    // in that candle -- the wick doesn't reach it. The pointer still lands
-    // on a legitimate candle, just the wrong one: the dotted price line
-    // keeps pointing at where that price really traded, while the pointer
-    // sits one or more minutes off from it. Cross-check the two: if the
-    // price isn't within [low, high] of the time-based candle, search
-    // outward in both directions (by bar index, i.e. by time) for the
-    // nearest candle whose range actually contains that price, and use
-    // that instead -- so the pointer always lands on "the one the line
-    // means" rather than wherever the LLM said. If literally no candle in
-    // the session touched that price, there's nothing better to snap to,
-    // so the time-based candle is kept as the closest available guess.
-    function barForPrice(price, candidateBar) {
-      const within = (b) => price <= b.h + 1e-6 && price >= b.l - 1e-6;
-      if (within(candidateBar)) return candidateBar;
-      const idx = bars.indexOf(candidateBar);
-      for (let d = 1; d < bars.length; d++) {
-        const before = bars[idx - d];
-        const after = bars[idx + d];
-        if (before && within(before)) return before;
-        if (after && within(after)) return after;
-        if (!before && !after) break;
-      }
-      return candidateBar;
-    }
-
-    // Small, clear pointer markers instead of a label box + connector stem
-    // + full-width dashed price line: just a tiny triangle sitting right on
-    // the exact fill point, pointing straight at it. Nothing else on the
-    // chart competes with it for attention, and it never gets orphaned from
-    // its own price line the way the old label system could.
-    //
-    // The pointer itself owns its tooltip -- a styled box (not the native
-    // title attribute, which can't be styled and is easy to misread as
-    // "cut off" since it wraps awkwardly at narrow widths) showing the
-    // FULL price/time plus, for "better" markers, the full reason +
-    // how_to_know text -- nothing truncated, so nothing has to be crammed
-    // into the short on-chart tag. It opens on hover for mouse users and on
-    // tap for touch users (hover doesn't fire on touchscreens), so there's
-    // no separate "i" badge competing for space on the chart.
-    //
-    // Appended to `wrap` directly (not the pointer overlay, which clips its
-    // contents to the chart's bounds via overflow:hidden) so the tooltip is
-    // never cut off at the pane edge.
-    function buildPointer(tooltipHtml, color) {
-      const wrap = candleEl;
-      wrap.style.position = "relative";
-      let overlay = wrap.querySelector(".fill-pointer-overlay");
-      if (!overlay) {
-        overlay = document.createElement("div");
-        overlay.className = "fill-pointer-overlay";
-        overlay.style.cssText = "position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:2;";
-        wrap.appendChild(overlay);
-      }
-      const el = document.createElement("div");
-      el.style.cssText = `
-        position:absolute; width:0; height:0; pointer-events:auto;
-        border-left:6px solid transparent; border-right:6px solid transparent;
-        filter: drop-shadow(0 0 1.5px #0b0d10) drop-shadow(0 0 1.5px #0b0d10);
-      `;
-      overlay.appendChild(el);
-
-      let tooltip = null;
-      if (tooltipHtml) {
-        tooltip = document.createElement("div");
-        tooltip.className = "pointer-tooltip";
-        tooltip.dataset.open = "0";
-        tooltip.style.cssText = `
-          position:absolute; display:none; width:220px; max-width:60vw;
-          background:#181b22; border:1px solid ${color}; border-radius:8px;
-          padding:10px 12px; font-size:12px; line-height:1.5; color:#eceef2;
-          box-shadow:0 6px 20px rgba(0,0,0,.45); z-index:5; pointer-events:none;
-        `;
-        tooltip.innerHTML = tooltipHtml;
-        wrap.appendChild(tooltip);
-
-        const openTooltip = () => {
-          wrap.querySelectorAll(".pointer-tooltip").forEach((t) => { t.dataset.open = "0"; t.style.display = "none"; });
-          tooltip.dataset.open = "1";
-          tooltip.style.display = "block";
-          repositionPointers();
-        };
-        const closeTooltip = () => { tooltip.dataset.open = "0"; tooltip.style.display = "none"; };
-        el.addEventListener("mouseenter", openTooltip);
-        el.addEventListener("mouseleave", closeTooltip);
-        // Tap-to-toggle so touch users (no mouseenter) can still reach it.
-        el.addEventListener("click", (e) => {
-          e.stopPropagation();
-          if (tooltip.dataset.open === "1") closeTooltip(); else openTooltip();
-        });
-      }
-      return { el, tooltip };
-    }
-
-    // Any click outside a pointer tooltip closes whichever one is pinned
-    // open -- otherwise a tapped-open tooltip would just sit there covering
-    // the chart. (Hover-opened tooltips already close on mouseleave.)
-    document.addEventListener("click", () => {
-      candleEl.querySelectorAll(".pointer-tooltip").forEach((t) => { t.dataset.open = "0"; t.style.display = "none"; });
-    });
-
-    const POINTER_H = 9; // triangle height in px -- also used to correct the tip offset in repositionPointers()
-
-    const entryBar = barAt(toUnix(`${trade.trade_date} ${trade.entry_time}`));
-    const exitBar = barAt(toUnix(`${trade.trade_date} ${trade.exit_time}`));
-
-    // Chart-only tooltip content: marker + price + the how_to_know signal,
-    // in full -- nothing truncated. This mirrors the older version of this
-    // file -- the chart shows *why* to act (the observable signal), while
-    // the "What you should've done" card (betterRow) carries the full
-    // reason + how_to_know prose too. Using how_to_know here (not reason)
-    // is what keeps the chart's wording genuinely different from the
-    // card's, rather than a shorter copy of it. Returns HTML (escaped)
-    // since it's dropped straight into the tooltip's innerHTML.
-    function tooltipHtml(head, signal) {
-      const headLine = `<div style="font-weight:700;${signal ? " margin-bottom:4px;" : ""}">${escapeHtml(head)}</div>`;
-      return headLine + (signal ? `<div>${escapeHtml(signal)}</div>` : "");
-    }
-
-    function betterTooltip(kind, b) {
-      return tooltipHtml(`better ${kind} $${Number(b.price).toFixed(2)}`, b.how_to_know || "");
-    }
-
-    // Same idea as betterTooltip, but for the ACTUAL fill: marker + price +
-    // the entry_indicator/exit_indicator signal -- what was actually
-    // visible in real time that justified acting at this price, not the
-    // hypothetical better one.
-    function actualTooltip(kind, price, indicator) {
-      return tooltipHtml(`${kind.toUpperCase()} $${price.toFixed(2)}`, indicator || "");
-    }
-
-    const ACTUAL_ENTRY_COLOR = "#2fd08a"; // green, matches the entry pointer/legend
-    const ACTUAL_EXIT_COLOR = "#f2555a"; // red, matches the exit pointer/legend
-
-    // buildPointer returns { el, tooltip } -- el is the triangle marker,
-    // tooltip is its hover/tap popup (null if there's no text to show).
-    // mkPointer flattens that into one entry for the `pointers` array,
-    // which repositionPointers() below reads by both el and tooltip.
-    function mkPointer(time, price, color, above, tooltipHtmlText) {
-      const { el, tooltip } = buildPointer(tooltipHtmlText, color);
-      return { time, price, color, above, el, tooltip };
-    }
-
-    const pointers = [
-      // Entry: triangle sits just above the fill, tip pointing down onto it.
-      mkPointer(toUnix(entryBar.t), trade.entry_price, ACTUAL_ENTRY_COLOR, true,
-        actualTooltip("entry", trade.entry_price, trade.entry_indicator)),
-      // Exit: triangle sits just below the fill, tip pointing up onto it.
-      mkPointer(toUnix(exitBar.t), trade.exit_price, ACTUAL_EXIT_COLOR, false,
-        actualTooltip("exit", trade.exit_price, trade.exit_indicator)),
-    ];
-    // Better entry/exit get their own pointers, in colors that match their
-    // legend swatches and dotted price lines below -- so color alone ties a
-    // triangle to the right line without reading labels. These are their
-    // own distinct hues (purple / pink) rather than a faded green/red, so a
-    // "better" pointer never reads as just a dimmer copy of the actual
-    // entry/exit pointer -- the two are unmistakably different markers even
-    // at a glance. Each snaps to the bar its own suggested time falls on
-    // (falling back to the actual entry/exit bar if no time was given)
-    // rather than reusing the actual fill's x-position.
-    const BETTER_ENTRY_COLOR = "#8b7cf6"; // purple
-    const BETTER_EXIT_COLOR = "#ec6cad"; // pink
-
-    if (trade.better_entry && trade.better_entry.price) {
-      const b = trade.better_entry;
-      const u = betterUnix(b.time);
-      const bar = barForPrice(Number(b.price), Number.isFinite(u) ? barAt(u) : entryBar);
-      pointers.push(mkPointer(toUnix(bar.t), Number(b.price), BETTER_ENTRY_COLOR, true, betterTooltip("entry", b)));
-    }
-    if (trade.better_exit && trade.better_exit.price) {
-      const b = trade.better_exit;
-      const u = betterUnix(b.time);
-      const bar = barForPrice(Number(b.price), Number.isFinite(u) ? barAt(u) : exitBar);
-      pointers.push(mkPointer(toUnix(bar.t), Number(b.price), BETTER_EXIT_COLOR, false, betterTooltip("exit", b)));
-    }
-
-    // A zero-size div with only border-bottom set renders a triangle whose
-    // TIP sits at the box's OWN top edge, with the flat BASE extending
-    // downward (by POINTER_H) from there; border-top-only is the mirror
-    // image -- its tip sits POINTER_H *below* its own top edge, with the
-    // base at the top. So "below" markers (border-bottom, tip pointing up)
-    // can have their top set to the price-y directly, but "above" markers
-    // (border-top, tip pointing down) need their top shifted up by
-    // POINTER_H first, or the price ends up at the flat base instead of the
-    // tip. See repositionPointers() below, which applies that shift.
-    pointers.forEach((p) => {
-      p.el.style.borderTop = p.above ? `${POINTER_H}px solid ${p.color}` : "";
-      p.el.style.borderBottom = p.above ? "" : `${POINTER_H}px solid ${p.color}`;
-    });
-
-    function repositionPointers() {
-      pointers.forEach((p) => {
-        const x = candleChart.timeScale().timeToCoordinate(p.time);
-        const y = candleSeries.priceToCoordinate(p.price);
-        if (x === null || y === null) {
-          p.el.style.display = "none";
-          if (p.tooltip) { p.tooltip.style.display = "none"; p.tooltip.dataset.open = "0"; }
-          return;
-        }
-        p.el.style.display = "block";
-        p.el.style.left = `${x}px`;
-        // "above" markers (border-top) have their tip POINTER_H below their
-        // own top edge, so shift up by POINTER_H to land the tip -- not the
-        // base -- on the price. "below" markers (border-bottom) already
-        // have their tip at their own top edge, so no shift is needed.
-        const pointerTop = p.above ? y - POINTER_H : y;
-        p.el.style.top = `${pointerTop}px`;
-        p.el.style.transform = "translateX(-50%)";
-        // The tooltip only needs positioning while it's actually open --
-        // offset to the side of the triangle (above-left for "above"
-        // markers, below-left for "below" ones) so it never sits on top of
-        // the marker it belongs to.
-        if (p.tooltip && p.tooltip.dataset.open === "1") {
-          p.tooltip.style.left = `${x + 8}px`;
-          p.tooltip.style.top = `${p.above ? pointerTop - 8 : pointerTop + POINTER_H + 8}px`;
-          p.tooltip.style.transform = p.above ? "translateY(-100%)" : "none";
-        }
-      });
-    }
-
-    candleChart.timeScale().subscribeVisibleLogicalRangeChange(repositionPointers);
-    window.addEventListener("resize", repositionPointers);
-    // priceToCoordinate depends on the right price scale's own autoscale,
-    // which isn't settled until after setData/fitContent run -- a couple
-    // of follow-up passes catch that instead of racing it.
-    repositionPointers();
-    requestAnimationFrame(repositionPointers);
-    setTimeout(repositionPointers, 0);
-
-    candleSeries.createPriceLine({
-      price: trade.entry_price,
-      color: "#2fd08a",
-      lineWidth: 1,
-      lineStyle: LightweightCharts.LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: "",
-    });
-    candleSeries.createPriceLine({
-      price: trade.exit_price,
-      color: "#f2555a",
-      lineWidth: 1,
-      lineStyle: LightweightCharts.LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: "",
-    });
-
-    // Dotted lines for the LLM's suggested better entry/exit, in the same
-    // purple/pink as their pointers above -- distinct from the actual
-    // entry/exit green/red so the two pairs never get confused. The axis
-    // label stays a short, static "better entry"/"better exit" tag,
-    // lowercase to match the legend -- the full how_to_know signal lives on
-    // the pointer's own hover/tap tooltip instead (see betterTooltip
-    // above), and the full reason + how_to_know text also lives in the
-    // "What you should've done" card.
-    if (trade.better_entry && trade.better_entry.price) {
-      candleSeries.createPriceLine({
-        price: Number(trade.better_entry.price),
-        color: BETTER_ENTRY_COLOR,
-        lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.Dotted,
-        axisLabelVisible: true,
-        title: "better entry",
-      });
-    }
-    if (trade.better_exit && trade.better_exit.price) {
-      candleSeries.createPriceLine({
-        price: Number(trade.better_exit.price),
-        color: BETTER_EXIT_COLOR,
-        lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.Dotted,
-        axisLabelVisible: true,
-        title: "better exit",
-      });
-    }
-
-    // ---------------------------------------------------------------
-    // Second-by-second replay, entry through exit, on demand.
-    //
-    // Polygon only gives us 1-min bars, so there's no real tick feed for
-    // any of this -- same deterministic (seeded) synthesized intra-bar
-    // path used in the Rewind tab (see genSecondTicks in rewind.js), chained
-    // across every bar from the entry bar through the exit bar, clipped
-    // at both ends to the trade's actual entry/exit second so the replay
-    // starts exactly at the real fill and ends exactly at the real exit.
-    // Clearly labeled "simulated seconds" in the panel -- this is a
-    // review aid, not a real tick-by-tick record. Opens/closes on demand
-    // (the Replay button) and is freely scrubbable at any position at any
-    // time via the range input, not just a one-shot forward animation.
-    // ---------------------------------------------------------------
-    (function setupReplay() {
-      const SUBTICKS_PER_BAR = 30;
-      const BAR_SECONDS = 60;
-
-      function seededRng(seedStr) {
-        let h = 1779033703 ^ seedStr.length;
-        for (let i = 0; i < seedStr.length; i++) {
-          h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353);
-          h = (h << 13) | (h >>> 19);
-        }
-        return function () {
-          h = Math.imul(h ^ (h >>> 16), 2246822507);
-          h = Math.imul(h ^ (h >>> 13), 3266489909);
-          h ^= h >>> 16;
-          return (h >>> 0) / 4294967296;
-        };
-      }
-
-      function genSubticks(bar, prevClose, seed) {
-        const n = SUBTICKS_PER_BAR;
-        const rng = seededRng(seed);
-        const o = bar.o, h = bar.h, l = bar.l, c = bar.c;
-        const start = Number.isFinite(prevClose) ? prevClose : o;
-        const highFirst = rng() < 0.5;
-        const waypoints = [
-          { t: 0, p: start },
-          { t: Math.round(n * 0.1), p: o },
-          { t: Math.round(n * 0.42), p: highFirst ? h : l },
-          { t: Math.round(n * 0.74), p: highFirst ? l : h },
-          { t: n - 1, p: c },
-        ];
-        const range = Math.max(h - l, 0.0001);
-        const jitterAmp = range * 0.07;
-        const prices = [];
-        for (let s = 0; s < n; s++) {
-          let a = waypoints[0], b = waypoints[waypoints.length - 1];
-          for (let i = 0; i < waypoints.length - 1; i++) {
-            if (s >= waypoints[i].t && s <= waypoints[i + 1].t) { a = waypoints[i]; b = waypoints[i + 1]; break; }
-          }
-          const span = Math.max(1, b.t - a.t);
-          const frac = (s - a.t) / span;
-          let price = a.p + (b.p - a.p) * frac;
-          price += (rng() - 0.5) * 2 * jitterAmp;
-          price = Math.min(h, Math.max(l, price));
-          prices.push(price);
-        }
-        prices[n - 1] = c;
-        return prices;
-      }
-
-      const entryUnix = toUnix(`${trade.trade_date} ${trade.entry_time}`);
-      const exitUnix = toUnix(`${trade.trade_date} ${trade.exit_time}`);
-      const entryIdx = bars.indexOf(entryBar);
-      const exitIdx = Math.max(entryIdx, bars.indexOf(exitBar));
-      if (entryIdx < 0 || exitIdx < 0 || !Number.isFinite(entryUnix) || !Number.isFinite(exitUnix)) return;
-
-      const ticks = [];
-      for (let idx = entryIdx; idx <= exitIdx; idx++) {
-        const bar = bars[idx];
-        const barStart = toUnix(bar.t);
-        const prevClose = idx > 0 ? bars[idx - 1].c : bar.o;
-        const prices = genSubticks(bar, prevClose, `${trade.id || ""}-${bar.t}`);
-        for (let s = 0; s < prices.length; s++) {
-          const t = barStart + (s / prices.length) * BAR_SECONDS;
-          if (t < entryUnix) continue; // clip before the real entry, on the entry bar
-          if (t > exitUnix) continue; // clip after the real exit, on the exit bar
-          ticks.push({ time: t, price: prices[s] });
-        }
-      }
-      // Snap the endpoints to the trade's real fill prices so the replay
-      // always starts and ends on the numbers that actually happened,
-      // even though the path between them is synthesized.
-      if (!ticks.length || ticks[0].time > entryUnix) ticks.unshift({ time: entryUnix, price: trade.entry_price });
-      else { ticks[0].time = entryUnix; ticks[0].price = trade.entry_price; }
-      if (ticks[ticks.length - 1].time < exitUnix) ticks.push({ time: exitUnix, price: trade.exit_price });
-      else { ticks[ticks.length - 1].time = exitUnix; ticks[ticks.length - 1].price = trade.exit_price; }
-
-      const panel = document.getElementById("replay-panel");
-      const replayBtn = document.getElementById("replay-btn");
-      const closeBtn = document.getElementById("replay-close-btn");
-      const playBtn = document.getElementById("replay-play-btn");
-      const scrub = document.getElementById("replay-scrub");
-      const speedSel = document.getElementById("replay-speed");
-      const priceEl = document.getElementById("replay-price");
-      const pnlEl = document.getElementById("replay-pnl");
-      const clockEl = document.getElementById("replay-clock");
-      if (!panel || !replayBtn) return;
-
-      scrub.max = String(ticks.length - 1);
-
-      // A small dot on the candle chart marking the current replay point,
-      // positioned the same way the entry/exit pointer triangles are
-      // (chart-coordinate conversion), so it tracks pan/zoom correctly.
-      const dot = document.createElement("div");
-      dot.style.cssText = `
-        position:absolute; width:9px; height:9px; border-radius:50%;
-        background:#ffd166; border:2px solid #14171c; z-index:6;
-        pointer-events:none; display:none; transform:translate(-50%,-50%);
-        box-shadow:0 0 0 2px rgba(255,209,102,0.35);
-      `;
-      candleEl.style.position = "relative";
-      candleEl.appendChild(dot);
-
-      function positionDot(tick) {
-        const x = candleChart.timeScale().timeToCoordinate(Math.round(tick.time));
-        const y = candleSeries.priceToCoordinate(tick.price);
-        if (x === null || y === null) { dot.style.display = "none"; return; }
-        dot.style.display = "block";
-        dot.style.left = `${x}px`;
-        dot.style.top = `${y}px`;
-      }
-
-      const side = String(trade.side || "long").toLowerCase() === "short" ? -1 : 1;
-      function paint(i) {
-        const tick = ticks[i];
-        priceEl.textContent = "$" + tick.price.toFixed(2);
-        const openPnl = side * (tick.price - trade.entry_price) * (trade.shares || 0);
-        pnlEl.textContent = (openPnl >= 0 ? "+" : "-") + "$" + Math.abs(openPnl).toFixed(2);
-        pnlEl.style.color = openPnl >= 0 ? "#2fd08a" : "#f2555a";
-        const elapsed = Math.max(0, Math.round(tick.time - entryUnix));
-        clockEl.textContent = `+${elapsed}s since entry · ${i + 1}/${ticks.length}`;
-        scrub.value = String(i);
-        positionDot(tick);
-      }
-
-      let curIdx = 0, timer = null, playing = false;
-      function stop() {
-        playing = false;
-        if (timer) clearInterval(timer);
-        timer = null;
-        playBtn.textContent = "▶ Play";
-      }
-      function play() {
-        if (curIdx >= ticks.length - 1) curIdx = 0;
-        playing = true;
-        playBtn.textContent = "⏸ Pause";
-        const tickMs = 150 * Number(speedSel.value || "1");
-        if (timer) clearInterval(timer);
-        timer = setInterval(() => {
-          if (curIdx >= ticks.length - 1) { stop(); return; }
-          curIdx++;
-          paint(curIdx);
-        }, tickMs);
-      }
-
-      replayBtn.addEventListener("click", () => {
-        const opening = panel.style.display === "none";
-        panel.style.display = opening ? "block" : "none";
-        if (opening) { curIdx = 0; paint(0); }
-        else stop();
-      });
-      closeBtn.addEventListener("click", () => { stop(); panel.style.display = "none"; dot.style.display = "none"; });
-      playBtn.addEventListener("click", () => { playing ? stop() : play(); });
-      scrub.addEventListener("input", () => {
-        stop();
-        curIdx = Number(scrub.value);
-        paint(curIdx);
-      });
-      speedSel.addEventListener("change", () => { if (playing) play(); });
-      candleChart.timeScale().subscribeVisibleLogicalRangeChange(() => { if (panel.style.display !== "none") positionDot(ticks[curIdx]); });
-      window.addEventListener("resize", () => { if (panel.style.display !== "none") positionDot(ticks[curIdx]); });
-    })();
+    // "Rewind" (renamed from "Replay" to match where it actually goes)
+    // sends this trade over to the Rewind page's own replay/practice
+    // experience instead of duplicating a second, page-local scrub
+    // player here -- one replay implementation instead of two slightly-
+    // different ones to keep in sync. "Practice" is the same ?trade=
+    // deep-link convention, pointed at the Practice page instead, so
+    // you can go straight from reviewing a trade to trading that same
+    // chart live.
+    const replayBtn = document.getElementById("replay-btn");
+    if (replayBtn) replayBtn.href = `rewind.html?trade=${encodeURIComponent(trade.id)}`;
+    const practiceBtn = document.getElementById("practice-btn");
+    if (practiceBtn) practiceBtn.href = `practice.html?trade=${encodeURIComponent(trade.id)}`;
 
     const macdEl = document.getElementById("macd-chart");
     const macdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: 110 });

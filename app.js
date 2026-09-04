@@ -3,8 +3,6 @@
 
   let trades = [];
   let hasCapitalLedger = false; // set once trades load -- see renderEquity()
-  let activeFilter = "all";
-  let searchTerm = "";
   let reportFilters = { symbol: "", tags: [], side: "all", duration: "all", setup: "all" };
   let reportPeriodTimeframe = "monthly"; // daily | weekly | monthly | yearly -- see renderPeriodDistPerf
   let calYear = null;
@@ -15,7 +13,6 @@
   const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
   const statGrid = document.getElementById("stat-grid");
-  const dayGroups = document.getElementById("day-groups");
 
   // Runs `fn`, and if it throws, logs the real error to the console
   // (so it's debuggable) instead of letting it bubble up and abort
@@ -26,7 +23,7 @@
   // 10-16 render functions back-to-back synchronously, that exception
   // aborted every render call still queued after it. Only the outer
   // .catch() would fire, and it only ever touched 3 elements
-  // (dayGroups/statGrid/last-updated) -- every other section's
+  // (recent-trades/statGrid/last-updated) -- every other section's
   // "Loading…" placeholder (detail-*, wld-*, dd-*, compare-*, tagb-*,
   // report-*, ...) was simply never reached again and sat there
   // looking stuck forever, even though the underlying data was fine.
@@ -75,21 +72,39 @@
       calYear = lastDate.getFullYear();
       calMonth = lastDate.getMonth();
 
+      // Restore day-view position from the URL if we're coming back here
+      // (Back button from trade.html) rather than landing fresh -- see
+      // NavState in nav.js. Falls back to the defaults above if the URL
+      // has nothing (or garbage) in it.
+      const urlYear = parseInt(NavState.get("cy"), 10);
+      const urlMonth = parseInt(NavState.get("cm"), 10);
+      if (Number.isInteger(urlYear) && Number.isInteger(urlMonth) && urlMonth >= 0 && urlMonth <= 11) {
+        calYear = urlYear;
+        calMonth = urlMonth;
+      }
+      selectedDay = NavState.get("day", null);
+
       safeRender(renderStats, "renderStats");
       safeRender(renderScore, "renderScore");
       safeRender(renderMiniCal, "renderMiniCal");
       safeRender(renderEquity, "renderEquity");
       safeRender(renderRecentTrades, "renderRecentTrades");
-      safeRender(renderGroups, "renderGroups");
       safeRender(renderCalendar, "renderCalendar");
+      if (selectedDay) {
+        const entry = pnlByDay().get(selectedDay);
+        if (entry) safeRender(() => showDayDetail(selectedDay, entry), "showDayDetail (restored)");
+        else selectedDay = null; // stale/invalid day from an old URL -- nothing to show
+      }
       safeRender(initReportFilters, "initReportFilters");
       safeRender(applyReportFiltersAndRender, "applyReportFiltersAndRender");
       clearStrandedLoadingStates();
     })
     .catch((err) => {
       const msg = `Couldn't load your trades (${escapeHtml(String(err.message))}). Make sure you're signed in and Supabase is reachable.`;
-      dayGroups.innerHTML = `<div class="empty-state">${msg}</div>`;
       statGrid.innerHTML = "";
+      const heroEl = document.getElementById("dash-hero");
+      if (heroEl) heroEl.innerHTML = `<div class="empty-state">${msg}</div>`;
+      document.getElementById("recent-trades").innerHTML = `<div class="empty-state">${msg}</div>`;
       document.getElementById("last-updated").textContent = "No data";
       clearStrandedLoadingStates();
     });
@@ -97,11 +112,13 @@
   function renderEmptyEverywhere() {
     document.getElementById("last-updated").textContent = "No trades yet";
     statGrid.innerHTML = "";
+    const heroEl = document.getElementById("dash-hero");
+    if (heroEl) heroEl.innerHTML = '<div class="empty-state small">No trades logged yet — once your pipeline publishes, your Net P&amp;L and recent form will show up here.</div>';
     document.getElementById("score-wrap").innerHTML = '<div class="empty-state small">No data yet.</div>';
     document.getElementById("mini-cal").innerHTML = '<div class="empty-state small">No data yet.</div>';
     document.getElementById("recent-trades").innerHTML = '<div class="empty-state small">No trades logged yet.</div>';
     document.getElementById("equity-total").textContent = "";
-    dayGroups.innerHTML = '<div class="empty-state">No trades logged yet — the pipeline will publish here after the first close.</div>';
+    document.getElementById("equity-stats").innerHTML = "";
     document.getElementById("cal-grid").innerHTML = '<div class="empty-state">No trades logged yet.</div>';
     document.getElementById("cal-summary-strip").innerHTML = "";
     document.getElementById("cal-month-label").textContent = new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" });
@@ -323,7 +340,7 @@
   // ================================================================
   // TAB NAVIGATION
   // ================================================================
-  const TAB_TITLES = { dashboard: "Dashboard", dayview: "Day View", tradeview: "Trade View", reports: "Reports" };
+  const TAB_TITLES = { dashboard: "Dashboard", dayview: "Day View", reports: "Reports" };
 
   function setTab(tab) {
     document.querySelectorAll(".nav-item[data-tab]").forEach((btn) => {
@@ -403,13 +420,14 @@
   // ================================================================
   // DASHBOARD — stat cards
   // ================================================================
-  function computeStats() {
-    const wins = trades.filter((t) => t.win);
-    const losses = trades.filter((t) => !t.win);
-    const winRate = (wins.length / trades.length) * 100;
-    const grossPnl = trades.reduce((s, t) => s + t.pnl_before_comm, 0);
-    const totalComm = trades.reduce((s, t) => s + t.commission, 0);
-    const netPnl = trades.reduce((s, t) => s + t.pnl_after_comm, 0);
+  function computeStats(list) {
+    list = list || trades;
+    const wins = list.filter((t) => t.win);
+    const losses = list.filter((t) => !t.win);
+    const winRate = list.length ? (wins.length / list.length) * 100 : 0;
+    const grossPnl = list.reduce((s, t) => s + t.pnl_before_comm, 0);
+    const totalComm = list.reduce((s, t) => s + t.commission, 0);
+    const netPnl = list.reduce((s, t) => s + t.pnl_after_comm, 0);
     const avgWin = wins.length ? wins.reduce((s, t) => s + t.pnl_after_comm, 0) / wins.length : 0;
     const avgLoss = losses.length ? losses.reduce((s, t) => s + t.pnl_after_comm, 0) / losses.length : 0;
     const grossWinSum = wins.reduce((s, t) => s + t.pnl_after_comm, 0);
@@ -417,7 +435,7 @@
     const profitFactor = grossLossSum > 0 ? grossWinSum / grossLossSum : (grossWinSum > 0 ? Infinity : 0);
 
     const byDay = new Map();
-    trades.forEach((t) => {
+    list.forEach((t) => {
       if (!byDay.has(t.trade_date)) byDay.set(t.trade_date, 0);
       byDay.set(t.trade_date, byDay.get(t.trade_date) + t.pnl_after_comm);
     });
@@ -425,25 +443,145 @@
     const winDays = dayVals.filter((v) => v > 0).length;
     const dayWinRate = dayVals.length ? (winDays / dayVals.length) * 100 : 0;
 
-    return { wins, losses, winRate, grossPnl, totalComm, netPnl, avgWin, avgLoss, profitFactor, dayWinRate, dayCount: dayVals.length };
+    return { wins, losses, winRate, grossPnl, totalComm, netPnl, avgWin, avgLoss, profitFactor, dayWinRate, dayCount: dayVals.length, count: list.length };
+  }
+
+  // Splits the chronological trade list into two equal, back-to-back
+  // windows -- "recent" (the last N trades) and "prior" (the N before
+  // that) -- so dashboard cards can show real vs-last-period movement
+  // instead of a single flat number. Returns null when there isn't
+  // enough history (fewer than 4 trades) for the comparison to mean
+  // anything; callers render without a delta in that case.
+  function tradeWindows() {
+    const n = Math.min(10, Math.floor(trades.length / 2));
+    if (n < 2) return null;
+    const recent = trades.slice(-n);
+    const prior = trades.slice(-2 * n, -n);
+    if (prior.length < 2) return null;
+    return { recent: computeStats(recent), prior: computeStats(prior), n };
+  }
+
+  // Current streak of same-outcome trades counting back from the most
+  // recent one -- e.g. 3 straight wins. Returns {count, win} or null
+  // if there's no trade history yet.
+  function currentStreak() {
+    if (!trades.length) return null;
+    const last = trades[trades.length - 1];
+    let count = 0;
+    for (let i = trades.length - 1; i >= 0; i--) {
+      if (trades[i].win !== last.win) break;
+      count++;
+    }
+    return { count, win: last.win };
+  }
+
+  // Formats a before/after difference as a small colored chip. Every
+  // metric this is used on (net P&L, win %, profit factor, avg win,
+  // avg loss) is "higher is better" -- including avg loss, since a
+  // less-negative average (e.g. -$30 vs -$50) is a diff of +$20 and a
+  // real improvement -- so a single up-is-green rule covers all of
+  // them with no special-casing. Returns "" when there's nothing
+  // meaningful to compare (no prior window, or either side is
+  // infinite, as profit factor can be).
+  function deltaChip(curr, prev, fmt) {
+    if (prev === null || prev === undefined || !isFinite(curr) || !isFinite(prev)) return "";
+    const diff = curr - prev;
+    fmt = fmt || ((d) => (d >= 0 ? "+" : "") + d.toFixed(1));
+    if (Math.abs(diff) < 0.05) return `<span class="kpi-delta flat">flat</span>`;
+    const up = diff > 0;
+    return `<span class="kpi-delta ${up ? "up" : "down"}">${up ? "\u25B2" : "\u25BC"} ${fmt(diff)}</span>`;
+  }
+
+  // Small bar sparkline of the last few trades' net P&L, baseline at
+  // zero -- the "recent form" visual in the dashboard hero. Purely a
+  // reading of real trade values, not a fabricated trend line.
+  function svgTradeSparkline(list, opts) {
+    opts = opts || {};
+    const w = opts.width || 220, h = opts.height || 48;
+    if (!list.length) return `<svg viewBox="0 0 ${w} ${h}"></svg>`;
+    const maxAbs = Math.max(1, ...list.map((t) => Math.abs(t.pnl_after_comm)));
+    const gap = 3;
+    const barW = (w - gap * (list.length - 1)) / list.length;
+    const midY = h / 2;
+    const bars = list.map((t, i) => {
+      const barH = Math.max(2, (Math.abs(t.pnl_after_comm) / maxAbs) * (h / 2 - 3));
+      const x = i * (barW + gap);
+      const y = t.win ? midY - barH : midY;
+      const color = t.win ? "var(--green)" : "var(--red)";
+      return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="1.5" fill="${color}" opacity="${0.55 + 0.45 * (i / Math.max(1, list.length - 1))}"/>`;
+    }).join("");
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" style="display:block; overflow:visible;">
+      <line x1="0" y1="${midY}" x2="${w}" y2="${midY}" stroke="var(--border)" stroke-width="1"/>
+      ${bars}
+    </svg>`;
+  }
+
+  const KPI_ICONS = {
+    target: '<circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"></circle>',
+    scale: '<path d="M12 3v18"></path><path d="M5 8l-3 6a3.5 3.5 0 0 0 7 0z"></path><path d="M19 8l-3 6a3.5 3.5 0 0 0 7 0z"></path><path d="M5 8h14"></path><path d="M9 21h6"></path>',
+    calendarCheck: '<rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><path d="M8 14l2.5 2.5L16 11"></path>',
+    trendUp: '<polyline points="3 17 9 11 13 15 21 6"></polyline><polyline points="15 6 21 6 21 12"></polyline>',
+    trendDown: '<polyline points="3 7 9 13 13 9 21 18"></polyline><polyline points="21 12 21 18 15 18"></polyline>',
+  };
+  function kpiIcon(name) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${KPI_ICONS[name]}</svg>`;
   }
 
   function renderStats() {
     const s = computeStats();
+    const w = tradeWindows();
     const pfDisplay = s.profitFactor === Infinity ? "∞" : s.profitFactor.toFixed(2);
+    const streak = currentStreak();
 
+    // ---------- Hero: the one number that matters most, up top ----------
+    const heroEl = document.getElementById("dash-hero");
+    if (heroEl) {
+      const heroDelta = w ? deltaChip(w.recent.netPnl, w.prior.netPnl, fmtMoney) : "";
+      const sparkTrades = trades.slice(-14);
+      const streakChip = streak && streak.count >= 2
+        ? `<span class="hero-streak ${streak.win ? "up" : "down"}">${streak.count} ${streak.win ? "win" : "loss"} streak</span>`
+        : "";
+      heroEl.innerHTML = `
+        <div class="hero-main">
+          <div class="hero-label">Net P&amp;L <span class="dim" style="font-weight:500; text-transform:none; letter-spacing:0;">· all time</span></div>
+          <div class="hero-value ${s.netPnl >= 0 ? "up" : "down"}">${fmtMoney(s.netPnl)}</div>
+          <div class="hero-meta">
+            ${heroDelta ? `${heroDelta}<span class="dim" style="font-size:11.5px;">vs prior ${w.n} trades</span>` : ""}
+            ${streakChip}
+          </div>
+          <div class="hero-sub">gross ${fmtMoney(s.grossPnl)} · comm $${s.totalComm.toFixed(2)} · ${s.count} trades</div>
+        </div>
+        <div class="hero-spark">
+          <div class="hero-spark-label">Last ${sparkTrades.length} trades</div>
+          ${svgTradeSparkline(sparkTrades)}
+        </div>
+      `;
+    }
+
+    // ---------- Supporting KPI cards ----------
     const cards = [
-      { label: "Net P&L", value: fmtMoney(s.netPnl), cls: s.netPnl >= 0 ? "up" : "down", sub: `gross ${fmtMoney(s.grossPnl)} · comm $${s.totalComm.toFixed(2)}` },
-      { label: "Trade win %", value: s.winRate.toFixed(0) + "%", cls: s.winRate >= 50 ? "up" : "down", sub: `${trades.length} trades` },
-      { label: "Profit factor", value: pfDisplay, cls: s.profitFactor >= 1 ? "up" : "down", sub: s.profitFactor >= 1 ? "profitable" : "below 1.0" },
-      { label: "Day win %", value: s.dayWinRate.toFixed(0) + "%", cls: s.dayWinRate >= 50 ? "up" : "down", sub: `${s.dayCount} trading days` },
-      { label: "Avg win", value: fmtMoney(s.avgWin), cls: "up", sub: `${s.wins.length} wins` },
-      { label: "Avg loss", value: fmtMoney(s.avgLoss), cls: "down", sub: `${s.losses.length} losses` },
+      { label: "Trade win %", value: s.winRate.toFixed(0) + "%", cls: s.winRate >= 50 ? "up" : "down", sub: `${trades.length} trades`, icon: "target",
+        delta: w ? deltaChip(w.recent.winRate, w.prior.winRate, (d) => (d >= 0 ? "+" : "") + d.toFixed(0) + "pt") : "" },
+      { label: "Profit factor", value: pfDisplay, cls: s.profitFactor >= 1 ? "up" : "down", sub: s.profitFactor >= 1 ? "profitable" : "below 1.0", icon: "scale",
+        delta: w ? deltaChip(w.recent.profitFactor, w.prior.profitFactor, (d) => (d >= 0 ? "+" : "") + d.toFixed(2)) : "" },
+      { label: "Day win %", value: s.dayWinRate.toFixed(0) + "%", cls: s.dayWinRate >= 50 ? "up" : "down", sub: `${s.dayCount} trading days`, icon: "calendarCheck",
+        delta: w ? deltaChip(w.recent.dayWinRate, w.prior.dayWinRate, (d) => (d >= 0 ? "+" : "") + d.toFixed(0) + "pt") : "" },
+      { label: "Avg win", value: fmtMoney(s.avgWin), cls: "up", sub: `${s.wins.length} wins`, icon: "trendUp",
+        delta: w ? deltaChip(w.recent.avgWin, w.prior.avgWin, fmtMoney) : "" },
+      { label: "Avg loss", value: fmtMoney(s.avgLoss), cls: "down", sub: `${s.losses.length} losses`, icon: "trendDown",
+        delta: w ? deltaChip(w.recent.avgLoss, w.prior.avgLoss, fmtMoney) : "" },
     ];
 
     statGrid.innerHTML = cards
       .map(
-        (c) => `<div class="stat"><div class="label-row"><span class="label">${c.label}</span></div><div class="value ${c.cls}">${c.value}</div>${c.sub ? `<div class="sub-value">${c.sub}</div>` : ""}</div>`
+        (c) => `<div class="stat kpi-card">
+          <div class="label-row"><span class="kpi-icon">${kpiIcon(c.icon)}</span><span class="label">${c.label}</span></div>
+          <div class="value ${c.cls}">${c.value}</div>
+          <div class="kpi-foot">
+            ${c.delta}
+            ${c.sub ? `<span class="sub-value">${c.sub}</span>` : ""}
+          </div>
+        </div>`
       )
       .join("");
   }
@@ -540,13 +678,54 @@
   // that "account balance" regardless made the whole panel read as
   // broken ("no numbers, just a decline"), so the label and a hint
   // below the chart now say plainly which figure is being shown.
+  //
+  // Interactive: hovering traces a crosshair + tooltip showing the
+  // balance and (for real trade points) that trade's symbol/P&L, and
+  // clicking a trade point opens it on trade.html. `equityState` holds
+  // the latest geometry so the pointer handlers (bound once, below)
+  // always read current data without re-binding on every render.
+  let equityState = null;
+  let equityBound = false;
+  let equityRange = "all"; // "30" | "90" | "all" -- see bindEquityRangeToggle
+
+  // Trailing-N-calendar-day slice of `trades`, anchored to the most
+  // recent logged trade (not wall-clock "today", since the data itself
+  // may be historical) -- so the 30D/90D toggle means "last N days of
+  // this journal" consistently no matter when it's viewed.
+  function equityRangeSubset() {
+    if (equityRange === "all" || !trades.length) return trades;
+    const days = parseInt(equityRange, 10);
+    const anchor = new Date(trades[trades.length - 1].trade_date + "T12:00:00");
+    const cutoff = new Date(anchor);
+    cutoff.setDate(cutoff.getDate() - days);
+    const subset = trades.filter((t) => new Date(t.trade_date + "T12:00:00") >= cutoff);
+    return subset.length ? subset : trades;
+  }
+
+  function bindEquityRangeToggle() {
+    const wrap = document.getElementById("eq-range-toggle");
+    if (!wrap || wrap.dataset.bound) return;
+    wrap.dataset.bound = "1";
+    wrap.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-range]");
+      if (!btn) return;
+      equityRange = btn.dataset.range;
+      wrap.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === btn));
+      renderEquity();
+    });
+  }
+
   function renderEquity() {
-    const ordered = trades;
+    bindEquityRangeToggle();
+    const ordered = equityRangeSubset();
     // Origin point is the real balance *before* the first trade (starting
     // capital from the Settings ledger, or 0 if nothing's been added there
     // -- same as before this existed). Everything else plots `_balance`.
     const startBalance = ordered.length ? ordered[0]._balance - (ordered[0].pnl_after_comm || 0) : 0;
-    const points = [{ e: startBalance }, ...ordered.map((t) => ({ e: t._balance }))];
+    const points = [
+      { e: startBalance, t: null },
+      ...ordered.map((t) => ({ e: t._balance, t })),
+    ];
     const values = points.map((p) => p.e);
     const min = Math.min(startBalance, ...values);
     const max = Math.max(startBalance, ...values);
@@ -569,6 +748,7 @@
       <line x1="0" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" class="equity-zero" />
       <path d="${fillD}" fill="${finalPositive ? "url(#gGreen)" : "url(#gRed)"}" />
       <path d="${pathD}" class="equity-path ${finalPositive ? "" : "neg"}" />
+      <circle id="equity-hover-dot" r="4" fill="var(--panel)" stroke="${finalPositive ? "var(--green)" : "var(--red)"}" stroke-width="2" style="display:none;" />
       <defs>
         <linearGradient id="gGreen" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="#2fd08a" stop-opacity="0.22" />
@@ -591,16 +771,150 @@
         ? ""
         : 'Add your starting capital in <a href="settings.html">Settings</a> to see your real account balance here instead of just cumulative P&amp;L.';
     }
+
+    equityState = { points, coords, values, W, H };
+    renderEquityStats(points, values);
+    bindEquityInteractivity();
+  }
+
+  // Peak-to-trough max drawdown over the plotted balance series, plus
+  // best/worst single trade by P&L -- three figures the old static
+  // chart never surfaced anywhere on the dashboard.
+  function renderEquityStats(points, values) {
+    const statsEl = document.getElementById("equity-stats");
+    if (!statsEl) return;
+    if (points.length < 2) { statsEl.innerHTML = ""; return; }
+
+    let peak = values[0], peakIdx = 0, maxDD = 0, maxDDPct = 0, ddPeakIdx = 0, ddTroughIdx = 0;
+    for (let i = 1; i < values.length; i++) {
+      if (values[i] > peak) { peak = values[i]; peakIdx = i; }
+      const dd = peak - values[i];
+      if (dd > maxDD) {
+        maxDD = dd;
+        maxDDPct = peak !== 0 ? (dd / Math.abs(peak)) * 100 : 0;
+        ddPeakIdx = peakIdx;
+        ddTroughIdx = i;
+      }
+    }
+
+    const tradesOnly = points.slice(1).map((p) => p.t).filter(Boolean);
+    let best = null, worst = null;
+    tradesOnly.forEach((t) => {
+      if (!best || t.pnl_after_comm > best.pnl_after_comm) best = t;
+      if (!worst || t.pnl_after_comm < worst.pnl_after_comm) worst = t;
+    });
+
+    const ddLabel = points[ddPeakIdx].t
+      ? `${points[ddPeakIdx].t.trade_date} → ${points[ddTroughIdx].t ? points[ddTroughIdx].t.trade_date : ""}`
+      : "";
+
+    const chips = [];
+    chips.push(`
+      <span><span class="eq-stat-label">Max drawdown</span><span class="eq-stat-value ${maxDD > 0 ? "down" : ""}">${fmtMoney(-maxDD)} (${maxDDPct.toFixed(1)}%)</span>${ddLabel ? ` <span class="dim" style="font-size:11px;">${ddLabel}</span>` : ""}</span>
+    `);
+    if (best) {
+      chips.push(`<a href="trade.html?id=${encodeURIComponent(best.id)}" style="text-decoration:none;"><span class="eq-stat-label">Best trade</span><span class="eq-stat-value up">${fmtMoney(best.pnl_after_comm)}</span> <span class="dim" style="font-size:11px;">${escapeHtml(best.symbol)} · ${best.trade_date}</span></a>`);
+    }
+    if (worst) {
+      chips.push(`<a href="trade.html?id=${encodeURIComponent(worst.id)}" style="text-decoration:none;"><span class="eq-stat-label">Worst trade</span><span class="eq-stat-value down">${fmtMoney(worst.pnl_after_comm)}</span> <span class="dim" style="font-size:11px;">${escapeHtml(worst.symbol)} · ${worst.trade_date}</span></a>`);
+    }
+    statsEl.innerHTML = chips.join("");
+  }
+
+  // Bound once -- reads whatever's current in `equityState` rather than
+  // re-binding on every renderEquity() call.
+  function bindEquityInteractivity() {
+    if (equityBound) return;
+    equityBound = true;
+
+    const wrap = document.getElementById("equity-chart-wrap");
+    const svg = document.getElementById("equity-svg");
+    const crosshair = document.getElementById("equity-crosshair");
+    const tooltip = document.getElementById("equity-tooltip");
+    if (!wrap || !svg) return;
+
+    function nearestIndex(clientX) {
+      const rect = wrap.getBoundingClientRect();
+      const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+      const { points } = equityState;
+      return Math.round(frac * (points.length - 1));
+    }
+
+    function showAt(clientX) {
+      if (!equityState) return;
+      const { points, coords, W } = equityState;
+      const i = nearestIndex(clientX);
+      const [cx] = coords[i];
+      const rect = wrap.getBoundingClientRect();
+      const pxX = (cx / W) * rect.width;
+
+      crosshair.style.display = "block";
+      crosshair.style.left = `${pxX}px`;
+
+      const dot = document.getElementById("equity-hover-dot");
+      if (dot) {
+        dot.style.display = "block";
+        dot.setAttribute("cx", coords[i][0].toFixed(1));
+        dot.setAttribute("cy", coords[i][1].toFixed(1));
+      }
+
+      const p = points[i];
+      const dateLabel = p.t ? p.t.trade_date : (points[1] ? `Before ${points[1].t.trade_date}` : "—");
+      let html = `<div class="eq-date">${escapeHtml(dateLabel)}</div><div class="eq-bal">${fmtMoney(p.e)}</div>`;
+      if (p.t) {
+        html += `<div class="eq-trade">${escapeHtml(p.t.symbol)} <span class="${p.t.win ? "up" : "down"}">${fmtMoney(p.t.pnl_after_comm)}</span></div>`;
+        html += `<div class="eq-hint">Click to open trade →</div>`;
+      }
+      tooltip.innerHTML = html;
+      tooltip.style.display = "block";
+
+      // Clamp the tooltip so it never runs off either edge of the panel.
+      const ttWidth = tooltip.offsetWidth || 140;
+      let left = pxX + 10;
+      if (left + ttWidth > rect.width) left = pxX - ttWidth - 10;
+      if (left < 0) left = 4;
+      tooltip.style.left = `${left}px`;
+    }
+
+    function hide() {
+      crosshair.style.display = "none";
+      tooltip.style.display = "none";
+      const dot = document.getElementById("equity-hover-dot");
+      if (dot) dot.style.display = "none";
+    }
+
+    wrap.addEventListener("pointermove", (e) => showAt(e.clientX));
+    wrap.addEventListener("pointerleave", hide);
+    wrap.addEventListener("click", (e) => {
+      if (!equityState) return;
+      const i = nearestIndex(e.clientX);
+      const p = equityState.points[i];
+      if (p && p.t) window.location.href = `trade.html?id=${encodeURIComponent(p.t.id)}`;
+    });
   }
 
   // ================================================================
   // DASHBOARD — recent trades
   // ================================================================
+  // Deterministic accent color for a symbol's avatar -- same symbol
+  // always lands on the same hue, purely cosmetic (no meaning encoded).
+  const AVATAR_HUES = [262, 199, 152, 28, 340, 45];
+  function avatarColor(symbol) {
+    let h = 0;
+    for (let i = 0; i < symbol.length; i++) h = (h * 31 + symbol.charCodeAt(i)) % AVATAR_HUES.length;
+    return AVATAR_HUES[h];
+  }
+  function symbolAvatarHtml(symbol) {
+    const hue = avatarColor(symbol);
+    const initials = symbol.slice(0, 2).toUpperCase();
+    return `<span class="sym-avatar" style="background:hsla(${hue},70%,55%,0.16); color:hsl(${hue},70%,68%);">${initials}</span>`;
+  }
+
   function tradeRowHtml(t) {
-    const dotColor = t.win ? "var(--green)" : "var(--red)";
+    const setupLabel = t.setup_type ? String(t.setup_type).replace(/_/g, " ") : "";
     return `
     <tr data-id="${t.id}">
-      <td class="sym"><span class="side-dot" style="background:${dotColor}"></span>${t.symbol}</td>
+      <td class="sym">${symbolAvatarHtml(t.symbol)}<span>${t.symbol}</span>${setupLabel ? `<span class="setup-pill">${escapeHtml(setupLabel)}</span>` : ""}</td>
       <td class="mono dim">${t.trade_date}</td>
       <td class="mono dim">${t.entry_time}</td>
       <td class="mono">$${t.entry_price.toFixed(2)} → $${t.exit_price.toFixed(2)}</td>
@@ -646,131 +960,6 @@
     el.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Date</th><th>Entry</th><th>Price</th><th>Shares</th><th>Net P&amp;L</th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     bindTradeRows(el);
   }
-
-  // ================================================================
-  // TRADE VIEW — day-grouped table (with search + filter)
-  // ================================================================
-  function getFiltered() {
-    let list = trades;
-    if (activeFilter === "win") list = list.filter((t) => t.win);
-    if (activeFilter === "loss") list = list.filter((t) => !t.win);
-    if (searchTerm) list = list.filter((t) => t.symbol.toLowerCase().includes(searchTerm));
-    return list;
-  }
-
-  // Sort applied *within* each day's table (the day grouping itself
-  // always stays newest-day-first -- only the row order inside each
-  // group changes). Defaults to entry_time, same as before this was
-  // made clickable. "grade" resolves through TradeGrade same as
-  // journal.html's table sort, so a trade's local self-grade (see
-  // grade.js) sorts correctly even before it's a published field.
-  let tvSortKey = "entry_time";
-  let tvSortDir = "asc";
-  const TV_SORT_COLS = [
-    ["symbol", "Symbol"], ["entry_time", "Entry"], ["exit_time", "Exit"],
-    ["entry_price", "Price"], ["shares", "Shares"], ["commission", "Comm."],
-    ["pnl_after_comm", "Net P&amp;L"], ["grade", "Grade"],
-  ];
-  function tvSortValue(t, key) {
-    if (key === "grade") return window.TradeGrade ? (window.TradeGrade.get(t) || 0) : 0;
-    return t[key];
-  }
-  function sortDayTrades(dayTrades) {
-    return dayTrades.slice().sort((a, b) => {
-      let av = tvSortValue(a, tvSortKey), bv = tvSortValue(b, tvSortKey);
-      if (typeof av === "string") { av = av || ""; bv = bv || ""; return tvSortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av); }
-      av = av || 0; bv = bv || 0;
-      return tvSortDir === "asc" ? av - bv : bv - av;
-    });
-  }
-
-  function renderGroups() {
-    const list = getFiltered();
-    if (!list.length) {
-      dayGroups.innerHTML = '<div class="empty-state">No trades match — try clearing the search or filter.</div>';
-      return;
-    }
-
-    const byDay = new Map();
-    list.forEach((t) => {
-      if (!byDay.has(t.trade_date)) byDay.set(t.trade_date, []);
-      byDay.get(t.trade_date).push(t);
-    });
-
-    const days = Array.from(byDay.keys()).sort((a, b) => b.localeCompare(a));
-    const headHtml = TV_SORT_COLS.map(([key, label]) =>
-      `<th data-sort="${key}" class="${tvSortKey === key ? "sorted " + tvSortDir : ""}">${label}</th>`
-    ).join("");
-
-    dayGroups.innerHTML = days
-      .map((day) => {
-        const dayTrades = sortDayTrades(byDay.get(day));
-        const dayNet = dayTrades.reduce((s, t) => s + t.pnl_after_comm, 0);
-        const dateLabel = new Date(day + "T12:00:00").toLocaleDateString(undefined, {
-          weekday: "short", month: "short", day: "numeric", year: "numeric",
-        });
-
-        const rows = dayTrades
-          .map((t) => {
-            const dotColor = t.win ? "var(--green)" : "var(--red)";
-            return `
-            <tr data-id="${t.id}">
-              <td class="sym"><span class="side-dot" style="background:${dotColor}"></span>${t.symbol}</td>
-              <td class="mono dim">${t.entry_time}</td>
-              <td class="mono dim">${t.exit_time}</td>
-              <td class="mono">$${t.entry_price.toFixed(2)} → $${t.exit_price.toFixed(2)}</td>
-              <td class="mono dim">${t.shares}</td>
-              <td class="mono dim">$${t.commission.toFixed(2)}</td>
-              <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
-              <td>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(t), { size: 12 }) : "—"}</td>
-            </tr>`;
-          })
-          .join("");
-
-        return `
-        <div class="day-group">
-          <div class="day-header">
-            <div class="day-left">
-              <span class="day-date">${dateLabel}</span>
-              <span class="day-count">${dayTrades.length} trade${dayTrades.length === 1 ? "" : "s"}</span>
-            </div>
-            <span class="day-pnl ${dayNet >= 0 ? "up" : "down"}">${fmtMoney(dayNet)}</span>
-          </div>
-          <div class="table-scroll"><table class="trade-table">
-            <thead>
-              <tr>${headHtml}</tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table></div>
-        </div>`;
-      })
-      .join("");
-
-    dayGroups.querySelectorAll("th[data-sort]").forEach((th) => {
-      th.addEventListener("click", () => {
-        const key = th.getAttribute("data-sort");
-        if (tvSortKey === key) tvSortDir = tvSortDir === "asc" ? "desc" : "asc";
-        else { tvSortKey = key; tvSortDir = "asc"; }
-        renderGroups();
-      });
-    });
-    bindTradeRows(dayGroups);
-  }
-
-  document.querySelectorAll(".filter-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".filter-btn").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      activeFilter = btn.dataset.filter;
-      renderGroups();
-    });
-  });
-
-  const searchInput = document.getElementById("search");
-  searchInput.addEventListener("input", (e) => {
-    searchTerm = e.target.value.trim().toLowerCase();
-    renderGroups();
-  });
 
   // ================================================================
   // DAY VIEW — full calendar
@@ -820,6 +1009,7 @@
       cell.addEventListener("click", () => {
         const key = cell.dataset.day;
         selectedDay = selectedDay === key ? null : key;
+        NavState.set({ day: selectedDay });
         renderCalendar();
         if (selectedDay) showDayDetail(selectedDay, map.get(selectedDay));
         else document.getElementById("day-detail-panel").style.display = "none";
@@ -851,18 +1041,21 @@
 
   document.getElementById("day-detail-close").addEventListener("click", () => {
     selectedDay = null;
+    NavState.set({ day: null });
     document.getElementById("day-detail-panel").style.display = "none";
     renderCalendar();
   });
   document.getElementById("cal-prev").addEventListener("click", () => {
     calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; }
     selectedDay = null;
+    NavState.set({ cy: calYear, cm: calMonth, day: null });
     document.getElementById("day-detail-panel").style.display = "none";
     renderCalendar();
   });
   document.getElementById("cal-next").addEventListener("click", () => {
     calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
     selectedDay = null;
+    NavState.set({ cy: calYear, cm: calMonth, day: null });
     document.getElementById("day-detail-panel").style.display = "none";
     renderCalendar();
   });

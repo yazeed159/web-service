@@ -249,6 +249,15 @@
     // Same free-tier-ngrok workaround backtester.js/chat.js use.
     "ngrok-skip-browser-warning": "true",
   };
+  // Per-account scoping for /backtest/history* -- see backtester.js's
+  // authedHeaders for the full rationale. Not used by fetchRealTicks below
+  // (that's /generate-chart, which carries no per-user data).
+  function authedChartServiceHeaders(extra) {
+    return window.AUTH_READY.then((session) => {
+      if (!session) throw new Error("Please log in first.");
+      return Object.assign({}, CHART_SERVICE_FETCH_HEADERS, extra || {}, { "Authorization": "Bearer " + session.access_token });
+    });
+  }
   function chartServiceBase() {
     const base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
     if (!base || base.includes("YOUR-NGROK-SUBDOMAIN")) return "";
@@ -307,7 +316,8 @@
       return;
     }
     els.btRunSelect.disabled = false;
-    fetch(`${base}/backtest/history`, { headers: CHART_SERVICE_FETCH_HEADERS })
+    authedChartServiceHeaders()
+      .then((headers) => fetch(`${base}/backtest/history`, { headers }))
       .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then((entries) => {
         state.backtestRuns = Array.isArray(entries) ? entries : [];
@@ -380,7 +390,8 @@
     els.startBtn.disabled = true;
 
     const cached = state.backtestReportCache[runId];
-    const p = cached ? Promise.resolve(cached) : fetch(`${base}/backtest/history/${encodeURIComponent(runId)}/report`, { headers: CHART_SERVICE_FETCH_HEADERS })
+    const p = cached ? Promise.resolve(cached) : authedChartServiceHeaders()
+      .then((headers) => fetch(`${base}/backtest/history/${encodeURIComponent(runId)}/report`, { headers }))
       .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then((data) => { state.backtestReportCache[runId] = data; return data; });
 
@@ -744,6 +755,13 @@
   // ---------------------------------------------------------------
   // boot: load the index, populate the setup screen
   // ---------------------------------------------------------------
+  // trade.html's "Replay" button links here as ?trade=<id> to jump
+  // straight into replaying that one trade, bypassing the setup
+  // screen's source/filter picker entirely -- it already knows exactly
+  // which trade it wants, so there's nothing to filter for. Falls back
+  // to the normal setup screen if the id turns out to be invalid.
+  const directTradeId = new URLSearchParams(window.location.search).get("trade");
+
   window.fetchTradesIndex()
     .then((rows) => {
       state.index = Array.isArray(rows) ? rows : [];
@@ -751,6 +769,7 @@
       renderCandidateCount();
       renderHistoryPanel();
       renderProgressPanel();
+      if (directTradeId) startQuiz(state.lastFilters || getFilters(), [directTradeId]);
     })
     .catch(() => {
       els.candidateCount.textContent = "Couldn't load your trades.";

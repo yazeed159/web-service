@@ -72,14 +72,27 @@
   function setOpen(open) {
     panel.classList.toggle("open", open);
     launcher.classList.toggle("open", open);
+    if (!open) {
+      // Reset maximize state on close so the launcher (hidden while
+      // maximized, see below) always comes back once the panel isn't
+      // covering it anymore, and the panel reopens at its normal size.
+      panel.classList.remove("maximized");
+      launcher.classList.remove("chatw-launcher-hidden");
+    }
     try { sessionStorage.setItem(OPEN_KEY, open ? "1" : "0"); } catch (e) { /* ignore */ }
   }
 
   launcher.addEventListener("click", () => setOpen(!panel.classList.contains("open")));
   document.getElementById("chatw-close-btn").addEventListener("click", () => setOpen(false));
   document.getElementById("chatw-maximize-btn").addEventListener("click", (e) => {
-    panel.classList.toggle("maximized");
-    e.currentTarget.title = panel.classList.contains("maximized") ? "Restore" : "Maximize";
+    const isMax = panel.classList.toggle("maximized");
+    // The round launcher button sits fixed at bottom-right in every
+    // state, but the maximized panel's own bottom-right corner grows
+    // to almost the same spot -- without this it sat directly on top
+    // of the input row/send button. The header already has its own
+    // close button, so just hide the redundant launcher while maximized.
+    launcher.classList.toggle("chatw-launcher-hidden", isMax);
+    e.currentTarget.title = isMax ? "Restore" : "Maximize";
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && panel.classList.contains("open")) setOpen(false);

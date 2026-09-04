@@ -33,25 +33,34 @@
   // email that, when clicked, drops down a small panel with their
   // email, sign-up date, and a Log out button.
   //
-  // IMPORTANT: this used to call document.body.appendChild() directly,
-  // but this script runs from <head> before <body> exists. Session
+  // IMPORTANT: this runs from <head> before <body> exists, and session
   // lookups that resolve from local cache can finish before the parser
-  // even gets to <body>, so document.body was sometimes still null --
-  // that's the "Cannot read properties of null (reading 'appendChild')"
-  // crash. insertWhenReady() below waits for DOMContentLoaded if body
-  // isn't there yet, so this now always works.
-  function insertWhenReady(el) {
-    if (document.body) {
-      document.body.appendChild(el);
-    } else {
-      document.addEventListener(
-        "DOMContentLoaded",
-        function () {
-          document.body.appendChild(el);
-        },
-        { once: true }
-      );
+  // even gets to <body> -- so document.body can still be null here.
+  // Drops the widget into the topbar's own icon row (same row the
+  // search button and mobile-nav button live in), right after
+  // whatever's already there. Falls back to a fixed corner placement
+  // on the handful of pages that don't have the app-shell topbar at
+  // all (chat, import flows, notes).
+  function insertIntoTopbar(el) {
+    function tryInsert() {
+      var topbarRight = document.querySelector(".topbar-right");
+      if (topbarRight) {
+        topbarRight.appendChild(el);
+        return true;
+      }
+      return false;
     }
+    if (tryInsert()) return;
+    document.addEventListener(
+      "DOMContentLoaded",
+      function () {
+        if (!tryInsert()) {
+          el.style.cssText += "position:fixed;top:12px;right:12px;z-index:9999;";
+          document.body.appendChild(el);
+        }
+      },
+      { once: true }
+    );
   }
 
   // Renders as a small round avatar icon (initial letter) rather than
@@ -64,10 +73,15 @@
     var email = user.email || "Account";
     var initial = email.charAt(0).toUpperCase() || "?";
 
+    // Was position:fixed at a hardcoded viewport corner (top:12px;
+    // right:12px), completely outside the topbar's own layout -- that's
+    // why it sat directly on top of the search icon, which lives in
+    // .topbar-right just a few pixels away. Now it's a normal flex
+    // child of that same row (see insertIntoTopbar below), so it can
+    // never overlap a neighboring icon again.
     var wrap = document.createElement("div");
     wrap.id = "auth-account-widget";
-    wrap.style.cssText =
-      "position:fixed;top:12px;right:12px;z-index:9999;font:12.5px system-ui,sans-serif;";
+    wrap.style.cssText = "position:relative;flex:none;font:12.5px system-ui,sans-serif;";
 
     var btn = document.createElement("button");
     btn.id = "auth-account-btn";
@@ -84,7 +98,7 @@
 
     var panel = document.createElement("div");
     panel.style.cssText =
-      "display:none;position:absolute;top:40px;right:0;min-width:220px;" +
+      "display:none;position:absolute;top:40px;right:0;min-width:220px;z-index:100;" +
       "padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,.18);" +
       "background:rgba(20,20,28,.97);color:#eee;backdrop-filter:blur(6px);" +
       "box-shadow:0 8px 24px rgba(0,0,0,.4);";
@@ -134,7 +148,7 @@
 
     wrap.appendChild(btn);
     wrap.appendChild(panel);
-    insertWhenReady(wrap);
+    insertIntoTopbar(wrap);
   }
 
   // Every protected page awaits this before it's allowed to query data.

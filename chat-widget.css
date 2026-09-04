@@ -27,6 +27,11 @@
 }
 .chatw-launcher:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(139, 124, 246, 0.5); }
 .chatw-launcher:active { transform: translateY(0) scale(.96); }
+.chatw-launcher.chatw-launcher-hidden {
+  opacity: 0;
+  transform: translateY(8px) scale(.85);
+  pointer-events: none;
+}
 .chatw-launcher svg { width: 24px; height: 24px; }
 .chatw-launcher .chatw-icon-close { display: none; }
 .chatw-launcher.open .chatw-icon-chat { display: none; }

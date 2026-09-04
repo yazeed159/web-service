@@ -9,7 +9,7 @@
   function initReveal() {
     if (reduced || !('IntersectionObserver' in window)) return;
     var targets = document.querySelectorAll(
-      '.panel-box, .card, .chart-panel, .equity-panel, .day-group, .playbook-card, .highlight-card'
+      '.panel-box, .card, .chart-panel, .equity-panel, .day-group, .playbook-card, .highlight-card, .dash-hero, .kpi-card'
     );
     if (!targets.length) return;
     var io = new IntersectionObserver(function (entries) {

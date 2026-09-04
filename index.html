@@ -10,6 +10,7 @@
 <title>trade.log — journal</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="core.css">
+<link rel="stylesheet" href="dashboard.css">
 <link rel="stylesheet" href="chat-widget.css">
 <link rel="stylesheet" href="global-search.css">
 </head>
@@ -52,11 +53,6 @@
       <button class="nav-item" data-tab="dayview">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line></svg>
         <span class="nav-label">Day View</span>
-      </button>
-
-      <button class="nav-item" data-tab="tradeview">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line><circle cx="3" cy="6" r="0" ></circle></svg>
-        <span class="nav-label">Trade View</span>
       </button>
 
       <button class="nav-item" data-tab="reports">
@@ -141,7 +137,11 @@
 
       <!-- ===================== DASHBOARD TAB ===================== -->
       <section class="tab-panel active" id="tab-dashboard">
-        <div class="stat-grid" id="stat-grid">
+        <div class="dash-hero" id="dash-hero">
+          <div class="loading-line">Loading…</div>
+        </div>
+
+        <div class="kpi-grid stat-grid" id="stat-grid">
           <div class="loading-line">Loading stats…</div>
         </div>
 
@@ -171,14 +171,24 @@
             <span class="label" id="equity-label">Equity curve — account balance</span>
             <span class="value mono" id="equity-total"></span>
           </div>
-          <svg id="equity-svg" viewBox="0 0 1000 140" preserveAspectRatio="none"></svg>
+          <div class="eq-range-toggle" id="eq-range-toggle">
+            <button data-range="30">30D</button>
+            <button data-range="90">90D</button>
+            <button data-range="all" class="active">All</button>
+          </div>
+          <div class="equity-chart-wrap" id="equity-chart-wrap">
+            <svg id="equity-svg" viewBox="0 0 1000 140" preserveAspectRatio="none"></svg>
+            <div class="equity-crosshair" id="equity-crosshair"></div>
+            <div class="equity-tooltip" id="equity-tooltip"></div>
+          </div>
+          <div class="equity-stats" id="equity-stats"></div>
           <div id="equity-hint"></div>
         </div>
 
         <div class="panel-box" style="margin-top:18px;">
           <div class="panel-box-head">
             <span class="title">Recent trades</span>
-            <button class="link" data-goto="tradeview">View all →</button>
+            <a class="link" href="journal.html">View all →</a>
           </div>
           <div id="recent-trades">
             <div class="loading-line">Loading…</div>
@@ -218,23 +228,6 @@
             </div>
             <div id="day-detail-body"></div>
           </div>
-        </div>
-      </section>
-
-      <!-- ===================== TRADE VIEW TAB ===================== -->
-      <section class="tab-panel" id="tab-tradeview">
-        <div class="controls">
-          <div class="search-box">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <input type="text" id="search" placeholder="Search symbol…" autocomplete="off">
-          </div>
-          <button class="filter-btn active" data-filter="all">All</button>
-          <button class="filter-btn" data-filter="win">Wins</button>
-          <button class="filter-btn" data-filter="loss">Losses</button>
-        </div>
-
-        <div id="day-groups">
-          <div class="loading-line">Loading trades…</div>
         </div>
       </section>
 
@@ -429,7 +422,7 @@
         <div class="toptab-panel" id="toptab-overview">
         <div class="section-label" style="margin-top:32px; display:flex; align-items:center; justify-content:space-between; gap:12px;">
           <span id="report-period-label">Trade distribution &amp; performance by month</span>
-          <select id="report-period-select" title="Rollup timeframe" style="text-transform:none; letter-spacing:normal; font-weight:500; background:var(--panel); border:1px solid var(--border); color:var(--text); font-family:var(--sans); font-size:12.5px; padding:6px 10px; border-radius:var(--radius-sm);">
+          <select id="report-period-select" class="select-clean" title="Rollup timeframe">
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
             <option value="monthly" selected>Monthly</option>

@@ -53,11 +53,6 @@
         <span class="nav-label">Day View</span>
       </a>
 
-      <a class="nav-item" href="index.html#tradeview">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-        <span class="nav-label">Trade View</span>
-      </a>
-
       <a class="nav-item" href="index.html#reports">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line></svg>
         <span class="nav-label">Reports</span>
@@ -186,6 +181,57 @@
     return `<ul class="tag-trade-list" id="${uid}">${items}${more}</ul>`;
   }
 
+  // ---------- URL state (see NavState in nav.js) ----------
+  // Tags are keyed by name (stable across reloads, unlike a running
+  // counter), so which tag rows are expanded -- and how far "Load more"
+  // was clicked within each -- round-trips through the URL the same
+  // way. Back from trade.html then reopens exactly what was open
+  // instead of collapsing everything back to the default view.
+  const openTags = new Set();
+  function syncUrlState() {
+    const shownObj = {};
+    openTags.forEach((tag) => {
+      const state = tradeListState.get("tag-list-" + escapeHtml(tag));
+      if (state && state.shown > TRADE_LIST_PAGE_SIZE) shownObj[tag] = state.shown;
+    });
+    NavState.set({
+      open: openTags.size ? JSON.stringify(Array.from(openTags)) : null,
+      shown: Object.keys(shownObj).length ? JSON.stringify(shownObj) : null,
+    });
+  }
+  // Re-opens whichever tag rows were expanded (and re-loads however many
+  // rows had been paged into them) based on the URL, once per boot.
+  function restoreUrlState() {
+    let openArr = [];
+    let shownObj = {};
+    try { openArr = JSON.parse(NavState.get("open", "[]")) || []; } catch (e) { /* malformed/old URL, ignore */ }
+    try { shownObj = JSON.parse(NavState.get("shown", "{}")) || {}; } catch (e) { /* malformed/old URL, ignore */ }
+    openArr.forEach((tag) => {
+      const uid = "tag-list-" + escapeHtml(tag);
+      const list = document.getElementById(uid);
+      const state = tradeListState.get(uid);
+      if (!list || !state) return;
+      list.classList.add("open");
+      openTags.add(tag);
+      const desired = shownObj[tag];
+      if (desired && desired > state.shown) {
+        const nextShown = Math.min(desired, state.rows.length);
+        const newItemsHtml = state.rows.slice(state.shown, nextShown).map(tradeListItemHtml).join("");
+        state.shown = nextShown;
+        const moreLi = list.querySelector(".tag-trade-list-more");
+        if (moreLi) {
+          moreLi.insertAdjacentHTML("beforebegin", newItemsHtml);
+          if (state.shown < state.rows.length) {
+            const btn = moreLi.querySelector("[data-load-more]");
+            if (btn) btn.textContent = `Load more (${state.rows.length - state.shown} left)`;
+          } else {
+            moreLi.remove();
+          }
+        }
+      }
+    });
+  }
+
   function render(rows) {
     const tagged = rows.filter((r) => Array.isArray(r.lesson_tags) && r.lesson_tags.length);
     if (!tagged.length) {
@@ -224,7 +270,10 @@
       row.addEventListener("click", () => {
         const tag = row.getAttribute("data-tag-toggle");
         const list = document.getElementById("tag-list-" + tag);
-        if (list) list.classList.toggle("open");
+        if (!list) return;
+        const nowOpen = list.classList.toggle("open");
+        if (nowOpen) openTags.add(tag); else openTags.delete(tag);
+        syncUrlState();
       });
     });
     content.querySelectorAll("[data-load-more]").forEach((btn) => {
@@ -243,8 +292,13 @@
         } else {
           moreLi.remove();
         }
+        syncUrlState();
       });
     });
+
+    // Restored last, once the tag rows + their tradeListState entries
+    // above all exist to restore into.
+    restoreUrlState();
   }
 })();
 </script>

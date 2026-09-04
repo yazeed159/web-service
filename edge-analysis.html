@@ -183,11 +183,6 @@
         <span class="nav-label">Day View</span>
       </a>
 
-      <a class="nav-item" href="index.html#tradeview">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-        <span class="nav-label">Trade View</span>
-      </a>
-
       <a class="nav-item" href="index.html#reports">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line></svg>
         <span class="nav-label">Reports</span>
@@ -357,8 +352,12 @@
   function bindTradeToggles(container) {
     container.querySelectorAll("[data-trade-toggle]").forEach((row) => {
       row.addEventListener("click", () => {
-        const list = document.getElementById(row.getAttribute("data-trade-toggle"));
-        if (list) list.classList.toggle("open");
+        const uid = row.getAttribute("data-trade-toggle");
+        const list = document.getElementById(uid);
+        if (!list) return;
+        const nowOpen = list.classList.toggle("open");
+        if (nowOpen) openUids.add(uid); else openUids.delete(uid);
+        syncUrlState();
       });
     });
     container.querySelectorAll("[data-load-more]").forEach((btn) => {
@@ -377,7 +376,66 @@
         } else {
           moreLi.remove();
         }
+        syncUrlState();
       });
+    });
+  }
+
+  // ---------- URL state (see NavState in nav.js) ----------
+  // edge-trades-N uids come from a counter that resets to 0 each render
+  // and is handed out in a fixed order (decay rows, then volume/float
+  // rows, then sizing rows -- see the render() call order below), so
+  // for the same trade data and the same decay-table sort they come out
+  // identical from one page load to the next. That's what makes it safe
+  // to persist which uids are open across a reload.
+  const openUids = new Set();
+  function syncUrlState() {
+    const shownObj = {};
+    openUids.forEach((uid) => {
+      const state = tradeListState.get(uid);
+      if (state && state.shown > TRADE_LIST_PAGE_SIZE) shownObj[uid] = state.shown;
+    });
+    const decaySel = document.getElementById("decay-setup-select");
+    NavState.set({
+      dsort: (decaySort.key !== "n" || decaySort.dir !== -1) ? `${decaySort.key}:${decaySort.dir}` : null,
+      dsel: (decaySel && decaySel.value) || null,
+      open: openUids.size ? JSON.stringify(Array.from(openUids)) : null,
+      shown: Object.keys(shownObj).length ? JSON.stringify(shownObj) : null,
+    });
+  }
+  // Re-opens whichever breakdown rows were expanded (and re-loads
+  // however many rows had been paged into them). Called once at the end
+  // of render(), after decay/volume/sizing have all populated
+  // tradeListState for this page load -- and after decaySort has
+  // already been restored (below), so the decay rows' uids land in the
+  // same order they did last time.
+  function restoreTradeListState() {
+    let openArr = [];
+    let shownObj = {};
+    try { openArr = JSON.parse(NavState.get("open", "[]")) || []; } catch (e) { /* malformed/old URL, ignore */ }
+    try { shownObj = JSON.parse(NavState.get("shown", "{}")) || {}; } catch (e) { /* malformed/old URL, ignore */ }
+    openArr.forEach((uid) => {
+      const list = document.getElementById(uid);
+      const state = tradeListState.get(uid);
+      if (!list || !state) return;
+      list.classList.add("open");
+      openUids.add(uid);
+      const desired = shownObj[uid];
+      if (desired && desired > state.shown) {
+        const nextShown = Math.min(desired, state.rows.length);
+        const newItemsHtml = state.rows.slice(state.shown, nextShown).map(tradeListItemHtml).join("");
+        state.shown = nextShown;
+        const moreLi = list.querySelector(".tag-trade-list-more");
+        if (moreLi) {
+          moreLi.insertAdjacentHTML("beforebegin", newItemsHtml);
+          if (state.shown < state.rows.length) {
+            const btn = moreLi.querySelector("[data-load-more]");
+            if (btn) btn.textContent = `Load more (${state.rows.length - state.shown} left)`;
+          } else {
+            moreLi.remove();
+          }
+        }
+      }
     });
   }
   function makeChart(el, height, extraOpts) {
@@ -505,6 +563,17 @@
     allSorted = rows.slice().sort((a, b) => ((a.trade_date || "") + (a.entry_time || "")).localeCompare((b.trade_date || "") + (b.entry_time || "")));
     const baseline = pctWin(allSorted);
 
+    // Restored once per boot from the URL (see NavState in nav.js), and
+    // before renderDecay() runs below, so the decay table's row order
+    // (and therefore the uids trade-list toggles get restored against
+    // further down) matches whatever sort was active last time instead
+    // of resetting to the n-desc default.
+    const dsortParam = NavState.get("dsort");
+    if (dsortParam) {
+      const [dsortKey, dsortDir] = dsortParam.split(":");
+      if (dsortKey && (dsortDir === "1" || dsortDir === "-1")) decaySort = { key: dsortKey, dir: Number(dsortDir) };
+    }
+
     content.innerHTML = `
       <div class="edge-intro">
         <div class="edge-intro-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7-4 11L21 3 10 14l11 7-7-4"></path></svg></div>
@@ -619,6 +688,7 @@
     clearStrandedLoadingStates();
     const regretBtn = document.getElementById("regret-run-btn");
     if (regretBtn) regretBtn.addEventListener("click", runRegretAnalysis);
+    restoreTradeListState();
   }
 
   // ================= 1. SETUP EDGE DECAY =================
@@ -655,6 +725,7 @@
         if (decaySort.key === key) decaySort.dir *= -1;
         else decaySort = { key, dir: key === "setup" ? 1 : -1 };
         renderDecayRows();
+        syncUrlState();
       });
     });
     renderDecayRows();
@@ -662,8 +733,14 @@
     const entries = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
     const sel = document.getElementById("decay-setup-select");
     sel.innerHTML = entries.map(([s]) => `<option value="${escapeHtml(s)}">${escapeHtml(s.replace(/_/g, " "))} (${groups[s].length}x)</option>`).join("");
-    sel.onchange = () => renderDecayChart(groups[sel.value] || []);
-    if (entries.length) renderDecayChart(groups[entries[0][0]]);
+    // Restored from the URL if the person had a different setup's trend
+    // chart open last time; falls back to the biggest-sample setup
+    // (entries[0], same as before) otherwise.
+    const dselParam = NavState.get("dsel");
+    const initialSetup = (dselParam && groups[dselParam]) ? dselParam : (entries.length ? entries[0][0] : null);
+    if (initialSetup) sel.value = initialSetup;
+    sel.onchange = () => { renderDecayChart(groups[sel.value] || []); syncUrlState(); };
+    if (initialSetup) renderDecayChart(groups[initialSetup]);
   }
 
   function renderDecayRows() {

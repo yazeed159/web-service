@@ -31,8 +31,28 @@
   const chipsEl = document.getElementById("chat-chips");
 
   let trades = [];
-  let history = []; // [{ role: 'user'|'assistant', content }]
   let requestInFlight = false;
+
+  // Conversation history persists across page navigations (same tab),
+  // not just the panel's open/closed flag -- chat.js is torn down and
+  // re-run fresh on every page load (see chat-widget.js), so without
+  // this the whole thread was silently dropped every time you clicked
+  // to another tab in the sidebar.
+  const HISTORY_KEY = "trade.log:chatHistory";
+  const HISTORY_LIMIT = 40; // trimmed turns kept in sessionStorage/memory
+
+  function loadHistory() {
+    try {
+      const raw = JSON.parse(sessionStorage.getItem(HISTORY_KEY) || "[]");
+      return Array.isArray(raw) ? raw : [];
+    } catch (e) { return []; }
+  }
+  function saveHistory() {
+    try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-HISTORY_LIMIT))); }
+    catch (e) { /* ignore (private mode / storage full) */ }
+  }
+
+  let history = loadHistory(); // [{ role: 'user'|'assistant', content }]
 
   const STARTER_PROMPTS = [
     "What's my win rate on breakout setups?",
@@ -64,6 +84,12 @@
       ? `<div class="chat-avatar user">Y</div>`
       : `<div class="chat-avatar ai">${AI_AVATAR_SVG}</div>`;
   }
+
+  // Re-render whatever was restored from sessionStorage before any new
+  // message goes out, so a tab switch looks like nothing happened.
+  history.forEach((turn) => {
+    addBubble(turn.role, turn.role === "user" ? escapeHtml(turn.content) : formatReply(turn.content));
+  });
 
   function addBubble(role, html) {
     const wrap = document.createElement("div");
@@ -104,9 +130,9 @@
       const range = dates.length ? `${dates[0]} → ${dates[dates.length - 1]}` : "";
       dataStatusEl.innerHTML = `<span class="chat-data-status-dot ok"></span> Reading ${trades.length} trade${trades.length === 1 ? "" : "s"}${range ? " (" + escapeHtml(range) + ")" : ""}.`;
     }
-    renderChips();
     setInputEnabled(true);
-    if (!messagesEl.children.length) {
+    if (!history.length) {
+      renderChips();
       addBubble(
         "ai",
         formatReply(
@@ -327,6 +353,11 @@
 
     addBubble("user", escapeHtml(text));
     history.push({ role: "user", content: text });
+    saveHistory();
+    // Starter-prompt chips are an empty-state affordance only -- once a
+    // real conversation exists they were staying put forever, eating
+    // vertical space above the input row. Clear them for good now.
+    chipsEl.innerHTML = "";
     inputEl.value = "";
     requestInFlight = true;
     setInputEnabled(false);
@@ -362,6 +393,7 @@
         typingBubble.remove();
         addBubble("ai", formatReply(reply));
         history.push({ role: "assistant", content: reply });
+        saveHistory();
       })
       .catch((err) => {
         typingBubble.remove();

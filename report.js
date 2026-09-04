@@ -15,6 +15,15 @@
     "Content-Type": "application/json",
     "ngrok-skip-browser-warning": "true",
   };
+  // Same per-account scoping as backtester.js -- see that file's
+  // authedHeaders for the full rationale. Only used for the backend-run
+  // path (?id=<job_id>); local CSV reports never touch the network.
+  function authedHeaders(extra) {
+    return window.AUTH_READY.then((session) => {
+      if (!session) throw new Error("Please log in first.");
+      return Object.assign({}, FETCH_HEADERS, extra || {}, { "Authorization": "Bearer " + session.access_token });
+    });
+  }
   const LOCAL_INDEX_KEY = "bt_local_reports";
 
   function escapeHtml(s) {
@@ -656,7 +665,8 @@
     if (!currentReport || !currentId) return;
     if (!confirm("Delete this report? This can't be undone.")) return;
     if (currentReport.source === "backend") {
-      fetch(`${API()}/backtest/history/${currentId}`, { method: "DELETE", headers: FETCH_HEADERS })
+      authedHeaders()
+        .then((headers) => fetch(`${API()}/backtest/history/${currentId}`, { method: "DELETE", headers }))
         .catch(() => { /* best effort */ })
         .finally(() => { location.href = "backtester.html"; });
     } else {
@@ -1121,7 +1131,8 @@
       showOnly("error");
       return Promise.resolve();
     }
-    return fetch(`${API()}/backtest/history/${id}/report`, { headers: FETCH_HEADERS })
+    return authedHeaders()
+      .then((headers) => fetch(`${API()}/backtest/history/${id}/report`, { headers }))
       .then((r) => {
         if (r.status === 404) throw new Error("No saved report for this run — it may have been deleted, or predates this feature.");
         if (!r.ok) throw new Error("HTTP " + r.status);

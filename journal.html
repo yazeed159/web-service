@@ -55,11 +55,6 @@
         <span class="nav-label">Day View</span>
       </a>
 
-      <a class="nav-item" href="index.html#tradeview">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-        <span class="nav-label">Trade View</span>
-      </a>
-
       <a class="nav-item" href="index.html#reports">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line></svg>
         <span class="nav-label">Reports</span>
@@ -155,6 +150,7 @@
         <select id="f-rvol" title="Relative volume on the trade day"><option value="">All rel. volume</option></select>
         <select id="f-avgvol" title="30-day average daily volume"><option value="">All avg. volume</option></select>
         <select id="f-float" title="Float (shares outstanding, approx.)"><option value="">All float</option></select>
+        <select id="f-tag" title="Lesson tags you've logged on trades"><option value="">All tags</option></select>
         <select id="f-grade" title="Self-graded execution quality — separate from win/loss">
           <option value="">All grades</option>
           <option value="5">★★★★★ only</option>
@@ -186,6 +182,11 @@
   let allRows = [];
   let sortKey = "trade_date";
   let sortDir = "desc"; // desc = newest first
+  // Restored from the URL once on boot (see NavState in nav.js) if the
+  // person is coming back here via Back rather than landing fresh; how
+  // many rows were scrolled into via "Load more" before they clicked
+  // into a trade. Consumed once by the first renderTable() call below.
+  let bootShown = null;
 
   const els = {
     symbol: document.getElementById("f-symbol"),
@@ -196,6 +197,7 @@
     rvol: document.getElementById("f-rvol"),
     avgvol: document.getElementById("f-avgvol"),
     float: document.getElementById("f-float"),
+    tag: document.getElementById("f-tag"),
     grade: document.getElementById("f-grade"),
     flagged: document.getElementById("f-flagged"),
     timeFrom: document.getElementById("f-time-from"),
@@ -245,12 +247,56 @@
           select.appendChild(opt);
         }
       }
-      // Deep link from stats.html's setup breakdown, or the Rewind/Quiz
-      // "setups to review" list, pre-selects that setup's filter instead
-      // of landing on the unfiltered table.
-      const params = new URLSearchParams(window.location.search);
-      const setupParam = params.get("setup");
+      // Lesson tags -- the trader's own review tags (see lesson_tags on
+      // each row), same field stats.html/patterns.html/playbooks.html
+      // build their tag breakdowns from. Populates the Tags filter and
+      // is what the table's Tags column actually renders below.
+      const lessonTagSet = new Set();
+      allRows.forEach((r) => (r.lesson_tags || []).forEach((t) => t && lessonTagSet.add(t)));
+      Array.from(lessonTagSet).sort().forEach((t) => {
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = t.replace(/_/g, " ");
+        els.tag.appendChild(opt);
+      });
+      // Restore filters/sort/scroll-depth from the URL -- either a deep
+      // link from stats.html's setup breakdown (or the Rewind/Quiz
+      // "setups to review" list), which only ever set `setup`, or this
+      // page's own state mirrored back into the URL by syncUrlState()
+      // below so that hitting Back from trade.html lands you right
+      // back where you were instead of resetting to a blank table.
+      const setupParam = NavState.get("setup");
       if (setupParam && setups.includes(setupParam)) els.setup.value = setupParam;
+      const rvolParam = NavState.get("rvol");
+      if (rvolParam && Array.from(els.rvol.options).some((o) => o.value === rvolParam)) els.rvol.value = rvolParam;
+      const avgvolParam = NavState.get("avgvol");
+      if (avgvolParam && Array.from(els.avgvol.options).some((o) => o.value === avgvolParam)) els.avgvol.value = avgvolParam;
+      const floatParam = NavState.get("float");
+      if (floatParam && Array.from(els.float.options).some((o) => o.value === floatParam)) els.float.value = floatParam;
+      const tagParam = NavState.get("tag");
+      if (tagParam && Array.from(els.tag.options).some((o) => o.value === tagParam)) els.tag.value = tagParam;
+
+      const symbolParam = NavState.get("symbol");
+      if (symbolParam) els.symbol.value = symbolParam;
+      const fromParam = NavState.get("from");
+      if (fromParam) els.from.value = fromParam;
+      const toParam = NavState.get("to");
+      if (toParam) els.to.value = toParam;
+      const resultParam = NavState.get("result");
+      if (resultParam) els.result.value = resultParam;
+      const gradeParam = NavState.get("grade");
+      if (gradeParam) els.grade.value = gradeParam;
+      if (NavState.get("flagged") === "1") els.flagged.checked = true;
+      const tFromParam = NavState.get("tfrom");
+      if (tFromParam) els.timeFrom.value = tFromParam;
+      const tToParam = NavState.get("tto");
+      if (tToParam) els.timeTo.value = tToParam;
+
+      sortKey = NavState.get("sort", sortKey);
+      sortDir = NavState.get("dir", sortDir);
+      const nParam = parseInt(NavState.get("n"), 10);
+      if (Number.isInteger(nParam) && nParam > TABLE_PAGE_SIZE) bootShown = nParam;
+
       applyFilters();
     })
     .catch((err) => {
@@ -274,6 +320,7 @@
     const rvol = els.rvol.value;
     const avgvol = els.avgvol.value;
     const floatTag = els.float.value;
+    const tag = els.tag.value;
     const gradeFilter = els.grade.value;
     const flaggedOnly = els.flagged.checked;
     const timeFrom = els.timeFrom.value; // "HH:MM" or ""
@@ -289,6 +336,7 @@
       if (rvol && r.rvol_tag !== rvol) return false;
       if (avgvol && r.avg_volume_tag !== avgvol) return false;
       if (floatTag && r.float_tag !== floatTag) return false;
+      if (tag && !(r.lesson_tags || []).includes(tag)) return false;
       if (gradeFilter) {
         const g = window.TradeGrade ? window.TradeGrade.get(r) : null;
         if (gradeFilter === "none") { if (g) return false; }
@@ -315,6 +363,32 @@
   let tableRows = [];
   let tableShown = 0;
 
+  // Mirrors the current filters/sort/scroll-depth into the URL (see
+  // NavState in nav.js) so Back from trade.html restores this exact
+  // view instead of resetting to a blank/default table. Called every
+  // time renderTable() runs (filters, sort) and every time "Load more"
+  // grows the visible page (see its click handler below).
+  function syncUrlState() {
+    NavState.set({
+      symbol: els.symbol.value.trim() || null,
+      from: els.from.value || null,
+      to: els.to.value || null,
+      setup: els.setup.value || null,
+      result: els.result.value || null,
+      rvol: els.rvol.value || null,
+      avgvol: els.avgvol.value || null,
+      float: els.float.value || null,
+      tag: els.tag.value || null,
+      grade: els.grade.value || null,
+      flagged: els.flagged.checked ? "1" : null,
+      tfrom: els.timeFrom.value || null,
+      tto: els.timeTo.value || null,
+      sort: sortKey !== "trade_date" ? sortKey : null,
+      dir: sortDir !== "desc" ? sortDir : null,
+      n: tableShown > TABLE_PAGE_SIZE ? tableShown : null,
+    });
+  }
+
   function renderTable(rows) {
     if (!rows.length) {
       content.innerHTML = `<div class="empty-state">No trades match these filters.</div>`;
@@ -329,7 +403,9 @@
       return sortDir === "asc" ? av - bv : bv - av;
     });
     tableRows = sorted;
-    tableShown = Math.min(TABLE_PAGE_SIZE, sorted.length);
+    tableShown = Math.min(bootShown != null ? bootShown : TABLE_PAGE_SIZE, sorted.length);
+    bootShown = null; // one-time restore -- any later filter/sort change resets to a normal first page
+    syncUrlState();
 
     const totalPnl = rows.reduce((s, r) => s + (r.pnl_after_comm || 0), 0);
     const cols = [
@@ -347,6 +423,8 @@
     // Volume/rvol/float pills for one row -- skips "_unknown" tags rather
     // than showing an empty-looking badge for trades published before this
     // data existed, or ones where chart_service.py's Polygon calls failed.
+    // Shown as small badges next to the setup, not in the Tags column --
+    // see tagsPills() below for that.
     function volumePills(r) {
       const tags = [
         [r.rvol_tag, "rvol"],
@@ -357,6 +435,17 @@
       return tags.map(([t, cls]) => `<span class="pill ${cls}">${escapeHtml(tagLabel(t))}</span>`).join(" ");
     }
 
+    // The trader's own lesson tags (see lesson_tags on each row) -- the
+    // same field stats.html/patterns.html build their tag breakdowns
+    // from. This is what "Tags" actually means to a trader reviewing
+    // their journal, as opposed to the auto-computed volume/rvol/float
+    // classification above.
+    function tagsPills(r) {
+      const tags = (r.lesson_tags || []).filter(Boolean);
+      if (!tags.length) return `<span class="dim">—</span>`;
+      return tags.map((t) => `<span class="pill tagpill">${escapeHtml(t.replace(/_/g, " "))}</span>`).join(" ");
+    }
+
     function rowHtml(r) {
       return `
         <tr>
@@ -364,13 +453,13 @@
             <a class="row-link" href="trade.html?id=${encodeURIComponent(r.id)}" style="display:grid; grid-template-columns: ${GRID_COLS}; align-items:center; padding:8px 10px; gap:6px;">
               <span>${escapeHtml(r.trade_date)}</span>
               <span>${escapeHtml(r.symbol)}</span>
-              <span>${escapeHtml((r.setup_type || "—").replace(/_/g, " "))}</span>
+              <span style="display:flex; flex-wrap:wrap; align-items:center; gap:4px;">${escapeHtml((r.setup_type || "—").replace(/_/g, " "))} ${volumePills(r)}</span>
               <span>$${Number(r.entry_price).toFixed(2)}</span>
               <span>$${Number(r.exit_price).toFixed(2)}</span>
               <span class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</span>
               <span class="pill ${r.win ? "win" : "loss"}">${r.win ? "WIN" : "LOSS"}</span>
               <span>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(r), { size: 12 }) : "—"}</span>
-              <span style="display:flex; flex-wrap:wrap; gap:4px;">${volumePills(r)}</span>
+              <span style="display:flex; flex-wrap:wrap; gap:4px;">${tagsPills(r)}</span>
             </a>
           </td>
         </tr>`;
@@ -395,8 +484,12 @@
         <div class="table-scroll">
         <table class="data-table">
           <thead><tr>
-            ${cols.map(([key, label]) => `<th data-sort="${key}" class="${sortKey === key ? "sorted " + sortDir : ""}">${label}</th>`).join("")}
-            <th>Tags</th>
+            <th colspan="9" style="padding:0;">
+              <div style="display:grid; grid-template-columns: ${GRID_COLS}; align-items:center; padding:8px 10px; gap:6px;">
+                ${cols.map(([key, label]) => `<span class="headcell${sortKey === key ? " sorted " + sortDir : ""}" data-sort="${key}">${label}</span>`).join("")}
+                <span class="headcell no-sort">Tags</span>
+              </div>
+            </th>
           </tr></thead>
           <tbody id="journal-tbody">
             ${sorted.slice(0, tableShown).map(rowHtml).join("")}
@@ -407,7 +500,7 @@
       </div>
     `;
 
-    content.querySelectorAll("th[data-sort]").forEach((th) => {
+    content.querySelectorAll(".headcell[data-sort]").forEach((th) => {
       th.addEventListener("click", () => {
         const key = th.getAttribute("data-sort");
         if (sortKey === key) sortDir = sortDir === "asc" ? "desc" : "asc";
@@ -422,6 +515,7 @@
         const nextShown = Math.min(tableShown + TABLE_PAGE_SIZE, tableRows.length);
         const newRowsHtml = tableRows.slice(tableShown, nextShown).map(rowHtml).join("");
         tableShown = nextShown;
+        syncUrlState();
         const moreRow = document.getElementById("table-load-more-row");
         moreRow.insertAdjacentHTML("beforebegin", newRowsHtml);
         if (tableShown < tableRows.length) {
@@ -467,6 +561,7 @@
     if (els.rvol.value) parts.push(tagLabel(els.rvol.value));
     if (els.avgvol.value) parts.push(tagLabel(els.avgvol.value));
     if (els.float.value) parts.push(tagLabel(els.float.value));
+    if (els.tag.value) parts.push(`Tag: ${els.tag.value.replace(/_/g, " ")}`);
     if (els.grade.value === "none") parts.push("Ungraded");
     else if (els.grade.value) parts.push(`${els.grade.value}★ & up`);
     if (els.timeFrom.value || els.timeTo.value) parts.push(`Entry ${els.timeFrom.value || "…"}–${els.timeTo.value || "…"}`);

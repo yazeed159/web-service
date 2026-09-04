@@ -91,12 +91,16 @@ button { font-family: var(--sans); }
 .sidebar.collapsed { width: var(--sidebar-w-collapsed); }
 
 .sidebar-top {
-  display: flex; align-items: center;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 20px 16px 18px;
   border-bottom: 1px solid var(--border-soft);
   min-height: var(--topbar-h);
 }
-.sidebar.collapsed .sidebar-top { justify-content: center; padding: 20px 8px 18px; }
+/* Collapsed: not enough width for brand + toggle side by side, so stack
+   them instead of shrinking either one -- keeps the toggle a normal,
+   in-flow part of the header in both states rather than an
+   absolutely-positioned button that has to guess where to sit. */
+.sidebar.collapsed .sidebar-top { flex-direction: column; justify-content: center; padding: 16px 8px; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; overflow: hidden; }
 .brand .mark {
   flex: none;
@@ -111,16 +115,20 @@ button { font-family: var(--sans); }
 .sidebar.collapsed .brand .name { display: none; }
 
 .sidebar-toggle {
-  position: absolute;
-  top: 24px; right: -13px;
+  /* Was position:absolute, hanging half off the sidebar's right edge
+     (right:-13px) and jumping its "top" between states (24px vs 18px)
+     for no real reason -- it looked disconnected from the header and
+     visibly hopped around on every toggle. Now it's a normal flex
+     child of .sidebar-top, so it sits inline at the end of the header
+     row when expanded, and centered under the logo when collapsed --
+     same rules in both states, no coordinate guessing. */
+  flex: none;
   width: 26px; height: 26px; border-radius: 50%;
   background: var(--panel-2); border: 1px solid var(--border);
   color: var(--text-faint); cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s, top 0.18s ease;
+  transition: all 0.15s;
   box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-  z-index: 21;
 }
-.sidebar.collapsed .sidebar-toggle { top: 18px; }
 .sidebar-toggle:hover { color: var(--text); border-color: var(--text-dim); background: var(--panel-3); }
 .sidebar-toggle svg { width: 13px; height: 13px; transition: transform 0.18s ease; }
 .sidebar.collapsed .sidebar-toggle svg { transform: rotate(180deg); }
@@ -300,6 +308,24 @@ button { font-family: var(--sans); }
 .equity-path { fill: none; stroke: var(--green); stroke-width: 1.75; }
 .equity-path.neg { stroke: var(--red); }
 .equity-zero { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 4; }
+.equity-chart-wrap { position: relative; cursor: crosshair; }
+.equity-crosshair {
+  position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border);
+  pointer-events: none; display: none; z-index: 2;
+}
+.equity-tooltip {
+  position: absolute; top: 8px; pointer-events: none; display: none; z-index: 3;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 7px 10px; font-size: 11.5px; line-height: 1.5; white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+}
+.equity-tooltip .eq-date { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+.equity-tooltip .eq-bal { font-family: var(--mono); font-weight: 700; }
+.equity-tooltip .eq-trade { color: var(--text-dim); margin-top: 2px; }
+.equity-tooltip .eq-hint { color: var(--text-faint); font-size: 10.5px; margin-top: 3px; }
+.equity-stats { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-soft); }
+.equity-stats .eq-stat-label { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 5px; }
+.equity-stats .eq-stat-value { font-family: var(--mono); font-weight: 700; font-size: 12px; }
 
 /* =====================================================
    RECENT / TRADE TABLE (shared)
@@ -438,7 +464,7 @@ button { font-family: var(--sans); }
 .trade-meta { font-size: 13px; color: var(--text-dim); }
 .trade-meta .meta-standout { color: var(--text); font-weight: 700; font-family: var(--mono); }
 
-.pnl-breakdown { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); border-radius: var(--radius); overflow: hidden; margin-bottom: 18px; }
+.pnl-breakdown { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); border-radius: var(--radius); overflow: hidden; margin-bottom: 18px; }
 .pnl-breakdown .cell { background: var(--panel); padding: 16px 20px; }
 .pnl-breakdown .cell .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin-bottom: 8px; font-weight: 600; }
 .pnl-breakdown .cell .value { font-family: var(--mono); font-size: 20px; font-weight: 700; }
@@ -524,6 +550,7 @@ body:has(.sidebar.mobile-open) { overflow: hidden; }
   .topbar-left h1 { font-size: 15px; }
   .date-range-pill { display: none; }
   .pnl-breakdown { grid-template-columns: repeat(2, 1fr); }
+  .pnl-breakdown .cell:last-child { grid-column: span 2; }
 
   /* Tighter tables so more of each row fits before the scroll kicks in */
   .trade-table td, .trade-table th { padding: 8px 10px; }
@@ -577,7 +604,18 @@ body:has(.sidebar.mobile-open) { overflow: hidden; }
 .reports-filter-bar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
 .filter-field{display:flex;flex-direction:column;gap:4px;}
 .filter-field label{font-size:11px;color:#8a94a6;}
-.filter-input{background:#1b2230;border:1px solid #2c3546;color:#e6e9ef;border-radius:6px;padding:8px 10px;font-size:13px;min-width:110px;}
+.filter-input{background:#1b2230;border:1px solid #2c3546;color:#e6e9ef;border-radius:6px;padding:8px 10px;font-size:13px;min-width:110px;transition:border-color .15s ease, box-shadow .15s ease;}
+.filter-input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft);}
+select.filter-input{
+  appearance:none;-webkit-appearance:none;-moz-appearance:none;cursor:pointer;
+  padding-right:30px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a94a6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 9px center;background-size:14px;
+}
+select.filter-input:hover{border-color:#3d475c;}
+select.filter-input:focus{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b7cf6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+}
 .date-range .filter-input{min-width:190px;border-color:#2ecc71;color:#2ecc71;}
 .btn-advanced{background:#1b2230;border:1px solid #2c3546;color:#e6e9ef;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer;}
 .btn-icon{background:#1b2230;border:1px solid #2c3546;color:#e6e9ef;border-radius:6px;width:34px;height:34px;cursor:pointer;}
@@ -616,22 +654,56 @@ body:has(.sidebar.mobile-open) { overflow: hidden; }
 .filters input, .filters select {
   background: var(--panel); border: 1px solid var(--border); color: var(--text);
   font-family: var(--sans); font-size: 12.5px; padding: 8px 11px; border-radius: var(--radius-sm);
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
 }
-.filters input:focus, .filters select:focus { border-color: var(--primary); outline: none; }
+.filters select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  padding-right: 30px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23565a6b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center; background-size: 14px;
+}
+.filters select:hover { border-color: var(--text-faint); }
+.filters input:focus, .filters select:focus {
+  border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px var(--primary-soft); background-color: var(--panel-2);
+}
+.filters select:focus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b7cf6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+}
+.filters select option { background: var(--panel-2); color: var(--text); }
 .filters label { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-dim); }
+
+/* Standalone modern select -- same chevron/focus treatment as .filters select,
+   for one-off dropdowns that sit outside a filters bar (e.g. report period). */
+.select-clean {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none; cursor: pointer;
+  text-transform: none; letter-spacing: normal; font-weight: 500;
+  background-color: var(--panel); border: 1px solid var(--border); color: var(--text);
+  font-family: var(--sans); font-size: 12.5px; padding: 6px 30px 6px 10px; border-radius: var(--radius-sm);
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23565a6b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center; background-size: 14px;
+}
+.select-clean:hover { border-color: var(--text-faint); }
+.select-clean:focus {
+  outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); background-color: var(--panel-2);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b7cf6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+}
 
 table.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 table.data-table th {
   text-align: left; color: var(--text-faint); font-weight: 600; font-size: 10.5px;
   text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 10px;
-  border-bottom: 1px solid var(--border-soft); cursor: pointer; user-select: none; white-space: nowrap;
+  border-bottom: 1px solid var(--border-soft); user-select: none; white-space: nowrap;
 }
-table.data-table th:hover { color: var(--text); }
-table.data-table th.sorted::after { content: " \25be"; opacity: .6; }
-table.data-table th.sorted.asc::after { content: " \25b4"; }
+table.data-table th .headcell { cursor: pointer; }
+table.data-table th .headcell.no-sort { cursor: default; }
+table.data-table th .headcell:hover { color: var(--text); }
+table.data-table th .headcell.sorted::after { content: " \25be"; opacity: .6; }
+table.data-table th .headcell.sorted.asc::after { content: " \25b4"; }
 table.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--border-soft); }
 table.data-table tbody tr:hover { background: var(--panel-2); }
 table.data-table a.row-link { color: var(--text); text-decoration: none; display: block; }
+.pill.tagpill { background: var(--panel-2); color: var(--text-dim); border-color: var(--border-soft); text-transform: none; }
 
 .pill.win { background: var(--green-soft); color: var(--green); border-color: rgba(47,208,138,0.3); }
 .pill.loss { background: var(--red-soft); color: var(--red); border-color: rgba(242,85,90,0.3); }

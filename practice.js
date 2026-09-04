@@ -82,6 +82,7 @@
     modeBadge: document.getElementById("pp-mode-badge"),
     replayBtn: document.getElementById("pp-replay-btn"),
     changeChartBtn: document.getElementById("pp-change-chart-btn"),
+    exitBtn: document.getElementById("pp-exit-btn"),
     chartWrap: document.getElementById("pp-chart-wrap"),
     chartEl: document.getElementById("pp-candle-chart"),
 
@@ -1886,6 +1887,19 @@
     saveAccount();
     pickRandomCandidate(prevId);
   });
+  els.exitBtn.addEventListener("click", async () => {
+    if (state.position && state.position.shares > 0) {
+      const ok = await UIModal.confirm("You still have an open position on this chart. Exiting now will flatten it at the current price and end the session. Continue?", { title: "Exit session?", tone: "danger", confirmLabel: "Flatten & exit" });
+      if (!ok) return;
+    } else {
+      const ok = await UIModal.confirm("End this practice session and return to setup?", { title: "Exit session?", confirmLabel: "Exit session" });
+      if (!ok) return;
+    }
+    endSession("exit");
+    account.session = null;
+    saveAccount();
+    goToSetup();
+  });
   els.playPauseBtn.addEventListener("click", () => { state.playing ? stopPlayback() : startPlayback(); });
   els.stepBackBtn.addEventListener("click", stepBackOneBar);
   els.stepBtn.addEventListener("click", stepOneBar);
@@ -1984,21 +1998,32 @@
       els.candidateCount.textContent = "Couldn't load your trades.";
     });
 
-  // If report.html's "Practice this trade" button handed off a backtest
-  // trade, jump straight into it instead of the usual setup screen.
-  // Consumed once -- a plain refresh of practice.html afterward goes
-  // back to normal (the in-progress session itself still resumes via
-  // account.session.backtestTrade, same as any other chart).
+  // Two ways in besides the random-pick setup screen: report.html's
+  // "Practice this trade" button hands off a full backtest trade via
+  // localStorage (consumed once); trade.html's "Practice" button links
+  // here with ?trade=<id> for a real logged trade instead. Either one
+  // skips straight past the setup screen into that chart.
   (function loadPendingBacktestHandoff() {
     let raw;
     try {
       raw = localStorage.getItem(PENDING_BACKTEST_KEY);
       if (raw) localStorage.removeItem(PENDING_BACKTEST_KEY);
     } catch (e) { raw = null; }
-    if (!raw) return;
+    if (raw) {
+      try {
+        const trade = JSON.parse(raw);
+        loadBacktestTrade(trade);
+        return;
+      } catch (e) { /* ignore malformed handoff, fall through below */ }
+    }
+
+    // Deep link from trade.html's "Practice" button: ?trade=<id> jumps
+    // straight into trading that specific logged journal trade, same
+    // ?trade=<id> convention rewind.html already uses for its own
+    // "Replay"/Rewind link -- skips the random-pick setup screen.
     try {
-      const trade = JSON.parse(raw);
-      loadBacktestTrade(trade);
-    } catch (e) { /* ignore malformed handoff */ }
+      const tradeId = new URLSearchParams(window.location.search).get("trade");
+      if (tradeId) loadChart(tradeId);
+    } catch (e) { /* ignore */ }
   })();
 })();
