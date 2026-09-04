@@ -29,7 +29,22 @@
 .quiz-filter-row input[type="number"] {
   background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
   border-radius: var(--radius-sm); padding: 8px 10px; font-size: 13px; font-family: var(--sans);
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
 }
+.quiz-filter-row select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none; cursor: pointer;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23565a6b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 11px center; background-size: 14px;
+}
+.quiz-filter-row select:hover { border-color: var(--text-faint); }
+.quiz-filter-row input:focus, .quiz-filter-row select:focus {
+  outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); background-color: var(--panel-3);
+}
+.quiz-filter-row select:focus {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b7cf6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+}
+.quiz-filter-row select option { background: var(--panel-3); color: var(--text); }
 .quiz-check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim); }
 .quiz-mode-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .quiz-mode-btn {

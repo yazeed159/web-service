@@ -7,7 +7,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Practice — trade.log</title>
-<link rel="icon" href="data:,">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="core.css">
 <link rel="stylesheet" href="chat-widget.css">
 <link rel="stylesheet" href="global-search.css">
@@ -144,11 +144,6 @@
           <button class="btn-confirm" id="pr-resume-btn">Resume session</button>
         </div>
 
-        <div id="pr-plan-box" class="pr-resume-box" style="display:none;">
-          <div class="rb-text" id="pr-plan-text"></div>
-          <button type="button" class="link" id="pr-plan-dismiss-btn">Dismiss</button>
-        </div>
-
         <div class="pr-hero">
           <div class="pr-hero-text">
             <div class="pr-hero-eyebrow">Practice</div>
@@ -249,6 +244,8 @@
             </div>
 
             <div id="pp-recap-box" class="panel-box" style="display:none; margin-top:14px;"></div>
+
+            <div id="pp-symbol-card" style="display:none; margin-top:14px;"></div>
           </div>
 
           <div>
@@ -285,7 +282,6 @@
               </div>
               <div id="pp-size-preset-row"></div>
               <div class="pp-size-preview" id="pp-size-preview"></div>
-              <div class="pp-plan-note" id="pp-plan-note" style="display:none;"></div>
               <div class="pp-order-btn-row">
                 <button class="pp-order-btn buy" id="pp-buy-btn">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
@@ -316,23 +312,21 @@
                 <div id="pp-fill-log"></div>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div id="pp-symbol-card" style="display:none; margin-top:14px;"></div>
-
-        <div class="card sr-box" id="pp-sr-box" style="display:none; margin-top:14px;">
-          <div class="sr-head">
-            <div>
-              <h2 style="margin:0;">Support &amp; Resistance</h2>
-              <div class="sr-sub">Uses this symbol's prior daily bars. Off by default.</div>
+            <div class="card sr-box" id="pp-sr-box" style="display:none; margin-top:14px;">
+              <div class="sr-head">
+                <div>
+                  <h2 style="margin:0;">Support &amp; Resistance</h2>
+                  <div class="sr-sub">Uses this symbol's prior daily bars. Off by default.</div>
+                </div>
+                <button class="sr-run-btn" id="pp-sr-run-btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.4 8.6 12 15l-3-3-4 4"></path></svg>
+                  Analyze support/resistance
+                </button>
+              </div>
+              <div id="pp-sr-result"></div>
             </div>
-            <button class="sr-run-btn" id="pp-sr-run-btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.4 8.6 12 15l-3-3-4 4"></path></svg>
-              Analyze support/resistance
-            </button>
           </div>
-          <div id="pp-sr-result"></div>
         </div>
 
       </div>

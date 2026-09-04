@@ -9,7 +9,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Journal — trade.log</title>
-<link rel="icon" href="data:,">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="core.css">
 <link rel="stylesheet" href="chat-widget.css">
 <link rel="stylesheet" href="global-search.css">
@@ -420,26 +420,11 @@
     ];
     const GRID_COLS = "100px 90px 130px 80px 80px 100px 80px 100px 1fr";
 
-    // Volume/rvol/float pills for one row -- skips "_unknown" tags rather
-    // than showing an empty-looking badge for trades published before this
-    // data existed, or ones where chart_service.py's Polygon calls failed.
-    // Shown as small badges next to the setup, not in the Tags column --
-    // see tagsPills() below for that.
-    function volumePills(r) {
-      const tags = [
-        [r.rvol_tag, "rvol"],
-        [r.avg_volume_tag, "avgvol"],
-        [r.float_tag, "floattag"],
-      ].filter(([t]) => t && !t.endsWith("_unknown"));
-      if (!tags.length) return "";
-      return tags.map(([t, cls]) => `<span class="pill ${cls}">${escapeHtml(tagLabel(t))}</span>`).join(" ");
-    }
-
     // The trader's own lesson tags (see lesson_tags on each row) -- the
     // same field stats.html/patterns.html build their tag breakdowns
     // from. This is what "Tags" actually means to a trader reviewing
     // their journal, as opposed to the auto-computed volume/rvol/float
-    // classification above.
+    // classification (still filterable above, just not shown per-row).
     function tagsPills(r) {
       const tags = (r.lesson_tags || []).filter(Boolean);
       if (!tags.length) return `<span class="dim">—</span>`;
@@ -453,7 +438,7 @@
             <a class="row-link" href="trade.html?id=${encodeURIComponent(r.id)}" style="display:grid; grid-template-columns: ${GRID_COLS}; align-items:center; padding:8px 10px; gap:6px;">
               <span>${escapeHtml(r.trade_date)}</span>
               <span>${escapeHtml(r.symbol)}</span>
-              <span style="display:flex; flex-wrap:wrap; align-items:center; gap:4px;">${escapeHtml((r.setup_type || "—").replace(/_/g, " "))} ${volumePills(r)}</span>
+              <span>${escapeHtml((r.setup_type || "—").replace(/_/g, " "))}</span>
               <span>$${Number(r.entry_price).toFixed(2)}</span>
               <span>$${Number(r.exit_price).toFixed(2)}</span>
               <span class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</span>
@@ -473,14 +458,14 @@
     }
 
     content.innerHTML = `
-      <p style="color:var(--text-faint); font-size:12.5px; margin:0 0 10px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-        <span>${sorted.length} trade${sorted.length === 1 ? "" : "s"} · net <span class="${totalPnl >= 0 ? "up" : "down"}">${fmtMoney(totalPnl)}</span></span>
-        <button class="icon-btn icon-btn-visible" id="share-view-btn" title="Export this filtered set as a shareable static page" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
-          <span id="share-view-label">Share this view</span>
-        </button>
-      </p>
       <div class="panel-box" style="padding:0;">
+        <div class="journal-table-head">
+          <span>${sorted.length} trade${sorted.length === 1 ? "" : "s"} · net <span class="${totalPnl >= 0 ? "up" : "down"}">${fmtMoney(totalPnl)}</span></span>
+          <button class="icon-btn icon-btn-visible" id="share-view-btn" title="Export this filtered set as a shareable static page" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
+            <span id="share-view-label">Share this view</span>
+          </button>
+        </div>
         <div class="table-scroll">
         <table class="data-table">
           <thead><tr>

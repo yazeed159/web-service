@@ -35,17 +35,6 @@
   // to fetch (the backtest trade already carries its own bars).
   const PENDING_BACKTEST_KEY = "practice:pending_backtest_trade";
 
-  // Handoff key calculator.html's "Track this trade" button writes a
-  // *hypothetical* plan into (entry/stop/target/shares/risk numbers, no
-  // bars, possibly no symbol) -- unlike PENDING_BACKTEST_KEY this can't
-  // drive straight into a session, since there's no chart on earth that's
-  // guaranteed to trade at those exact prices. Left in localStorage (not
-  // consumed at load) until the person actually starts a chart, at which
-  // point applyPendingPlanToSession() uses it to pre-size the order ticket
-  // and, only if the loaded chart's symbol matches, mark the planned
-  // stop/target on it.
-  const CALC_PLAN_KEY = "practice:pending_trade_plan";
-
   const els = {
     setupScreen: document.getElementById("pr-setup-screen"),
     playScreen: document.getElementById("pr-play-screen"),
@@ -64,11 +53,6 @@
     resumeBox: document.getElementById("pr-resume-box"),
     resumeBtn: document.getElementById("pr-resume-btn"),
     resumeLabel: document.getElementById("pr-resume-label"),
-
-    planBox: document.getElementById("pr-plan-box"),
-    planText: document.getElementById("pr-plan-text"),
-    planDismissBtn: document.getElementById("pr-plan-dismiss-btn"),
-    planNote: document.getElementById("pp-plan-note"),
 
     randomBtn: document.getElementById("pf-random-btn"),
     candidateCount: document.getElementById("pf-candidate-count"),
@@ -579,11 +563,6 @@
     ended: false,
   };
 
-  // Plan handed off from calculator.html, if any -- read at boot, kept
-  // around (not consumed) until a chart session actually starts, since
-  // unlike the backtest handoff it can't drive a session by itself.
-  let pendingPlan = null;
-
   const SPEEDS = [0.5, 1, 2, 5, 10];
   const BASE_TICK_MS = 140;
   const SHARE_PRESETS = [50, 100, 200, 500];
@@ -626,90 +605,6 @@
       }
     } else {
       els.resumeBox.style.display = "none";
-    }
-  }
-
-  // ---------------------------------------------------------------
-  // calculator.html "Track this trade" handoff
-  // ---------------------------------------------------------------
-  function planSummaryText(plan) {
-    const dir = plan.direction === "short" ? "short" : "long";
-    const sym = plan.symbol ? `${plan.symbol} — ` : "";
-    const parts = [`${sym}${dir} ${plan.shares.toLocaleString()} sh @ ${fmtUsd(plan.entry)}`, `stop ${fmtUsd(plan.stop)}`];
-    if (isFinite(plan.target)) parts.push(`target ${fmtUsd(plan.target)}`);
-    parts.push(`risking ${fmtUsd(plan.riskAmount)}`);
-    if (isFinite(plan.rr) && plan.rr !== null) parts.push(`${plan.rr.toFixed(2)}R`);
-    return `Planned trade from the Calculator: ${parts.join(" · ")}.`;
-  }
-
-  function renderPendingPlanBanner() {
-    if (!els.planBox) return;
-    if (!pendingPlan) { els.planBox.style.display = "none"; return; }
-    els.planBox.style.display = "";
-    els.planText.textContent = planSummaryText(pendingPlan) + " Start a chart below and it'll size your first order to match.";
-  }
-
-  function loadPendingTradePlan() {
-    let raw;
-    try { raw = localStorage.getItem(CALC_PLAN_KEY); } catch (e) { raw = null; }
-    if (!raw) return;
-    try {
-      const plan = JSON.parse(raw);
-      if (plan && plan.shares > 0 && isFinite(plan.entry) && isFinite(plan.stop)) pendingPlan = plan;
-    } catch (e) { /* ignore malformed handoff */ }
-    renderPendingPlanBanner();
-  }
-
-  if (els.planDismissBtn) {
-    els.planDismissBtn.addEventListener("click", () => {
-      pendingPlan = null;
-      try { localStorage.removeItem(CALC_PLAN_KEY); } catch (e) {}
-      renderPendingPlanBanner();
-    });
-  }
-
-  // Applied once a chart session actually starts (never on resume -- a
-  // resumed session already has its own sizing/position in progress).
-  // Pre-sizes the order ticket to the plan's share count regardless of
-  // symbol (the risk math travels fine across symbols), but only draws
-  // the planned stop/target price lines on the chart when the loaded
-  // chart's symbol matches the plan's -- on a different symbol those
-  // price levels would sit in a completely unrelated price range and
-  // just be misleading.
-  function applyPendingPlanToSession(trade) {
-    if (!pendingPlan) return;
-    const plan = pendingPlan;
-    pendingPlan = null;
-    try { localStorage.removeItem(CALC_PLAN_KEY); } catch (e) {}
-    renderPendingPlanBanner();
-
-    if (plan.shares > 0) {
-      if (account.sizeMode !== "shares") { account.sizeMode = "shares"; }
-      if (els.sharesInput) els.sharesInput.value = String(plan.shares);
-      applySizeModeUI();
-    }
-
-    const symbolMatches = !!(plan.symbol && trade.symbol && plan.symbol.toUpperCase() === trade.symbol.toUpperCase());
-    if (symbolMatches && state.chartHandle && state.chartHandle.series) {
-      if (isFinite(plan.stop)) {
-        state.chartHandle.series.createPriceLine({
-          price: Number(plan.stop), color: "#f2555a", lineWidth: 1,
-          lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "planned stop",
-        });
-      }
-      if (isFinite(plan.target)) {
-        state.chartHandle.series.createPriceLine({
-          price: Number(plan.target), color: "#2fd08a", lineWidth: 1,
-          lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "planned target",
-        });
-      }
-    }
-
-    if (els.planNote) {
-      els.planNote.style.display = "";
-      els.planNote.textContent = symbolMatches
-        ? `Order sized to your ${plan.shares.toLocaleString()}-share plan; planned stop/target marked on the chart.`
-        : `Order sized to your ${plan.shares.toLocaleString()}-share plan from the Calculator (this chart's a different symbol, so its stop/target aren't drawn here).`;
     }
   }
 
@@ -1049,11 +944,6 @@
     renderPositionPanel();
     renderFillLog();
     updatePlayPauseBtn();
-
-    // Only a brand-new session picks up a pending calculator plan --
-    // resuming an in-progress one already has its own sizing/position.
-    if (els.planNote) els.planNote.style.display = "none";
-    if (!resumeFrom) applyPendingPlanToSession(trade);
   }
 
   function replayCurrentTrade() {
@@ -1985,8 +1875,6 @@
   // ---------------------------------------------------------------
   // boot
   // ---------------------------------------------------------------
-  loadPendingTradePlan();
-
   window.fetchTradesIndex()
     .then((rows) => {
       state.index = Array.isArray(rows) ? rows : [];

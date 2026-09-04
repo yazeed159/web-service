@@ -89,6 +89,7 @@
 }
 .chatw-icon-action:hover { color: var(--text); background: var(--panel-3); border-color: var(--border); }
 .chatw-icon-action svg { width: 15px; height: 15px; }
+.chatw-icon-action.active { color: var(--primary); background: var(--primary-soft); border-color: var(--primary); }
 
 .chatw-body { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; padding: 12px 14px; overflow: hidden; }
 .chatw-body .chat-shell { flex: 1 1 auto; min-height: 0; height: 100%; padding: 0; border: none; background: transparent; }
@@ -163,6 +164,7 @@
 .chat-typing { padding: 12px 14px; }
 
 .chat-chips { animation: chatw-riseIn .35s ease .1s both; }
+.chat-chips.chatw-chips-hidden { display: none; }
 .chat-chip {
   display: inline-flex; align-items: center; gap: 6px;
   transition: transform .15s ease, border-color .15s ease, color .15s ease, background .15s ease;

@@ -8,11 +8,41 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Performance — trade.log</title>
-<link rel="icon" href="data:,">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="core.css">
 <link rel="stylesheet" href="dashboard.css">
 <link rel="stylesheet" href="chat-widget.css">
 <link rel="stylesheet" href="global-search.css">
+<style>
+  /* ---------- Win Rate by Setup: modern stacked win/loss bar ----------
+     The shared .bar-row component (core.css) is a single-color fill used
+     all over the app for "how big is this vs. the others" comparisons.
+     Win rate isn't that -- it's a win/loss split that always sums to
+     100%, so a two-color stacked bar (green = win share, red = loss
+     share) shows the actual composition at a glance instead of just a
+     bar whose color flips at the 50% line. Scoped to this page only --
+     other .bar-row usages (per-share-by-size, slippage, grade) keep the
+     plain single-fill look, which is the right shape for their data. */
+  .setup-row { display: flex; align-items: center; gap: 14px; padding: 10px 8px; border-radius: 8px; cursor: pointer; transition: background .15s ease; }
+  .setup-row:hover { background: var(--panel-2); }
+  .setup-row .setup-info { width: 170px; flex-shrink: 0; }
+  .setup-row .setup-name { color: var(--text); font-weight: 600; text-transform: capitalize; font-size: 13px; }
+  .setup-row .setup-sub { color: var(--text-faint); font-size: 11px; margin-top: 2px; }
+  .setup-row .setup-track { flex: 1; height: 14px; background: var(--panel-3); border-radius: 999px; overflow: hidden; display: flex; box-shadow: inset 0 1px 2px rgba(0,0,0,0.25); }
+  .setup-row .setup-seg { height: 100%; transition: width .6s cubic-bezier(0.16,1,0.3,1); }
+  .setup-row .setup-seg.win { background: var(--green); }
+  .setup-row .setup-seg.loss { background: var(--red); }
+  .setup-row .setup-rate { width: 52px; text-align: right; font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .setup-row .setup-pnl { width: 90px; text-align: right; color: var(--text-faint); font-size: 12px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .setup-legend { display: flex; gap: 16px; font-size: 11px; color: var(--text-faint); margin: 2px 0 10px; }
+  .setup-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .setup-legend .swatch { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  @media (max-width: 760px) {
+    .setup-row { flex-wrap: wrap; }
+    .setup-row .setup-info { width: 100%; }
+    .setup-row .setup-track { min-width: 0; }
+  }
+</style>
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
@@ -326,20 +356,29 @@
         <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Rolling averages over your last N trades, in the order you took them — smooths out single-trade noise so you can see whether your edge is actually trending up or down.</p>
 
         <div style="margin-top:4px;">
-          <div class="label-row" style="margin-bottom:2px;"><span class="label">Win Rate (left) &amp; Profit Factor (right)</span></div>
-          <div id="quality-trend-chart" style="height:200px;"></div>
+          <div class="label-row" style="margin-bottom:2px;"><span class="label">Win Rate</span></div>
+          <div id="quality-winrate-headline" style="font-size:22px; font-weight:700; margin:2px 0 4px;">—</div>
+          <div id="quality-winrate-chart" style="height:130px;"></div>
+        </div>
+
+        <div style="margin-top:18px;">
+          <div class="label-row" style="margin-bottom:2px;"><span class="label">Profit Factor — gross wins ÷ gross losses, capped at 5x</span></div>
+          <div id="quality-pf-headline" style="font-size:22px; font-weight:700; margin:2px 0 4px;">—</div>
+          <div id="quality-pf-chart" style="height:130px;"></div>
         </div>
 
         <div style="margin-top:20px;">
           <div class="label-row" style="margin-bottom:2px;"><span class="label">Quality Score — same blend as your Trader Score gauge on Dashboard, tracked over time</span></div>
           <p style="color:var(--text-faint); font-size:12px; margin:2px 0 6px;">0–100, averaging win rate, profit factor, and avg win:loss ratio over the window above. Dashboard shows this number as of right now; this is the trend that got it there. Dashed lines mark the 40/70 bands the gauge itself uses.</p>
+          <div id="quality-score-headline" style="font-size:22px; font-weight:700; margin:2px 0 4px;">—</div>
           <div id="quality-score-chart" style="height:160px;"></div>
         </div>
 
         <div style="margin-top:20px;">
           <div class="label-row" style="margin-bottom:2px;"><span class="label">$/Share P&amp;L — every trade, regardless of size</span></div>
-          <p style="color:var(--text-faint); font-size:12px; margin:2px 0 6px;">Each dot is one trade's net P&amp;L divided by shares traded, so a 100-share and a 1,000-share trade are judged the same way. The line is the rolling average.</p>
-          <div id="pershare-trend-chart" style="height:200px;"></div>
+          <p style="color:var(--text-faint); font-size:12px; margin:2px 0 6px;">Net P&amp;L divided by shares traded, so a 100-share and a 1,000-share trade are judged the same way. Line shows the rolling average over the window selected above.</p>
+          <div id="pershare-trend-headline" style="font-size:22px; font-weight:700; margin:2px 0 4px;">—</div>
+          <div id="pershare-trend-chart" style="height:180px;"></div>
         </div>
       </div>
 
@@ -347,6 +386,7 @@
         <div class="panel-box-head"><span class="title">$/Share Edge by Position Size</span></div>
         <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Trades sorted by share count and split into quartiles — reveals whether your per-share edge holds up, improves, or gets diluted as you size up. For the win-rate cut of the same split, see <a href="edge-analysis.html" style="color:var(--primary); text-decoration:none;">Edge Analysis</a>.</p>
         <div id="pershare-by-size"></div>
+        <p id="pershare-size-insight" style="color:var(--text-faint); font-size:12px; margin:12px 0 0;"></p>
       </div>
 
       <div class="panel-box" style="margin-bottom:16px;">
@@ -470,17 +510,19 @@
   }
 
   function renderTrends(sorted, windowSize) {
-    renderQualityTrendChart(sorted, windowSize);
+    renderQualityWinRateChart(sorted, windowSize);
+    renderQualityPfChart(sorted, windowSize);
     renderQualityScoreChart(sorted, windowSize);
     renderPerShareTrendChart(sorted, windowSize);
   }
 
-  // The window toggle re-renders both charts in place without a page
+  // The window toggle re-renders these charts in place without a page
   // reload, so each render function disposes its own previous chart
   // instance first (chart.remove() tears down its canvas + listeners) --
   // otherwise every toggle click would leak another chart and another
   // resize listener onto the old, now-detached canvas.
-  let qualityChart = null;
+  let qualityWinRateChart = null;
+  let qualityPfChart = null;
   let qualityScoreChart = null;
   let perShareChart = null;
 
@@ -505,49 +547,85 @@
     try { chart.remove(); } catch (e) { /* already gone */ }
   }
 
-  function renderQualityTrendChart(sorted, windowSize) {
-    disposeChart(qualityChart);
-    qualityChart = null;
-    const el = document.getElementById("quality-trend-chart");
+  // Win Rate and Profit Factor used to share one chart on two different
+  // y-axes (win rate on the right in %, profit factor on the left in x) --
+  // compact, but it means reading two independently-scaled lines off two
+  // different axes to know whether either one is doing well. Splitting
+  // them into two single-axis charts, each fronted by its own plain-
+  // language current-value headline, means there's nothing to decode:
+  // the number above the chart already says where things stand, and the
+  // chart just shows how it got there.
+  function renderQualityWinRateChart(sorted, windowSize) {
+    disposeChart(qualityWinRateChart);
+    qualityWinRateChart = null;
+    const el = document.getElementById("quality-winrate-chart");
+    const headline = document.getElementById("quality-winrate-headline");
     if (sorted.length < windowSize) {
       el.innerHTML = `<div class="empty-state small">Need at least ${windowSize} trades for a ${windowSize}-trade rolling window (have ${sorted.length}). Try a smaller window above.</div>`;
+      headline.textContent = "—";
       return;
     }
-    const chart = makeTrendChart(el, { leftPriceScale: { visible: true, borderColor: "#262a34" } });
-    qualityChart = chart;
-    const winRateSeries = chart.addLineSeries({
-      color: "#5b93f0", lineWidth: 2, priceScaleId: "right",
+    const data = rollingSeries(sorted, windowSize, winRateOf);
+    const latest = data[data.length - 1].value;
+    headline.textContent = latest.toFixed(0) + "%";
+    headline.style.color = latest >= 50 ? "var(--green)" : "var(--red)";
+    const chart = makeTrendChart(el, { height: 130 });
+    qualityWinRateChart = chart;
+    const series = chart.addAreaSeries({
+      lineColor: "#5b93f0", topColor: "rgba(91,147,240,0.28)", bottomColor: "rgba(91,147,240,0.02)", lineWidth: 2,
       priceFormat: { type: "custom", formatter: (v) => v.toFixed(0) + "%" },
     });
-    const pfSeries = chart.addLineSeries({
-      color: "#e8a94c", lineWidth: 2, priceScaleId: "left",
+    series.setData(data);
+    series.createPriceLine({ price: 50, color: "rgba(139,143,163,0.4)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false, title: "breakeven" });
+    chart.timeScale().fitContent();
+  }
+
+  function renderQualityPfChart(sorted, windowSize) {
+    disposeChart(qualityPfChart);
+    qualityPfChart = null;
+    const el = document.getElementById("quality-pf-chart");
+    const headline = document.getElementById("quality-pf-headline");
+    if (sorted.length < windowSize) {
+      el.innerHTML = `<div class="empty-state small">Need at least ${windowSize} trades for a ${windowSize}-trade rolling window (have ${sorted.length}).</div>`;
+      headline.textContent = "—";
+      return;
+    }
+    const data = rollingSeries(sorted, windowSize, profitFactorOf);
+    const latest = data[data.length - 1].value;
+    headline.textContent = latest.toFixed(2) + "x";
+    headline.style.color = latest >= 1 ? "var(--green)" : "var(--red)";
+    const chart = makeTrendChart(el, { height: 130 });
+    qualityPfChart = chart;
+    const series = chart.addAreaSeries({
+      lineColor: "#e8a94c", topColor: "rgba(232,169,76,0.28)", bottomColor: "rgba(232,169,76,0.02)", lineWidth: 2,
       priceFormat: { type: "custom", formatter: (v) => v.toFixed(2) + "x" },
     });
-    winRateSeries.setData(rollingSeries(sorted, windowSize, winRateOf));
-    pfSeries.setData(rollingSeries(sorted, windowSize, profitFactorOf));
+    series.setData(data);
+    series.createPriceLine({ price: 1, color: "rgba(139,143,163,0.4)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false, title: "breakeven" });
     chart.timeScale().fitContent();
-    el.insertAdjacentHTML("beforeend", `
-      <div style="display:flex; gap:14px; font-size:11px; color:var(--text-faint); margin-top:6px;">
-        <span><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:#5b93f0; margin-right:5px;"></span>Win rate</span>
-        <span><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:#e8a94c; margin-right:5px;"></span>Profit factor (capped 5x)</span>
-      </div>`);
   }
 
   function renderQualityScoreChart(sorted, windowSize) {
     disposeChart(qualityScoreChart);
     qualityScoreChart = null;
     const el = document.getElementById("quality-score-chart");
+    const headline = document.getElementById("quality-score-headline");
     if (sorted.length < windowSize) {
       el.innerHTML = `<div class="empty-state small">Need at least ${windowSize} trades for a ${windowSize}-trade rolling window (have ${sorted.length}).</div>`;
+      headline.textContent = "—";
       return;
     }
+    const data = rollingSeries(sorted, windowSize, compositeScoreOf);
+    const latest = data[data.length - 1].value;
+    headline.textContent = latest.toFixed(0);
+    headline.style.color = latest >= 70 ? "var(--green)" : latest >= 40 ? "var(--amber)" : "var(--red)";
     const chart = makeTrendChart(el, { height: 160 });
     qualityScoreChart = chart;
     const series = chart.addAreaSeries({
       lineColor: "#8457ff", topColor: "rgba(132,87,255,0.28)", bottomColor: "rgba(132,87,255,0.02)", lineWidth: 2,
       priceFormat: { type: "custom", formatter: (v) => v.toFixed(0) },
     });
-    series.setData(rollingSeries(sorted, windowSize, compositeScoreOf));
+    series.setData(data);
     // Same 40/70 bands renderScore() in app.js uses to color the Dashboard
     // gauge red/amber/green -- drawn here as reference lines rather than
     // recoloring the line itself, so one glance shows which band a given
@@ -557,38 +635,40 @@
     chart.timeScale().fitContent();
   }
 
+  // Used to be a smooth trend line plus a per-trade dot cloud (one circle
+  // marker per trade, colored win/loss) sitting behind it. The dots added
+  // detail that's hard to read at a glance -- hundreds of overlapping
+  // circles with no axis to count them against -- without adding much a
+  // plain-language headline number and a clean trend line don't already
+  // convey. Keeping just the rolling average, fronted by the current
+  // value in plain text, same pattern as the two charts above.
   function renderPerShareTrendChart(sorted, windowSize) {
     disposeChart(perShareChart);
     perShareChart = null;
     const el = document.getElementById("pershare-trend-chart");
+    const headline = document.getElementById("pershare-trend-headline");
     const withShares = sorted.filter((r) => perShare(r) !== null);
     if (withShares.length < 5) {
       el.innerHTML = `<div class="empty-state small">Not enough trades with share counts yet (have ${withShares.length}).</div>`;
+      headline.textContent = "—";
       return;
     }
-    const chart = makeTrendChart(el);
-    perShareChart = chart;
-    // Dots: an invisible line just to host setMarkers -- lightweight-charts
-    // has no native scatter series, but setMarkers on a line series is a
-    // stable, documented way to place per-point circles without drawing
-    // the connecting line itself.
-    const dotSeries = chart.addLineSeries({ color: "rgba(0,0,0,0)", lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
-    const dotData = withShares.map((r, i) => ({ time: i + 1, value: perShare(r) }));
-    dotSeries.setData(dotData);
-    dotSeries.setMarkers(withShares.map((r, i) => ({
-      time: i + 1, position: "inBar", shape: "circle", size: 1,
-      color: r.win ? "rgba(47,208,138,0.85)" : "rgba(242,85,90,0.85)",
-    })));
     const avgWindow = Math.min(windowSize, withShares.length);
-    const trendSeries = chart.addLineSeries({ color: "#c084fc", lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
-    trendSeries.setData(rollingSeries(withShares, avgWindow, (trades) => avg(trades.map(perShare))));
+    const data = rollingSeries(withShares, avgWindow, (trades) => avg(trades.map(perShare)));
+    const latest = data[data.length - 1].value;
+    headline.textContent = (latest >= 0 ? "+" : "-") + "$" + Math.abs(latest).toFixed(3) + "/sh";
+    headline.style.color = latest >= 0 ? "var(--green)" : "var(--red)";
+    const chart = makeTrendChart(el, { height: 180 });
+    perShareChart = chart;
+    const series = chart.addAreaSeries({
+      lineColor: "#c084fc", topColor: "rgba(192,132,252,0.25)", bottomColor: "rgba(192,132,252,0.02)", lineWidth: 2,
+      priceFormat: { type: "custom", formatter: (v) => "$" + v.toFixed(3) },
+    });
+    series.setData(data);
+    series.createPriceLine({ price: 0, color: "rgba(139,143,163,0.4)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false, title: "breakeven" });
     chart.timeScale().fitContent();
     el.insertAdjacentHTML("beforeend", `
-      <div style="display:flex; gap:14px; font-size:11px; color:var(--text-faint); margin-top:6px;">
-        <span><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#2fd08a; margin-right:5px;"></span>Win</span>
-        <span><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#f2555a; margin-right:5px;"></span>Loss</span>
-        <span><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:#c084fc; margin-right:5px;"></span>${avgWindow}-trade rolling avg</span>
-      </div>`);
+      <div style="font-size:11px; color:var(--text-faint); margin-top:6px;">${avgWindow}-trade rolling average</div>`);
   }
 
   function renderPerShareBySize(sorted) {
@@ -623,59 +703,29 @@
         <div style="width:100%; order:99; font-size:11.5px; color:var(--text-faint); margin-top:2px;">${lo}–${hi} shares</div>
       </div>
       ${tradeListHtml(bucket, uid)}`;
-    }).join("") + `<div id="pershare-size-scatter" style="margin-top:16px;"></div>`;
+    }).join("");
     bindTradeToggles(el);
-    renderShareSizeScatter(withShares);
+    renderShareSizeInsight(withShares);
   }
 
-  // Real scatter (share count vs $/share), plain SVG since lightweight-
-  // charts' x-axis is time-only and can't host an arbitrary numeric axis
-  // like shares -- complements the quartile bars above with the raw,
-  // ungrouped shape of the relationship, plus a least-squares trend line
-  // so the direction (not just the bucketed averages) is visible at a
-  // glance.
-  function renderShareSizeScatter(trades) {
-    const el = document.getElementById("pershare-size-scatter");
+  // Used to pair the quartile bars above with a raw scatter plot (share
+  // count vs $/share, one dot per trade, plus a least-squares trend
+  // line) -- but that just repeated the same relationship the bars
+  // already show, in a harder-to-read shape: a cloud of dots with two
+  // numeric axes to reconcile instead of four labeled bars. The
+  // underlying trend-line math is still useful on its own, so it's kept
+  // here as a single sentence instead of a chart.
+  function renderShareSizeInsight(trades) {
+    const el = document.getElementById("pershare-size-insight");
     if (!el) return;
-    const pts = trades.map((r) => ({ x: r.shares, y: perShare(r), win: r.win }));
-    const width = 680, height = 240, padL = 60, padR = 16, padT = 16, padB = 34;
-    const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
-    let xMin = Math.min(...xs), xMax = Math.max(...xs);
-    let yMin = Math.min(0, ...ys), yMax = Math.max(0, ...ys);
-    const xPad = (xMax - xMin) * 0.06 || 1, yPad = (yMax - yMin) * 0.14 || 1;
-    xMin -= xPad; xMax += xPad; yMin -= yPad; yMax += yPad;
-    const xScale = (x) => padL + ((x - xMin) / (xMax - xMin)) * (width - padL - padR);
-    const yScale = (y) => height - padB - ((y - yMin) / (yMax - yMin)) * (height - padT - padB);
-
-    const n = pts.length;
-    const meanX = avg(pts.map((p) => p.x)), meanY = avg(pts.map((p) => p.y));
+    const xs = trades.map((r) => r.shares), ys = trades.map((r) => perShare(r));
+    const meanX = avg(xs), meanY = avg(ys);
     let num = 0, den = 0;
-    pts.forEach((p) => { num += (p.x - meanX) * (p.y - meanY); den += (p.x - meanX) ** 2; });
+    for (let i = 0; i < trades.length; i++) { num += (xs[i] - meanX) * (ys[i] - meanY); den += (xs[i] - meanX) ** 2; }
     const slope = den ? num / den : 0;
-    const intercept = meanY - slope * meanX;
-    const rawXMin = Math.min(...xs), rawXMax = Math.max(...xs);
-
-    const dots = pts.map((p) => `<circle cx="${xScale(p.x).toFixed(1)}" cy="${yScale(p.y).toFixed(1)}" r="3.2" fill="${p.win ? "rgba(47,208,138,0.75)" : "rgba(242,85,90,0.75)"}"/>`).join("");
-    const trendLine = `<line x1="${xScale(rawXMin).toFixed(1)}" y1="${yScale(intercept + slope * rawXMin).toFixed(1)}" x2="${xScale(rawXMax).toFixed(1)}" y2="${yScale(intercept + slope * rawXMax).toFixed(1)}" stroke="#c084fc" stroke-width="2" stroke-dasharray="5 4"/>`;
-    const zeroY = yScale(0);
-
     const perExtra100 = slope * 100;
     const direction = Math.abs(perExtra100) < 0.001 ? "is essentially flat against" : (perExtra100 < 0 ? "tends to fall as" : "tends to rise as");
-    const insight = `Trend line ${direction} position size — roughly ${(perExtra100 >= 0 ? "+" : "-") + "$" + Math.abs(perExtra100).toFixed(3)} per share for every extra 100 shares traded.`;
-
-    el.innerHTML = `
-      <div class="label-row" style="margin-bottom:2px;"><span class="label">$/Share vs. Position Size — every trade</span></div>
-      <svg viewBox="0 0 ${width} ${height}" style="width:100%; height:${height}px; display:block;">
-        <line x1="${padL}" y1="${zeroY.toFixed(1)}" x2="${width - padR}" y2="${zeroY.toFixed(1)}" stroke="#262a34" stroke-width="1" stroke-dasharray="3 3"/>
-        ${trendLine}
-        ${dots}
-        <text x="${padL}" y="${height - 12}" font-size="10" fill="#8b8fa3">${Math.round(rawXMin)} sh</text>
-        <text x="${width - padR}" y="${height - 12}" font-size="10" fill="#8b8fa3" text-anchor="end">${Math.round(rawXMax)} sh</text>
-        <text x="${padL - 8}" y="${padT + 8}" font-size="10" fill="#8b8fa3" text-anchor="end">$${yMax.toFixed(2)}</text>
-        <text x="${padL - 8}" y="${height - padB}" font-size="10" fill="#8b8fa3" text-anchor="end">$${yMin.toFixed(2)}</text>
-      </svg>
-      <p style="color:var(--text-faint); font-size:12px; margin:8px 0 0;">${insight} (n=${n})</p>
-    `;
+    el.textContent = `Overall trend ${direction} position size — roughly ${(perExtra100 >= 0 ? "+" : "-") + "$" + Math.abs(perExtra100).toFixed(3)} per share for every extra 100 shares traded (n=${trades.length}).`;
   }
 
   function renderPerShareLeaders(sorted) {
@@ -737,7 +787,7 @@
     }
     const el = document.getElementById("setup-breakdown");
     const entries = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
-    el.innerHTML = entries.map(([setup, trades]) => {
+    const rowsHtml = entries.map(([setup, trades]) => {
       const wins = trades.filter((r) => r.win).length;
       const rate = Math.round((wins / trades.length) * 1000) / 10;
       const pnl = trades.reduce((s, r) => s + (r.pnl_after_comm || 0), 0);
@@ -750,19 +800,30 @@
       const tagCounts = {};
       for (const t of trades) for (const tag of t.lesson_tags || []) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
       const topTag = Object.entries(tagCounts).sort((a, b) => b[1] - a[1])[0];
-      return `<div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer; flex-wrap:wrap;">
-        <div class="bar-label">${escapeHtml(setup.replace(/_/g, " "))}${smallSample ? ` <span class="pill" title="Fewer than 5 trades — treat this win rate as a rough signal, not a verdict.">small sample</span>` : ""}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${rate}%; background:${rate >= 50 ? "var(--green)" : "var(--red)"};"></div></div>
-        <div class="bar-count">${rate}%</div>
-        <div style="width:90px; text-align:right; flex-shrink:0; color:${pnl >= 0 ? "var(--green)" : "var(--red)"};">${fmtMoney(pnl)}</div>
-        <div style="width:60px; text-align:right; flex-shrink:0; color:var(--text-faint);">${trades.length}x</div>
-        <a href="journal.html?setup=${encodeURIComponent(setup)}" style="width:100%; order:99; font-size:11.5px; color:var(--text-faint); display:flex; justify-content:space-between; margin-top:2px;" onclick="event.stopPropagation();">
+      const rateColor = rate >= 50 ? "var(--green)" : "var(--red)";
+      return `<div class="setup-row" data-trade-toggle="${uid}">
+        <div class="setup-info">
+          <div class="setup-name">${escapeHtml(setup.replace(/_/g, " "))}${smallSample ? ` <span class="pill" title="Fewer than 5 trades — treat this win rate as a rough signal, not a verdict.">small sample</span>` : ""}</div>
+          <div class="setup-sub">${trades.length} trade${trades.length === 1 ? "" : "s"}</div>
+        </div>
+        <div class="setup-track">
+          <div class="setup-seg win" style="width:${rate}%;"></div>
+          <div class="setup-seg loss" style="width:${100 - rate}%;"></div>
+        </div>
+        <div class="setup-rate" style="color:${rateColor};">${rate}%</div>
+        <div class="setup-pnl" style="color:${pnl >= 0 ? "var(--green)" : "var(--red)"};">${fmtMoney(pnl)}</div>
+      </div>
+      <div style="padding:0 8px 10px 8px; margin-top:-4px;">
+        <a href="journal.html?setup=${encodeURIComponent(setup)}" style="font-size:11.5px; color:var(--text-faint); display:flex; justify-content:space-between; text-decoration:none;" onclick="event.stopPropagation();">
           <span>${topTag ? `Most common lesson: <span class="lesson-tag">${escapeHtml(topTag[0].replace(/_/g, " "))}</span> (${topTag[1]}x)` : "No recurring lesson tag on this setup."}</span>
           <span>View in Journal →</span>
         </a>
       </div>
       ${tradeListHtml(trades, uid)}`;
-    }).join("") || `<div class="empty-state small">No setup_type data yet.</div>`;
+    }).join("");
+    el.innerHTML = entries.length
+      ? `<div class="setup-legend"><span><span class="swatch" style="background:var(--green);"></span>Win</span><span><span class="swatch" style="background:var(--red);"></span>Loss</span></div>${rowsHtml}`
+      : `<div class="empty-state small">No setup_type data yet.</div>`;
     bindTradeToggles(el);
   }
 

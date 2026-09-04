@@ -7,7 +7,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Calculator — trade.log</title>
-<link rel="icon" href="data:,">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="core.css">
 <link rel="stylesheet" href="chat-widget.css">
 <link rel="stylesheet" href="global-search.css">
@@ -18,9 +18,6 @@
   .calc-r-row-btn:hover .r-label,.calc-r-row-btn:hover .r-val{color:var(--primary);}
   #calc-r-target-row{background:var(--primary-soft);}
   #calc-r-target-row .r-label,#calc-r-target-row .r-val{color:var(--primary);font-weight:700;}
-  .calc-track-row{margin:14px 0;text-align:center;}
-  .calc-track-row .btn-confirm{display:inline-block;text-decoration:none;}
-  .calc-track-row .calc-hint{margin-top:6px;}
 </style>
 </head>
 <body>
@@ -154,6 +151,13 @@
               <span class="calc-balance-val" id="calc-balance-display">—</span>
               <span class="calc-hint" id="calc-balance-sub"></span>
             </div>
+            <div class="chip-row" id="calc-balance-chips">
+              <button type="button" class="calc-chip" data-balance="5000">$5,000</button>
+              <button type="button" class="calc-chip" data-balance="10000">$10,000</button>
+              <button type="button" class="calc-chip active" data-balance="25000">$25,000</button>
+              <button type="button" class="calc-chip" data-balance="50000">$50,000</button>
+              <button type="button" class="calc-chip" data-balance="100000">$100,000</button>
+            </div>
             <div class="calc-input-wrap" id="calc-balance-edit-wrap" style="display:none;">
               <input type="text" class="filter-input" id="calc-starting-balance" value="$25,000">
             </div>
@@ -237,11 +241,6 @@
             <div class="calc-stat"><div class="lbl">Net risk (after fees)</div><div class="val" id="calc-net-risk">—</div><div class="sub" id="calc-net-risk-sub">—</div></div>
           </div>
 
-          <div class="calc-track-row" id="calc-track-row" style="display:none;">
-            <a class="btn-confirm" id="calc-track-btn" href="practice.html" target="_blank" rel="noopener">Track this trade in Practice →</a>
-            <div class="calc-hint" id="calc-track-hint">opens Practice sized to this plan — pick a chart there to trade it</div>
-          </div>
-
           <div>
             <div class="section-label" style="margin-bottom:8px;">R-Multiple Reference</div>
             <div class="calc-hint" style="margin-bottom:6px;">tap a level to fill in the target price</div>
@@ -300,8 +299,6 @@
     const stopPctChipsWrap = document.getElementById("calc-stop-pct-chips");
     const symbolRow = document.getElementById("calc-recent-symbols-row");
     const symbolListEl = document.getElementById("calc-symbol-list");
-    const trackRowEl = document.getElementById("calc-track-row");
-    const trackBtnEl = document.getElementById("calc-track-btn");
 
     const maxSharesEl = document.getElementById("calc-max-shares");
     const riskAmountEl = document.getElementById("calc-risk-amount");
@@ -338,26 +335,9 @@
     if (!isFinite(winRate) || winRate <= 0 || winRate >= 100) winRate = 50;
     let latestEquityAfter = 0;
 
-    // Which recent-symbol chip (if any) is behind the current entry price --
-    // cleared the moment the person types over it, since at that point the
-    // entry no longer necessarily belongs to that symbol. Carried into the
-    // "Track this trade" handoff below so Practice can match it against the
-    // chart it loads and only then draw the planned stop/target on it.
-    let selectedSymbol = null;
-    entryEl.addEventListener("input", () => { selectedSymbol = null; });
-
-    // Snapshot of the current plan once max shares > 0, refreshed on every
-    // calculate() call, and picked up by the "Track this trade" button at
-    // click time -- same "write to localStorage, let the other tab read it"
-    // handoff report.html's "Practice this trade" button uses (there:
-    // practice:pending_backtest_trade), but this one carries a hypothetical
-    // plan (entry/stop/target/shares) rather than an actual chart's bars, so
-    // it gets its own key and Practice treats it very differently: it can't
-    // replay "the" trade since no chart has this exact price action, so it
-    // just pre-sizes the next order and, only if the chart it loads happens
-    // to be the same symbol, marks the planned stop/target on it.
-    const CALC_PLAN_KEY = "practice:pending_trade_plan";
-    let lastPlan = null;
+    // Recent-symbol chips (pulled from the journal below) just fill in the
+    // entry price when tapped -- nothing downstream needs to remember which
+    // one was clicked.
 
     // IBKR's "Tiered" US stock commission schedule -- same constants and
     // formula as ibkrTieredCommission() in practice.js (which the sim
@@ -420,6 +400,7 @@
         ? `${fmtUsd(startingBalance)} start ${latestEquityAfter >= 0 ? "+" : "\u2212"} ${fmtUsd(Math.abs(latestEquityAfter))} P&L`
         : "no logged trades yet";
       startingBalanceEl.value = fmtUsd(startingBalance);
+      balanceChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.balance) === startingBalance));
     }
 
     // --- Risk % chips ---
@@ -468,7 +449,17 @@
     }
     winRateChips.forEach((c) => c.addEventListener("click", () => setWinRate(parseFloat(c.dataset.winrate))));
 
-    // --- Starting balance edit ---
+    // --- Account size: preset chips + custom edit ---
+    const balanceChips = Array.from(document.querySelectorAll("#calc-balance-chips .calc-chip"));
+    function setStartingBalance(v) {
+      startingBalance = v;
+      localStorage.setItem(LS_KEYS.startingBalance, String(v));
+      if (window.KV) window.KV.set(LS_KEYS.startingBalance, v);
+      renderBalance();
+      calculate();
+    }
+    balanceChips.forEach((c) => c.addEventListener("click", () => setStartingBalance(parseFloat(c.dataset.balance))));
+
     balanceEditBtn.addEventListener("click", () => {
       const showing = balanceEditWrap.style.display !== "none";
       balanceEditWrap.style.display = showing ? "none" : "flex";
@@ -477,13 +468,7 @@
     });
     startingBalanceEl.addEventListener("input", () => {
       const v = parseNumber(startingBalanceEl.value);
-      if (isFinite(v) && v > 0) {
-        startingBalance = v;
-        localStorage.setItem(LS_KEYS.startingBalance, String(v));
-        if (window.KV) window.KV.set(LS_KEYS.startingBalance, v);
-        renderBalance();
-        calculate();
-      }
+      if (isFinite(v) && v > 0) setStartingBalance(v);
     });
 
     // --- Steppers (nudge entry/stop by 1 cent, or 10 cents with shift) ---
@@ -553,8 +538,6 @@
         qualityEmptyEl.style.display = "";
         qualityGridEl.style.display = "none";
         qualityEmptyEl.textContent = "enter an entry price and a stop to see position size and reward";
-        lastPlan = null;
-        trackRowEl.style.display = "none";
         return;
       }
 
@@ -609,29 +592,6 @@
         row.dataset.price = price.toFixed(4);
       });
 
-      // Base plan for "Track this trade" -- valid as soon as there's a
-      // sizeable position, target optional. Target/reward/rr/ev (when a
-      // target is entered) get merged in below once they're computed.
-      if (maxShares > 0) {
-        lastPlan = {
-          source: "calculator",
-          symbol: selectedSymbol || null,
-          direction,
-          entry, stop,
-          target: null,
-          shares: maxShares,
-          riskPct, account,
-          riskAmount, netRisk,
-          netReward: null, rr: null, ev: null,
-          winRate,
-          createdAt: Date.now(),
-        };
-        trackRowEl.style.display = "";
-      } else {
-        lastPlan = null;
-        trackRowEl.style.display = "none";
-      }
-
       // --- Target price / reward / risk:reward / expected value ---
       const target = parseNumber(targetEl.value);
       const hasTarget = isFinite(target) && direction !== null;
@@ -676,14 +636,6 @@
       evEl.classList.toggle("up", ev >= 0);
       evEl.classList.toggle("down", ev < 0);
       evSubEl.textContent = `at ${winRate}% assumed win rate`;
-
-      // Fold the target-dependent numbers into the plan built above.
-      if (lastPlan) {
-        lastPlan.target = target;
-        lastPlan.netReward = netReward;
-        lastPlan.rr = isFinite(rrRatio) ? rrRatio : null;
-        lastPlan.ev = ev;
-      }
     }
 
     [entryEl, stopEl, targetEl].forEach((el) => {
@@ -699,17 +651,6 @@
         targetEl.value = price;
         calculate();
       });
-    });
-
-    // --- Track this trade: hand the current plan to Practice ---
-    // Written fresh on every click (not just once at page load) so it's
-    // always today's numbers, even if the person tweaks a field right
-    // before clicking. The link's normal href navigation still fires
-    // after this -- same pattern as report.html's practice handoff.
-    trackBtnEl.addEventListener("click", () => {
-      if (!lastPlan) return;
-      try { localStorage.setItem(CALC_PLAN_KEY, JSON.stringify(lastPlan)); }
-      catch (e) { /* storage full/unavailable -- link still opens practice.html normally */ }
     });
 
     // --- Init from saved prefs ---
@@ -750,7 +691,6 @@
             chip.innerHTML = `<span class="sym">${t.symbol}</span><span class="px">last ${fmtUsd(t.entry_price)}</span>`;
             chip.addEventListener("click", () => {
               entryEl.value = fmtUsd(t.entry_price);
-              selectedSymbol = t.symbol;
               calculate();
             });
             symbolListEl.appendChild(chip);

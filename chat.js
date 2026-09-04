@@ -29,6 +29,7 @@
   const sendBtn = document.getElementById("chat-send-btn");
   const dataStatusEl = document.getElementById("chat-data-status");
   const chipsEl = document.getElementById("chat-chips");
+  const hintsBtnEl = document.getElementById("chatw-hints-btn");
 
   let trades = [];
   let requestInFlight = false;
@@ -60,6 +61,17 @@
     "How much did late exits cost me?",
     "Walk through my last losing trade",
     "Am I sizing risk consistently?",
+    "Which setup makes me the most money?",
+    "Which setup should I stop trading?",
+    "How's my win rate trending over time?",
+    "What time of day do I trade best?",
+    "Am I cutting winners too early?",
+    "What do my biggest losers have in common?",
+    "How does my execution compare to a Ross Cameron breakout playbook?",
+    "Which lesson tag costs me the most money?",
+    "Am I revenge trading after losses?",
+    "What's my average risk/reward ratio?",
+    "Show me my longest losing streak and what caused it",
   ];
 
   function escapeHtml(s) {
@@ -118,7 +130,6 @@
     })
     .catch((err) => {
       dataStatusEl.innerHTML = `<span class="chat-data-status-dot error"></span> Couldn't load your trades (${escapeHtml(String(err.message))}) — I can still chat, but without your trade data.`;
-      renderChips();
       setInputEnabled(true);
     });
 
@@ -132,7 +143,6 @@
     }
     setInputEnabled(true);
     if (!history.length) {
-      renderChips();
       addBubble(
         "ai",
         formatReply(
@@ -144,6 +154,11 @@
 
   const CHIP_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 5.8L20 10l-6.1 2.2L12 18l-1.9-5.8L4 10l6.1-2.2z"></path></svg>`;
 
+  // The chip list is built once up front (it's static, not tied to the
+  // trades fetch) and its visibility is toggled from then on rather than
+  // being destroyed after the first message -- so the hints stay one tap
+  // away from the header button for the rest of the conversation instead
+  // of only ever showing on an empty chat.
   function renderChips() {
     chipsEl.innerHTML = STARTER_PROMPTS.map(
       (p) => `<button type="button" class="chat-chip">${CHIP_ICON}${escapeHtml(p)}</button>`
@@ -151,8 +166,26 @@
     chipsEl.querySelectorAll(".chat-chip").forEach((btn) => {
       btn.addEventListener("click", () => {
         inputEl.value = btn.textContent;
+        setChipsVisible(false);
         formEl.requestSubmit();
       });
+    });
+  }
+
+  function setChipsVisible(visible) {
+    chipsEl.classList.toggle("chatw-chips-hidden", !visible);
+    if (hintsBtnEl) {
+      hintsBtnEl.classList.toggle("active", visible);
+      hintsBtnEl.setAttribute("aria-pressed", visible ? "true" : "false");
+      hintsBtnEl.title = visible ? "Hide suggested questions" : "Suggested questions";
+    }
+  }
+
+  renderChips();
+  setChipsVisible(!history.length);
+  if (hintsBtnEl) {
+    hintsBtnEl.addEventListener("click", () => {
+      setChipsVisible(chipsEl.classList.contains("chatw-chips-hidden"));
     });
   }
 
@@ -354,10 +387,10 @@
     addBubble("user", escapeHtml(text));
     history.push({ role: "user", content: text });
     saveHistory();
-    // Starter-prompt chips are an empty-state affordance only -- once a
-    // real conversation exists they were staying put forever, eating
-    // vertical space above the input row. Clear them for good now.
-    chipsEl.innerHTML = "";
+    // Collapse the chips once a message goes out so they don't eat
+    // vertical space above the input row -- they're still intact underneath
+    // and reopen instantly from the hints button in the header.
+    setChipsVisible(false);
     inputEl.value = "";
     requestInFlight = true;
     setInputEnabled(false);
