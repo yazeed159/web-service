@@ -155,6 +155,18 @@
     const sign = v >= 0 ? "+" : "-";
     return sign + "$" + Math.abs(v).toFixed(2);
   }
+  // Commission per share, in cents -- e.g. $12 comm on 200 shares is 6.0¢/share.
+  function commPerShare(commission, shares) {
+    if (!shares) return "—";
+    const cents = (Math.abs(commission) / shares) * 100;
+    return cents.toFixed(1) + "¢";
+  }
+  // Same formatting, minus the leading "+" -- for an actual balance
+  // (equity curve's running total/tooltip), not a gain/loss delta. A
+  // "+" there misleadingly reads as extra cash on top of the balance.
+  function fmtBalance(v) {
+    return (v < 0 ? "-" : "") + "$" + Math.abs(v).toFixed(2);
+  }
 
   // ----------------------------------------------------------------
   // Reports — Tradervue-style axis bar charts, donut, and equity-curve
@@ -635,9 +647,11 @@
   function pnlByDay() {
     const map = new Map();
     trades.forEach((t) => {
-      if (!map.has(t.trade_date)) map.set(t.trade_date, { net: 0, count: 0, trades: [] });
+      if (!map.has(t.trade_date)) map.set(t.trade_date, { net: 0, gross: 0, comm: 0, count: 0, trades: [] });
       const e = map.get(t.trade_date);
       e.net += t.pnl_after_comm;
+      e.gross += t.pnl_before_comm;
+      e.comm += t.commission || 0;
       e.count += 1;
       e.trades.push(t);
     });
@@ -760,7 +774,7 @@
         </linearGradient>
       </defs>
     `;
-    document.getElementById("equity-total").textContent = fmtMoney(values[values.length - 1]);
+    document.getElementById("equity-total").textContent = fmtBalance(values[values.length - 1]);
     document.getElementById("equity-total").className = "value mono " + (values[values.length - 1] >= 0 ? "up" : "down");
 
     const labelEl = document.getElementById("equity-label");
@@ -860,7 +874,7 @@
 
       const p = points[i];
       const dateLabel = p.t ? p.t.trade_date : (points[1] ? `Before ${points[1].t.trade_date}` : "—");
-      let html = `<div class="eq-date">${escapeHtml(dateLabel)}</div><div class="eq-bal">${fmtMoney(p.e)}</div>`;
+      let html = `<div class="eq-date">${escapeHtml(dateLabel)}</div><div class="eq-bal">${fmtBalance(p.e)}</div>`;
       if (p.t) {
         html += `<div class="eq-trade">${escapeHtml(p.t.symbol)} <span class="${p.t.win ? "up" : "down"}">${fmtMoney(p.t.pnl_after_comm)}</span></div>`;
         html += `<div class="eq-hint">Click to open trade →</div>`;
@@ -972,11 +986,13 @@
     const firstDow = new Date(y, m, 1).getDay();
     const daysInMonth = new Date(y, m + 1, 0).getDate();
 
-    let monthNet = 0, winDays = 0, lossDays = 0, tradingDays = 0;
+    let monthNet = 0, monthGross = 0, monthComm = 0, winDays = 0, lossDays = 0, tradingDays = 0;
     for (let d = 1; d <= daysInMonth; d++) {
       const entry = map.get(dateKey(y, m, d));
       if (entry) {
         monthNet += entry.net;
+        monthGross += entry.gross;
+        monthComm += entry.comm;
         tradingDays++;
         if (entry.net >= 0) winDays++; else lossDays++;
       }
@@ -987,6 +1003,8 @@
       <div class="cell"><div class="label">Trading days</div><div class="value">${tradingDays}</div></div>
       <div class="cell"><div class="label">Win days</div><div class="value up">${winDays}</div></div>
       <div class="cell"><div class="label">Loss days</div><div class="value down">${lossDays}</div></div>
+      <div class="cell"><div class="label">Commission</div><div class="value dim">$${monthComm.toFixed(2)}</div></div>
+      <div class="cell"><div class="label">P&amp;L (no comm)</div><div class="value ${monthGross >= 0 ? "up" : "down"}">${fmtMoney(monthGross)}</div></div>
     `;
 
     let html = "";
@@ -1000,7 +1018,7 @@
       if (key === selectedDay) cls += " selected";
       html += `<div class="${cls}" data-day="${key}">
         <span class="date-num">${d}</span>
-        ${entry ? `<span class="cell-pnl">${fmtMoney(entry.net)}</span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span>` : ""}
+        ${entry ? `<span class="cell-pnl">${fmtMoney(entry.net)}</span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span><span class="cell-subline">no-comm ${fmtMoney(entry.gross)} · comm $${entry.comm.toFixed(2)}</span>` : ""}
       </div>`;
     }
     document.getElementById("cal-grid").innerHTML = html;
@@ -1021,7 +1039,7 @@
     const panel = document.getElementById("day-detail-panel");
     panel.style.display = "block";
     const dateLabel = new Date(key + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", year: "numeric" });
-    document.getElementById("day-detail-title").textContent = `${dateLabel} — ${fmtMoney(entry.net)} · ${entry.count} trade${entry.count === 1 ? "" : "s"}`;
+    document.getElementById("day-detail-title").textContent = `${dateLabel} — ${fmtMoney(entry.net)} · ${entry.count} trade${entry.count === 1 ? "" : "s"} · no-comm ${fmtMoney(entry.gross)} · comm $${entry.comm.toFixed(2)}`;
     const sorted = entry.trades.slice().sort((a, b) => a.entry_time.localeCompare(b.entry_time));
     const rows = sorted.map((t) => `
       <tr data-id="${t.id}">
@@ -1031,10 +1049,12 @@
         <td class="mono">$${t.entry_price.toFixed(2)} → $${t.exit_price.toFixed(2)}</td>
         <td class="mono dim">${t.shares}</td>
         <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
+        <td class="mono dim">${commPerShare(t.commission, t.shares)}</td>
+        <td class="mono dim">$${(t.commission || 0).toFixed(2)}</td>
         <td>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(t), { size: 12 }) : "—"}</td>
       </tr>`).join("");
     const body = document.getElementById("day-detail-body");
-    body.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Entry</th><th>Exit</th><th>Price</th><th>Shares</th><th>Net P&amp;L</th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    body.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Entry</th><th>Exit</th><th>Price</th><th>Shares</th><th>Net P&amp;L</th><th>C/Share</th><th>Comm</th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     bindTradeRows(body);
     panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }

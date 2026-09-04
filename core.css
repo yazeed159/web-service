@@ -401,7 +401,7 @@ button { font-family: var(--sans); }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
 .cal-dow { text-align: center; font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; padding-bottom: 4px; }
 .cal-cell {
-  min-height: 84px; border-radius: var(--radius-sm); background: var(--panel); border: 1px solid var(--border-soft);
+  min-height: 98px; border-radius: var(--radius-sm); background: var(--panel); border: 1px solid var(--border-soft);
   padding: 8px 10px; cursor: default; display: flex; flex-direction: column; transition: border-color 0.15s;
 }
 .cal-cell.empty { background: transparent; border-color: transparent; }
@@ -414,6 +414,7 @@ button { font-family: var(--sans); }
 .cal-cell.win .date-num, .cal-cell.loss .date-num { color: var(--text); }
 .cal-cell .cell-pnl { font-family: var(--mono); font-size: 13px; font-weight: 700; margin-top: 6px; }
 .cal-cell .cell-count { font-size: 10.5px; color: var(--text-faint); margin-top: 1px; }
+.cal-cell .cell-subline { font-size: 9.5px; color: var(--text-faint); margin-top: 2px; line-height: 1.3; }
 .cal-cell.win .cell-pnl { color: var(--green); }
 .cal-cell.loss .cell-pnl { color: var(--red); }
 
@@ -567,7 +568,7 @@ body:has(.sidebar.mobile-open) { overflow: hidden; }
   .equity-panel #equity-svg { height: 110px; }
 
   /* Cut down the empty vertical space in the day calendar cells */
-  .cal-cell { min-height: 62px; padding: 6px 8px; }
+  .cal-cell { min-height: 74px; padding: 6px 8px; }
   .cal-grid { gap: 5px; }
   .cal-toolbar { flex-wrap: wrap; gap: 10px; }
   .cal-month-label { min-width: 0; }
@@ -598,6 +599,7 @@ body:has(.sidebar.mobile-open) { overflow: hidden; }
   .cal-cell .date-num { font-size: 10px; }
   .cal-cell .cell-pnl { font-size: 10px; margin-top: 2px; }
   .cal-cell .cell-count { display: none; }
+  .cal-cell .cell-subline { display: none; }
 }
 
 /* Reports filter bar + top tabs */
