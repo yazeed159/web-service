@@ -155,6 +155,21 @@
     const sign = v >= 0 ? "+" : "-";
     return sign + "$" + Math.abs(v).toFixed(2);
   }
+  // ¢/share = the raw price move, not a commission figure -- entry $8.33
+  // -> exit $8.45 is +12.0¢/share no matter what commission did to the
+  // dollar P&L. Short trades invert the sign (a lower exit is the win).
+  // (This used to be named/implemented as commission-per-share, which is
+  // a completely different number and not what the "C/Share" column is
+  // supposed to show -- see commPerShare below, now unused by that
+  // column.)
+  function pricePerShareMove(entryPrice, exitPrice, side) {
+    if (entryPrice == null || exitPrice == null) return `<span class="dim">—</span>`;
+    const dir = String(side || "").toLowerCase() === "short" ? -1 : 1;
+    const cents = dir * (exitPrice - entryPrice) * 100;
+    const neg = cents < 0;
+    const text = (neg ? "-" : "+") + Math.abs(cents).toFixed(1) + "¢";
+    return `<span class="${neg ? "down" : "up"}">${text}</span>`;
+  }
   // Commission per share, in cents -- e.g. $12 comm on 200 shares is 6.0¢/share.
   // Commission can go negative (rebates), so this renders a signed value,
   // colored red when negative and green otherwise.
@@ -1003,12 +1018,14 @@
     }
 
     document.getElementById("cal-summary-strip").innerHTML = `
-      <div class="cell"><div class="label">Month P&amp;L</div><div class="value ${monthNet >= 0 ? "up" : "down"}">${fmtMoney(monthNet)}</div></div>
-      <div class="cell"><div class="label">Trading days</div><div class="value">${tradingDays}</div></div>
-      <div class="cell"><div class="label">Win days</div><div class="value up">${winDays}</div></div>
-      <div class="cell"><div class="label">Loss days</div><div class="value down">${lossDays}</div></div>
-      <div class="cell"><div class="label">Commission</div><div class="value dim">$${monthComm.toFixed(2)}</div></div>
-      <div class="cell"><div class="label">Gross P&amp;L</div><div class="value ${monthGross >= 0 ? "up" : "down"}">${fmtMoney(monthGross)}</div></div>
+      <div class="cal-summary-cells">
+        <div class="cell"><div class="label">Month P&amp;L</div><div class="value ${monthNet >= 0 ? "up" : "down"}">${fmtMoney(monthNet)}</div></div>
+        <div class="cell"><div class="label">Trading days</div><div class="value">${tradingDays}</div></div>
+        <div class="cell"><div class="label">Win days</div><div class="value up">${winDays}</div></div>
+        <div class="cell"><div class="label">Loss days</div><div class="value down">${lossDays}</div></div>
+        <div class="cell"><div class="label">Gross P&amp;L</div><div class="value ${monthGross >= 0 ? "up" : "down"}">${fmtMoney(monthGross)}</div></div>
+      </div>
+      <div class="cal-summary-comm">Commission this month: $${monthComm.toFixed(2)}</div>
     `;
 
     let html = "";
@@ -1053,7 +1070,7 @@
         <td class="mono">$${t.entry_price.toFixed(2)} → $${t.exit_price.toFixed(2)}</td>
         <td class="mono dim">${t.shares}</td>
         <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
-        <td class="mono">${commPerShare(t.commission, t.shares)}</td>
+        <td class="mono">${pricePerShareMove(t.entry_price, t.exit_price, t.side)}</td>
         <td class="mono dim">$${(t.commission || 0).toFixed(2)}</td>
         <td>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(t), { size: 12 }) : "—"}</td>
       </tr>`).join("");

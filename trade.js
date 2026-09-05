@@ -89,9 +89,19 @@
     const sign = v >= 0 ? "+" : "-";
     return sign + "$" + Math.abs(v).toFixed(2);
   }
-  // Net P&L per share, in cents -- e.g. $86 net on 200 shares is 43.0¢/share.
-  function centsPerShare(pnlAfterComm, shares) {
-    const cents = (pnlAfterComm / shares) * 100;
+  // ¢/share = the raw price move, not the P&L -- entry $8.33 -> exit $8.45
+  // is +12.0¢/share no matter what the commission or share count did to
+  // the dollar P&L. Short trades invert the sign (a lower exit is the win).
+  // This intentionally does NOT take pnl_after_comm/shares -- that's a
+  // different number (net P&L per share) that happens to collapse to the
+  // same thing only when commission is 0, which is why it looked "right"
+  // often enough to ship before someone noticed it wasn't.
+  function centsPerShareValue(entryPrice, exitPrice, side) {
+    const dir = String(side || "").toLowerCase() === "short" ? -1 : 1;
+    return dir * (exitPrice - entryPrice) * 100;
+  }
+  function centsPerShare(entryPrice, exitPrice, side) {
+    const cents = centsPerShareValue(entryPrice, exitPrice, side);
     const sign = cents >= 0 ? "+" : "-";
     return sign + Math.abs(cents).toFixed(1) + "¢";
   }
@@ -178,7 +188,7 @@
         </div>
         <div class="cell">
           <div class="label">&cent;/Share</div>
-          <div class="value ${trade.pnl_after_comm >= 0 ? "up" : "down"}">${trade.shares ? centsPerShare(trade.pnl_after_comm, trade.shares) : "—"}</div>
+          <div class="value ${trade.shares && centsPerShareValue(trade.entry_price, trade.exit_price, trade.side) < 0 ? "down" : "up"}">${trade.shares ? centsPerShare(trade.entry_price, trade.exit_price, trade.side) : "—"}</div>
         </div>
       </div>
 
