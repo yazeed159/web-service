@@ -424,31 +424,51 @@ button { font-family: var(--sans); }
 
 /* Compact "mini" variant -- dashboard's "This month" glance. Net P&L +
    trade count only (no gross/comm sublines, see opts.compact in
-   buildMonthGridHtml), sized to sit inside .panel-box-square next to
-   Trader score rather than the full Day View grid these classes are
-   shared with. Day cells are forced square (aspect-ratio) so the grid
-   reads as a real calendar even at this size; the week-total column
-   just stretches to match that row height. */
-.cal-grid.cal-mini { gap: 3px; grid-template-columns: repeat(5, 1fr) 0.8fr; align-content: start; }
-.cal-grid.cal-mini .cal-dow { font-size: 8px; padding-bottom: 2px; }
+   buildMonthGridHtml), capped to a small fixed width and centered inside
+   .panel-box-square next to Trader score, rather than stretching to fill
+   the column like the full Day View grid these classes are shared with.
+   Day cells stay square (aspect-ratio) so it still reads as a calendar;
+   the week-total column just stretches to match that row height. */
+.cal-mini-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.cal-grid.cal-mini { width: 100%; max-width: 210px; gap: 2px; grid-template-columns: repeat(5, 1fr) 0.8fr; align-content: start; }
+.cal-grid.cal-mini .cal-dow { font-size: 7px; padding-bottom: 1px; }
 .cal-grid.cal-mini .cal-cell {
-  aspect-ratio: 1 / 1; min-height: 0; padding: 3px 4px; border-radius: calc(var(--radius-sm) - 2px);
+  aspect-ratio: 1 / 1; min-height: 0; padding: 2px 2px; border-radius: 3px;
   align-items: center; justify-content: center; text-align: center;
 }
-.cal-grid.cal-mini .cal-week-box { min-height: 0; padding: 3px 4px; border-radius: calc(var(--radius-sm) - 2px); align-items: center; text-align: center; }
-.cal-grid.cal-mini .cal-cell .date-num { font-size: 9px; margin-bottom: 0; }
-.cal-grid.cal-mini .cal-cell .cell-pnl { font-size: 10px; margin-top: 1px; line-height: 1.1; }
-.cal-grid.cal-mini .cal-cell .cell-count { font-size: 7px; margin-top: 1px; line-height: 1.1; }
-.cal-grid.cal-mini .cal-week-box .week-label { font-size: 6px; margin-bottom: 1px; }
-.cal-grid.cal-mini .cal-week-box .week-pnl { font-size: 10px; }
-.cal-grid.cal-mini .cal-week-box .week-count { font-size: 7px; margin-top: 1px; }
-.cal-grid.cal-mini .cal-week-box .week-empty { font-size: 9px; }
+.cal-grid.cal-mini .cal-week-box { min-height: 0; padding: 2px 2px; border-radius: 3px; align-items: center; text-align: center; }
+.cal-grid.cal-mini .cal-cell .date-num { font-size: 8px; margin-bottom: 0; }
+.cal-grid.cal-mini .cal-cell .cell-pnl { font-size: 9px; margin-top: 0; line-height: 1.05; }
+.cal-grid.cal-mini .cal-cell .cell-count { font-size: 6px; margin-top: 0; line-height: 1.05; }
+.cal-grid.cal-mini .cal-week-box .week-label { font-size: 5.5px; margin-bottom: 0; }
+.cal-grid.cal-mini .cal-week-box .week-pnl { font-size: 9px; }
+.cal-grid.cal-mini .cal-week-box .week-count { font-size: 6px; margin-top: 0; }
+.cal-grid.cal-mini .cal-week-box .week-empty { font-size: 8px; }
 
 /* Trader score + This month, side by side */
 .dash-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; align-items: stretch; }
-.dash-two-col .panel-box { margin-top: 0; }
+.dash-two-col .panel-box { margin-top: 0; display: flex; flex-direction: column; }
 .panel-box-square { display: flex; flex-direction: column; }
-.panel-box-square .cal-grid.cal-mini { flex: 1; }
+
+/* Best/worst-day filler under the score breakdown so the panel doesn't
+   sit half-empty next to the (taller) mini calendar. */
+.score-month-extra { margin-top: auto; padding-top: 16px; }
+.score-month-extra .sde-head { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 600; margin-bottom: 8px; }
+.score-day-extremes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.score-day-extremes.single { grid-template-columns: 1fr; }
+.score-day-extremes.empty { font-size: 12px; color: var(--text-faint); padding: 10px 0 0; }
+.sde-cell {
+  border-radius: var(--radius-sm); background: var(--surface-2, var(--panel)); border: 1px solid var(--border-soft);
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 2px;
+}
+.sde-cell.up { background: var(--green-soft); border-color: rgba(47,208,138,0.28); }
+.sde-cell.down { background: var(--red-soft); border-color: rgba(242,85,90,0.28); }
+.sde-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 600; }
+.sde-date { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
+.sde-pnl { font-family: var(--mono); font-size: 16px; font-weight: 700; margin-top: 2px; }
+.sde-cell.up .sde-pnl { color: var(--green); }
+.sde-cell.down .sde-pnl { color: var(--red); }
+.sde-sub { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
 
 .day-detail-panel { margin-top: 20px; }
 .day-detail-panel .panel-box-head .title { font-size: 13px; color: var(--text); text-transform: none; letter-spacing: 0; font-weight: 700; }

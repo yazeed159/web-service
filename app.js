@@ -650,6 +650,39 @@
         ${scoreRow("Avg win/loss", avgWLScore, ratio.toFixed(2))}
       </div>
     `;
+
+    const extraEl = document.getElementById("score-month-extra");
+    if (extraEl && calYear !== null && calMonth !== null) {
+      const extra = monthDayExtremes(calYear, calMonth);
+      if (!extra) {
+        extraEl.innerHTML = `<div class="score-day-extremes empty">No trades logged yet in ${MONTHS[calMonth]}.</div>`;
+      } else if (extra.best.key === extra.worst.key) {
+        extraEl.innerHTML = `
+          <div class="sde-head">Only trading day this month</div>
+          <div class="score-day-extremes single">
+            <div class="sde-cell ${extra.best.net >= 0 ? "up" : "down"}">
+              <span class="sde-label">${fmtDayShort(extra.best.key)}</span>
+              <span class="sde-pnl">${fmtMoney(extra.best.net)}</span>
+              <span class="sde-sub">${extra.best.count} trade${extra.best.count === 1 ? "" : "s"}</span>
+            </div>
+          </div>`;
+      } else {
+        extraEl.innerHTML = `
+          <div class="sde-head">Best &amp; worst day — ${MONTHS[calMonth]}</div>
+          <div class="score-day-extremes">
+            <div class="sde-cell up">
+              <span class="sde-label">Best</span>
+              <span class="sde-date">${fmtDayShort(extra.best.key)}</span>
+              <span class="sde-pnl">${fmtMoney(extra.best.net)}</span>
+            </div>
+            <div class="sde-cell down">
+              <span class="sde-label">Worst</span>
+              <span class="sde-date">${fmtDayShort(extra.worst.key)}</span>
+              <span class="sde-pnl">${fmtMoney(extra.worst.net)}</span>
+            </div>
+          </div>`;
+      }
+    }
   }
 
   function scoreRow(label, pct, display) {
@@ -744,6 +777,27 @@
     const y = calYear, m = calMonth;
     document.getElementById("mini-cal-label").textContent = `${MONTHS[m]} ${y}`;
     document.getElementById("mini-cal").innerHTML = buildMonthGridHtml(y, m, { clickable: false, compact: true });
+  }
+
+  // Best/worst single trading day for the given month, by net P&L. Lives
+  // under Trader score so that panel has something worth showing beside
+  // the mini calendar instead of empty space, and it's a natural
+  // companion to that calendar rather than a repeat of the win-rate /
+  // profit-factor rows above it. Returns null if no trades that month.
+  function monthDayExtremes(y, m) {
+    const map = pnlByDay();
+    let best = null, worst = null;
+    map.forEach((entry, key) => {
+      const d = new Date(key + "T12:00:00");
+      if (d.getFullYear() !== y || d.getMonth() !== m) return;
+      if (!best || entry.net > best.net) best = { key, net: entry.net, count: entry.count };
+      if (!worst || entry.net < worst.net) worst = { key, net: entry.net, count: entry.count };
+    });
+    return best ? { best, worst } : null;
+  }
+
+  function fmtDayShort(key) {
+    return new Date(key + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }
 
   // ================================================================
