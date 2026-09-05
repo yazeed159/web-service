@@ -251,16 +251,38 @@
   //                              same key gets pushed up as the seed
   //                              (one-time migration, so old
   //                              browser-only data isn't stranded).
+  // Supabase mints a fresh JWT (on sign-in, on tab focus, or its periodic
+  // silent refresh) with an `iat` claim stamped by the Auth server's own
+  // clock. If a query using that token reaches PostgREST a moment before
+  // PostgREST's own clock reaches that same second -- ordinary clock drift
+  // between Supabase's services, nothing wrong on this end -- PostgREST
+  // rejects an otherwise-valid token with "JWT issued at future". It's a
+  // one-off: the exact same token succeeds a second later, which is why
+  // hitting refresh always "fixed" it. Rather than surface that as a real
+  // error (or make every page load wait it out up front), retry the one
+  // query that hit it, once, after a short delay.
+  function isClockSkewError(err) {
+    var msg = ((err && err.message) || "").toLowerCase();
+    return msg.indexOf("issued at future") !== -1 || (msg.indexOf("jwt") !== -1 && msg.indexOf("future") !== -1);
+  }
+  function withClockSkewRetry(runQuery) {
+    return runQuery().then(function (res) {
+      if (res && res.error && isClockSkewError(res.error)) {
+        return new Promise(function (resolve) { setTimeout(resolve, 1200); }).then(runQuery);
+      }
+      return res;
+    });
+  }
+
   window.KV = (function () {
     var cache = {};
     var loaded = false;
 
     var ready = window.AUTH_READY.then(function (session) {
       if (!session) return null;
-      return window.sb
-        .from("user_kv")
-        .select("key,value")
-        .then(function (res) {
+      return withClockSkewRetry(function () {
+        return window.sb.from("user_kv").select("key,value");
+      }).then(function (res) {
           if (!res.error && res.data) {
             res.data.forEach(function (row) {
               cache[row.key] = row.value;
@@ -332,12 +354,13 @@
   window.fetchTradesIndex = function () {
     return window.AUTH_READY.then(function (session) {
       if (!session) return [];
-      return window.sb
-        .from("trades")
-        .select("*")
-        .order("trade_date", { ascending: true })
-        .order("entry_time", { ascending: true })
-        .then(function (res) {
+      return withClockSkewRetry(function () {
+        return window.sb
+          .from("trades")
+          .select("*")
+          .order("trade_date", { ascending: true })
+          .order("entry_time", { ascending: true });
+      }).then(function (res) {
           if (res.error) throw new Error(res.error.message);
           return res.data || [];
         });
@@ -381,8 +404,8 @@
     return window.AUTH_READY.then(function (session) {
       if (!session) return null;
       return Promise.all([
-        window.sb.from("trades").select("*").eq("id", id).maybeSingle(),
-        window.sb.from("trade_details").select("*").eq("trade_id", id).maybeSingle(),
+        withClockSkewRetry(function () { return window.sb.from("trades").select("*").eq("id", id).maybeSingle(); }),
+        withClockSkewRetry(function () { return window.sb.from("trade_details").select("*").eq("trade_id", id).maybeSingle(); }),
       ]).then(function (results) {
         var tradeRes = results[0];
         var detailRes = results[1];

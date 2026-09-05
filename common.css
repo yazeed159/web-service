@@ -1236,3 +1236,260 @@ body::before {
 
 /* ---------- Selection ---------- */
 ::selection { background: rgba(132,87,255,0.35); }
+
+
+/* ===================================================================
+   chat-widget.css — floating "AI Chat" launcher + popup panel.
+   Loaded on every app-shell page alongside chat-widget.js. Replaces
+   the old full-page chat.html-via-sidebar pattern: a small round
+   button sits bottom-right, and clicking it opens a compact chat
+   panel that can be expanded to a large "maximized" panel without
+   ever leaving the current page.
+=================================================================== */
+
+.chatw-launcher {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(139, 124, 246, 0.4);
+  z-index: 500;
+  border: none;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.chatw-launcher:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(139, 124, 246, 0.5); }
+.chatw-launcher:active { transform: translateY(0) scale(.96); }
+.chatw-launcher.chatw-launcher-hidden {
+  opacity: 0;
+  transform: translateY(8px) scale(.85);
+  pointer-events: none;
+}
+.chatw-launcher svg { width: 24px; height: 24px; }
+.chatw-launcher .chatw-icon-close { display: none; }
+.chatw-launcher.open .chatw-icon-chat { display: none; }
+.chatw-launcher.open .chatw-icon-close { display: block; }
+
+.chatw-panel {
+  position: fixed;
+  right: 22px;
+  bottom: 90px;
+  width: 380px;
+  height: min(600px, 72vh);
+  background: var(--glass-hi);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border-hi);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.45);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 499;
+  opacity: 0;
+  transform: translateY(12px) scale(.98);
+  pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease;
+}
+.chatw-panel.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+.chatw-panel.maximized {
+  right: 24px;
+  bottom: 24px;
+  width: min(760px, calc(100vw - 48px));
+  height: min(86vh, 860px);
+}
+
+.chatw-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--glass);
+  flex: none;
+}
+.chatw-panel-head .chatw-head-icon {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  display: flex; align-items: center; justify-content: center; flex: none;
+}
+.chatw-panel-head .chatw-head-icon svg { width: 14px; height: 14px; color: #fff; }
+.chatw-panel-title { font-weight: 600; font-size: 13.5px; color: var(--text); flex: 1 1 auto; }
+.chatw-panel-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.chatw-icon-action {
+  width: 28px; height: 28px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid transparent; color: var(--text-faint);
+  cursor: pointer;
+}
+.chatw-icon-action:hover { color: var(--text); background: var(--panel-3); border-color: var(--border); }
+.chatw-icon-action svg { width: 15px; height: 15px; }
+.chatw-icon-action.active { color: var(--primary); background: var(--primary-soft); border-color: var(--primary); }
+
+.chatw-body { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; padding: 12px 14px; overflow: hidden; }
+.chatw-body .chat-shell { flex: 1 1 auto; min-height: 0; height: 100%; padding: 0; border: none; background: transparent; }
+.chatw-body .chat-messages { flex: 1 1 auto; }
+
+@media (max-width: 520px) {
+  .chatw-launcher { right: 16px; bottom: 16px; width: 50px; height: 50px; }
+  .chatw-panel {
+    right: 10px; left: 10px; bottom: 78px;
+    width: auto; height: min(70vh, 560px);
+  }
+  .chatw-panel.maximized {
+    right: 8px; left: 8px; top: 8px; bottom: 8px;
+    width: auto; height: auto;
+  }
+}
+
+/* ===================================================================
+   Message layout + avatars — shared by every page that has the popup.
+   (Previously lived only in polish.css, which is only loaded on
+   backtester.html/report.html, so the popup rendered without avatar
+   shape/spacing everywhere else.)
+=================================================================== */
+@keyframes chatw-riseIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes chatw-popIn {
+  from { opacity: 0; transform: translateY(6px) scale(.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes chatw-softPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(47,208,138,0.45); }
+  50%      { box-shadow: 0 0 0 4px rgba(47,208,138,0); }
+}
+
+.chat-shell { animation: chatw-riseIn .35s ease both; }
+.chat-data-status { animation: chatw-riseIn .35s ease both; }
+.chat-data-status-dot.ok { animation: chatw-softPulse 2.2s ease infinite; }
+
+.chat-messages {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 6px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 14px, #000 calc(100% - 6px), transparent 100%);
+  scroll-behavior: smooth;
+}
+
+.chat-msg { gap: 10px; align-items: flex-end; animation: chatw-popIn .3s cubic-bezier(.2,.7,.3,1) both; }
+.chat-msg-ai { flex-direction: row; }
+.chat-msg-user { flex-direction: row-reverse; }
+
+.chat-avatar {
+  flex: none; width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+}
+.chat-avatar.ai {
+  background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: #fff;
+  box-shadow: 0 2px 10px rgba(139,124,246,0.4);
+}
+.chat-avatar.ai svg { width: 13px; height: 13px; }
+.chat-avatar.user { background: var(--panel-3); color: var(--text-dim); border: 1px solid var(--border); }
+
+.chat-bubble {
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  transition: transform .15s ease;
+}
+.chat-msg-user .chat-bubble {
+  background: linear-gradient(135deg, var(--primary-soft), rgba(139,124,246,0.08));
+}
+.chat-msg-ai .chat-bubble { position: relative; }
+
+.chat-typing { padding: 12px 14px; }
+
+.chat-chips { animation: chatw-riseIn .35s ease .1s both; }
+.chat-chips.chatw-chips-hidden { display: none; }
+.chat-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: transform .15s ease, border-color .15s ease, color .15s ease, background .15s ease;
+}
+.chat-chip:hover { transform: translateY(-1px); background: var(--primary-soft); }
+.chat-chip:active { transform: translateY(0); }
+.chat-chip svg { width: 11px; height: 11px; opacity: .7; }
+
+.chat-input-row { position: relative; }
+.chat-input {
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.chat-input:focus { box-shadow: 0 0 0 3px var(--primary-soft); background: var(--panel-3); }
+.chat-send-btn {
+  transition: transform .15s cubic-bezier(.2,.8,.3,1.3), background .15s ease, box-shadow .15s ease;
+}
+.chat-send-btn:hover:not(:disabled) { transform: translateY(-1px) scale(1.04); box-shadow: 0 4px 14px rgba(139,124,246,0.35); }
+.chat-send-btn:active:not(:disabled) { transform: scale(0.94); }
+
+
+/* ===================================================================
+   global-search.css — modal for the topbar "Search notes" icon.
+   Used to be its own sidebar tab (notes.html); now it's a search icon
+   in the topbar of every page, opening this modal on top of whatever
+   page you're on, like search on most normal sites.
+=================================================================== */
+
+.gs-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(8, 9, 12, 0.6);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 8vh 16px 16px;
+  z-index: 600;
+  opacity: 0; pointer-events: none;
+  transition: opacity .14s ease;
+}
+.gs-modal-overlay.open { opacity: 1; pointer-events: auto; }
+
+.gs-modal-box {
+  width: min(720px, 100%);
+  max-height: min(76vh, 720px);
+  background: var(--glass-hi);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border-hi);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  transform: translateY(-8px) scale(.98);
+  transition: transform .14s ease;
+}
+.gs-modal-overlay.open .gs-modal-box { transform: translateY(0) scale(1); }
+
+.gs-modal-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px; border-bottom: 1px solid var(--border-soft);
+  flex: none;
+}
+.gs-modal-head svg { width: 17px; height: 17px; color: var(--text-faint); flex: none; }
+.gs-modal-input {
+  flex: 1 1 auto; background: transparent; border: none; color: var(--text);
+  font-size: 15px; outline: none;
+}
+.gs-modal-input::placeholder { color: var(--text-faint); }
+.gs-modal-close {
+  width: 26px; height: 26px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text-faint);
+  cursor: pointer; flex: none;
+}
+.gs-modal-close:hover { color: var(--text); }
+.gs-modal-close svg { width: 13px; height: 13px; }
+
+.gs-modal-filters {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  padding: 10px 16px; border-bottom: 1px solid var(--border-soft);
+  font-size: 12px; color: var(--text-dim); flex: none;
+}
+.gs-modal-filters label { display: flex; align-items: center; gap: 5px; cursor: pointer; white-space: nowrap; }
+
+.gs-modal-status { padding: 8px 16px 0; font-size: 12px; color: var(--text-faint); flex: none; }
+.gs-modal-results { flex: 1 1 auto; overflow-y: auto; padding: 10px 16px 16px; }
+
+@media (max-width: 600px) {
+  .gs-modal-overlay { padding: 4vh 8px 8px; }
+  .gs-modal-filters { gap: 8px 10px; }
+}
