@@ -537,6 +537,30 @@
   let currentReport = null;
   let currentId = null;
 
+  // Rendered REPORT_TRADES_PAGE_SIZE at a time with a "Load more" row
+  // rather than dumping the entire (possibly thousands-long, for a long
+  // backtest run) trades table into the DOM at once -- same reasoning as
+  // journal.html's TABLE_PAGE_SIZE and app.js's TRADE_LIST_PAGE_SIZE.
+  const REPORT_TRADES_PAGE_SIZE = 100;
+  let reportTradesRows = [];
+  let reportTradesCols = [];
+  let reportTradesShown = 0;
+
+  function renderReportTradesBody() {
+    const shown = reportTradesShown;
+    const rowsHtml = reportTradesRows.slice(0, shown)
+      .map((t, idx) => `<tr>${reportTradesCols.map(([key]) => `<td>${tradeCell(key, t, idx)}</td>`).join("")}</tr>`)
+      .join("");
+    const remaining = reportTradesRows.length - shown;
+    const moreHtml = remaining > 0
+      ? `<tr id="report-trades-load-more-row"><td colspan="${reportTradesCols.length}" style="padding:14px 10px; text-align:center;">
+          <button type="button" class="btn-load-more" id="report-trades-load-more-btn">Load more (${remaining} left)</button>
+        </td></tr>`
+      : "";
+    els.tradesBody.innerHTML = rowsHtml + moreHtml
+      || `<tr><td colspan="${reportTradesCols.length}"><div class="empty-state small">No trades.</div></td></tr>`;
+  }
+
   function tradeColumns(trades) {
     const has = (k) => trades.some((t) => t[k] !== undefined && t[k] !== null && t[k] !== "");
     const cols = [["date", "Date"], ["symbol", "Symbol"]];
@@ -621,10 +645,11 @@
       </div>`;
 
     // trades table
-    const cols = tradeColumns(trades);
-    els.tradesHead.innerHTML = cols.map(([, label]) => `<th>${label}</th>`).join("");
-    els.tradesBody.innerHTML = trades.map((t, idx) => `<tr>${cols.map(([key]) => `<td>${tradeCell(key, t, idx)}</td>`).join("")}</tr>`).join("")
-      || `<tr><td colspan="${cols.length}"><div class="empty-state small">No trades.</div></td></tr>`;
+    reportTradesCols = tradeColumns(trades);
+    reportTradesRows = trades;
+    reportTradesShown = Math.min(REPORT_TRADES_PAGE_SIZE, trades.length);
+    els.tradesHead.innerHTML = reportTradesCols.map(([, label]) => `<th>${label}</th>`).join("");
+    renderReportTradesBody();
     els.tradesCount.textContent = `${trades.length} trade${trades.length === 1 ? "" : "s"}`;
 
     // Each analytics panel is independent -- a bad field on one trade
@@ -1036,6 +1061,12 @@
   }
 
   els.tradesBody.addEventListener("click", (e) => {
+    const moreBtn = e.target.closest("#report-trades-load-more-btn");
+    if (moreBtn) {
+      reportTradesShown = Math.min(reportTradesShown + REPORT_TRADES_PAGE_SIZE, reportTradesRows.length);
+      renderReportTradesBody();
+      return;
+    }
     const btn = e.target.closest(".rpt-view-chart-btn");
     if (!btn || btn.disabled) return;
     const idx = Number(btn.dataset.tradeIdx);
