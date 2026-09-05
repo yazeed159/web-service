@@ -684,7 +684,9 @@
   // up identically instead of drifting out of sync with its own mini
   // version. `opts.clickable` wires up data-day/has-trades/selected for a
   // calendar that opens a day-detail panel (Day View); the dashboard glance
-  // renders the exact same cells read-only.
+  // renders the exact same cells read-only. `opts.compact` drops the
+  // gross/commission sublines so each cell/week-box only shows net P&L +
+  // trade count -- paired with the .cal-mini CSS class for a smaller grid.
   function buildMonthGridHtml(y, m, opts) {
     opts = opts || {};
     const map = pnlByDay();
@@ -723,7 +725,7 @@
             const dayAttr = opts.clickable ? ` data-day="${key}"` : "";
             rowHtml += `<div class="${cls}"${dayAttr}>
               <span class="date-num">${cur.getDate()}</span>
-              ${entry ? `<span class="cell-pnl">${fmtMoney(entry.net)}</span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span><span class="cell-subline">Gross <span class="${entry.gross >= 0 ? "up" : "down"}">${fmtMoney(entry.gross)}</span></span><span class="cell-subline">Comm $${entry.comm.toFixed(2)}</span>` : ""}
+              ${entry ? `<span class="cell-pnl">${fmtMoney(entry.net)}</span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span>${opts.compact ? "" : `<span class="cell-subline">Gross <span class="${entry.gross >= 0 ? "up" : "down"}">${fmtMoney(entry.gross)}</span></span><span class="cell-subline">Comm $${entry.comm.toFixed(2)}</span>`}` : ""}
             </div>`;
           }
         }
@@ -732,7 +734,7 @@
       const weekBoxCls = "cal-week-box" + (weekHas ? (weekNet >= 0 ? " win" : " loss") : "");
       html += rowHtml + `<div class="${weekBoxCls}">
         <span class="week-label">Week ${weekIndex}</span>
-        ${weekHas ? `<span class="week-pnl">${fmtMoney(weekNet)}</span><span class="week-count">${weekTrades} trade${weekTrades === 1 ? "" : "s"}</span><span class="week-subline">Gross <span class="${weekGross >= 0 ? "up" : "down"}">${fmtMoney(weekGross)}</span></span><span class="week-subline">Comm $${weekComm.toFixed(2)}</span>` : `<span class="week-empty">—</span>`}
+        ${weekHas ? `<span class="week-pnl">${fmtMoney(weekNet)}</span><span class="week-count">${weekTrades} trade${weekTrades === 1 ? "" : "s"}</span>${opts.compact ? "" : `<span class="week-subline">Gross <span class="${weekGross >= 0 ? "up" : "down"}">${fmtMoney(weekGross)}</span></span><span class="week-subline">Comm $${weekComm.toFixed(2)}</span>`}` : `<span class="week-empty">—</span>`}
       </div>`;
     }
     return html;
@@ -741,7 +743,7 @@
   function renderMiniCal() {
     const y = calYear, m = calMonth;
     document.getElementById("mini-cal-label").textContent = `${MONTHS[m]} ${y}`;
-    document.getElementById("mini-cal").innerHTML = buildMonthGridHtml(y, m, { clickable: false });
+    document.getElementById("mini-cal").innerHTML = buildMonthGridHtml(y, m, { clickable: false, compact: true });
   }
 
   // ================================================================
