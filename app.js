@@ -1039,7 +1039,7 @@
       if (key === selectedDay) cls += " selected";
       html += `<div class="${cls}" data-day="${key}">
         <span class="date-num">${d}</span>
-        ${entry ? `<span class="cell-pnl">${fmtMoney(entry.net)}</span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span><span class="cell-subline">Gross <span class="${entry.gross >= 0 ? "up" : "down"}">${fmtMoney(entry.gross)}</span> · Comm $${entry.comm.toFixed(2)}</span>` : ""}
+        ${entry ? `<span class="cell-pnl">${fmtMoney(entry.net)}</span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span><span class="cell-subline">Gross <span class="${entry.gross >= 0 ? "up" : "down"}">${fmtMoney(entry.gross)}</span></span><span class="cell-subline">Comm $${entry.comm.toFixed(2)}</span>` : ""}
       </div>`;
     }
     document.getElementById("cal-grid").innerHTML = html;
