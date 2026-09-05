@@ -473,7 +473,7 @@
       addBubble(
         "ai",
         formatReply(
-          "N8N_BACKTEST_AI_URL isn't set yet in config.js, so I've got nowhere to send this. Point window.N8N_BACKTEST_AI_URL at your own n8n webhook (same pattern as N8N_CHAT_URL) and try again."
+          "The config service isn't set up yet in config.js, so I've got nowhere to send this. Point it at your config service and try again."
         )
       );
       inputEl.value = "";
@@ -527,7 +527,7 @@
         addBubble(
           "ai",
           formatReply(
-            `Couldn't reach the config webhook (${String(err.message)}). If N8N_BACKTEST_AI_URL in config.js still points at a placeholder, wire it up to your own n8n webhook first.`
+            `Couldn't reach the config service (${String(err.message)}). If config.js still points at a placeholder, point it at your config service first.`
           )
         );
       })

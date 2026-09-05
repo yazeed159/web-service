@@ -588,7 +588,7 @@
       case "chart":
         return Array.isArray(t.bars) && t.bars.length
           ? `<button type="button" class="rpt-view-chart-btn" data-trade-idx="${idx}">View Chart</button>`
-          : `<button type="button" class="rpt-view-chart-btn" disabled title="Send this run to the journal workflow first to get a chart for this trade">View Chart</button>`;
+          : `<button type="button" class="rpt-view-chart-btn" disabled title="Send this run to the AI Journal first to get a chart for this trade">View Chart</button>`;
       default: return escapeHtml(t[key] != null ? t[key] : "—");
     }
   }
@@ -708,14 +708,14 @@
     if (!currentReport || currentReport.source !== "backend") return;
     const url = window.N8N_BACKTEST_IMPORT_URL || "";
     if (!url || url.includes("YOUR-")) {
-      els.toolbarStatus.textContent = "Set window.N8N_BACKTEST_IMPORT_URL in config.js to your n8n webhook first.";
+      els.toolbarStatus.textContent = "Set window.N8N_BACKTEST_IMPORT_URL in config.js to your analysis service first.";
       return;
     }
     const trades = currentReport.trades;
     els.sendJournal.disabled = true;
     const original = els.sendJournal.textContent;
     els.sendJournal.textContent = "Sending…";
-    els.toolbarStatus.textContent = `Sending ${trades.length} trade${trades.length === 1 ? "" : "s"} through the journal workflow…`;
+    els.toolbarStatus.textContent = `Sending ${trades.length} trade${trades.length === 1 ? "" : "s"} to the AI Journal…`;
     fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -769,15 +769,15 @@
               return;
             }
             if (attempt >= maxAttempts) {
-              els.toolbarStatus.textContent = "Some trades are still missing charts — the journal workflow may still be running or hit an error partway through; reload this page in a bit to check again.";
+              els.toolbarStatus.textContent = "Some trades are still missing charts — this may still be running or hit an error partway through; reload this page in a bit to check again.";
               return;
             }
-            els.toolbarStatus.textContent = `Sent ${n} trade${n === 1 ? "" : "s"} to the journal workflow — charts will appear here as they finish (checking again in ${POLL_MS / 1000}s)…`;
+            els.toolbarStatus.textContent = `Sent ${n} trade${n === 1 ? "" : "s"} to the AI Journal — charts will appear here as they finish (checking again in ${POLL_MS / 1000}s)…`;
             setTimeout(poll, POLL_MS);
           });
         }
 
-        els.toolbarStatus.textContent = `Sent ${n} trade${n === 1 ? "" : "s"} to the journal workflow — charts will appear here once it finishes (this page will refresh automatically).`;
+        els.toolbarStatus.textContent = `Sent ${n} trade${n === 1 ? "" : "s"} to the AI Journal — charts will appear here once it finishes (this page will refresh automatically).`;
         setTimeout(poll, POLL_MS);
       })
       .catch((err) => { els.toolbarStatus.textContent = `Couldn't send to journal (${err.message}).`; })

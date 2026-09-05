@@ -1055,7 +1055,7 @@
   function runSupportResistance() {
     if (srRequestInFlight || !state.trade) return;
     if (!SR_ANALYSIS_URL) {
-      els.srResult.innerHTML = `<div class="sr-status error">SR_ANALYSIS_URL isn't set yet -- point window.N8N_SR_URL in config.js at your own n8n webhook first.</div>`;
+      els.srResult.innerHTML = `<div class="sr-status error">SR_ANALYSIS_URL isn't set yet -- set it in config.js to your analysis service first.</div>`;
       return;
     }
     srRequestInFlight = true;
@@ -1063,7 +1063,7 @@
     const originalLabel = els.srBtn.innerHTML;
     els.srBtn.disabled = true;
     els.srBtn.innerHTML = "Analyzing…";
-    els.srResult.innerHTML = `<div class="sr-status">Reading ${escapeHtml(trade.symbol)}'s prior daily bars and computing levels — this calls out to n8n, so it can take a few seconds…</div>`;
+    els.srResult.innerHTML = `<div class="sr-status">Reading ${escapeHtml(trade.symbol)}'s prior daily bars and computing levels — this can take a few seconds…</div>`;
 
     fetch(SR_ANALYSIS_URL, {
       method: "POST",
@@ -1079,7 +1079,7 @@
         drawSrLevelsOnChart(data);
       })
       .catch((err) => {
-        els.srResult.innerHTML = `<div class="sr-status error">Couldn't get support/resistance levels (${escapeHtml(String(err.message))}). If SR_ANALYSIS_URL in config.js still says YOUR-N8N-SUBDOMAIN, point it at your own n8n webhook first.</div>`;
+        els.srResult.innerHTML = `<div class="sr-status error">Couldn't get support/resistance levels (${escapeHtml(String(err.message))}). Make sure SR_ANALYSIS_URL in config.js is pointed at your analysis service.</div>`;
       })
       .finally(() => {
         srRequestInFlight = false;

@@ -267,7 +267,7 @@
           <div class="sr-head">
             <div>
               <h2 style="margin:0;">Support &amp; Resistance</h2>
-              <div class="sr-sub">Reads this symbol's prior daily bars (before this trade) and draws support/resistance lines on the chart above. Off by default — runs only when you click, so it never spends API tokens on its own.</div>
+              <div class="sr-sub">Reads this symbol's prior daily bars (before this trade) and draws support/resistance lines on the chart above. Off by default — click to run it whenever you want a read.</div>
             </div>
             <button class="sr-run-btn" id="sr-run-btn">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.4 8.6 12 15l-3-3-4 4"></path></svg>
@@ -338,7 +338,7 @@
     const originalLabel = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = "Analyzing…";
-    resultEl.innerHTML = `<div class="sr-status">Reading ${escapeHtml(trade.symbol)}'s prior daily bars and computing levels — this calls out to n8n, so it can take a few seconds…</div>`;
+    resultEl.innerHTML = `<div class="sr-status">Reading ${escapeHtml(trade.symbol)}'s prior daily bars and computing levels — this can take a few seconds…</div>`;
 
     fetch(SR_ANALYSIS_URL, {
       method: "POST",
@@ -354,7 +354,7 @@
         drawSrLevelsOnChart(data);
       })
       .catch((err) => {
-        resultEl.innerHTML = `<div class="sr-status error">Couldn't get support/resistance levels (${escapeHtml(String(err.message))}). If SR_ANALYSIS_URL at the top of trade.js still says YOUR-N8N-SUBDOMAIN, point it at your own n8n webhook first.</div>`;
+        resultEl.innerHTML = `<div class="sr-status error">Couldn't get support/resistance levels (${escapeHtml(String(err.message))}). Make sure SR_ANALYSIS_URL at the top of trade.js is pointed at your analysis service.</div>`;
       })
       .finally(() => {
         srRequestInFlight = false;

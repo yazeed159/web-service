@@ -377,7 +377,7 @@
       addBubble(
         "ai",
         formatReply(
-          "N8N_CHAT_URL isn't set yet in config.js, so I've got nowhere to send this. Point window.N8N_CHAT_URL at your own n8n chat webhook (same pattern as N8N_SR_URL) and try again."
+          "The chat service isn't set up yet in config.js, so I've got nowhere to send this. Point it at your chat service and try again."
         )
       );
       inputEl.value = "";
@@ -433,7 +433,7 @@
         addBubble(
           "ai",
           formatReply(
-            `Couldn't reach the chat webhook (${String(err.message)}). If N8N_CHAT_URL in config.js still points at a placeholder, wire it up to your own n8n webhook first.`
+            `Couldn't reach the chat service (${String(err.message)}). If config.js still points at a placeholder, point it at your chat service first.`
           )
         );
       })

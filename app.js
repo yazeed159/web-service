@@ -678,26 +678,70 @@
     return map;
   }
 
-  function renderMiniCal() {
+  // Builds the same Mon-Fri-plus-weekly-total grid markup used by the Day
+  // View calendar (see renderCalendar below), so any other calendar on the
+  // site -- like the dashboard's "This month" glance -- can look and total
+  // up identically instead of drifting out of sync with its own mini
+  // version. `opts.clickable` wires up data-day/has-trades/selected for a
+  // calendar that opens a day-detail panel (Day View); the dashboard glance
+  // renders the exact same cells read-only.
+  function buildMonthGridHtml(y, m, opts) {
+    opts = opts || {};
     const map = pnlByDay();
-    const y = calYear, m = calMonth;
-    const firstDow = new Date(y, m, 1).getDay();
     const daysInMonth = new Date(y, m + 1, 0).getDate();
-    const todayKey = new Date().toISOString().slice(0, 10);
 
-    let html = `<div class="mini-cal-head"><span>${MONTHS[m]} ${y}</span></div><div class="mini-cal-grid">`;
-    DOW.forEach((d) => (html += `<div class="mini-cal-dow">${d[0]}</div>`));
-    for (let i = 0; i < firstDow; i++) html += `<div class="mini-cell empty"></div>`;
-    for (let d = 1; d <= daysInMonth; d++) {
-      const key = dateKey(y, m, d);
-      const entry = map.get(key);
-      let cls = "mini-cell";
-      if (entry) cls += entry.net >= 0 ? " win" : " loss";
-      if (key === todayKey) cls += " today";
-      html += `<div class="${cls}" title="${entry ? fmtMoney(entry.net) + " · " + entry.count + " trades" : "No trades"}">${d}</div>`;
+    let html = "";
+    WEEKDAYS_MF.forEach((d) => (html += `<div class="cal-dow">${d}</div>`));
+    html += `<div class="cal-dow cal-week-dow">Week</div>`;
+
+    // Full Mon-Sun weeks covering the month, so every week gets a complete
+    // row and the leading/trailing partial week still lines up correctly.
+    const firstOfMonth = new Date(y, m, 1);
+    const leadMonDow = (firstOfMonth.getDay() + 6) % 7; // 0=Mon..6=Sun
+    const trailMonDow = (new Date(y, m, daysInMonth).getDay() + 6) % 7;
+    const gridStart = new Date(y, m, 1 - leadMonDow);
+    const gridEnd = new Date(y, m, daysInMonth + (6 - trailMonDow));
+
+    let weekIndex = 0;
+    for (let cur = new Date(gridStart); cur <= gridEnd; ) {
+      weekIndex++;
+      let weekNet = 0, weekGross = 0, weekComm = 0, weekTrades = 0, weekHas = false;
+      let rowHtml = "";
+      for (let i = 0; i < 7; i++) {
+        const dow = (cur.getDay() + 6) % 7; // 0=Mon..6=Sun -- markets are closed Sat/Sun, so those days aren't worth a column
+        const inMonth = cur.getMonth() === m && cur.getFullYear() === y;
+        const key = dateKey(cur.getFullYear(), cur.getMonth(), cur.getDate());
+        const entry = inMonth ? map.get(key) : null;
+        if (dow < 5) {
+          if (entry) { weekNet += entry.net; weekGross += entry.gross; weekComm += entry.comm; weekTrades += entry.count; weekHas = true; }
+          if (!inMonth) {
+            rowHtml += `<div class="cal-cell empty"></div>`;
+          } else {
+            let cls = "cal-cell";
+            if (entry) cls += (entry.net >= 0 ? " win" : " loss") + (opts.clickable ? " has-trades" : "");
+            if (opts.clickable && key === opts.selectedDay) cls += " selected";
+            const dayAttr = opts.clickable ? ` data-day="${key}"` : "";
+            rowHtml += `<div class="${cls}"${dayAttr}>
+              <span class="date-num">${cur.getDate()}</span>
+              ${entry ? `<span class="cell-pnl">${fmtMoney(entry.net)}</span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span><span class="cell-subline">Gross <span class="${entry.gross >= 0 ? "up" : "down"}">${fmtMoney(entry.gross)}</span></span><span class="cell-subline">Comm $${entry.comm.toFixed(2)}</span>` : ""}
+            </div>`;
+          }
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+      const weekBoxCls = "cal-week-box" + (weekHas ? (weekNet >= 0 ? " win" : " loss") : "");
+      html += rowHtml + `<div class="${weekBoxCls}">
+        <span class="week-label">Week ${weekIndex}</span>
+        ${weekHas ? `<span class="week-pnl">${fmtMoney(weekNet)}</span><span class="week-count">${weekTrades} trade${weekTrades === 1 ? "" : "s"}</span><span class="week-subline">Gross <span class="${weekGross >= 0 ? "up" : "down"}">${fmtMoney(weekGross)}</span></span><span class="week-subline">Comm $${weekComm.toFixed(2)}</span>` : `<span class="week-empty">—</span>`}
+      </div>`;
     }
-    html += "</div>";
-    document.getElementById("mini-cal").innerHTML = html;
+    return html;
+  }
+
+  function renderMiniCal() {
+    const y = calYear, m = calMonth;
+    document.getElementById("mini-cal-label").textContent = `${MONTHS[m]} ${y}`;
+    document.getElementById("mini-cal").innerHTML = buildMonthGridHtml(y, m, { clickable: false });
   }
 
   // ================================================================
@@ -1028,53 +1072,9 @@
       <div class="cal-summary-comm">Commission this month: $${monthComm.toFixed(2)}</div>
     `;
 
-    let html = "";
-    WEEKDAYS_MF.forEach((d) => (html += `<div class="cal-dow">${d}</div>`));
-    html += `<div class="cal-dow cal-week-dow">Week</div>`;
+    document.getElementById("cal-grid").innerHTML = buildMonthGridHtml(y, m, { clickable: true, selectedDay: selectedDay });
 
-    // Full Mon-Sun weeks covering the month, so every week gets a complete
-    // row and the leading/trailing partial week still lines up correctly.
-    const firstOfMonth = new Date(y, m, 1);
-    const leadMonDow = (firstOfMonth.getDay() + 6) % 7; // 0=Mon..6=Sun
-    const trailMonDow = (new Date(y, m, daysInMonth).getDay() + 6) % 7;
-    const gridStart = new Date(y, m, 1 - leadMonDow);
-    const gridEnd = new Date(y, m, daysInMonth + (6 - trailMonDow));
-
-    let weekIndex = 0;
-    for (let cur = new Date(gridStart); cur <= gridEnd; ) {
-      weekIndex++;
-      let weekNet = 0, weekGross = 0, weekComm = 0, weekTrades = 0, weekHas = false;
-      let rowHtml = "";
-      for (let i = 0; i < 7; i++) {
-        const dow = (cur.getDay() + 6) % 7; // 0=Mon..6=Sun -- markets are closed Sat/Sun, so those days aren't worth a column
-        const inMonth = cur.getMonth() === m && cur.getFullYear() === y;
-        const key = dateKey(cur.getFullYear(), cur.getMonth(), cur.getDate());
-        const entry = inMonth ? map.get(key) : null;
-        if (dow < 5) {
-          if (entry) { weekNet += entry.net; weekGross += entry.gross; weekComm += entry.comm; weekTrades += entry.count; weekHas = true; }
-          if (!inMonth) {
-            rowHtml += `<div class="cal-cell empty"></div>`;
-          } else {
-            let cls = "cal-cell";
-            if (entry) cls += (entry.net >= 0 ? " win" : " loss") + " has-trades";
-            if (key === selectedDay) cls += " selected";
-            rowHtml += `<div class="${cls}" data-day="${key}">
-              <span class="date-num">${cur.getDate()}</span>
-              ${entry ? `<span class="cell-pnl">${fmtMoney(entry.net)}</span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span><span class="cell-subline">Gross <span class="${entry.gross >= 0 ? "up" : "down"}">${fmtMoney(entry.gross)}</span></span><span class="cell-subline">Comm $${entry.comm.toFixed(2)}</span>` : ""}
-            </div>`;
-          }
-        }
-        cur.setDate(cur.getDate() + 1);
-      }
-      const weekBoxCls = "cal-week-box" + (weekHas ? (weekNet >= 0 ? " win" : " loss") : "");
-      html += rowHtml + `<div class="${weekBoxCls}">
-        <span class="week-label">Week ${weekIndex}</span>
-        ${weekHas ? `<span class="week-pnl">${fmtMoney(weekNet)}</span><span class="week-count">${weekTrades} trade${weekTrades === 1 ? "" : "s"}</span><span class="week-subline">Gross <span class="${weekGross >= 0 ? "up" : "down"}">${fmtMoney(weekGross)}</span></span><span class="week-subline">Comm $${weekComm.toFixed(2)}</span>` : `<span class="week-empty">—</span>`}
-      </div>`;
-    }
-    document.getElementById("cal-grid").innerHTML = html;
-
-    document.querySelectorAll(".cal-cell.has-trades").forEach((cell) => {
+    document.querySelectorAll("#cal-grid .cal-cell.has-trades").forEach((cell) => {
       cell.addEventListener("click", () => {
         const key = cell.dataset.day;
         selectedDay = selectedDay === key ? null : key;
