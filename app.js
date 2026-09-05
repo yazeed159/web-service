@@ -3,7 +3,7 @@
 
   let trades = [];
   let hasCapitalLedger = false; // set once trades load -- see renderEquity()
-  let reportFilters = { symbol: "", tags: [], side: "all", duration: "all", setup: "all" };
+  let reportFilters = { symbol: "", tags: [], durationMin: null, durationMax: null, setup: "all", dateFrom: "", dateTo: "" };
   let reportPeriodTimeframe = "monthly"; // daily | weekly | monthly | yearly -- see renderPeriodDistPerf
   let calYear = null;
   let calMonth = null; // 0-indexed
@@ -1028,8 +1028,9 @@
       <div class="cal-summary-comm">Commission this month: $${monthComm.toFixed(2)}</div>
     `;
 
-    let html = `<div class="cal-dow cal-week-dow">Week</div>`;
+    let html = "";
     WEEKDAYS_MF.forEach((d) => (html += `<div class="cal-dow">${d}</div>`));
+    html += `<div class="cal-dow cal-week-dow">Week</div>`;
 
     // Full Mon-Sun weeks covering the month, so every week gets a complete
     // row and the leading/trailing partial week still lines up correctly.
@@ -1039,8 +1040,10 @@
     const gridStart = new Date(y, m, 1 - leadMonDow);
     const gridEnd = new Date(y, m, daysInMonth + (6 - trailMonDow));
 
+    let weekIndex = 0;
     for (let cur = new Date(gridStart); cur <= gridEnd; ) {
-      let weekNet = 0, weekTrades = 0, weekHas = false;
+      weekIndex++;
+      let weekNet = 0, weekGross = 0, weekComm = 0, weekTrades = 0, weekHas = false;
       let rowHtml = "";
       for (let i = 0; i < 7; i++) {
         const dow = (cur.getDay() + 6) % 7; // 0=Mon..6=Sun -- markets are closed Sat/Sun, so those days aren't worth a column
@@ -1048,7 +1051,7 @@
         const key = dateKey(cur.getFullYear(), cur.getMonth(), cur.getDate());
         const entry = inMonth ? map.get(key) : null;
         if (dow < 5) {
-          if (entry) { weekNet += entry.net; weekTrades += entry.count; weekHas = true; }
+          if (entry) { weekNet += entry.net; weekGross += entry.gross; weekComm += entry.comm; weekTrades += entry.count; weekHas = true; }
           if (!inMonth) {
             rowHtml += `<div class="cal-cell empty"></div>`;
           } else {
@@ -1064,10 +1067,10 @@
         cur.setDate(cur.getDate() + 1);
       }
       const weekBoxCls = "cal-week-box" + (weekHas ? (weekNet >= 0 ? " win" : " loss") : "");
-      html += `<div class="${weekBoxCls}">
-        <span class="week-label">Week</span>
-        ${weekHas ? `<span class="week-pnl">${fmtMoney(weekNet)}</span><span class="week-count">${weekTrades} trade${weekTrades === 1 ? "" : "s"}</span>` : `<span class="week-empty">—</span>`}
-      </div>` + rowHtml;
+      html += rowHtml + `<div class="${weekBoxCls}">
+        <span class="week-label">Week ${weekIndex}</span>
+        ${weekHas ? `<span class="week-pnl">${fmtMoney(weekNet)}</span><span class="week-count">${weekTrades} trade${weekTrades === 1 ? "" : "s"}</span><span class="week-subline">Gross <span class="${weekGross >= 0 ? "up" : "down"}">${fmtMoney(weekGross)}</span></span><span class="week-subline">Comm $${weekComm.toFixed(2)}</span>` : `<span class="week-empty">—</span>`}
+      </div>`;
     }
     document.getElementById("cal-grid").innerHTML = html;
 
@@ -1135,26 +1138,21 @@
     return String(s).replace(/_/g, " ");
   }
 
-  function durationBucketIndex(mins) {
-    if (mins === null) return -1;
-    for (let i = 0; i < DURATION_BUCKETS.length; i++) {
-      if (mins <= DURATION_BUCKETS[i].max) return i;
-    }
-    return DURATION_BUCKETS.length - 1;
-  }
-
   function matchesReportFilters(t) {
     if (reportFilters.symbol && !t.symbol.toLowerCase().includes(reportFilters.symbol.toLowerCase())) return false;
-    if (reportFilters.side !== "all" && t.side !== reportFilters.side) return false;
     if (reportFilters.setup !== "all" && t.setup_type !== reportFilters.setup) return false;
     if (reportFilters.tags.length) {
       const tags = t.lesson_tags || [];
       if (!reportFilters.tags.some((tag) => tags.includes(tag))) return false;
     }
-    if (reportFilters.duration !== "all") {
+    if (reportFilters.durationMin !== null || reportFilters.durationMax !== null) {
       const mins = durationMinutes(t);
-      if (mins === null || durationBucketIndex(mins) !== Number(reportFilters.duration)) return false;
+      if (mins === null) return false;
+      if (reportFilters.durationMin !== null && mins < reportFilters.durationMin) return false;
+      if (reportFilters.durationMax !== null && mins > reportFilters.durationMax) return false;
     }
+    if (reportFilters.dateFrom && t.trade_date < reportFilters.dateFrom) return false;
+    if (reportFilters.dateTo && t.trade_date > reportFilters.dateTo) return false;
     return true;
   }
 
@@ -1172,26 +1170,19 @@
 
   function initReportFilters() {
     const symbolInput = document.getElementById("report-filter-symbol");
-    const sideSel = document.getElementById("report-filter-side");
     const setupSel = document.getElementById("report-filter-setup");
-    const durSel = document.getElementById("report-filter-duration");
+    const durMinInput = document.getElementById("report-filter-duration-min");
+    const durMaxInput = document.getElementById("report-filter-duration-max");
+    const dateFromInput = document.getElementById("report-filter-date-from");
+    const dateToInput = document.getElementById("report-filter-date-to");
     const tagsToggle = document.getElementById("report-filter-tags-toggle");
     const tagsPanel = document.getElementById("report-filter-tags-panel");
-    if (!symbolInput || !sideSel || !setupSel || !durSel || !tagsToggle || !tagsPanel) return;
-
-    const sides = Array.from(new Set(trades.map((t) => t.side).filter(Boolean))).sort();
-    sideSel.innerHTML =
-      '<option value="all">All</option>' +
-      sides.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s.charAt(0).toUpperCase() + s.slice(1))}</option>`).join("");
+    if (!symbolInput || !setupSel || !durMinInput || !durMaxInput || !dateFromInput || !dateToInput || !tagsToggle || !tagsPanel) return;
 
     const setups = Array.from(new Set(trades.map((t) => t.setup_type).filter(Boolean))).sort();
     setupSel.innerHTML =
       '<option value="all">All</option>' +
       setups.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(prettifyTag(s))}</option>`).join("");
-
-    durSel.innerHTML =
-      '<option value="all">All</option>' +
-      DURATION_BUCKETS.map((b, i) => `<option value="${i}">${escapeHtml(b.label)}</option>`).join("");
 
     const tagSet = new Set();
     trades.forEach((t) => (t.lesson_tags || []).forEach((tag) => tagSet.add(tag)));
@@ -1200,10 +1191,58 @@
       ? tags.map((tag) => `<label><input type="checkbox" value="${escapeHtml(tag)}"> ${escapeHtml(prettifyTag(tag))}</label>`).join("")
       : '<div class="tags-panel-empty">No tags logged yet.</div>';
 
+    // The actual span of logged trades -- what "Clear filters" resets the
+    // date range back to, and what a fresh (no-URL-state) visit starts
+    // from, instead of a frozen, hand-typed placeholder date.
+    const defaultFrom = trades.length ? trades[0].trade_date : "";
+    const defaultTo = trades.length ? trades[trades.length - 1].trade_date : "";
+
+    // Restore a search from the URL if we're coming back here (Back
+    // button from trade.html) instead of landing fresh -- same NavState
+    // pattern used for the calendar/day-view above. Without this, every
+    // trip into a trade and back reset the whole filter bar, and typing
+    // the exact same search again was the only way to get back to where
+    // you were.
+    function parseNum(v) { const n = parseFloat(v); return Number.isFinite(n) ? n : null; }
+    reportFilters.symbol = NavState.get("rsym", "");
+    reportFilters.setup = NavState.get("rsetup", "all");
+    reportFilters.durationMin = parseNum(NavState.get("rdmin", ""));
+    reportFilters.durationMax = parseNum(NavState.get("rdmax", ""));
+    const urlTags = NavState.get("rtags", "");
+    reportFilters.tags = urlTags ? urlTags.split(",").filter((t) => tags.includes(t)) : [];
+    reportFilters.dateFrom = NavState.get("rfrom", defaultFrom);
+    reportFilters.dateTo = NavState.get("rto", defaultTo);
+
+    symbolInput.value = reportFilters.symbol;
+    if (Array.from(setupSel.options).some((o) => o.value === reportFilters.setup)) setupSel.value = reportFilters.setup;
+    else reportFilters.setup = setupSel.value = "all";
+    durMinInput.value = reportFilters.durationMin === null ? "" : reportFilters.durationMin;
+    durMaxInput.value = reportFilters.durationMax === null ? "" : reportFilters.durationMax;
+    dateFromInput.value = reportFilters.dateFrom;
+    dateToInput.value = reportFilters.dateTo;
+    tagsPanel.querySelectorAll("input[type=checkbox]").forEach((cb) => { cb.checked = reportFilters.tags.includes(cb.value); });
+    tagsToggle.textContent = reportFilters.tags.length ? `${reportFilters.tags.length} selected` : "All tags";
+
+    // Writes the whole filter bar into the URL (via NavState) so it
+    // survives the round trip through a trade page and back.
+    function persistFilters() {
+      NavState.set({
+        rsym: reportFilters.symbol || null,
+        rsetup: reportFilters.setup === "all" ? null : reportFilters.setup,
+        rdmin: reportFilters.durationMin === null ? null : reportFilters.durationMin,
+        rdmax: reportFilters.durationMax === null ? null : reportFilters.durationMax,
+        rtags: reportFilters.tags.length ? reportFilters.tags.join(",") : null,
+        rfrom: reportFilters.dateFrom === defaultFrom ? null : reportFilters.dateFrom,
+        rto: reportFilters.dateTo === defaultTo ? null : reportFilters.dateTo,
+      });
+    }
+
     symbolInput.addEventListener("input", (e) => { reportFilters.symbol = e.target.value.trim(); });
-    sideSel.addEventListener("change", (e) => { reportFilters.side = e.target.value; });
     setupSel.addEventListener("change", (e) => { reportFilters.setup = e.target.value; });
-    durSel.addEventListener("change", (e) => { reportFilters.duration = e.target.value; });
+    durMinInput.addEventListener("input", (e) => { reportFilters.durationMin = parseNum(e.target.value); });
+    durMaxInput.addEventListener("input", (e) => { reportFilters.durationMax = parseNum(e.target.value); });
+    dateFromInput.addEventListener("change", (e) => { reportFilters.dateFrom = e.target.value || defaultFrom; });
+    dateToInput.addEventListener("change", (e) => { reportFilters.dateTo = e.target.value || defaultTo; });
 
     tagsToggle.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1220,25 +1259,31 @@
 
     const clearBtn = document.getElementById("report-filter-clear");
     if (clearBtn) clearBtn.addEventListener("click", () => {
-      reportFilters = { symbol: "", tags: [], side: "all", duration: "all", setup: "all" };
+      reportFilters = { symbol: "", tags: [], durationMin: null, durationMax: null, setup: "all", dateFrom: defaultFrom, dateTo: defaultTo };
       symbolInput.value = "";
-      sideSel.value = "all";
       setupSel.value = "all";
-      durSel.value = "all";
+      durMinInput.value = "";
+      durMaxInput.value = "";
+      dateFromInput.value = defaultFrom;
+      dateToInput.value = defaultTo;
       tagsPanel.querySelectorAll("input:checked").forEach((cb) => (cb.checked = false));
       tagsToggle.textContent = "All tags";
+      persistFilters();
       applyReportFiltersAndRender();
     });
 
     const applyBtn = document.getElementById("report-filter-apply");
-    if (applyBtn) applyBtn.addEventListener("click", () => applyReportFiltersAndRender());
+    if (applyBtn) applyBtn.addEventListener("click", () => {
+      persistFilters();
+      applyReportFiltersAndRender();
+    });
 
     // Daily/Weekly/Monthly/Yearly rollup switcher for the "Trade
     // distribution & performance by <period>" charts -- same underlying
     // aggregation as before (renderPeriodDistPerf), just grouped by a
     // different date-key. Routed through applyReportFiltersAndRender()
     // (not called directly) so a timeframe switch still respects
-    // whatever report filters (symbol/side/setup/etc.) are active.
+    // whatever report filters (symbol/setup/duration/date/etc.) are active.
     const periodSelect = document.getElementById("report-period-select");
     if (periodSelect) {
       periodSelect.value = reportPeriodTimeframe;

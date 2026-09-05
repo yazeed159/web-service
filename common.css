@@ -400,7 +400,7 @@ button { font-family: var(--sans); }
 .cal-summary-cells .cell .value { font-family: var(--mono); font-size: 13px; font-weight: 700; }
 .cal-summary-comm { font-size: 11px; color: var(--text-faint); padding: 6px 2px 0; }
 
-.cal-grid { display: grid; grid-template-columns: 0.7fr repeat(5, 1fr); gap: 8px; }
+.cal-grid { display: grid; grid-template-columns: repeat(5, 1fr) 0.7fr; gap: 8px; }
 .cal-dow { text-align: center; font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; padding-bottom: 4px; }
 .cal-week-box {
   min-height: 118px; border-radius: var(--radius-sm); background: var(--surface-2, var(--panel)); border: 1px solid var(--border-soft);
@@ -409,6 +409,8 @@ button { font-family: var(--sans); }
 .cal-week-box .week-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 600; margin-bottom: 6px; }
 .cal-week-box .week-pnl { font-family: var(--mono); font-size: 16px; font-weight: 700; }
 .cal-week-box .week-count { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+.cal-week-box .week-subline { display: block; font-size: 11px; color: var(--text-faint); margin-top: 3px; line-height: 1.35; }
+.cal-week-box .week-subline .up, .cal-week-box .week-subline .down { font-weight: 600; }
 .cal-week-box .week-empty { font-size: 13px; color: var(--text-faint); }
 .cal-week-box.win .week-pnl { color: var(--green); }
 .cal-week-box.loss .week-pnl { color: var(--red); }
@@ -635,7 +637,10 @@ select.filter-input:hover{border-color:var(--text-faint);}
 select.filter-input:focus{
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b7cf6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
 }
-.date-range .filter-input{min-width:190px;border-color:var(--green);color:var(--green);}
+.range-inputs{display:flex;align-items:center;gap:6px;}
+.range-sep{color:var(--text-dim);font-size:12px;}
+.duration-field .filter-input{min-width:64px;width:64px;}
+.date-range .filter-input{min-width:130px;border-color:var(--green);color:var(--green);}
 .btn-advanced{background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer;}
 .btn-icon{background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:6px;width:34px;height:34px;cursor:pointer;}
 .btn-confirm{

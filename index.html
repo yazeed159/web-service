@@ -248,20 +248,25 @@
             <button type="button" class="filter-input tags-toggle" id="report-filter-tags-toggle">All tags</button>
             <div class="tags-panel" id="report-filter-tags-panel"></div>
           </div>
-          <div class="filter-field">
-            <label>Side</label>
-            <select class="filter-input" id="report-filter-side"><option value="all">All</option></select>
-          </div>
-          <div class="filter-field">
-            <label>Duration</label>
-            <select class="filter-input" id="report-filter-duration"><option value="all">All</option></select>
+          <div class="filter-field duration-field">
+            <label>Duration (min)</label>
+            <div class="range-inputs">
+              <input type="number" min="0" step="1" placeholder="Min" class="filter-input" id="report-filter-duration-min" />
+              <span class="range-sep">–</span>
+              <input type="number" min="0" step="1" placeholder="Max" class="filter-input" id="report-filter-duration-max" />
+            </div>
           </div>
           <div class="filter-field">
             <label>Setup</label>
             <select class="filter-input" id="report-filter-setup"><option value="all">All</option></select>
           </div>
           <div class="filter-field date-range">
-            <input type="text" class="filter-input" value="Jan/01/26 - Aug/07/26" readonly />
+            <label>Date range</label>
+            <div class="range-inputs">
+              <input type="date" class="filter-input" id="report-filter-date-from" />
+              <span class="range-sep">–</span>
+              <input type="date" class="filter-input" id="report-filter-date-to" />
+            </div>
           </div>
           <button class="btn-advanced">Advanced</button>
           <button class="btn-icon" id="report-filter-clear" title="Clear filters">🗑</button>
