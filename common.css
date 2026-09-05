@@ -429,21 +429,21 @@ button { font-family: var(--sans); }
    the column like the full Day View grid these classes are shared with.
    Day cells stay square (aspect-ratio) so it still reads as a calendar;
    the week-total column just stretches to match that row height. */
-.cal-mini-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
-.cal-grid.cal-mini { width: 100%; max-width: 210px; gap: 2px; grid-template-columns: repeat(5, 1fr) 0.8fr; align-content: start; }
-.cal-grid.cal-mini .cal-dow { font-size: 7px; padding-bottom: 1px; }
+.cal-mini-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+.cal-grid.cal-mini { width: 100%; max-width: 320px; gap: 4px; grid-template-columns: repeat(5, 1fr) 0.8fr; align-content: start; }
+.cal-grid.cal-mini .cal-dow { font-size: 9px; padding-bottom: 2px; }
 .cal-grid.cal-mini .cal-cell {
-  aspect-ratio: 1 / 1; min-height: 0; padding: 2px 2px; border-radius: 3px;
+  aspect-ratio: 1 / 1; min-height: 0; padding: 4px; border-radius: 5px;
   align-items: center; justify-content: center; text-align: center;
 }
-.cal-grid.cal-mini .cal-week-box { min-height: 0; padding: 2px 2px; border-radius: 3px; align-items: center; text-align: center; }
-.cal-grid.cal-mini .cal-cell .date-num { font-size: 8px; margin-bottom: 0; }
-.cal-grid.cal-mini .cal-cell .cell-pnl { font-size: 9px; margin-top: 0; line-height: 1.05; }
-.cal-grid.cal-mini .cal-cell .cell-count { font-size: 6px; margin-top: 0; line-height: 1.05; }
-.cal-grid.cal-mini .cal-week-box .week-label { font-size: 5.5px; margin-bottom: 0; }
-.cal-grid.cal-mini .cal-week-box .week-pnl { font-size: 9px; }
-.cal-grid.cal-mini .cal-week-box .week-count { font-size: 6px; margin-top: 0; }
-.cal-grid.cal-mini .cal-week-box .week-empty { font-size: 8px; }
+.cal-grid.cal-mini .cal-week-box { min-height: 0; padding: 4px; border-radius: 5px; align-items: center; text-align: center; }
+.cal-grid.cal-mini .cal-cell .date-num { font-size: 10px; margin-bottom: 0; }
+.cal-grid.cal-mini .cal-cell .cell-pnl { font-size: 12px; margin-top: 1px; line-height: 1.1; }
+.cal-grid.cal-mini .cal-cell .cell-count { font-size: 8px; margin-top: 1px; line-height: 1.1; }
+.cal-grid.cal-mini .cal-week-box .week-label { font-size: 7px; margin-bottom: 1px; }
+.cal-grid.cal-mini .cal-week-box .week-pnl { font-size: 12px; }
+.cal-grid.cal-mini .cal-week-box .week-count { font-size: 8px; margin-top: 1px; }
+.cal-grid.cal-mini .cal-week-box .week-empty { font-size: 10px; }
 
 /* Trader score + This month, side by side */
 .dash-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; align-items: stretch; }
