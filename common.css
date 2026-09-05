@@ -424,20 +424,31 @@ button { font-family: var(--sans); }
 
 /* Compact "mini" variant -- dashboard's "This month" glance. Net P&L +
    trade count only (no gross/comm sublines, see opts.compact in
-   buildMonthGridHtml), and a much smaller footprint than the full Day View
-   grid these classes are shared with. */
-.cal-grid.cal-mini { gap: 4px; }
-.cal-grid.cal-mini .cal-dow { font-size: 9px; padding-bottom: 2px; }
-.cal-grid.cal-mini .cal-cell,
-.cal-grid.cal-mini .cal-week-box { min-height: 42px; padding: 4px 6px; border-radius: calc(var(--radius-sm) - 2px); }
-.cal-grid.cal-mini .cal-cell .date-num { font-size: 10px; margin-bottom: 2px; }
-.cal-grid.cal-mini .cal-cell .cell-pnl { font-size: 11px; margin-top: 0; }
-.cal-grid.cal-mini .cal-cell .cell-count { font-size: 9px; margin-top: 0; }
-.cal-grid.cal-mini .cal-week-box { padding: 4px 8px; }
-.cal-grid.cal-mini .cal-week-box .week-label { font-size: 7px; margin-bottom: 2px; }
-.cal-grid.cal-mini .cal-week-box .week-pnl { font-size: 11px; }
-.cal-grid.cal-mini .cal-week-box .week-count { font-size: 9px; margin-top: 0; }
-.cal-grid.cal-mini .cal-week-box .week-empty { font-size: 10px; }
+   buildMonthGridHtml), sized to sit inside .panel-box-square next to
+   Trader score rather than the full Day View grid these classes are
+   shared with. Day cells are forced square (aspect-ratio) so the grid
+   reads as a real calendar even at this size; the week-total column
+   just stretches to match that row height. */
+.cal-grid.cal-mini { gap: 3px; grid-template-columns: repeat(5, 1fr) 0.8fr; align-content: start; }
+.cal-grid.cal-mini .cal-dow { font-size: 8px; padding-bottom: 2px; }
+.cal-grid.cal-mini .cal-cell {
+  aspect-ratio: 1 / 1; min-height: 0; padding: 3px 4px; border-radius: calc(var(--radius-sm) - 2px);
+  align-items: center; justify-content: center; text-align: center;
+}
+.cal-grid.cal-mini .cal-week-box { min-height: 0; padding: 3px 4px; border-radius: calc(var(--radius-sm) - 2px); align-items: center; text-align: center; }
+.cal-grid.cal-mini .cal-cell .date-num { font-size: 9px; margin-bottom: 0; }
+.cal-grid.cal-mini .cal-cell .cell-pnl { font-size: 10px; margin-top: 1px; line-height: 1.1; }
+.cal-grid.cal-mini .cal-cell .cell-count { font-size: 7px; margin-top: 1px; line-height: 1.1; }
+.cal-grid.cal-mini .cal-week-box .week-label { font-size: 6px; margin-bottom: 1px; }
+.cal-grid.cal-mini .cal-week-box .week-pnl { font-size: 10px; }
+.cal-grid.cal-mini .cal-week-box .week-count { font-size: 7px; margin-top: 1px; }
+.cal-grid.cal-mini .cal-week-box .week-empty { font-size: 9px; }
+
+/* Trader score + This month, side by side */
+.dash-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; align-items: stretch; }
+.dash-two-col .panel-box { margin-top: 0; }
+.panel-box-square { display: flex; flex-direction: column; }
+.panel-box-square .cal-grid.cal-mini { flex: 1; }
 
 .day-detail-panel { margin-top: 20px; }
 .day-detail-panel .panel-box-head .title { font-size: 13px; color: var(--text); text-transform: none; letter-spacing: 0; font-weight: 700; }
@@ -582,6 +593,9 @@ body:has(.sidebar.mobile-open) { overflow: hidden; }
   /* Trader score: stack the gauge above the breakdown instead of side-by-side */
   .score-wrap { flex-direction: column; align-items: flex-start; gap: 16px; }
   .score-breakdown { width: 100%; }
+
+  /* Dashboard: stack Trader score / This month instead of squeezing both into one row */
+  .dash-two-col { grid-template-columns: 1fr; gap: 14px; }
 
   /* Charts: shorter so they don't dominate a phone screen */
   #candle-chart { height: 280px; }
