@@ -575,6 +575,18 @@ button { font-family: var(--sans); }
 .pill { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11.5px; font-weight: 500; background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim); }
 .symbol-card .sym-desc { font-size: 13.5px; line-height: 1.65; color: var(--text-dim); }
 
+/* ---------- Chart top-left info overlay (float + live volume readout) ---------- */
+.chart-info-overlay {
+  position: absolute; top: 8px; left: 10px; z-index: 3; pointer-events: none;
+  display: flex; flex-direction: column; gap: 2px;
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.5;
+}
+.chart-info-overlay .row { display: flex; gap: 6px; align-items: baseline; }
+.chart-info-overlay .k { color: var(--text-faint); }
+.chart-info-overlay .v { color: var(--text); font-weight: 600; }
+.chart-info-overlay .v.up { color: var(--green); }
+.chart-info-overlay .v.down { color: var(--red); }
+
 /* ---------- Footer ---------- */
 .footer { text-align: center; padding: 32px 20px; color: var(--text-faint); font-size: 12px; }
 

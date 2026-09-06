@@ -588,7 +588,7 @@
       case "chart":
         return Array.isArray(t.bars) && t.bars.length
           ? `<button type="button" class="rpt-view-chart-btn" data-trade-idx="${idx}">View Chart</button>`
-          : `<button type="button" class="rpt-view-chart-btn" disabled title="Send this run to the AI Journal first to get a chart for this trade">View Chart</button>`;
+          : `<button type="button" class="rpt-view-chart-btn" disabled title="Charts render automatically after a backtest; if this one is still missing, use 'Generate Trade Charts' above">View Chart</button>`;
       default: return escapeHtml(t[key] != null ? t[key] : "—");
     }
   }
@@ -715,7 +715,7 @@
     els.sendJournal.disabled = true;
     const original = els.sendJournal.textContent;
     els.sendJournal.textContent = "Sending…";
-    els.toolbarStatus.textContent = `Sending ${trades.length} trade${trades.length === 1 ? "" : "s"} to the AI Journal…`;
+    els.toolbarStatus.textContent = `Requesting charts for ${trades.length} trade${trades.length === 1 ? "" : "s"}…`;
     fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -724,6 +724,15 @@
           label: currentReport.label, source: "backtest", job_id: currentId,
           callback_url: `${API()}/backtest/history/${currentId}/enrich`,
           started: trades[0] ? trades[0].date : null, ended: trades[trades.length - 1] ? trades[trades.length - 1].date : null,
+          // Charts for every trade now get generated automatically as soon
+          // as the backtest itself finishes (see autoGenerateCharts in
+          // backtester.js) -- this button is mainly a manual retry/backfill
+          // for older runs. chart_only:true skips the vision-LLM verdict
+          // step server-side (chart_service.py) so this never spends AI
+          // tokens grading a backtest trade, just renders the candlestick
+          // chart + entry/exit price lines from the same Polygon bars either
+          // path needs anyway.
+          chart_only: true,
         },
         trades: trades.map((t) => ({
           date: t.date, symbol: t.symbol, entry_time: t.entry_time, entry_price: t.entry_price,
@@ -772,12 +781,12 @@
               els.toolbarStatus.textContent = "Some trades are still missing charts — this may still be running or hit an error partway through; reload this page in a bit to check again.";
               return;
             }
-            els.toolbarStatus.textContent = `Sent ${n} trade${n === 1 ? "" : "s"} to the AI Journal — charts will appear here as they finish (checking again in ${POLL_MS / 1000}s)…`;
+            els.toolbarStatus.textContent = `Requested charts for ${n} trade${n === 1 ? "" : "s"} — they will appear here as they finish (checking again in ${POLL_MS / 1000}s)…`;
             setTimeout(poll, POLL_MS);
           });
         }
 
-        els.toolbarStatus.textContent = `Sent ${n} trade${n === 1 ? "" : "s"} to the AI Journal — charts will appear here once it finishes (this page will refresh automatically).`;
+        els.toolbarStatus.textContent = `Requested charts for ${n} trade${n === 1 ? "" : "s"} — they will appear here once it finishes (this page will refresh automatically).`;
         setTimeout(poll, POLL_MS);
       })
       .catch((err) => { els.toolbarStatus.textContent = `Couldn't send to journal (${err.message}).`; })
@@ -793,7 +802,7 @@
   // drawn client-side from the raw bar data.
   let rptCandleChart = null, rptMacdChart = null, rptRepositionPointers = null;
 
-  function toUnix(t) { return Math.floor(new Date(String(t).replace(" ", "T")).getTime() / 1000); }
+  function toUnix(t) { return Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000); }
 
   function closeTradeChart() {
     els.chartModal.style.display = "none";

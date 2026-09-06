@@ -19,6 +19,50 @@
   // button (added further down, after the chart already exists on the
   // page) can draw price lines onto it without re-plumbing chart creation.
   let srCandleSeries = null;
+  // Tracked so buildCharts() can dispose the previous chart instance when
+  // it's re-run with a wider bars array (see the "Show full day" button
+  // below), and so the resize handler always resizes whichever chart is
+  // actually live instead of one that's already been torn down.
+  let currentCandleChart = null;
+  let currentMacdChart = null;
+  let chartResizeListenerAttached = false;
+
+  // "Show full day" -- widens the chart past the narrow window that got
+  // stored with this trade, by pulling the rest of that symbol's session
+  // from chart_service.py's /full-day-bars route. That route shares its
+  // Polygon fetch + cache with /generate-chart (keyed by symbol+trade_date
+  // -- see chart_service.py's _get_cached_raw_bars), so this only ever
+  // costs a Polygon call the FIRST time anyone asks for that symbol+day;
+  // a second trade that happened to trade the same symbol that day, or a
+  // repeat click here, is served from that cache. sessionStorage below is
+  // just a second, client-side layer of the same idea -- re-opening the
+  // same trade (or a sibling trade sharing the symbol+day) in this tab
+  // doesn't even make the network round trip twice.
+  const FULL_DAY_CACHE_PREFIX = "chartSvc:fullDay:";
+  function fetchFullDayBars(symbol, tradeDate) {
+    const cacheKey = FULL_DAY_CACHE_PREFIX + symbol + ":" + tradeDate;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) return Promise.resolve(JSON.parse(cached));
+    } catch (e) { /* sessionStorage unavailable/full -- fall through to network */ }
+
+    const base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
+    if (!base) return Promise.reject(new Error("CHART_SERVICE_URL isn't set in config.js"));
+    return fetch(`${base}/full-day-bars`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+      body: JSON.stringify({ symbol, trade_date: tradeDate }),
+    })
+      .then((r) => r.json().then((data) => {
+        if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+        return data;
+      }))
+      .then((data) => {
+        const bars = Array.isArray(data.bars) ? data.bars : [];
+        try { sessionStorage.setItem(cacheKey, JSON.stringify(bars)); } catch (e) { /* quota, etc -- fine, just skip caching */ }
+        return bars;
+      });
+  }
   // Every drawSrLevelsOnChart() call adds new createPriceLine()s without
   // ever removing the last batch -- clicking "Analyze support/resistance"
   // more than once (re-running after the first result, or just curiosity)
@@ -106,7 +150,7 @@
     return sign + Math.abs(cents).toFixed(1) + "¢";
   }
   function toUnix(t) {
-    return Math.floor(new Date(t.replace(" ", "T") + "").getTime() / 1000);
+    return Math.floor(new Date(t.replace(" ", "T") + "Z").getTime() / 1000);
   }
   // Compact share-count formatting for the About card -- 18,500,000 -> "18.5M".
   function fmtShares(n) {
@@ -213,6 +257,10 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               Practice
             </a>
+            <button class="icon-btn icon-btn-visible" id="full-day-btn" title="Load this symbol's whole session so you can zoom/pan out past the trade window" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M15 3h6v6"></path><path d="M9 21H3v-6"></path><path d="M21 3l-7 7"></path><path d="M3 21l7-7"></path></svg>
+              Full day
+            </button>
             <button class="icon-btn icon-btn-visible" id="export-chart-btn" title="Export chart as PNG" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
               PNG
@@ -323,6 +371,27 @@
     const srBtn = document.getElementById("sr-run-btn");
     if (srBtn) {
       srBtn.addEventListener("click", () => runSupportResistance(trade, srBtn));
+    }
+
+    const fullDayBtn = document.getElementById("full-day-btn");
+    if (fullDayBtn) {
+      fullDayBtn.addEventListener("click", () => {
+        if (fullDayBtn.disabled) return;
+        fullDayBtn.disabled = true;
+        const original = fullDayBtn.innerHTML;
+        fullDayBtn.innerHTML = "Loading…";
+        fetchFullDayBars(trade.symbol, trade.trade_date)
+          .then((fullBars) => {
+            if (!fullBars.length) throw new Error("No bars came back");
+            buildCharts(trade, fullBars);
+            fullDayBtn.innerHTML = "Full day loaded";
+          })
+          .catch((err) => {
+            fullDayBtn.innerHTML = original;
+            fullDayBtn.disabled = false;
+            fullDayBtn.title = "Couldn't load the full day: " + err.message;
+          });
+      });
     }
   }
 
@@ -505,8 +574,19 @@
     return `<li style="margin-bottom:8px; font-size:12.5px;">${escapeHtml(l.lesson || l.text || "")}${tagBadge}${how}</li>`;
   }
 
-  function buildCharts(trade) {
-    const bars = trade.bars;
+  function buildCharts(trade, overrideBars) {
+    // overrideBars lets the "Show full day" button re-run this whole
+    // function against a wider bars array instead of duplicating all the
+    // series/marker/price-line setup below just to widen the data.
+    const bars = (overrideBars && overrideBars.length) ? overrideBars : trade.bars;
+
+    // Dispose whatever chart instance is already sitting in these
+    // containers before creating a new one -- otherwise a second
+    // buildCharts() call (the full-day rebuild) would stack a second
+    // canvas inside each div rather than replacing the first.
+    if (currentCandleChart) { try { currentCandleChart.remove(); } catch (e) {} currentCandleChart = null; }
+    if (currentMacdChart) { try { currentMacdChart.remove(); } catch (e) {} currentMacdChart = null; }
+
     const candleData = bars.map((b) => ({ time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c }));
     const volData = bars.map((b) => ({ time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" }));
     const vwapData = bars.map((b) => ({ time: toUnix(b.t), value: b.vwap }));
@@ -530,6 +610,7 @@
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     };
     const candleChart = LightweightCharts.createChart(candleEl, { ...commonOpts, width: candleEl.clientWidth, height: 420 });
+    currentCandleChart = candleChart;
 
     const candleSeries = candleChart.addCandlestickSeries({
       upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
@@ -559,6 +640,32 @@
     const volSeries = candleChart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol" });
     candleChart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     volSeries.setData(volData);
+
+    // Top-left info overlay: float (static, from indicators -- same field
+    // the "About" card's volumeFloatPills reads) plus a live volume
+    // readout that tracks the crosshair the way a broker platform's OHLCV
+    // legend does. Falls back to the last bar's volume when nothing is
+    // hovered, so the readout is never blank.
+    candleEl.style.position = "relative";
+    let infoOverlay = candleEl.querySelector(".chart-info-overlay");
+    if (!infoOverlay) {
+      infoOverlay = document.createElement("div");
+      infoOverlay.className = "chart-info-overlay";
+      candleEl.appendChild(infoOverlay);
+    }
+    const floatShares = (trade.indicators || {}).float_shares;
+    const floatRow = floatShares
+      ? `<div class="row"><span class="k">Float</span><span class="v">${fmtShares(floatShares)}</span></div>`
+      : "";
+    const volRowHtml = (vol, color) =>
+      `<div class="row"><span class="k">Vol</span><span class="v${color ? ` ${color}` : ""}">${vol == null ? "—" : Number(vol).toLocaleString()}</span></div>`;
+    infoOverlay.innerHTML = floatRow + volRowHtml(volData.length ? volData[volData.length - 1].value : null);
+    candleChart.subscribeCrosshairMove((param) => {
+      const bar = param.seriesData && param.seriesData.get(volSeries);
+      const vol = bar ? bar.value : (volData.length ? volData[volData.length - 1].value : null);
+      const upDown = bar ? (bar.color && bar.color.indexOf("47,208,138") !== -1 ? "up" : "down") : "";
+      infoOverlay.innerHTML = floatRow + volRowHtml(vol, upDown);
+    });
 
     candleChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(vwapData);
     candleChart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema9Data);
@@ -921,6 +1028,7 @@
 
     const macdEl = document.getElementById("macd-chart");
     const macdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: 110 });
+    currentMacdChart = macdChart;
     macdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } }).setData(histData);
     macdChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(macdData);
     macdChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(signalData);
@@ -931,18 +1039,28 @@
     candleChart.timeScale().fitContent();
     macdChart.timeScale().fitContent();
 
-    window.addEventListener("resize", () => {
-      candleChart.applyOptions({ width: candleEl.clientWidth });
-      macdChart.applyOptions({ width: macdEl.clientWidth });
-    });
+    // Attached once ever (buildCharts can now re-run for the full-day
+    // rebuild) -- reads currentCandleChart/currentMacdChart live rather
+    // than closing over this call's candleChart/macdChart, so it always
+    // resizes whichever chart instance is actually on screen.
+    if (!chartResizeListenerAttached) {
+      chartResizeListenerAttached = true;
+      window.addEventListener("resize", () => {
+        if (currentCandleChart) currentCandleChart.applyOptions({ width: candleEl.clientWidth });
+        if (currentMacdChart) currentMacdChart.applyOptions({ width: macdEl.clientWidth });
+      });
+    }
 
     const exportBtn = document.getElementById("export-chart-btn");
-    if (exportBtn) {
+    if (exportBtn && !exportBtn.dataset.wired) {
+      exportBtn.dataset.wired = "1";
       exportBtn.addEventListener("click", () => {
         // takeScreenshot() renders the chart's current view (whatever
         // zoom/pan the user has it at) to a canvas -- export what they're
-        // actually looking at, not a fixed default view.
-        const canvas = candleChart.takeScreenshot();
+        // actually looking at, not a fixed default view. Read the live
+        // chart off currentCandleChart (not the candleChart this listener
+        // closed over) in case a full-day rebuild has replaced it since.
+        const canvas = currentCandleChart.takeScreenshot();
         canvas.toBlob((blob) => {
           if (!blob) return;
           const url = URL.createObjectURL(blob);

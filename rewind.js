@@ -92,7 +92,7 @@
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
   function toUnix(t) {
-    return Math.floor(new Date(String(t).replace(" ", "T") + "").getTime() / 1000);
+    return Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000);
   }
   function fmtPrice(v) {
     if (v === null || v === undefined || !Number.isFinite(Number(v))) return "—";
@@ -263,6 +263,37 @@
     if (!base || base.includes("YOUR-NGROK-SUBDOMAIN")) return "";
     return base;
   }
+  // "Show full day" on the post-answer reveal chart -- pulls the rest of
+  // that symbol's session from chart_service.py's /full-day-bars route,
+  // same route/cache trade.js's "Full day" button uses. Only ever fired
+  // by that button click (after a question's already been answered), so
+  // it never affects the watch-stage playback pacing, which stays on
+  // c.bars/c.entryIdx/c.watchIdx exactly as before.
+  const FULL_DAY_CACHE_PREFIX = "chartSvc:fullDay:";
+  function fetchFullDayBars(symbol, tradeDate) {
+    const cacheKey = FULL_DAY_CACHE_PREFIX + symbol + ":" + tradeDate;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) return Promise.resolve(JSON.parse(cached));
+    } catch (e) { /* sessionStorage unavailable/full -- fall through to network */ }
+    const base = chartServiceBase();
+    if (!base) return Promise.reject(new Error("CHART_SERVICE_URL isn't set in config.js"));
+    return fetch(`${base}/full-day-bars`, {
+      method: "POST",
+      headers: CHART_SERVICE_FETCH_HEADERS,
+      body: JSON.stringify({ symbol, trade_date: tradeDate }),
+    })
+      .then((r) => r.json().then((data) => {
+        if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+        return data;
+      }))
+      .then((data) => {
+        const bars = Array.isArray(data.bars) ? data.bars : [];
+        try { sessionStorage.setItem(cacheKey, JSON.stringify(bars)); } catch (e) {}
+        return bars;
+      });
+  }
+
   function fetchRealTicks(symbol, startUnix, endUnix) {
     const base = chartServiceBase();
     if (!base || !(endUnix > startUnix)) return Promise.resolve(null);
@@ -1217,11 +1248,20 @@
     });
 
     // When two pointers land on (near enough) the same bar and price --
-    // e.g. you exited right on the real exit bar, or your stop got hit
-    // exactly at another marked level -- they'd stack exactly on top of
-    // each other, and whichever was appended last would fully cover (and
-    // block hover/tap on) the one underneath. Fan same-side clusters out
-    // horizontally so every pointer stays visible and reachable.
+    // e.g. your test entry filled at the exact same price/bar as the real
+    // entry, which happens on almost every "perfect fill" -- they'd stack
+    // exactly on top of each other, and whichever was appended last would
+    // fully cover (and block hover/tap on) the one underneath.
+    //
+    // Used to fan colliding pointers out sideways (offsetX), but that
+    // shifts the marker's X position away from the bar it's actually
+    // pinned to -- at a normal zoom level a candle is only a few pixels
+    // wide, so even one collision could push a pointer onto a neighboring
+    // candle entirely, which read as the pointer being "bugged" and
+    // floating off to the side. Stacking vertically instead (offsetY, in
+    // the same above/below direction the pointer already points) keeps X
+    // exactly pinned to the correct bar always -- collisions just stack
+    // like a small ladder further from the candle, never sideways from it.
     const CLUSTER_PX = 10;
     const FAN_PX = 14;
     function reposition() {
@@ -1233,25 +1273,25 @@
         }));
         const placed = [];
         computed.forEach((item) => {
-          if (item.x == null || item.y == null) { item.offsetX = 0; return; }
+          if (item.x == null || item.y == null) { item.offsetY = 0; return; }
           const mates = placed.filter((u) => u.p.above === item.p.above && Math.abs(u.x - item.x) < CLUSTER_PX && Math.abs(u.y - item.y) < CLUSTER_PX);
-          item.offsetX = mates.length * FAN_PX;
+          item.offsetY = mates.length * FAN_PX;
           placed.push(item);
         });
-        computed.forEach(({ p, x, y, offsetX }) => {
+        computed.forEach(({ p, x, y, offsetY }) => {
           if (x == null || y == null) {
             p.el.style.display = "none";
             if (p.tooltip) { p.tooltip.style.display = "none"; p.tooltip.dataset.open = "0"; }
             return;
           }
-          const px = x + (offsetX || 0);
           p.el.style.display = "block";
-          p.el.style.left = `${px}px`;
-          const pointerTop = p.above ? y - POINTER_H : y;
+          p.el.style.left = `${x}px`;
+          const stackedY = p.above ? y - (offsetY || 0) : y + (offsetY || 0);
+          const pointerTop = p.above ? stackedY - POINTER_H : stackedY;
           p.el.style.top = `${pointerTop}px`;
           p.el.style.transform = "translateX(-50%)";
           if (p.tooltip && p.tooltip.dataset.open === "1") {
-            p.tooltip.style.left = `${px + 8}px`;
+            p.tooltip.style.left = `${x + 8}px`;
             p.tooltip.style.top = `${p.above ? pointerTop - 8 : pointerTop + POINTER_H + 8}px`;
             p.tooltip.style.transform = p.above ? "translateY(-100%)" : "none";
           }
@@ -1885,8 +1925,8 @@
     // second instead of showing up as an already-closed candle.
     const historyBars = c.bars.slice(0, c.watchIdx);
     const watchPriceLines = [
-      { key: "entry", price: entryPrice, color: COLOR_YOUR_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "your entry" },
-      { key: "stop", price: c.stopPrice, color: COLOR_YOUR_STOP, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your stop" },
+      { key: "entry", price: entryPrice, color: COLOR_YOUR_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lineVisible: false, axisLabelVisible: true, title: "your entry" },
+      { key: "stop", price: c.stopPrice, color: COLOR_YOUR_STOP, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: false, axisLabelVisible: true, title: "your stop" },
     ];
     // Deliberately no "real entry"/"real exit" lines or pointers here --
     // the trade is still live at this stage, and showing where the real
@@ -2334,14 +2374,14 @@
     });
 
     const priceLines = [
-      { price: trade.entry_price, color: COLOR_REAL_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "real entry" },
-      { price: trade.exit_price, color: COLOR_REAL_EXIT, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "real exit" },
+      { price: trade.entry_price, color: COLOR_REAL_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lineVisible: false, axisLabelVisible: true, title: "real entry" },
+      { price: trade.exit_price, color: COLOR_REAL_EXIT, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lineVisible: false, axisLabelVisible: true, title: "real exit" },
     ];
     if (c.entered && c.userEntryPrice != null) {
-      priceLines.push({ price: c.userEntryPrice, color: COLOR_YOUR_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "test entry" });
+      priceLines.push({ price: c.userEntryPrice, color: COLOR_YOUR_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: false, axisLabelVisible: true, title: "test entry" });
     }
     if (c.entered && c.stopPrice != null) {
-      priceLines.push({ price: c.stopPrice, color: COLOR_YOUR_STOP, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true, title: "your stop" });
+      priceLines.push({ price: c.stopPrice, color: COLOR_YOUR_STOP, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: false, axisLabelVisible: true, title: "your stop" });
     }
     // Each closed tranche's price gets its own line too, not just a
     // pointer -- same treatment "your stop" already got -- so every fill
@@ -2350,7 +2390,7 @@
     // "your stop".
     manualTranches.filter((e) => e.tag !== "stop").forEach((e) => {
       priceLines.push({
-        price: e.price, color: COLOR_YOUR_EXIT, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, axisLabelVisible: true,
+        price: e.price, color: COLOR_YOUR_EXIT, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: false, axisLabelVisible: true,
         title: manualTranches.length > 1 ? `exit ${e.shares} sh` : "test exit",
       });
     });
@@ -2459,6 +2499,7 @@
 
       <div class="quiz-next-row">
         <button class="btn-advanced" id="qz-replay-again-btn" type="button">↻ Retry this question</button>
+        <button class="btn-advanced" id="qz-full-day-btn" type="button" title="Load this symbol's whole session so you can zoom/pan out past the trade window">Show full day</button>
         ${trade._source === "backtest"
           ? `<span class="btn-advanced" style="opacity:.6; cursor:default;" title="Generated from a backtest run, not saved in your journal">Practice-generated setup</span>`
           : `<a class="btn-advanced" href="trade.html?id=${encodeURIComponent(trade.id)}" target="_blank" rel="noopener">Open full trade page</a>`}
@@ -2473,6 +2514,28 @@
 
     document.getElementById("qz-replay-again-btn").addEventListener("click", () => retryCurrentQuestion());
     document.getElementById("qz-next").addEventListener("click", () => { state.qIndex++; loadQuestion(); });
+    const fullDayBtn = document.getElementById("qz-full-day-btn");
+    if (fullDayBtn) {
+      fullDayBtn.addEventListener("click", () => {
+        if (fullDayBtn.disabled) return;
+        fullDayBtn.disabled = true;
+        const original = fullDayBtn.textContent;
+        fullDayBtn.textContent = "Loading…";
+        fetchFullDayBars(trade.symbol, trade.trade_date)
+          .then((fullBars) => {
+            if (!fullBars.length) throw new Error("No bars came back");
+            teardownChart(c.chartHandle);
+            c.chartHandle = buildChart(chartEl, fullBars, { height: 400, priceLines });
+            attachPointers(chartEl, c.chartHandle, pointerDefs);
+            fullDayBtn.textContent = "Full day loaded";
+          })
+          .catch((err) => {
+            fullDayBtn.textContent = original;
+            fullDayBtn.disabled = false;
+            fullDayBtn.title = "Couldn't load the full day: " + err.message;
+          });
+      });
+    }
     } catch (err) { showStageError(err); }
   }
 

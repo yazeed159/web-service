@@ -117,6 +117,9 @@
     giveback_pct: { type: "float", label: "Giveback off peak (%)" },
     giveback_arm_cents: { type: "float", label: "Arm giveback after (¢)" },
     stall_exit: { type: "bool", label: "Exit on momentum stall" },
+    allow_reentry: { type: "bool", label: "Allow multiple trades per symbol/day" },
+    max_trades_per_day: { type: "int", label: "Max trades per symbol/day" },
+    reentry_cooldown_minutes: { type: "float", label: "Re-entry cooldown (min)" },
     notes: { type: "string", label: "Strategy notes (not simulated)" },
   };
 
@@ -314,6 +317,12 @@
     if (draft.giveback_pct) exits.push(["Giveback off peak", pct(draft.giveback_pct)]);
     if (draft.stall_exit) exits.push(["Momentum stall exit", "On"]);
     if (exits.length) groups.push(["Profit Exits", exits]);
+
+    const reentry = [];
+    if (draft.allow_reentry !== undefined) reentry.push(["Multiple trades/symbol/day", draft.allow_reentry !== false ? "Yes" : "No"]);
+    if (draft.allow_reentry !== false && draft.max_trades_per_day) reentry.push(["Max trades/symbol/day", draft.max_trades_per_day]);
+    if (draft.allow_reentry !== false && draft.reentry_cooldown_minutes) reentry.push(["Re-entry cooldown", draft.reentry_cooldown_minutes + " min"]);
+    if (reentry.length) groups.push(["Re-entry", reentry]);
 
     if (draft.notes) groups.push(["Notes (not simulated -- saved with the run for reference)", [["", draft.notes]]]);
 

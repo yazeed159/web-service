@@ -21,7 +21,7 @@ window.TradeLogShare = (function () {
     return (Number(v) || 0).toFixed(1) + "%";
   }
   function toUnix(t) {
-    return Math.floor(new Date(String(t).replace(" ", "T")).getTime() / 1000);
+    return Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000);
   }
   function nowStamp() {
     const d = new Date();
@@ -220,7 +220,7 @@ ${scriptExtra || ""}
         entry_price: trade.entry_price, exit_price: trade.exit_price,
         better_entry: trade.better_entry, better_exit: trade.better_exit,
       })};
-  function toUnix(t){ return Math.floor(new Date(String(t).replace(" ","T")).getTime()/1000); }
+  function toUnix(t){ return Math.floor(new Date(String(t).replace(" ","T") + "Z").getTime()/1000); }
   function barAt(u){ var best = bars[0]; for (var i=0;i<bars.length;i++){ if (toUnix(bars[i].t) <= u) best = bars[i]; else break; } return best; }
   var el = document.getElementById("candle-chart");
   var chart = LightweightCharts.createChart(el, {

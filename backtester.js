@@ -37,6 +37,59 @@
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
+
+  // Auto-fires the same "Send to Journal" call report.js's button does,
+  // right when a run finishes here -- so by the time you open the full
+  // report, the per-trade charts are already rendering (or done) instead
+  // of needing an extra manual click first. chart_only:true tells
+  // chart_service.py's /backtest-import + /enrich to draw the candlestick
+  // chart with entry/exit price lines only (same Polygon-bar data every
+  // chart needs anyway) and SKIP the vision-LLM verdict/grading call --
+  // that's the only step of this pipeline that spends AI tokens, and nobody
+  // reads it off a backtest run. NOTE: this flag only takes effect once
+  // chart_service.py (companion chart-service repo, not part of this
+  // frontend) is updated to check for it and branch around its verdict
+  // call -- until then it's a no-op there and the full pipeline still runs.
+  // Fire-and-forget: runs once per finished job, silently skipped if
+  // N8N_BACKTEST_IMPORT_URL isn't configured, no UI blocking either way --
+  // charts show up whenever they show up when the report page is opened.
+  const autoChartedJobs = new Set();
+  function autoGenerateCharts(job) {
+    if (!job || !job.job_id || autoChartedJobs.has(job.job_id)) return;
+    const trades = job.trades || [];
+    if (!trades.length) return;
+    const url = window.N8N_BACKTEST_IMPORT_URL || "";
+    if (!url || url.includes("YOUR-")) return; // not configured -- stay quiet, same as report.js
+    autoChartedJobs.add(job.job_id);
+    fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        run: {
+          label: (els.label && els.label.value.trim()) || "backtest", source: "backtest", job_id: job.job_id,
+          callback_url: `${API()}/backtest/history/${job.job_id}/enrich`,
+          started: trades[0] ? trades[0].date : null, ended: trades[trades.length - 1] ? trades[trades.length - 1].date : null,
+          chart_only: true,
+        },
+        trades: trades.map((t) => ({
+          date: t.date, symbol: t.symbol, entry_time: t.entry_time, entry_price: t.entry_price,
+          exit_time: t.exit_time, exit_price: t.exit_price, exit_reason: t.exit_reason, shares: t.shares,
+          pnl_dollars: t.pnl_dollars, pnl_dollars_gross: t.pnl_dollars_gross, commission_total: t.commission_total,
+          r_multiple: t.r_multiple, win: t.win,
+        })),
+      }),
+    })
+      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); })
+      .then(() => {
+        els.runStatus.textContent = "Done. Trade charts are rendering in the background — open the full report in a bit to see them.";
+      })
+      .catch(() => {
+        // best effort -- don't disrupt the run's own success state over this;
+        // the manual "Generate Trade Charts" button on report.html covers a retry.
+        autoChartedJobs.delete(job.job_id);
+      });
+  }
+
   function fmtMoney(v) {
     if (typeof v !== "number") return "—";
     const sign = v >= 0 ? "+" : "-";
@@ -94,6 +147,9 @@
     givebackPct: document.getElementById("bt-giveback-pct"),
     givebackArmCents: document.getElementById("bt-giveback-arm-cents"),
     stallExit: document.getElementById("bt-stall-exit"),
+    allowReentry: document.getElementById("bt-allow-reentry"),
+    maxTradesPerDay: document.getElementById("bt-max-trades-per-day"),
+    reentryCooldownMinutes: document.getElementById("bt-reentry-cooldown-minutes"),
     runBtn: document.getElementById("bt-run-btn"),
     cancelBtn: document.getElementById("bt-cancel-btn"),
     runStatus: document.getElementById("bt-run-status"),
@@ -185,6 +241,12 @@
       giveback_pct: Number(els.givebackPct.value) || 0,
       giveback_arm_cents: Number(els.givebackArmCents.value) || 0,
       stall_exit: !!els.stallExit.checked,
+      // Re-entry: checkbox defaults checked in the HTML, so an unset/absent
+      // element still resolves true here rather than silently defaulting
+      // off, matching this feature's backend default.
+      allow_reentry: els.allowReentry ? !!els.allowReentry.checked : true,
+      max_trades_per_day: els.maxTradesPerDay ? Number(els.maxTradesPerDay.value) || 3 : 3,
+      reentry_cooldown_minutes: els.reentryCooldownMinutes ? Number(els.reentryCooldownMinutes.value) || 0 : 0,
     };
   }
 
@@ -232,6 +294,9 @@
     set(els.givebackPct, p.giveback_pct);
     set(els.givebackArmCents, p.giveback_arm_cents);
     setChk(els.stallExit, p.stall_exit);
+    setChk(els.allowReentry, p.allow_reentry !== false);
+    set(els.maxTradesPerDay, p.max_trades_per_day);
+    set(els.reentryCooldownMinutes, p.reentry_cooldown_minutes);
     // Note: no scroll call here on purpose. flashFormSections() (called
     // right after this by backtester-ai.js) does the scrolling -- having
     // both fire in the same tick made the page jump to two different
@@ -407,6 +472,7 @@
           loadHistory();
           finishRun();
           job.job_id = jobId;
+          autoGenerateCharts(job);
           if (hooks && hooks.onDone) hooks.onDone(job);
         })
         .catch((err) => {

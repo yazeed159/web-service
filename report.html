@@ -84,12 +84,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
         <span class="nav-label">Patterns</span>
       </a>
-
-      <a class="nav-item" href="quiz.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg>
-        <span class="nav-label">Quiz</span>
-      </a>
-
       <a class="nav-item" href="calculator.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="12" x2="8.01" y2="12"></line><line x1="12" y1="12" x2="12.01" y2="12"></line><line x1="16" y1="12" x2="16.01" y2="12"></line><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg>
         <span class="nav-label">Calculator</span>
@@ -184,7 +178,7 @@
         <div class="rpt-toolbar">
           <button class="filter-btn" id="rpt-export-csv">Export CSV</button>
           <button class="filter-btn" id="rpt-export-json">Export JSON</button>
-          <button class="filter-btn" id="rpt-send-journal" style="display:none;" title="Generate charts and AI verdicts for this run's trades, scoped to this report only">Send to AI Journal</button>
+          <button class="filter-btn" id="rpt-send-journal" style="display:none;" title="Generate entry/exit trade charts for this run (no AI verdict) -- charts for new runs now start automatically as soon as the backtest finishes; use this to retry or backfill an older run">Generate Trade Charts</button>
           <button class="filter-btn" id="rpt-replace-csv" style="display:none;" title="Load a different CSV into this same report page">Replace with new CSV</button>
           <button class="filter-btn danger" id="rpt-delete">Delete this report</button>
           <span id="rpt-toolbar-status" class="hint-text"></span>

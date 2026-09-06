@@ -112,12 +112,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
         <span class="nav-label">Patterns</span>
       </a>
-
-      <a class="nav-item" href="quiz.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle></svg>
-        <span class="nav-label">Quiz</span>
-      </a>
-
       <a class="nav-item" href="calculator.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="12" x2="8.01" y2="12"></line><line x1="12" y1="12" x2="12.01" y2="12"></line><line x1="16" y1="12" x2="16.01" y2="12"></line><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg>
         <span class="nav-label">Calculator</span>
@@ -337,6 +331,18 @@
           <div class="bt-field"><label class="bt-label" for="bt-giveback-pct">Giveback % of gain (0=off)</label><input type="number" id="bt-giveback-pct" value="0" min="0" max="100" step="5"></div>
           <div class="bt-field"><label class="bt-label" for="bt-giveback-arm-cents">Arm giveback after ¢</label><input type="number" id="bt-giveback-arm-cents" value="0" min="0" step="0.5"></div>
           <label class="bt-check"><input type="checkbox" id="bt-stall-exit"> Exit on momentum stall</label>
+        </div>
+      </div>
+
+      <div class="panel-box bt-section">
+        <div class="panel-box-head">
+          <span class="bt-section-icon exits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 1l4 4-4 4"></path><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><path d="M7 23l-4-4 4-4"></path><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg></span>
+          <span class="title">Re-entry</span>
+        </div>
+        <div class="bt-field-grid">
+          <label class="bt-check"><input type="checkbox" id="bt-allow-reentry" checked title="After a trade exits, keep scanning the rest of the session for another valid setup under the same rule instead of stopping at one per symbol/day"> Allow multiple trades per symbol/day</label>
+          <div class="bt-field"><label class="bt-label" for="bt-max-trades-per-day" title="Cap on trades taken per symbol/day when re-entry is allowed">Max trades / symbol / day</label><input type="number" id="bt-max-trades-per-day" value="3" min="1" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-reentry-cooldown-minutes" title="Minutes to wait after an exit before scanning for a re-entry resumes (a 1-bar minimum always applies)">Re-entry cooldown (min)</label><input type="number" id="bt-reentry-cooldown-minutes" value="0" min="0" step="1"></div>
         </div>
       </div>
 

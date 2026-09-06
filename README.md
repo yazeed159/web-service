@@ -36,7 +36,6 @@ there's no session) → the page's own script.
 - **`stats.html`** ("Performance") — equity curve, win rate, setup breakdown, slippage, feedback tally
 - **`edge-analysis.html`** — deeper statistical breakdown of what's actually working
 - **`patterns.html`** — recurring `lesson_tags` clustered by frequency
-- **`quiz.html`** — chart-reading quiz built from your own logged trades, client-side only
 - **`calculator.html`** — position-size / risk-per-trade calculator
 - **`backtester.html`** — ORB/gap-gainer strategy backtester against real Polygon minute bars
 - **`rewind.html`** — chart-reading practice replaying your own logged trades, not graded
@@ -58,7 +57,7 @@ there's no session) → the page's own script.
 ## Shared assets
 
 - **`core.css`** — design tokens + app-shell/sidebar layout + additive feature styles, loaded by every page. (Consolidation of three older files — see "Known quirks.")
-- Page-specific CSS loaded only where needed: `dashboard.css` (Dashboard tab), `rewind.css`, `practice.css`, `quiz.css` / `quiz-shared.css`, `report.css`, `polish.css` (backtester + report), `chat-widget.css` / `global-search.css` / `ui-modal.css` (shared widgets, loaded everywhere).
+- Page-specific CSS loaded only where needed: `dashboard.css` (Dashboard tab), `rewind.css`, `practice.css`, `quiz-shared.css`, `report.css`, `polish.css` (backtester + report), `chat-widget.css` / `global-search.css` / `ui-modal.css` (shared widgets, loaded everywhere).
 - **`nav.js`** — shared sidebar/mobile-nav wiring + `NavState` (mirrors in-page UI state into the URL via `history.replaceState` so Back doesn't lose your place — every page here is a real navigation, not an SPA route).
 - **`auth.js`** — session/auth layer + `window.KV` (a small per-user key/value store backed by Supabase, used for things like Settings' capital ledger) + `window.fetchTradesIndex()` / `window.fetchTradeDetail()`. Falls back to rejected-promise stubs instead of throwing if the Supabase CDN script fails to load, so a blocked/slow CDN request degrades to an error message instead of a blank broken page.
 - **`config.js`** — the only file you should need to touch per-deployment: Supabase project URL/anon key, and the Render API base URL used for chart generation, backtesting, AI chat, and Support/Resistance.

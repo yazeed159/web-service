@@ -131,7 +131,7 @@
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
   function toUnix(t) {
-    return Math.floor(new Date(String(t).replace(" ", "T") + "").getTime() / 1000);
+    return Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000);
   }
   function fmtPrice(v) {
     if (v === null || v === undefined || !Number.isFinite(Number(v))) return "—";
@@ -1166,12 +1166,39 @@
     const ema9Series = chart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     const ema20Series = chart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
 
+    // Top-left info overlay: float (static, from state.trade.indicators --
+    // same field the "About" card's volumeFloatPills reads) plus a live
+    // volume readout that tracks the crosshair the way a broker
+    // platform's OHLCV legend does, falling back to the most recent bar's
+    // volume whenever nothing is hovered (including mid-playback, so it
+    // keeps ticking up as the forming bar fills in).
+    el.style.position = "relative";
+    const infoOverlay = document.createElement("div");
+    infoOverlay.className = "chart-info-overlay";
+    el.appendChild(infoOverlay);
+    const floatShares = ((state.trade && state.trade.indicators) || {}).float_shares;
+    const floatRow = floatShares
+      ? `<div class="row"><span class="k">Float</span><span class="v">${fmtShares(floatShares)}</span></div>`
+      : "";
+    const volRowHtml = (vol, color) =>
+      `<div class="row"><span class="k">Vol</span><span class="v${color ? ` ${color}` : ""}">${vol == null ? "—" : Number(vol).toLocaleString()}</span></div>`;
+    function renderVolOverlay(vol, upDown) { infoOverlay.innerHTML = floatRow + volRowHtml(vol, upDown); }
+    chart.subscribeCrosshairMove((param) => {
+      const bar = param.seriesData && param.seriesData.get(volSeries);
+      if (bar) {
+        const upDown = bar.color && bar.color.indexOf("47,208,138") !== -1 ? "up" : bar.color && bar.color.indexOf("232,169,76") !== -1 ? "" : "down";
+        renderVolOverlay(bar.value, upDown);
+      } else {
+        renderVolOverlay(state.chartHandle ? state.chartHandle.lastVol : null);
+      }
+    });
+
     let ro = null;
     if (window.ResizeObserver) {
       ro = new ResizeObserver(() => { try { chart.applyOptions({ width: el.clientWidth }); } catch (e) {} });
       ro.observe(el);
     }
-    state.chartHandle = { chart, series, volSeries, vwapSeries, ema9Series, ema20Series, resizeObserver: ro };
+    state.chartHandle = { chart, series, volSeries, vwapSeries, ema9Series, ema20Series, resizeObserver: ro, renderVolOverlay, lastVol: null };
 
     // seed with every bar fully closed up to (not including) barIndex
     const closed = state.bars.slice(0, state.barIndex);
@@ -1185,6 +1212,40 @@
     try { if (handle.resizeObserver) handle.resizeObserver.disconnect(); } catch (e) {}
     try { handle.chart.remove(); } catch (e) {}
   }
+
+  // "Show full day" -- offered only on the post-round recap (see
+  // renderRecap below), never during live play. computeScannerPopIndex()
+  // (used to pick where playback starts) assumes state.bars opens with a
+  // quiet pre-move baseline; it only ever runs once, at session start, so
+  // swapping state.bars for the whole session's bars here -- after the
+  // round is already scored -- can't disturb it. Same /full-day-bars
+  // route + (symbol, trade_date) server cache trade.js's and rewind.js's
+  // "Show full day" buttons use, plus the same sessionStorage layer so a
+  // symbol+day already pulled on another page in this tab is instant here.
+  const FULL_DAY_CACHE_PREFIX = "chartSvc:fullDay:";
+  function fetchFullDayBars(symbol, tradeDate) {
+    const cacheKey = FULL_DAY_CACHE_PREFIX + symbol + ":" + tradeDate;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) return Promise.resolve(JSON.parse(cached));
+    } catch (e) { /* sessionStorage unavailable/full -- fall through to network */ }
+    const base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
+    if (!base) return Promise.reject(new Error("CHART_SERVICE_URL isn't set in config.js"));
+    return fetch(`${base}/full-day-bars`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+      body: JSON.stringify({ symbol, trade_date: tradeDate }),
+    })
+      .then((r) => r.json().then((data) => {
+        if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+        return data;
+      }))
+      .then((data) => {
+        const bars = Array.isArray(data.bars) ? data.bars : [];
+        try { sessionStorage.setItem(cacheKey, JSON.stringify(bars)); } catch (e) {}
+        return bars;
+      });
+  }
   function seedSeries(bars) {
     const h = state.chartHandle;
     h.series.setData(bars.map((b) => ({ time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c })));
@@ -1192,6 +1253,11 @@
     h.vwapSeries.setData(bars.filter((b) => b.vwap != null).map((b) => ({ time: toUnix(b.t), value: b.vwap })));
     h.ema9Series.setData(bars.filter((b) => b.ema9 != null).map((b) => ({ time: toUnix(b.t), value: b.ema9 })));
     h.ema20Series.setData(bars.filter((b) => b.ema20 != null).map((b) => ({ time: toUnix(b.t), value: b.ema20 })));
+    if (bars.length) {
+      const last = bars[bars.length - 1];
+      h.lastVol = last.v;
+      h.renderVolOverlay(last.v, last.c >= last.o ? "up" : "down");
+    }
   }
   let runningHigh = null, runningLow = null;
   function paintFormingBar() {
@@ -1207,7 +1273,10 @@
       color: "rgba(232,169,76,0.55)", borderColor: "#e8a94c", wickColor: "#e8a94c",
     });
     const frac = (state.tickIndex + 1) / state.ticks.length;
-    h.volSeries.update({ time: toUnix(bar.t), value: Math.round((bar.v || 0) * frac), color: "rgba(232,169,76,0.4)" });
+    const formingVol = Math.round((bar.v || 0) * frac);
+    h.volSeries.update({ time: toUnix(bar.t), value: formingVol, color: "rgba(232,169,76,0.4)" });
+    h.lastVol = formingVol;
+    h.renderVolOverlay(formingVol);
     if (bar.vwap != null) h.vwapSeries.update({ time: toUnix(bar.t), value: bar.vwap });
     if (bar.ema9 != null) h.ema9Series.update({ time: toUnix(bar.t), value: bar.ema9 });
     if (bar.ema20 != null) h.ema20Series.update({ time: toUnix(bar.t), value: bar.ema20 });
@@ -1217,6 +1286,8 @@
     const h = state.chartHandle;
     h.series.update({ time: toUnix(bar.t), open: bar.o, high: bar.h, low: bar.l, close: bar.c });
     h.volSeries.update({ time: toUnix(bar.t), value: bar.v, color: bar.c >= bar.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" });
+    h.lastVol = bar.v;
+    h.renderVolOverlay(bar.v, bar.c >= bar.o ? "up" : "down");
   }
 
   // ---------------------------------------------------------------
@@ -1456,12 +1527,35 @@
       </div>
       <div class="quiz-summary-actions" style="margin-top:16px;">
         <button class="btn-confirm" id="pr-recap-replay-btn">↺ Replay this chart</button>
+        <button class="btn-advanced" id="pr-recap-full-day-btn" title="Load this symbol's whole session so you can zoom/pan out past the trade window">Show full day</button>
         <button class="btn-advanced" id="pr-recap-again-btn">Practice another chart</button>
         ${viewLink}
       </div>
     `;
     document.getElementById("pr-recap-again-btn").addEventListener("click", goToSetup);
     document.getElementById("pr-recap-replay-btn").addEventListener("click", replayCurrentTrade);
+    const fullDayBtn = document.getElementById("pr-recap-full-day-btn");
+    if (fullDayBtn) {
+      fullDayBtn.addEventListener("click", () => {
+        if (fullDayBtn.disabled) return;
+        fullDayBtn.disabled = true;
+        const original = fullDayBtn.textContent;
+        fullDayBtn.textContent = "Loading…";
+        fetchFullDayBars(t.symbol, t.trade_date)
+          .then((fullBars) => {
+            if (!fullBars.length) throw new Error("No bars came back");
+            state.bars = fullBars;
+            state.barIndex = fullBars.length; // past the end -- paintFormingBar() no-ops, everything renders fully closed
+            buildPlayChart();
+            fullDayBtn.textContent = "Full day loaded";
+          })
+          .catch((err) => {
+            fullDayBtn.textContent = original;
+            fullDayBtn.disabled = false;
+            fullDayBtn.title = "Couldn't load the full day: " + err.message;
+          });
+      });
+    }
   }
 
   // ---------------------------------------------------------------

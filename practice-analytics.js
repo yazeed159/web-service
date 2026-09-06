@@ -25,7 +25,7 @@
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
   function toUnix(t) {
-    return Math.floor(new Date(String(t).replace(" ", "T") + "").getTime() / 1000);
+    return Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000);
   }
   function fmtUsd(v) {
     if (!Number.isFinite(v)) return "—";
