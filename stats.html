@@ -363,6 +363,25 @@
       </div>
 
       <div class="panel-box" style="margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">$/Share P&amp;L — Distribution &amp; Trend</span></div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Net P&amp;L divided by shares traded, so a 100-share and a 1,000-share trade are judged the same way. The numbers, the shape of the whole distribution, and how it's trending — three views of the same edge.</p>
+
+        <div class="stat-grid" id="pershare-stats-row" style="margin-top:14px;"></div>
+
+        <div style="margin-top:20px;">
+          <div class="label-row" style="margin-bottom:6px;"><span class="label">Distribution — every trade, bucketed by $/share</span></div>
+          <div id="pershare-histogram"></div>
+        </div>
+
+        <div style="margin-top:22px;">
+          <div class="label-row" style="margin-bottom:2px;"><span class="label">Rolling Trend</span></div>
+          <p style="color:var(--text-faint); font-size:12px; margin:2px 0 6px;">Rolling average over the window set above in Performance Trends (10/20/50 trades).</p>
+          <div id="pershare-trend-headline" style="font-size:22px; font-weight:700; margin:2px 0 4px;">—</div>
+          <div id="pershare-trend-chart" style="height:180px;"></div>
+        </div>
+      </div>
+
+      <div class="panel-box" style="margin-bottom:16px;">
         <div class="panel-box-head"><span class="title">Win Rate by Setup</span></div>
         <div id="setup-breakdown"></div>
       </div>
@@ -414,13 +433,6 @@
           <div id="quality-score-headline" style="font-size:22px; font-weight:700; margin:2px 0 4px;">—</div>
           <div id="quality-score-chart" style="height:160px;"></div>
         </div>
-
-        <div style="margin-top:20px;">
-          <div class="label-row" style="margin-bottom:2px;"><span class="label">$/Share P&amp;L — every trade, regardless of size</span></div>
-          <p style="color:var(--text-faint); font-size:12px; margin:2px 0 6px;">Net P&amp;L divided by shares traded, so a 100-share and a 1,000-share trade are judged the same way. Line shows the rolling average over the window selected above.</p>
-          <div id="pershare-trend-headline" style="font-size:22px; font-weight:700; margin:2px 0 4px;">—</div>
-          <div id="pershare-trend-chart" style="height:180px;"></div>
-        </div>
       </div>
 
       <div class="panel-box" style="margin-bottom:16px;">
@@ -433,6 +445,8 @@
     renderStreak(sorted);
     renderPerShareBySize(sorted);
     renderPerShareLeaders(sorted);
+    renderPerShareStats(sorted);
+    renderPerShareHistogram(sorted);
     renderSetupBreakdown(sorted);
     renderSlippage(sorted);
     renderSlippageBySetup(sorted);
@@ -446,6 +460,12 @@
   function avg(arr) {
     if (!arr.length) return 0;
     return arr.reduce((s, v) => s + v, 0) / arr.length;
+  }
+  function median(arr) {
+    if (!arr.length) return 0;
+    const s = arr.slice().sort((a, b) => a - b);
+    const mid = Math.floor(s.length / 2);
+    return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
   }
 
   // ---------- Performance Trends: rolling win rate / profit factor,
@@ -766,6 +786,90 @@
         </div>
       </div>
     `;
+  }
+
+  // Plain-numbers view: the summary stat strip up top of the $/Share
+  // panel. Same .stat-grid/.stat markup as the page's other stat rows,
+  // just five numbers that don't need a chart to read at a glance.
+  function renderPerShareStats(sorted) {
+    const el = document.getElementById("pershare-stats-row");
+    if (!el) return;
+    const withShares = sorted.filter((r) => perShare(r) !== null);
+    if (withShares.length < 3) {
+      el.innerHTML = `<div class="empty-state small">Need more trades with share counts (have ${withShares.length}).</div>`;
+      return;
+    }
+    const values = withShares.map(perShare);
+    const wins = withShares.filter((r) => r.win).map(perShare);
+    const losses = withShares.filter((r) => !r.win).map(perShare);
+    const avgAll = avg(values);
+    const medAll = median(values);
+    const avgWin = wins.length ? avg(wins) : null;
+    const avgLoss = losses.length ? avg(losses) : null;
+    const best = Math.max(...values);
+    const worst = Math.min(...values);
+    const posRate = Math.round((values.filter((v) => v > 0).length / values.length) * 1000) / 10;
+    const cell = (label, value, sub) => `
+      <div class="stat">
+        <div class="label-row"><span class="label">${label}</span></div>
+        <div class="value ${value >= 0 ? "up" : "down"}" style="font-size:18px;">${(value >= 0 ? "+" : "-") + "$" + Math.abs(value).toFixed(3)}</div>
+        ${sub ? `<div class="sub-value">${sub}</div>` : ""}
+      </div>`;
+    el.innerHTML = [
+      cell("Average $/Share", avgAll, `n=${values.length}`),
+      cell("Median $/Share", medAll, "less skewed by outliers"),
+      avgWin != null ? cell("Avg Win $/Share", avgWin, `${wins.length} wins`) : "",
+      avgLoss != null ? cell("Avg Loss $/Share", avgLoss, `${losses.length} losses`) : "",
+      cell("Best Trade $/Share", best),
+      cell("Worst Trade $/Share", worst),
+    ].join("") + `
+      <div class="stat">
+        <div class="label-row"><span class="label">Positive $/Share Rate</span></div>
+        <div class="value">${posRate}%</div>
+        <div class="sub-value">of ${values.length} trades cleared $0/sh</div>
+      </div>`;
+  }
+
+  // Shape of the edge: every trade's $/share bucketed into equal-width
+  // bins spanning the actual min-to-max range (not fixed dollar cutoffs,
+  // since traders' $/share scale varies wildly) -- reveals things a
+  // single average can hide, like a fat left tail of scratch-sized
+  // losses next to a thin right tail of a few outsized winners.
+  function renderPerShareHistogram(sorted) {
+    const el = document.getElementById("pershare-histogram");
+    if (!el) return;
+    const withShares = sorted.filter((r) => perShare(r) !== null);
+    if (withShares.length < 8) {
+      el.innerHTML = `<div class="empty-state small">Need more trades with share counts to plot a distribution (have ${withShares.length}).</div>`;
+      return;
+    }
+    const values = withShares.map(perShare);
+    const lo = Math.min(...values), hi = Math.max(...values);
+    const binCount = Math.min(10, Math.max(5, Math.round(Math.sqrt(withShares.length))));
+    const span = (hi - lo) || 1;
+    const binWidth = span / binCount;
+    const bins = Array.from({ length: binCount }, (_, i) => ({ lo: lo + i * binWidth, hi: lo + (i + 1) * binWidth, trades: [] }));
+    withShares.forEach((r) => {
+      const v = perShare(r);
+      const idx = Math.min(binCount - 1, Math.max(0, Math.floor((v - lo) / binWidth)));
+      bins[idx].trades.push(r);
+    });
+    const maxCount = Math.max(1, ...bins.map((b) => b.trades.length));
+    const fmtEdge = (v) => (v >= 0 ? "+" : "-") + "$" + Math.abs(v).toFixed(2);
+    el.innerHTML = bins.map((b) => {
+      if (!b.trades.length) return "";
+      const mid = (b.lo + b.hi) / 2;
+      const color = mid >= 0 ? "var(--green)" : "var(--red)";
+      const pct = Math.round((b.trades.length / maxCount) * 100);
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `<div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer; flex-wrap:wrap;">
+        <div class="bar-label" style="width:150px;">${fmtEdge(b.lo)} to ${fmtEdge(b.hi)}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${color};"></div></div>
+        <div style="width:60px; text-align:right; flex-shrink:0; color:var(--text-faint);">${b.trades.length}x</div>
+      </div>
+      ${tradeListHtml(b.trades, uid)}`;
+    }).join("");
+    bindTradeToggles(el);
   }
 
   function renderStreak(sorted) {

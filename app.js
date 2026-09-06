@@ -737,10 +737,9 @@
     const gridStart = new Date(y, m, 1 - leadMonDow);
     const gridEnd = new Date(y, m, daysInMonth + (6 - trailMonDow));
 
-    let weekIndex = 0;
+    const weeks = [];
     for (let cur = new Date(gridStart); cur <= gridEnd; ) {
-      weekIndex++;
-      let weekNet = 0, weekGross = 0, weekComm = 0, weekTrades = 0, weekHas = false;
+      let weekNet = 0, weekGross = 0, weekComm = 0, weekTrades = 0, weekHas = false, weekHasInMonth = false;
       let rowHtml = "";
       for (let i = 0; i < 7; i++) {
         const dow = (cur.getDay() + 6) % 7; // 0=Mon..6=Sun -- markets are closed Sat/Sun, so those days aren't worth a column
@@ -758,6 +757,7 @@
         // per-week rollups here.
         const entry = map.get(key);
         if (dow < 5) {
+          if (inMonth) weekHasInMonth = true;
           if (entry) { weekNet += entry.net; weekGross += entry.gross; weekComm += entry.comm; weekTrades += entry.count; weekHas = true; }
           let cls = "cal-cell";
           if (!inMonth) cls += " other-month";
@@ -771,12 +771,27 @@
         }
         cur.setDate(cur.getDate() + 1);
       }
-      const weekBoxCls = "cal-week-box" + (weekHas ? (weekNet >= 0 ? " win" : " loss") : "");
-      html += rowHtml + `<div class="${weekBoxCls}">
-        <span class="week-label">Week ${weekIndex}</span>
-        ${weekHas ? `<span class="week-pnl">${fmtMoney(weekNet)}</span><span class="week-count">${weekTrades} trade${weekTrades === 1 ? "" : "s"}</span>${opts.compact ? "" : `<span class="week-subline">Gross <span class="${weekGross >= 0 ? "up" : "down"}">${fmtMoney(weekGross)}</span></span><span class="week-subline">Comm $${weekComm.toFixed(2)}</span>`}` : `<span class="week-empty">—</span>`}
-      </div>`;
+      weeks.push({ rowHtml, weekNet, weekGross, weekComm, weekTrades, weekHas, weekHasInMonth });
     }
+
+    // A week whose Mon-Fri cells are entirely outside this month can only
+    // happen at the very ends of the grid (e.g. the month starts on a
+    // Saturday, so the week containing the 1st has no in-month weekday at
+    // all -- it's really the tail end of last month's own calendar). That
+    // week belongs to the adjacent month's view, not this one, so trim it
+    // off the front/back rather than showing a whole extra week that has
+    // nothing to do with the month being viewed.
+    while (weeks.length && !weeks[0].weekHasInMonth) weeks.shift();
+    while (weeks.length && !weeks[weeks.length - 1].weekHasInMonth) weeks.pop();
+
+    weeks.forEach((week, idx) => {
+      const weekIndex = idx + 1;
+      const weekBoxCls = "cal-week-box" + (week.weekHas ? (week.weekNet >= 0 ? " win" : " loss") : "");
+      html += week.rowHtml + `<div class="${weekBoxCls}">
+        <span class="week-label">Week ${weekIndex}</span>
+        ${week.weekHas ? `<span class="week-pnl">${fmtMoney(week.weekNet)}</span><span class="week-count">${week.weekTrades} trade${week.weekTrades === 1 ? "" : "s"}</span>${opts.compact ? "" : `<span class="week-subline">Gross <span class="${week.weekGross >= 0 ? "up" : "down"}">${fmtMoney(week.weekGross)}</span></span><span class="week-subline">Comm $${week.weekComm.toFixed(2)}</span>`}` : `<span class="week-empty">—</span>`}
+      </div>`;
+    });
     return html;
   }
 
@@ -1158,17 +1173,17 @@
     const rows = sorted.map((t) => `
       <tr data-id="${t.id}">
         <td class="sym"><span class="side-dot" style="background:${t.win ? "var(--green)" : "var(--red)"}"></span>${t.symbol}</td>
-        <td class="mono dim">${t.entry_time}</td>
-        <td class="mono dim">${t.exit_time}</td>
         <td class="mono">$${t.entry_price.toFixed(2)} → $${t.exit_price.toFixed(2)}</td>
-        <td class="mono dim">${t.shares}</td>
-        <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
         <td class="mono">${pricePerShareMove(t.entry_price, t.exit_price, t.side)}</td>
+        <td class="mono dim">${t.shares}</td>
+        <td class="mono dim">${fmtDuration(durationMinutes(t))}</td>
+        <td class="mono">${fmtMoney(t.pnl_before_comm)}</td>
         <td class="mono dim">$${(t.commission || 0).toFixed(2)}</td>
+        <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
         <td>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(t), { size: 12 }) : "—"}</td>
       </tr>`).join("");
     const body = document.getElementById("day-detail-body");
-    body.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Entry</th><th>Exit</th><th>Price</th><th>Shares</th><th>Net P&amp;L</th><th>C/Share</th><th>Comm</th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    body.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Price</th><th>C/Share</th><th>Shares</th><th>Hold</th><th>Gross</th><th>Comm</th><th>Net P&amp;L</th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     bindTradeRows(body);
     panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
