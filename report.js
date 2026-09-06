@@ -536,6 +536,13 @@
   // ================= render loaded report =================
   let currentReport = null;
   let currentId = null;
+  // Best/Worst Trade cards in the Detailed Metrics panel reference one
+  // specific trade each -- kept here (keyed the same as the data-stat-
+  // trade attribute below) so the delegated click handler on detailBox
+  // can look the actual trade object back up without re-deriving it,
+  // the same way currentReport lets the trades-table click handler do
+  // it by index.
+  let statHighlightTrades = {};
 
   // Rendered REPORT_TRADES_PAGE_SIZE at a time with a "Load more" row
   // rather than dumping the entire (possibly thousands-long, for a long
@@ -561,7 +568,7 @@
       || `<tr><td colspan="${reportTradesCols.length}"><div class="empty-state small">No trades.</div></td></tr>`;
   }
 
-  function tradeColumns(trades) {
+  function tradeColumns(trades, isBacktest) {
     const has = (k) => trades.some((t) => t[k] !== undefined && t[k] !== null && t[k] !== "");
     const cols = [["date", "Date"], ["symbol", "Symbol"]];
     if (has("side")) cols.push(["side", "Side"]);
@@ -570,10 +577,21 @@
     if (has("exit_reason")) cols.push(["exit_reason", "Reason"]);
     cols.push(["shares", "Shares"], ["commission_total", "Comm. $"], ["pnl_dollars", "P&L $"]);
     if (has("r_multiple")) cols.push(["r_multiple", "R"]);
-    // Only appears once at least one trade has been enriched with bars
-    // (see sendJournal -> /enrich -> ENRICH_FIELDS in chart_service.py) --
-    // that's the raw per-minute series the interactive chart is built from.
-    if (has("bars")) cols.push(["chart", "Chart"]);
+    // Backend (backtest) reports always get chart generation kicked off
+    // automatically in the background as soon as the run finishes (see
+    // autoGenerateCharts in backtester.js) -- it just takes a while
+    // (~13s/trade), so bars show up on trades one at a time rather than
+    // all together. This column used to only appear once has("bars") was
+    // already true for at least one trade, which meant a report opened
+    // right after a run finished showed no Chart column -- and therefore
+    // no buttons anywhere -- at all, with zero indication anything was
+    // coming. Show it unconditionally for backtest reports instead (each
+    // row's own bars-presence still controls whether that row's button is
+    // enabled, in tradeCell below), and leave it hidden entirely for CSV
+    // imports, which never get charts.
+    if (isBacktest) cols.push(["chart", "Chart"]);
+    else if (has("bars")) cols.push(["chart", "Chart"]);
+
     return cols;
   }
 
@@ -629,6 +647,7 @@
     `;
 
     const d = computeDetailedStats(trades);
+    statHighlightTrades = { best: d ? d.best : null, worst: d ? d.worst : null };
     els.detailBox.innerHTML = !d ? "" : `
       <div class="panel-box-head"><span class="title">Detailed Metrics</span></div>
       <div class="stat-grid">
@@ -637,15 +656,15 @@
         <div class="stat"><div class="label-row"><span class="label">Avg Trade</span></div><div class="value ${d.avgTradePnl >= 0 ? "up" : "down"}">${fmtMoney(d.avgTradePnl)}</div></div>
         <div class="stat"><div class="label-row"><span class="label">Gross Profit</span></div><div class="value up">${fmtMoney(d.grossProfit)}</div></div>
         <div class="stat"><div class="label-row"><span class="label">Gross Loss</span></div><div class="value down">${fmtMoney(d.grossLoss)}</div></div>
-        <div class="stat" title="${d.best ? escapeHtml(d.best.symbol + " on " + d.best.date) : ""}"><div class="label-row"><span class="label">Best Trade</span></div><div class="value up">${d.best ? fmtMoney(d.best.pnl_dollars) : "—"}</div><div class="sub-value">${d.best ? escapeHtml(d.best.symbol) : ""}</div></div>
-        <div class="stat" title="${d.worst ? escapeHtml(d.worst.symbol + " on " + d.worst.date) : ""}"><div class="label-row"><span class="label">Worst Trade</span></div><div class="value down">${d.worst ? fmtMoney(d.worst.pnl_dollars) : "—"}</div><div class="sub-value">${d.worst ? escapeHtml(d.worst.symbol) : ""}</div></div>
+        <div class="stat${d.best && Array.isArray(d.best.bars) && d.best.bars.length ? " rpt-stat-clickable" : ""}" data-stat-trade="${d.best ? "best" : ""}" title="${d.best ? escapeHtml(d.best.symbol + " on " + d.best.date) + (Array.isArray(d.best.bars) && d.best.bars.length ? " — click to view chart" : " — chart not generated yet") : ""}"><div class="label-row"><span class="label">Best Trade</span></div><div class="value up">${d.best ? fmtMoney(d.best.pnl_dollars) : "—"}</div><div class="sub-value">${d.best ? escapeHtml(d.best.symbol) : ""}</div></div>
+        <div class="stat${d.worst && Array.isArray(d.worst.bars) && d.worst.bars.length ? " rpt-stat-clickable" : ""}" data-stat-trade="${d.worst ? "worst" : ""}" title="${d.worst ? escapeHtml(d.worst.symbol + " on " + d.worst.date) + (Array.isArray(d.worst.bars) && d.worst.bars.length ? " — click to view chart" : " — chart not generated yet") : ""}"><div class="label-row"><span class="label">Worst Trade</span></div><div class="value down">${d.worst ? fmtMoney(d.worst.pnl_dollars) : "—"}</div><div class="sub-value">${d.worst ? escapeHtml(d.worst.symbol) : ""}</div></div>
         <div class="stat"><div class="label-row"><span class="label">Avg Hold Time</span></div><div class="value">${fmtMinutes(d.avgHoldMinutes)}</div></div>
         <div class="stat"><div class="label-row"><span class="label">Total Shares</span></div><div class="value">${d.totalShares.toLocaleString()}</div></div>
         <div class="stat"><div class="label-row"><span class="label">Symbols Traded</span></div><div class="value">${d.uniqueSymbols}</div>${d.topSymbol ? `<div class="sub-value">most: ${escapeHtml(d.topSymbol)} (${d.topSymbolCount})</div>` : ""}</div>
       </div>`;
 
     // trades table
-    reportTradesCols = tradeColumns(trades);
+    reportTradesCols = tradeColumns(trades, report.source === "backend");
     reportTradesRows = trades;
     reportTradesShown = Math.min(REPORT_TRADES_PAGE_SIZE, trades.length);
     els.tradesHead.innerHTML = reportTradesCols.map(([, label]) => `<th>${label}</th>`).join("");
@@ -848,13 +867,29 @@
     const hasBars = Array.isArray(t.bars) && t.bars.length;
     els.chartPracticeBtn.style.display = hasBars ? "" : "none";
     if (!hasBars) return;
-    els.chartPracticeBtn.onclick = () => {
+    // This used to just write to localStorage and let the <a>'s own
+    // href="practice.html" navigate unconditionally -- if the write
+    // failed (quota exceeded, private-browsing storage restrictions,
+    // etc.) the failure was swallowed and the new tab still opened,
+    // landing on the plain "pick a random chart" setup screen instead
+    // of this trade -- indistinguishable from a blank/broken page.
+    // Prevent the default navigation, confirm the write actually
+    // round-trips before opening the tab, and tell the user plainly if
+    // it didn't, instead of handing them an unexplained empty page.
+    els.chartPracticeBtn.onclick = (e) => {
+      e.preventDefault();
+      const payload = JSON.stringify(Object.assign({}, t, {
+        job_id: currentId,
+        label: (currentReport && currentReport.label) || null,
+      }));
       try {
-        localStorage.setItem(PRACTICE_HANDOFF_KEY, JSON.stringify(Object.assign({}, t, {
-          job_id: currentId,
-          label: (currentReport && currentReport.label) || null,
-        })));
-      } catch (e) { /* storage full/unavailable -- link still opens practice.html normally */ }
+        localStorage.setItem(PRACTICE_HANDOFF_KEY, payload);
+        if (localStorage.getItem(PRACTICE_HANDOFF_KEY) !== payload) throw new Error("readback mismatch");
+      } catch (err) {
+        alert("Couldn't hand this trade off to Practice (browser storage is full or unavailable). Try clearing some site data, or open Practice from the nav and pick a chart manually.");
+        return;
+      }
+      window.open("practice.html", "_blank", "noopener");
     };
   }
 
@@ -1069,6 +1104,13 @@
     rptMacdChart.timeScale().fitContent();
   }
 
+  els.detailBox.addEventListener("click", (e) => {
+    const card = e.target.closest(".rpt-stat-clickable");
+    if (!card) return;
+    const key = card.dataset.statTrade;
+    const trade = key && statHighlightTrades[key];
+    if (trade) openTradeChart(trade);
+  });
   els.tradesBody.addEventListener("click", (e) => {
     const moreBtn = e.target.closest("#report-trades-load-more-btn");
     if (moreBtn) {

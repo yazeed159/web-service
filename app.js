@@ -1176,8 +1176,8 @@
         <td class="mono">$${t.entry_price.toFixed(2)} → $${t.exit_price.toFixed(2)}</td>
         <td class="mono">${pricePerShareMove(t.entry_price, t.exit_price, t.side)}</td>
         <td class="mono dim">${t.shares}</td>
-        <td class="mono dim">${fmtDuration(durationMinutes(t))}</td>
-        <td class="mono">${fmtMoney(t.pnl_before_comm)}</td>
+        <td class="mono dim">${fmtDurationPrecise(durationMinutes(t))}</td>
+        <td class="mono ${t.pnl_before_comm >= 0 ? "up" : "down"}">${fmtMoney(t.pnl_before_comm)}</td>
         <td class="mono dim">$${(t.commission || 0).toFixed(2)}</td>
         <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
         <td>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(t), { size: 12 }) : "—"}</td>
@@ -1984,6 +1984,21 @@
     const total = Math.round(mins);
     const h = Math.floor(total / 60), m = total % 60;
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
+
+  // Same idea as fmtDuration, but keeps seconds instead of rounding them
+  // away -- used for the Day View trade table, where a lot of these small-
+  // cap scalps are held for single-digit seconds and fmtDuration's
+  // round-to-the-minute made every one of them read "0m".
+  function fmtDurationPrecise(mins) {
+    if (mins == null || isNaN(mins)) return "—";
+    const totalSec = Math.round(mins * 60);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
   }
 
   // Regression slope / standard-error-of-slope of the equity curve against

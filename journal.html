@@ -130,8 +130,19 @@
     </header>
 
     <div class="content">
-      <div class="panel-head">
+      <div class="panel-head" style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;">
         <div class="sub">All published trades. Click a row for the full breakdown.</div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button class="btn-advanced" id="fill-float-btn">Fill missing floats</button>
+          <button class="filter-btn" id="fill-float-cancel-btn" style="display:none;">Cancel</button>
+          <span id="fill-float-status" class="sub" style="font-size:12.5px;"></span>
+        </div>
+      </div>
+
+      <div id="fill-float-progress" class="panel-box" style="display:none; margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Fetching floats</span></div>
+        <div class="progress-track"><div class="progress-fill" id="fill-float-fill" style="width:0%;"></div></div>
+        <div id="fill-float-label">Starting…</div>
       </div>
 
       <div class="filters">
@@ -201,6 +212,138 @@
     timeTo: document.getElementById("f-time-to"),
   };
   Object.values(els).forEach((el) => el.addEventListener("input", applyFilters));
+
+  // "Fill missing floats" -- bulk on-demand float lookup for every trade
+  // that doesn't have one yet (float_tag null or "float_unknown"), so
+  // trades imported before /fetch-float existed (or imported in bulk via
+  // import-trades.html/import-legacy.html) don't have to be opened one
+  // at a time just to click "Get float" on trade.html. Same
+  // start -> poll -> cancel job shape as the Backtester tab
+  // (chart_service.py's /backtest/start & friends) -- see
+  // /fetch-float/bulk/start there. Each symbol's lookup is written
+  // straight onto every one of its trades via the same save_float_to_trade
+  // path the single-trade /fetch-float route uses, so re-opening any of
+  // them afterward already shows the float with no extra click.
+  const floatBtn = document.getElementById("fill-float-btn");
+  const floatCancelBtn = document.getElementById("fill-float-cancel-btn");
+  const floatStatus = document.getElementById("fill-float-status");
+  const floatProgress = document.getElementById("fill-float-progress");
+  const floatFill = document.getElementById("fill-float-fill");
+  const floatLabel = document.getElementById("fill-float-label");
+  let floatJobId = null;
+  let floatPollTimer = null;
+
+  function chartApi() { return (window.CHART_SERVICE_URL || "").replace(/\/+$/, ""); }
+  // Same pattern as backtester.js's authedHeaders()/trade.js's authedPost --
+  // attaches the logged-in person's Supabase access token so chart_service.py
+  // can scope the job to them. window.AUTH_READY (auth.js) resolves once
+  // per page load and is safe to .then() repeatedly.
+  function authedHeadersJ(extra) {
+    return window.AUTH_READY.then((session) => {
+      if (!session) throw new Error("Please log in first.");
+      return Object.assign(
+        { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+        extra || {},
+        { "Authorization": "Bearer " + session.access_token }
+      );
+    });
+  }
+
+  function floatBtnIdle() {
+    floatBtn.disabled = false;
+    floatBtn.textContent = "Fill missing floats";
+    floatCancelBtn.style.display = "none";
+  }
+
+  if (floatBtn) {
+    floatBtn.addEventListener("click", () => {
+      if (!chartApi()) { floatStatus.textContent = "CHART_SERVICE_URL isn't set in config.js."; return; }
+      floatBtn.disabled = true;
+      floatBtn.textContent = "Starting…";
+      floatStatus.textContent = "";
+      authedHeadersJ()
+        .then((headers) => fetch(`${chartApi()}/fetch-float/bulk/start`, { method: "POST", headers }))
+        .then((r) => r.json().then((j) => { if (!r.ok) throw new Error(j.error || ("HTTP " + r.status)); return j; }))
+        .then((j) => {
+          if (!j.total_symbols) {
+            floatBtnIdle();
+            floatStatus.textContent = "Every trade already has a float on file.";
+            return;
+          }
+          floatJobId = j.job_id;
+          floatBtn.textContent = "Running…";
+          floatCancelBtn.style.display = "";
+          floatCancelBtn.disabled = false;
+          floatCancelBtn.textContent = "Cancel";
+          floatProgress.style.display = "";
+          floatFill.style.width = "0%";
+          floatLabel.textContent = `0 / ${j.total_symbols} symbols`;
+          pollFloatJob(j.job_id);
+        })
+        .catch((err) => {
+          floatBtnIdle();
+          floatStatus.textContent = "Couldn't start: " + err.message;
+        });
+    });
+  }
+
+  if (floatCancelBtn) {
+    floatCancelBtn.addEventListener("click", () => {
+      if (!floatJobId) return;
+      floatCancelBtn.disabled = true;
+      floatCancelBtn.textContent = "Cancelling…";
+      authedHeadersJ()
+        .then((headers) => fetch(`${chartApi()}/fetch-float/bulk/cancel/${floatJobId}`, { method: "POST", headers }))
+        .catch(() => { /* status poll surfaces any real problem */ });
+    });
+  }
+
+  function pollFloatJob(jobId) {
+    clearTimeout(floatPollTimer);
+    const tick = () => {
+      authedHeadersJ()
+        .then((headers) => fetch(`${chartApi()}/fetch-float/bulk/status/${jobId}`, { headers }))
+        .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+        .then((job) => {
+          const total = job.total_symbols || 0;
+          const done = job.current_index || 0;
+          if (total) floatFill.style.width = Math.round((done / total) * 100) + "%";
+          floatLabel.textContent = `${done} / ${total} symbols` +
+            (job.current_symbol && job.status === "running" ? ` — ${job.current_symbol}` : "");
+
+          if (job.status === "running") {
+            floatPollTimer = setTimeout(tick, 1000);
+            return;
+          }
+          floatProgress.style.display = "none";
+          floatBtnIdle();
+          floatJobId = null;
+          if (job.status === "cancelled") {
+            floatStatus.textContent = `Cancelled — updated ${job.trades_updated || 0} trade(s) before stopping.`;
+          } else if (job.status === "error") {
+            floatStatus.textContent = "Failed: " + (job.error || "unknown error");
+          } else {
+            const errCount = (job.errors || []).length;
+            floatStatus.textContent = `Done — updated ${job.trades_updated || 0} trade(s) across ${total} symbol(s)` +
+              (errCount ? `, ${errCount} symbol(s) failed` : "") + ".";
+          }
+          // Re-pull from Supabase (rather than patching allRows by hand)
+          // so the table reflects exactly what a fresh page load would
+          // show, then just re-render with the filters already in place.
+          window.fetchTradesIndex().then((rows) => {
+            allRows = Array.isArray(rows) ? rows : allRows;
+            applyFilters();
+          }).catch(() => { /* table just keeps showing pre-update data */ });
+        })
+        .catch((err) => {
+          floatProgress.style.display = "none";
+          floatBtnIdle();
+          floatJobId = null;
+          floatStatus.textContent = "Lost track of the job: " + err.message;
+        });
+    };
+    tick();
+  }
 
   // Human-readable labels for the volume/rvol/float tags chart_service.py
   // buckets trades into (see classify_avg_volume / classify_relative_volume
@@ -437,7 +580,7 @@
               <span>${escapeHtml(r.symbol)}</span>
               <span>${escapeHtml((r.setup_type || "—").replace(/_/g, " "))}</span>
               <span>$${Number(r.entry_price).toFixed(2)}</span>
-              <span>$${Number(r.exit_price).toFixed(2)}</span>
+              <span>$${Number(r.exit_price).toFixed(2)}${r.fill_count > 1 ? `<span class="pill" title="Averaged across ${r.fill_count} fills -- open the trade for the breakdown" style="margin-left:5px; padding:1px 5px; font-size:10px; opacity:.75;">×${r.fill_count}</span>` : ""}</span>
               <span class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</span>
               <span class="pill ${r.win ? "win" : "loss"}">${r.win ? "WIN" : "LOSS"}</span>
               <span>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(r), { size: 12 }) : "—"}</span>

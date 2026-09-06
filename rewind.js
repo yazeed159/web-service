@@ -170,17 +170,30 @@
   }
 
   // ---------------------------------------------------------------
-  // second-by-second replay — Polygon only gives us 1-min bars, so
-  // there's no real tick feed to draw on. Instead we synthesize a
-  // plausible intra-bar path: a deterministic (seeded, so a given
-  // bar always replays the same way) walk from the previous close
-  // through the bar's open, its high/low (order randomized per bar,
-  // since either order is consistent with the same OHLC print), and
-  // its close, with small random jitter layered on top so it doesn't
-  // look like a robotic straight-line ramp. It's clearly labeled as
-  // simulated in the UI — this is a practice aid, not real ticks.
-  // Used for the checkpoint/exit stage only — the entry stage keeps
-  // its forming-candle + live countdown badge look.
+  // second-by-second replay — free-tier Polygon only gives us 1-min
+  // bars (second aggregates and raw trades are a paid-tier feature),
+  // so there's no real tick feed to draw on. Instead we synthesize a
+  // plausible intra-bar path: a deterministic (seeded, so a given bar
+  // always replays the same way) walk from the previous close through
+  // the bar's open, its high/low (order randomized per bar, since
+  // either order is consistent with the same OHLC print), and its
+  // close.
+  //
+  // Two things make this look more like real prints than a straight
+  // ramp-plus-static-jitter walk:
+  //   - extra randomized waypoints between the OHLC anchors, so the
+  //     path wanders instead of tracing dead-straight lines between
+  //     four fixed points
+  //   - noise is a smoothed (exponentially-decayed) random walk, not
+  //     independent per-tick jitter, since real prints drift rather
+  //     than teleport tick to tick; its amplitude also scales with the
+  //     bar's own volume relative to this session's average, so a
+  //     busy bar reads choppier than a quiet one instead of every bar
+  //     looking equally jittery
+  //
+  // Still clearly labeled as simulated in the UI — this is a practice
+  // aid, not real ticks. Used for the checkpoint/exit stage only — the
+  // entry stage keeps its forming-candle + live countdown badge look.
   // ---------------------------------------------------------------
   function seededRng(seedStr) {
     let h = 1779033703 ^ seedStr.length;
@@ -197,22 +210,46 @@
   }
   const REPLAY_SECONDS = 60; // one sub-tick per real second of the 1-min bar
 
-  function genSecondTicks(bar, prevClose, seed) {
+  function genSecondTicks(bar, prevClose, seed, avgVolume) {
     const n = REPLAY_SECONDS;
     const rng = seededRng(seed);
     const o = bar.o, h = bar.h, l = bar.l, c = bar.c;
     const start = Number.isFinite(prevClose) ? prevClose : o;
     const highFirst = rng() < 0.5;
-    const waypoints = [
+    const range = Math.max(h - l, 0.0001);
+
+    // Fixed OHLC anchors, same as before...
+    const anchors = [
       { t: 0, p: start },
       { t: Math.round(n * 0.1), p: o },
       { t: Math.round(n * 0.42), p: highFirst ? h : l },
       { t: Math.round(n * 0.74), p: highFirst ? l : h },
       { t: n - 1, p: c },
     ];
-    const range = Math.max(h - l, 0.0001);
-    const jitterAmp = range * 0.07;
+    // ...plus one randomized midpoint inserted between each consecutive
+    // pair, so there are ~8 waypoints instead of 5. Clamped to the
+    // bar's own high/low so it never wanders outside the real range.
+    const waypoints = [];
+    for (let i = 0; i < anchors.length; i++) {
+      waypoints.push(anchors[i]);
+      if (i < anchors.length - 1) {
+        const a = anchors[i], b = anchors[i + 1];
+        const midT = Math.round((a.t + b.t) / 2);
+        if (midT > a.t && midT < b.t) {
+          const midP = (a.p + b.p) / 2 + (rng() - 0.5) * range * 0.25;
+          waypoints.push({ t: midT, p: Math.min(h, Math.max(l, midP)) });
+        }
+      }
+    }
+
+    // Volume-relative jitter: this bar's volume vs. the session average,
+    // clamped to [0.5x, 2x] so one outlier bar can't blow the path out
+    // in either direction.
+    const relVol = avgVolume > 0 ? Math.min(2, Math.max(0.5, (bar.v || 0) / avgVolume)) : 1;
+    const jitterAmp = range * 0.07 * relVol;
+
     const ticks = [];
+    let noise = 0; // smoothed, not redrawn independently every tick
     for (let s = 0; s < n; s++) {
       let a = waypoints[0], b = waypoints[waypoints.length - 1];
       for (let i = 0; i < waypoints.length - 1; i++) {
@@ -221,7 +258,11 @@
       const span = Math.max(1, b.t - a.t);
       const frac = (s - a.t) / span;
       let price = a.p + (b.p - a.p) * frac;
-      price += (rng() - 0.5) * 2 * jitterAmp;
+      // Exponential smoothing: each tick nudges the running noise value
+      // toward a fresh random draw instead of replacing it outright, so
+      // the path drifts continuously rather than vibrating randomly.
+      noise = noise * 0.7 + (rng() - 0.5) * 2 * jitterAmp * 0.3;
+      price += noise;
       price = Math.min(h, Math.max(l, price));
       ticks.push(price);
     }
@@ -466,8 +507,8 @@
   els.btRunSelect.addEventListener("change", () => loadBacktestRunTrades(els.btRunSelect.value || null));
 
   // Ticks for the checkpoint (mid-trade) bar — the full 60s window.
-  function getCheckpointTicks(trade, bar, prevClose) {
-    const simPrices = () => genSecondTicks(bar, prevClose, `${trade.id}:checkpoint`);
+  function getCheckpointTicks(trade, bar, prevClose, avgVolume) {
+    const simPrices = () => genSecondTicks(bar, prevClose, `${trade.id}:checkpoint`, avgVolume);
     if (state.tickMode !== "real") return Promise.resolve({ prices: simPrices(), real: false, fellBack: false });
     const start = toUnix(bar.t);
     return fetchRealTicks(trade.symbol, start, start + BAR_SECONDS).then((real) => (
@@ -483,8 +524,8 @@
   // continuation (getEntryBarRemainderTicks below) pick up exactly where
   // the pre-entry tape (getEntryWatchTicks) left off instead of jumping
   // to an unrelated path.
-  function simEntryBarTicks(trade, bar, prevClose) {
-    return genSecondTicks(bar, prevClose, `${trade.id}:entrywatch`);
+  function simEntryBarTicks(trade, bar, prevClose, avgVolume) {
+    return genSecondTicks(bar, prevClose, `${trade.id}:entrywatch`, avgVolume);
   }
   // How many ticks (1..REPLAY_SECONDS) are visible/elapsed by a given
   // point into the bar -- shared by the pre-entry tape's cutoff and the
@@ -500,9 +541,9 @@
   // real mode never leaks anything past the moment you're deciding at
   // (and sim mode is truncated + pinned to the real fill for the same
   // reason — see buildFormingBar above).
-  function getEntryWatchTicks(trade, bar, prevClose, secondsIntoBar) {
+  function getEntryWatchTicks(trade, bar, prevClose, secondsIntoBar, avgVolume) {
     const simPrices = () => {
-      const full = simEntryBarTicks(trade, bar, prevClose);
+      const full = simEntryBarTicks(trade, bar, prevClose, avgVolume);
       const cut = entryTickCount(secondsIntoBar);
       const t = full.slice(0, cut);
       t[t.length - 1] = trade.entry_price;
@@ -525,9 +566,9 @@
   // same index space getEntryWatchTicks/onAct use), so slicing the same
   // deterministic path one tick past it picks up exactly where your
   // fill happened, with no jump.
-  function getEntryBarRemainderTicks(trade, bar, prevClose, entryTickIdx) {
+  function getEntryBarRemainderTicks(trade, bar, prevClose, entryTickIdx, avgVolume) {
     const simPrices = () => {
-      const full = simEntryBarTicks(trade, bar, prevClose);
+      const full = simEntryBarTicks(trade, bar, prevClose, avgVolume);
       full[entryTickIdx] = trade.entry_price; // anchor to your actual fill so there's no seam
       return full.slice(entryTickIdx + 1);
     };
@@ -1384,6 +1425,11 @@
 
     state.current = {
       trade, bars, side, entryIdx, exitIdx,
+      // Session-average bar volume, used to scale how choppy the simulated
+      // tick path looks per-bar (see genSecondTicks) -- computed once here
+      // instead of per-bar so a single outlier bar can't skew its own
+      // baseline.
+      avgVolume: bars.length ? bars.reduce((s, b) => s + (b.v || 0), 0) / bars.length : 0,
       stage: "entry",
       entered: null,
       userEntryPrice: null,
@@ -1528,7 +1574,7 @@
     const answerRow = document.getElementById("quiz-entry-answer-row");
     const prevCloseEntry = c.entryIdx > 0 ? c.bars[c.entryIdx - 1].c : entryBar.o;
     c.entryBarPrevClose = prevCloseEntry;
-    getEntryWatchTicks(trade, entryBar, prevCloseEntry, secondsIntoBar).then(({ prices, real, fellBack }) => {
+    getEntryWatchTicks(trade, entryBar, prevCloseEntry, secondsIntoBar, c.avgVolume).then(({ prices, real, fellBack }) => {
       if (state.current !== c || c.stage !== "entry") return;
       try {
       // Removed (not just hidden): the replay below creates its own
@@ -2110,8 +2156,8 @@
 
     const watchIdxAtFetch = c.watchIdx;
     const ticksPromise = isEntryRemainder
-      ? getEntryBarRemainderTicks(trade, bar, tickPrevClose, c.entryTickIdx)
-      : getCheckpointTicks(trade, bar, tickPrevClose);
+      ? getEntryBarRemainderTicks(trade, bar, tickPrevClose, c.entryTickIdx, c.avgVolume)
+      : getCheckpointTicks(trade, bar, tickPrevClose, c.avgVolume);
     ticksPromise.then(({ prices, real, fellBack }) => {
       if (state.current !== c || c.stage !== "watch" || c.watchIdx !== watchIdxAtFetch) return; // moved on while this was in flight
       try {

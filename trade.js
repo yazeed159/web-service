@@ -63,6 +63,32 @@
         return bars;
       });
   }
+
+  // POST helper for chart_service.py routes that need to know who's
+  // asking (currently just /fetch-float) -- attaches the logged-in
+  // person's Supabase access token, same pattern as backtester.js's
+  // authedHeaders(). window.AUTH_READY (see auth.js) resolves once per
+  // page load and is safe to .then() repeatedly.
+  function authedPost(path, body) {
+    const base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
+    if (!base) return Promise.reject(new Error("CHART_SERVICE_URL isn't set in config.js"));
+    return window.AUTH_READY.then((session) => {
+      if (!session) throw new Error("Please log in first.");
+      return fetch(`${base}${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true",
+          "Authorization": "Bearer " + session.access_token,
+        },
+        body: JSON.stringify(body),
+      });
+    }).then((r) => r.json().then((data) => {
+      if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+      return data;
+    }));
+  }
+
   // Every drawSrLevelsOnChart() call adds new createPriceLine()s without
   // ever removing the last batch -- clicking "Analyze support/resistance"
   // more than once (re-running after the first result, or just curiosity)
@@ -205,6 +231,7 @@
           ${trade.trade_date} &nbsp;·&nbsp; entry ${trade.entry_time} @ $${trade.entry_price.toFixed(2)}
           &nbsp;→&nbsp; exit ${trade.exit_time} @ $${trade.exit_price.toFixed(2)}
           &nbsp;·&nbsp; <span class="meta-standout">${trade.shares} sh</span> &nbsp;·&nbsp; held <span class="meta-standout">${trade.time_in_trade || "—"}</span>
+          ${trade.fill_count > 1 ? `&nbsp;·&nbsp; <span class="pill" title="Entry/Exit Price above are quantity-weighted averages across these fills" style="opacity:.85;">${trade.fill_count} fills</span>` : ""}
         </div>
         <div class="trade-meta" style="margin-top:6px; display:flex; align-items:center; gap:8px;" id="grade-row">
           <span style="color:var(--text-faint); font-size:12px;">Execution grade</span>
@@ -292,6 +319,8 @@
           ${!trade.better_entry && !trade.better_exit ? `<div class="no-better" style="font-size:12px; opacity:.7;">No better entry/exit flagged — this trade lined up with the plan.</div>` : ""}
         </div>
 
+        ${fillsCard(trade)}
+
         <div class="card">
           <h2>Lessons from this trade</h2>
           ${Array.isArray(trade.lessons) && trade.lessons.length
@@ -299,16 +328,20 @@
             : `<div class="no-better">No lessons recorded for this trade.</div>`}
         </div>
 
-        ${trade.symbol_info && (trade.symbol_info.name || trade.symbol_info.description) ? `
+        ${hasSymbolInfo(trade) || !hasFloat(trade) ? `
         <div class="card symbol-card" style="grid-column: 1 / -1;">
           <h2>About ${escapeHtml(trade.symbol)}</h2>
-          <div class="sym-head"><span class="sym-name">${escapeHtml(trade.symbol_info.name || trade.symbol)}</span></div>
+          ${hasSymbolInfo(trade) ? `<div class="sym-head"><span class="sym-name">${escapeHtml(trade.symbol_info.name || trade.symbol)}</span></div>` : ""}
           <div class="sym-meta-row">
-            ${trade.symbol_info.country ? `<span class="pill">${escapeHtml(trade.symbol_info.country)}</span>` : ""}
-            ${trade.symbol_info.sector ? `<span class="pill">${escapeHtml(trade.symbol_info.sector)}</span>` : ""}
+            ${trade.symbol_info && trade.symbol_info.country ? `<span class="pill">${escapeHtml(trade.symbol_info.country)}</span>` : ""}
+            ${trade.symbol_info && trade.symbol_info.sector ? `<span class="pill">${escapeHtml(trade.symbol_info.sector)}</span>` : ""}
             ${volumeFloatPills(trade)}
+            ${!hasFloat(trade) ? (trade._floatChecked
+              ? `<span class="pill" style="opacity:.6;" title="Polygon has no share count on file for this symbol">Float unavailable</span>`
+              : `<button type="button" class="icon-btn icon-btn-visible" id="get-float-btn" title="Look up this symbol's float from Polygon (one-time per symbol)" style="width:auto; padding:3px 10px; font-size:11px;">Get float</button>`
+            ) : ""}
           </div>
-          <div class="sym-desc">${escapeHtml(trade.symbol_info.description || "")}</div>
+          ${hasSymbolInfo(trade) ? `<div class="sym-desc">${escapeHtml(trade.symbol_info.description || "")}</div>` : ""}
         </div>` : ""}
 
         <div class="card sr-box" style="grid-column: 1 / -1;">
@@ -371,6 +404,50 @@
     const srBtn = document.getElementById("sr-run-btn");
     if (srBtn) {
       srBtn.addEventListener("click", () => runSupportResistance(trade, srBtn));
+    }
+
+    // "Get float" -- on-demand replacement for the float lookup
+    // chart_service.py's /generate-chart used to run automatically on
+    // every trade (see compute_volume_float_stats' docstring). Costs a
+    // live Polygon call only the first time ANYONE asks about this
+    // symbol (see float_shares_store.py); after that it's served from
+    // cache. /fetch-float also saves the result onto this trade's row in
+    // Supabase, so re-opening it later shows the float without another
+    // click -- update the in-memory trade object here too so the pills,
+    // the chart's info overlay, and a re-render (e.g. "Show full day")
+    // all reflect it immediately without a page reload.
+    const getFloatBtn = document.getElementById("get-float-btn");
+    if (getFloatBtn) {
+      getFloatBtn.addEventListener("click", () => {
+        if (getFloatBtn.disabled) return;
+        getFloatBtn.disabled = true;
+        const original = getFloatBtn.textContent;
+        getFloatBtn.textContent = "Looking up…";
+        authedPost("/fetch-float", { trade_id: trade.id, symbol: trade.symbol })
+          .then((data) => {
+            trade.indicators = Object.assign({}, trade.indicators, {
+              float_shares: data.float_shares,
+              float_tag: data.float_tag,
+            });
+            // Marks this as "already tried this page load" so a symbol
+            // Polygon genuinely has no share count for (float_shares
+            // comes back null -- see float_shares_store.py's docstring)
+            // shows "Float unavailable" instead of the button looping
+            // back forever. Not persisted -- a fresh page load (or the
+            // symbol getting data later) can always try again.
+            trade._floatChecked = true;
+            if (currentTrade) {
+              currentTrade.indicators = trade.indicators;
+              currentTrade._floatChecked = true;
+            }
+            renderTrade(trade, siblings);
+          })
+          .catch((err) => {
+            getFloatBtn.textContent = original;
+            getFloatBtn.disabled = false;
+            getFloatBtn.title = "Couldn't fetch float: " + err.message;
+          });
+      });
     }
 
     const fullDayBtn = document.getElementById("full-day-btn");
@@ -532,6 +609,41 @@
         ${how}
       </div>
     </div>`;
+  }
+
+  // Only rendered when this trade merged more than one raw FIFO fill (see
+  // trade_matching.fifo_match_and_merge's "Fill Count"/"Fills") -- a
+  // single-fill trade has nothing extra to show beyond the Entry/Exit
+  // Price already in the header, so this card just doesn't appear.
+  function fillsCard(trade) {
+    if (!(trade.fill_count > 1) || !Array.isArray(trade.fills) || !trade.fills.length) return "";
+    const rows = trade.fills.map((f, i) => `
+      <div class="fill-row" style="display:grid; grid-template-columns: 24px 1fr 1fr 70px 90px; gap:8px; align-items:baseline; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.06); font-size:12.5px;">
+        <span style="opacity:.5;">${i + 1}</span>
+        <span>entry <b>$${Number(f.entry_price).toFixed(2)}</b> @ ${escapeHtml(f.entry_time)}</span>
+        <span>exit <b>$${Number(f.exit_price).toFixed(2)}</b> @ ${escapeHtml(f.exit_time)}</span>
+        <span class="mono">${f.qty} sh</span>
+        <span class="mono ${f.pnl_before_comm >= 0 ? "up" : "down"}">${fmtMoney(f.pnl_before_comm)}</span>
+      </div>`).join("");
+    return `
+        <div class="card" style="grid-column: 1 / -1;">
+          <h2 style="margin:0 0 4px;">Fills (${trade.fill_count})</h2>
+          <div style="font-size:11.5px; opacity:.65; margin-bottom:8px;">
+            The Entry/Exit Price above are quantity-weighted averages across these fills -- here's each one on its own.
+          </div>
+          ${rows}
+        </div>`;
+  }
+
+  function hasSymbolInfo(trade) {
+    return !!(trade.symbol_info && (trade.symbol_info.name || trade.symbol_info.description));
+  }
+  // Float is no longer fetched automatically (see chart_service.py's
+  // compute_volume_float_stats docstring) -- this just checks whether
+  // it's already been looked up and saved for this trade, so renderTrade
+  // knows whether to show the "Get float" button.
+  function hasFloat(trade) {
+    return !!(trade.indicators || {}).float_shares;
   }
 
   // Float / avg-volume / relative-volume pills for the About card. Reads

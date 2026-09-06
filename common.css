@@ -234,6 +234,8 @@ button { font-family: var(--sans); }
   overflow: hidden;
 }
 .stat { background: var(--panel); padding: 16px 18px; }
+.stat.rpt-stat-clickable { cursor: pointer; transition: background 0.12s ease; }
+.stat.rpt-stat-clickable:hover { background: var(--panel-3); }
 .stat .label-row { display: flex; align-items: center; gap: 5px; margin-bottom: 9px; }
 .stat .label {
   font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em;
