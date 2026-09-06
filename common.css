@@ -412,6 +412,12 @@ button { font-family: var(--sans); }
 .cal-cell.has-trades:hover { border-color: var(--text-dim); }
 .cal-cell.win { background: var(--green-soft); border-color: rgba(47,208,138,0.28); }
 .cal-cell.loss { background: var(--red-soft); border-color: rgba(242,85,90,0.28); }
+/* Leading/trailing days that spill into the adjacent month -- shown so the
+   week they belong to totals correctly, but visually muted since they
+   aren't part of the month being viewed (and aren't part of its month
+   P&L/gross stats above the grid, which are computed separately). */
+.cal-cell.other-month { opacity: 0.5; }
+.cal-cell.other-month .date-num { color: var(--text-faint); }
 .cal-cell.selected { box-shadow: 0 0 0 1.5px var(--primary) inset; }
 .cal-cell .date-num { font-size: 15px; color: var(--text-dim); font-weight: 600; margin-bottom: auto; }
 .cal-cell.win .date-num, .cal-cell.loss .date-num { color: var(--text); }

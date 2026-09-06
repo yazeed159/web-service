@@ -746,21 +746,28 @@
         const dow = (cur.getDay() + 6) % 7; // 0=Mon..6=Sun -- markets are closed Sat/Sun, so those days aren't worth a column
         const inMonth = cur.getMonth() === m && cur.getFullYear() === y;
         const key = dateKey(cur.getFullYear(), cur.getMonth(), cur.getDate());
-        const entry = inMonth ? map.get(key) : null;
+        // Look up the entry regardless of which month `cur` actually falls
+        // in. The leading/trailing days of a week can belong to the
+        // adjacent month (e.g. the Mon/Tue before a month that starts on a
+        // Wednesday) -- those days still happened and still belong to that
+        // week, so they must count toward the week total for the week to
+        // be correct. They're deliberately NOT counted anywhere else: the
+        // month P&L/gross/trading-day stats above the grid are computed by
+        // a separate loop restricted to `daysInMonth` of *this* month, so
+        // spillover days never leak into those totals -- only into the
+        // per-week rollups here.
+        const entry = map.get(key);
         if (dow < 5) {
           if (entry) { weekNet += entry.net; weekGross += entry.gross; weekComm += entry.comm; weekTrades += entry.count; weekHas = true; }
-          if (!inMonth) {
-            rowHtml += `<div class="cal-cell empty"></div>`;
-          } else {
-            let cls = "cal-cell";
-            if (entry) cls += (entry.net >= 0 ? " win" : " loss") + (opts.clickable ? " has-trades" : "");
-            if (opts.clickable && key === opts.selectedDay) cls += " selected";
-            const dayAttr = opts.clickable ? ` data-day="${key}"` : "";
-            rowHtml += `<div class="${cls}"${dayAttr}>
-              <span class="date-num">${cur.getDate()}</span>
-              ${entry ? `<span class="cell-pnl">${fmtMoney(entry.net)}</span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span>${opts.compact ? "" : `<span class="cell-subline">Gross <span class="${entry.gross >= 0 ? "up" : "down"}">${fmtMoney(entry.gross)}</span></span><span class="cell-subline">Comm $${entry.comm.toFixed(2)}</span>`}` : ""}
-            </div>`;
-          }
+          let cls = "cal-cell";
+          if (!inMonth) cls += " other-month";
+          if (entry) cls += (entry.net >= 0 ? " win" : " loss") + (opts.clickable ? " has-trades" : "");
+          if (opts.clickable && key === opts.selectedDay) cls += " selected";
+          const dayAttr = opts.clickable && entry ? ` data-day="${key}"` : "";
+          rowHtml += `<div class="${cls}"${dayAttr}>
+            <span class="date-num">${cur.getDate()}</span>
+            ${entry ? `<span class="cell-pnl">${fmtMoney(entry.net)}</span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span>${opts.compact ? "" : `<span class="cell-subline">Gross <span class="${entry.gross >= 0 ? "up" : "down"}">${fmtMoney(entry.gross)}</span></span><span class="cell-subline">Comm $${entry.comm.toFixed(2)}</span>`}` : ""}
+          </div>`;
         }
         cur.setDate(cur.getDate() + 1);
       }
