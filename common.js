@@ -1,83 +1,95 @@
-// global-search.js — full-text search across every published trade's
-// verdict/lessons/walk-away rule/better-entry-exit reasoning/symbol
-// description. Used to be its own sidebar tab + page (notes.html); now
-// it's a search icon in the topbar of every page that opens this modal,
-// so the sidebar doesn't need a dedicated entry for it. The indexing
-// logic below is the same as notes.html's -- just wired to modal ids
-// instead of a full page.
+// global-search.js — docked "Search symbols" bar for the topbar search
+// icon. Used to be its own sidebar tab (notes.html), then a centered
+// modal; now it's an inline bar that drops down as an actual part of
+// the page (a sibling of .topbar inside .main, not a floating overlay)
+// so it pushes .content down instead of covering the screen.
+//
+// Search matches against symbol first -- that's instant, straight off
+// the lightweight rows fetchTradesIndex() already returns, no per-trade
+// detail fetch needed. Flipping on "Search notes too" additionally
+// matches each trade's verdict/lessons/walk-away rule/better-entry-exit
+// reasoning/symbol description -- that needs each trade's full detail,
+// so that heavier index is only built lazily, the first time it's
+// switched on.
 (function () {
   "use strict";
 
   if (/\/login(\.html)?\/?$/.test(window.location.pathname)) return;
+  const topbar = document.querySelector(".topbar");
   const topbarRight = document.querySelector(".topbar-right");
-  if (!topbarRight) return;
+  if (!topbar || !topbarRight) return;
 
   const INDEX_CACHE_PREFIX = "trade.log:notesIndex:";
   const CONCURRENCY = 6;
+  const SORT_KEY = "trade.log:searchSort";
 
   // ---- inject the topbar trigger button --------------------------------
   const trigger = document.createElement("button");
   trigger.type = "button";
   trigger.className = "icon-btn icon-btn-visible";
   trigger.id = "gs-open-btn";
-  trigger.title = "Search notes";
-  trigger.setAttribute("aria-label", "Search notes");
+  trigger.title = "Search trades";
+  trigger.setAttribute("aria-label", "Search trades");
   trigger.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`;
   const mobileBtn = document.getElementById("mobile-nav-btn");
   if (mobileBtn) topbarRight.insertBefore(trigger, mobileBtn);
   else topbarRight.appendChild(trigger);
 
-  // ---- build the modal ---------------------------------------------------
-  const overlay = document.createElement("div");
-  overlay.className = "gs-modal-overlay";
-  overlay.id = "gs-modal-overlay";
-  overlay.innerHTML = `
-    <div class="gs-modal-box" role="dialog" aria-modal="true" aria-label="Search notes">
-      <div class="gs-modal-head">
+  // ---- build the dock, as a real sibling of .topbar (not an overlay) ---
+  const dock = document.createElement("div");
+  dock.className = "gs-dock";
+  dock.id = "gs-dock";
+  dock.innerHTML = `
+    <div class="gs-dock-inner">
+      <div class="gs-dock-row">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <input type="text" id="gs-query" class="gs-modal-input" placeholder="Search notes… e.g. “chased”, “vwap”, “too early”">
-        <button type="button" class="gs-modal-close" id="gs-close-btn" title="Close" aria-label="Close search">
+        <input type="text" id="gs-query" class="gs-dock-input" placeholder="Search symbols… e.g. MARA, SOFI" aria-label="Search trades by symbol">
+        <button type="button" class="gs-dock-toggle" id="gs-notes-toggle" aria-pressed="false" title="Also search verdict, lessons, walk-away rule, and better-entry/exit notes">Search notes too</button>
+        <select id="gs-sort" class="gs-dock-sort" title="Sort results">
+          <option value="recent">Most recent</option>
+          <option value="symbol">Symbol A–Z</option>
+          <option value="pnl-desc">P&amp;L: high to low</option>
+          <option value="pnl-asc">P&amp;L: low to high</option>
+        </select>
+        <button type="button" class="gs-dock-close" id="gs-close-btn" title="Close" aria-label="Close search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
-      <div class="gs-modal-filters">
-        <label title="Search verdict text"><input type="checkbox" id="gs-f-verdict" checked> Verdict</label>
-        <label title="Search each trade's logged lessons"><input type="checkbox" id="gs-f-lessons" checked> Lessons</label>
-        <label title="Search the walk-away rule text"><input type="checkbox" id="gs-f-walkaway" checked> Walk-away rule</label>
-        <label title="Search the AI's better-entry/exit reasoning"><input type="checkbox" id="gs-f-better" checked> Better entry/exit reasons</label>
-        <label title="Search the symbol's About/description text"><input type="checkbox" id="gs-f-symbol" checked> Symbol info</label>
-      </div>
-      <div class="gs-modal-status" id="gs-status"></div>
-      <div class="gs-modal-results" id="gs-results">
-        <div class="empty-state">Type above to search every trade's notes.</div>
+      <div class="gs-dock-status" id="gs-status"></div>
+      <div class="gs-dock-results" id="gs-results">
+        <div class="empty-state">Type a symbol to search your trades.</div>
       </div>
     </div>
   `;
-  document.body.appendChild(overlay);
+  topbar.insertAdjacentElement("afterend", dock);
 
   const queryEl = document.getElementById("gs-query");
   const statusEl = document.getElementById("gs-status");
   const resultsEl = document.getElementById("gs-results");
-  const fieldToggles = {
-    verdict: document.getElementById("gs-f-verdict"),
-    lessons: document.getElementById("gs-f-lessons"),
-    walkaway: document.getElementById("gs-f-walkaway"),
-    better: document.getElementById("gs-f-better"),
-    symbol: document.getElementById("gs-f-symbol"),
-  };
+  const notesToggle = document.getElementById("gs-notes-toggle");
+  const sortEl = document.getElementById("gs-sort");
 
-  let index = [];
-  let indexReady = false;
-  let indexBuildStarted = false;
-  let indexFailed = 0;
+  try { sortEl.value = sessionStorage.getItem(SORT_KEY) || "recent"; } catch (e) { /* ignore */ }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  // ---- lightweight symbol index (instant -- no per-trade fetch) --------
+  let liteRows = null;
+  let liteLoading = null;
+  function loadLite() {
+    if (liteRows) return Promise.resolve(liteRows);
+    if (liteLoading) return liteLoading;
+    liteLoading = window.fetchTradesIndex().then((rows) => {
+      liteRows = Array.isArray(rows) ? rows : [];
+      return liteRows;
+    });
+    return liteLoading;
   }
-  function fmtMoney(v) {
-    const sign = v >= 0 ? "+" : "-";
-    return sign + "$" + Math.abs(v).toFixed(2);
-  }
+
+  // ---- heavier notes index (verdict/lessons/walk-away/better/symbol) ---
+  // built lazily, only once "Search notes too" is switched on.
+  let notesIndex = [];
+  let notesReady = false;
+  let notesBuilding = false;
+  let notesFailed = 0;
 
   function extractFields(detail) {
     return {
@@ -88,12 +100,10 @@
       symbol: (detail.symbol_info && detail.symbol_info.description) || "",
     };
   }
-
   function cacheKey(rows) {
     const last = rows[rows.length - 1];
     return INDEX_CACHE_PREFIX + rows.length + ":" + (last ? last.id : "none");
   }
-
   async function fetchAll(rows, onProgress) {
     const out = new Array(rows.length);
     let next = 0, done = 0;
@@ -106,7 +116,7 @@
           if (!detail) throw new Error("Trade not found");
           out[i] = { id: row.id, symbol: row.symbol, trade_date: row.trade_date, win: row.win, pnl_after_comm: row.pnl_after_comm, fields: extractFields(detail) };
         } catch (e) {
-          indexFailed++;
+          notesFailed++;
           out[i] = null;
         }
         done++;
@@ -116,44 +126,43 @@
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, rows.length) }, worker));
     return out.filter(Boolean);
   }
-
-  function buildIndex() {
-    if (indexBuildStarted) return;
-    indexBuildStarted = true;
-    statusEl.textContent = "Loading trade index…";
-    window.fetchTradesIndex()
+  function buildNotesIndex() {
+    if (notesBuilding) return;
+    notesBuilding = true;
+    statusEl.textContent = "Indexing trade notes…";
+    loadLite()
       .then(async (rows) => {
-        rows = Array.isArray(rows) ? rows : [];
-        if (!rows.length) {
-          statusEl.textContent = "";
-          resultsEl.innerHTML = `<div class="empty-state">No trades published yet.</div>`;
-          return;
-        }
+        if (!rows.length) { notesReady = true; render(queryEl.value); return; }
         const key = cacheKey(rows);
         let cached = null;
         try { cached = JSON.parse(sessionStorage.getItem(key) || "null"); } catch (e) { cached = null; }
         if (cached && Array.isArray(cached)) {
-          index = cached;
-          indexReady = true;
-          statusEl.textContent = `Indexed ${index.length} trade${index.length === 1 ? "" : "s"}' notes (cached this session).`;
+          notesIndex = cached;
+          notesReady = true;
           render(queryEl.value);
           return;
         }
-        indexFailed = 0;
-        index = await fetchAll(rows, (done, total) => {
+        notesFailed = 0;
+        notesIndex = await fetchAll(rows, (done, total) => {
           statusEl.textContent = `Indexing trade notes… ${done}/${total}`;
         });
-        indexReady = true;
-        try { sessionStorage.setItem(key, JSON.stringify(index)); } catch (e) { /* dataset too big -- skip caching */ }
-        statusEl.textContent = `Indexed ${index.length} trade${index.length === 1 ? "" : "s"}' notes${indexFailed ? ` (${indexFailed} detail file${indexFailed === 1 ? "" : "s"} couldn't be loaded — skipped)` : ""}.`;
+        notesReady = true;
+        try { sessionStorage.setItem(key, JSON.stringify(notesIndex)); } catch (e) { /* dataset too big -- skip caching */ }
         render(queryEl.value);
       })
-      .catch((err) => {
-        statusEl.textContent = "";
-        resultsEl.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
+      .catch(() => {
+        notesReady = true;
+        render(queryEl.value);
       });
   }
 
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function fmtMoney(v) {
+    const sign = v >= 0 ? "+" : "-";
+    return sign + "$" + Math.abs(v).toFixed(2);
+  }
   function snippet(text, q, pad) {
     const lower = text.toLowerCase();
     const at = lower.indexOf(q.toLowerCase());
@@ -166,83 +175,112 @@
     return `${start > 0 ? "…" : ""}${before}<mark>${match}</mark>${after}${end < text.length ? "…" : ""}`;
   }
 
-  const FIELD_LABELS = { verdict: "Verdict", lessons: "Lessons", walkaway: "Walk-away rule", better: "Better entry/exit reason", symbol: "Symbol info" };
-
+  // One row per matching trade -- symbol matches first, then (if notes
+  // search is on) trades whose notes matched but symbol didn't, tagged
+  // with which field hit.
   function search(q) {
-    const activeFields = Object.keys(fieldToggles).filter((k) => fieldToggles[k].checked);
     const lowerQ = q.toLowerCase();
-    const matches = [];
-    for (const row of index) {
-      for (const key of activeFields) {
-        const text = row.fields[key];
-        if (text && text.toLowerCase().includes(lowerQ)) {
-          matches.push({ row, field: key, snippet: snippet(text, q, 60) });
+    const byId = new Map();
+    (liteRows || []).forEach((row) => {
+      if (row.symbol && row.symbol.toLowerCase().includes(lowerQ)) {
+        byId.set(row.id, { row, field: null, snippet: "" });
+      }
+    });
+    if (notesToggle.getAttribute("aria-pressed") === "true") {
+      const fieldOrder = ["verdict", "lessons", "walkaway", "better", "symbol"];
+      for (const row of notesIndex) {
+        if (byId.has(row.id)) continue;
+        for (const key of fieldOrder) {
+          const text = row.fields[key];
+          if (text && text.toLowerCase().includes(lowerQ)) {
+            byId.set(row.id, { row, field: key, snippet: snippet(text, q, 60) });
+            break;
+          }
         }
       }
     }
-    return matches;
+    return Array.from(byId.values());
   }
 
+  function applySort(matches) {
+    const mode = sortEl.value;
+    const sorted = matches.slice();
+    if (mode === "symbol") sorted.sort((a, b) => a.row.symbol.localeCompare(b.row.symbol));
+    else if (mode === "pnl-desc") sorted.sort((a, b) => b.row.pnl_after_comm - a.row.pnl_after_comm);
+    else if (mode === "pnl-asc") sorted.sort((a, b) => a.row.pnl_after_comm - b.row.pnl_after_comm);
+    else sorted.sort((a, b) => (a.row.trade_date < b.row.trade_date ? 1 : a.row.trade_date > b.row.trade_date ? -1 : 0));
+    return sorted;
+  }
+
+  const FIELD_LABELS = { verdict: "Verdict", lessons: "Lessons", walkaway: "Walk-away rule", better: "Better entry/exit", symbol: "Symbol info" };
+
   function render(q) {
-    if (!indexReady) return;
-    if (!q.trim()) {
-      resultsEl.innerHTML = `<div class="empty-state">Type above to search every trade's notes.</div>`;
+    q = (q || "").trim();
+    if (!q) {
+      resultsEl.innerHTML = `<div class="empty-state">Type a symbol to search your trades.</div>`;
       return;
     }
-    const matches = search(q.trim());
+    if (!liteRows) {
+      resultsEl.innerHTML = `<div class="empty-state">Loading your trades…</div>`;
+      return;
+    }
+    const matches = applySort(search(q));
     if (!matches.length) {
-      resultsEl.innerHTML = `<div class="empty-state">No matches for “${escapeHtml(q.trim())}”.</div>`;
+      resultsEl.innerHTML = `<div class="empty-state">No matches for “${escapeHtml(q)}”.</div>`;
       return;
     }
-    const tradeCount = new Set(matches.map((m) => m.row.id)).size;
-    resultsEl.innerHTML = `
-      <p style="color:var(--text-faint); font-size:12.5px; margin:0 0 10px;">${matches.length} match${matches.length === 1 ? "" : "es"} across ${tradeCount} trade${tradeCount === 1 ? "" : "s"}</p>
-      <div class="panel-box" style="padding:0;">
-        <div class="table-scroll">
-          ${matches.map((m) => `
-            <a class="row-link" href="trade.html?id=${encodeURIComponent(m.row.id)}" style="display:flex; flex-direction:column; gap:4px; padding:10px 12px; border-bottom:1px solid var(--border-soft); color:var(--text); text-decoration:none;">
-              <div style="display:flex; align-items:center; gap:8px; font-size:12.5px;">
-                <b>${escapeHtml(m.row.symbol)}</b>
-                <span style="color:var(--text-faint);">${escapeHtml(m.row.trade_date)}</span>
-                <span class="pill ${m.row.win ? "win" : "loss"}">${m.row.win ? "WIN" : "LOSS"}</span>
-                <span class="${m.row.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(m.row.pnl_after_comm)}</span>
-                <span class="pill" style="margin-left:auto;">${escapeHtml(FIELD_LABELS[m.field])}</span>
-              </div>
-              <div style="font-size:13px; color:var(--text-dim); line-height:1.5;">${m.snippet}</div>
-            </a>
-          `).join("")}
-        </div>
-      </div>
-    `;
+    statusEl.textContent = `${matches.length} trade${matches.length === 1 ? "" : "s"}`;
+    resultsEl.innerHTML = matches.map((m) => `
+      <a class="gs-dock-item" href="trade.html?id=${encodeURIComponent(m.row.id)}">
+        <span class="gs-sym">${escapeHtml(m.row.symbol)}</span>
+        <span class="gs-date">${escapeHtml(m.row.trade_date)}</span>
+        <span class="pill ${m.row.win ? "win" : "loss"}">${m.row.win ? "WIN" : "LOSS"}</span>
+        ${m.field ? `<span class="gs-snip"><span class="pill" style="margin-right:6px;">${escapeHtml(FIELD_LABELS[m.field])}</span>${m.snippet}</span>` : `<span class="gs-snip"></span>`}
+        <span class="gs-pnl ${m.row.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(m.row.pnl_after_comm)}</span>
+      </a>
+    `).join("");
   }
 
   let debounceTimer = null;
   queryEl.addEventListener("input", () => {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => render(queryEl.value), 150);
+    debounceTimer = setTimeout(() => render(queryEl.value), 120);
   });
-  Object.values(fieldToggles).forEach((el) => el.addEventListener("change", () => render(queryEl.value)));
+  sortEl.addEventListener("change", () => {
+    try { sessionStorage.setItem(SORT_KEY, sortEl.value); } catch (e) { /* ignore */ }
+    render(queryEl.value);
+  });
+  notesToggle.addEventListener("click", () => {
+    const on = notesToggle.getAttribute("aria-pressed") === "true";
+    notesToggle.setAttribute("aria-pressed", on ? "false" : "true");
+    if (!on && !notesReady) buildNotesIndex();
+    else render(queryEl.value);
+  });
 
   // ---- open/close wiring -------------------------------------------------
-  function openModal() {
-    overlay.classList.add("open");
-    buildIndex();
+  function openDock() {
+    dock.classList.add("open");
+    if (!liteRows) {
+      statusEl.textContent = "Loading your trades…";
+      loadLite().then(() => render(queryEl.value));
+    }
     setTimeout(() => queryEl.focus(), 10);
   }
-  function closeModal() { overlay.classList.remove("open"); }
+  function closeDock() { dock.classList.remove("open"); }
 
-  trigger.addEventListener("click", openModal);
-  document.getElementById("gs-close-btn").addEventListener("click", closeModal);
-  overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) closeModal(); });
+  trigger.addEventListener("click", () => {
+    dock.classList.contains("open") ? closeDock() : openDock();
+  });
+  document.getElementById("gs-close-btn").addEventListener("click", closeDock);
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && overlay.classList.contains("open")) { closeModal(); return; }
+    if (e.key === "Escape" && dock.classList.contains("open")) { closeDock(); return; }
     // "/" opens search from anywhere, same as most sites -- unless the
     // person is already typing in some other field.
-    if (e.key === "/" && !overlay.classList.contains("open")) {
+    if (e.key === "/" && !dock.classList.contains("open")) {
       const tag = (document.activeElement && document.activeElement.tagName) || "";
       if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement.isContentEditable) return;
       e.preventDefault();
-      openModal();
+      openDock();
     }
   });
 })();

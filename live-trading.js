@@ -17,7 +17,18 @@
   };
 
   function authedHeaders(extra) {
-    return window.AUTH_READY.then((session) => {
+    // NOTE: deliberately re-fetches the session on every call instead of
+    // reusing window.AUTH_READY. AUTH_READY resolves ONCE at page load;
+    // supabase-js refreshes the access token silently in the background
+    // as it nears expiry, but that refreshed token never flows back into
+    // an already-resolved Promise. Long-lived tabs (this page polls
+    // /api/live/status every few seconds and can be left open for
+    // hours) would otherwise keep sending an expired token forever once
+    // the original one lapsed, hitting live-service's 401 even though
+    // the browser is still genuinely logged in. getSession() always
+    // returns supabase-js's current (auto-refreshed) session instead.
+    return window.AUTH_READY.then(() => window.sb.auth.getSession()).then((res) => {
+      const session = res && res.data && res.data.session;
       if (!session) throw new Error("Please log in first.");
       return Object.assign({}, FETCH_HEADERS, extra || {}, { "Authorization": "Bearer " + session.access_token });
     });

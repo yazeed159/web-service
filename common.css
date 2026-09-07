@@ -1506,69 +1506,82 @@ body::before {
 
 
 /* ===================================================================
-   global-search.css — modal for the topbar "Search notes" icon.
-   Used to be its own sidebar tab (notes.html); now it's a search icon
-   in the topbar of every page, opening this modal on top of whatever
-   page you're on, like search on most normal sites.
+   global-search.css — docked search bar for the topbar search icon.
+   Used to be its own sidebar tab (notes.html), then a centered modal;
+   now it's an inline bar that drops down as part of the page layout
+   right below the topbar (pushes .content down, no dark overlay) --
+   sticky under the topbar so it stays put while scrolling results.
+   Primary match is against symbol (instant, no index build needed);
+   "Search notes too" optionally also searches verdict/lessons/
+   walk-away rule/better-entry-exit reasoning/symbol info, lazily
+   indexed on first use.
 =================================================================== */
 
-.gs-modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(8, 9, 12, 0.6);
-  display: flex; align-items: flex-start; justify-content: center;
-  padding: 8vh 16px 16px;
-  z-index: 600;
-  opacity: 0; pointer-events: none;
-  transition: opacity .14s ease;
+.gs-dock {
+  display: none;
+  position: sticky; top: var(--topbar-h); z-index: 9;
+  background: var(--panel); border-bottom: 1px solid var(--border-soft);
+  box-shadow: 0 14px 28px -18px rgba(0,0,0,0.55);
 }
-.gs-modal-overlay.open { opacity: 1; pointer-events: auto; }
+.gs-dock.open { display: block; animation: gsDockIn .15s ease; }
+@keyframes gsDockIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
 
-.gs-modal-box {
-  width: min(720px, 100%);
-  max-height: min(76vh, 720px);
-  background: var(--glass-hi);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--glass-border-hi);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-  display: flex; flex-direction: column;
-  overflow: hidden;
-  transform: translateY(-8px) scale(.98);
-  transition: transform .14s ease;
-}
-.gs-modal-overlay.open .gs-modal-box { transform: translateY(0) scale(1); }
+.gs-dock-inner { max-width: 1320px; margin: 0 auto; padding: 14px 28px 16px; }
 
-.gs-modal-head {
-  display: flex; align-items: center; gap: 10px;
-  padding: 14px 16px; border-bottom: 1px solid var(--border-soft);
-  flex: none;
-}
-.gs-modal-head svg { width: 17px; height: 17px; color: var(--text-faint); flex: none; }
-.gs-modal-input {
-  flex: 1 1 auto; background: transparent; border: none; color: var(--text);
+.gs-dock-row { display: flex; align-items: center; gap: 10px; }
+.gs-dock-row > svg { width: 17px; height: 17px; color: var(--text-faint); flex: none; }
+
+.gs-dock-input {
+  flex: 1 1 auto; min-width: 0; background: transparent; border: none; color: var(--text);
   font-size: 15px; outline: none;
 }
-.gs-modal-input::placeholder { color: var(--text-faint); }
-.gs-modal-close {
-  width: 26px; height: 26px; border-radius: var(--radius-sm);
+.gs-dock-input::placeholder { color: var(--text-faint); }
+
+.gs-dock-toggle {
+  flex: none; padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim);
+  cursor: pointer; white-space: nowrap;
+}
+.gs-dock-toggle:hover { border-color: var(--text-dim); color: var(--text); }
+.gs-dock-toggle[aria-pressed="true"] {
+  background: var(--primary-soft); border-color: rgba(139,124,246,0.4); color: var(--primary);
+}
+
+.gs-dock-sort {
+  flex: none; background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim);
+  border-radius: var(--radius-sm); padding: 6px 10px; font-size: 12px; font-family: var(--sans);
+  cursor: pointer;
+}
+.gs-dock-sort:hover { border-color: var(--text-faint); }
+.gs-dock-sort option { background: var(--panel-2); color: var(--text); }
+
+.gs-dock-close {
+  width: 26px; height: 26px; border-radius: var(--radius-sm); flex: none;
   display: flex; align-items: center; justify-content: center;
-  background: var(--panel-2); border: 1px solid var(--border); color: var(--text-faint);
-  cursor: pointer; flex: none;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text-faint); cursor: pointer;
 }
-.gs-modal-close:hover { color: var(--text); }
-.gs-modal-close svg { width: 13px; height: 13px; }
+.gs-dock-close:hover { color: var(--text); }
+.gs-dock-close svg { width: 13px; height: 13px; }
 
-.gs-modal-filters {
-  display: flex; flex-wrap: wrap; gap: 12px;
-  padding: 10px 16px; border-bottom: 1px solid var(--border-soft);
-  font-size: 12px; color: var(--text-dim); flex: none;
+.gs-dock-status { padding: 8px 0 0; font-size: 12px; color: var(--text-faint); }
+
+.gs-dock-results { margin-top: 8px; max-height: 50vh; overflow-y: auto; }
+.gs-dock-item {
+  display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: var(--radius-sm);
+  color: var(--text); text-decoration: none; font-size: 13px;
 }
-.gs-modal-filters label { display: flex; align-items: center; gap: 5px; cursor: pointer; white-space: nowrap; }
+.gs-dock-item:hover { background: var(--panel-2); }
+.gs-dock-item .gs-sym { font-family: var(--mono); font-weight: 700; min-width: 54px; flex: none; }
+.gs-dock-item .gs-date { color: var(--text-faint); font-size: 12px; min-width: 78px; flex: none; }
+.gs-dock-item .gs-snip {
+  color: var(--text-dim); flex: 1 1 auto; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.gs-dock-item .gs-pnl { margin-left: auto; font-family: var(--mono); font-size: 12.5px; flex: none; }
+.gs-dock mark { background: var(--primary-soft); color: var(--primary); border-radius: 3px; padding: 0 2px; }
 
-.gs-modal-status { padding: 8px 16px 0; font-size: 12px; color: var(--text-faint); flex: none; }
-.gs-modal-results { flex: 1 1 auto; overflow-y: auto; padding: 10px 16px 16px; }
-
-@media (max-width: 600px) {
-  .gs-modal-overlay { padding: 4vh 8px 8px; }
-  .gs-modal-filters { gap: 8px 10px; }
+@media (max-width: 760px) {
+  .gs-dock-inner { padding: 12px 14px 14px; }
+  .gs-dock-row { flex-wrap: wrap; }
+  .gs-dock-item .gs-date { display: none; }
 }
