@@ -50,6 +50,16 @@ window.N8N_BACKTEST_IMPORT_URL = "https://chart-service-wroj.onrender.com/backte
 // restart ngrok on the free plan, so update this line each session.
 window.CHART_SERVICE_URL = "https://chart-service-wroj.onrender.com";
 
+// live-trading.html / live-trading.js. THIS IS NOT chart_service.py --
+// it's live-service, a separate Docker container that runs on YOUR OWN
+// machine next to IB Gateway (see the live-trading-stack repo's
+// docker-compose.yml), because it needs to hold an open connection to
+// Gateway continuously, which Render can't do reliably. Point this at
+// whatever tunnel (Cloudflare Tunnel / ngrok) you put in front of its
+// port 8800. Leave blank and the Live Trading page will just show an
+// error instead of failing silently.
+window.LIVE_SERVICE_URL = "";
+
 // Supabase project -- used by auth.js for login/signup and to read/write
 // this user's own trades (Row Level Security scopes every query to
 // auth.uid() automatically, so no user_id filtering is needed client-side).

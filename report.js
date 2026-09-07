@@ -245,6 +245,81 @@
   }
   let rptEquitySeries = null;
 
+  // ================= click-to-expand trade lists (Overview breakdowns) =================
+  // Same interaction the rest of the site already uses for this (see
+  // app.js's Reports tab: a bar-row toggles open a hidden <ul> of the exact
+  // trades behind it). Backtest trades aren't journal entries with a
+  // trade.html?id= to link to though, so each item opens the same
+  // interactive chart modal the "Practice"/"Rewind" buttons hang off of
+  // (openTradeChart, defined below) instead of navigating anywhere.
+  const BT_TRADE_LIST_PAGE_SIZE = 25;
+  const btTradeListState = new Map(); // uid -> { rows, shown }
+  let btReportRowSeq = 0;
+
+  function btTradeListItemHtml(t, idx) {
+    const hasChart = t.has_bars || (Array.isArray(t.bars) && t.bars.length);
+    const label = `${escapeHtml(t.symbol || "?")} — ${escapeHtml(t.date || t.trade_date || "")} `
+      + `<span class="${t.win ? "up" : "down"}">${t.win ? "WIN" : "LOSS"}</span> `
+      + `<span style="color:var(--text-faint);">${fmtMoney(t.pnl_dollars)}</span>`;
+    return hasChart
+      ? `<li><a href="#" data-bt-open-chart="${idx}">${label}</a></li>`
+      : `<li style="color:var(--text-faint);">${label} <span style="font-size:11px;">(no chart yet)</span></li>`;
+  }
+  function btTradeListMoreHtml(uid, remaining) {
+    return `<li class="tag-trade-list-more"><button type="button" class="btn-load-more" data-bt-load-more="${uid}">Load more (${remaining} left)</button></li>`;
+  }
+  function btTradeListHtml(rowsList, uid) {
+    const sorted = rowsList.slice().sort((a, b) => (b.date || b.trade_date || "").localeCompare(a.date || a.trade_date || ""));
+    const shown = Math.min(BT_TRADE_LIST_PAGE_SIZE, sorted.length);
+    btTradeListState.set(uid, { rows: sorted, shown });
+    const items = sorted.slice(0, shown).map((t, i) => btTradeListItemHtml(t, i)).join("");
+    const more = shown < sorted.length ? btTradeListMoreHtml(uid, sorted.length - shown) : "";
+    return `<ul class="tag-trade-list" id="${uid}">${items}${more}</ul>`;
+  }
+  // data-bt-bound marks elements already wired up so repeated calls (a
+  // fresh render, or a "Load more" click pulling in new <li>s into an
+  // already-bound container) never attach the same listener twice.
+  function bindBtTradeToggles(container) {
+    container.querySelectorAll("[data-trade-toggle]:not([data-bt-bound])").forEach((row) => {
+      row.setAttribute("data-bt-bound", "1");
+      row.addEventListener("click", () => {
+        const list = document.getElementById(row.getAttribute("data-trade-toggle"));
+        if (list) list.classList.toggle("open");
+      });
+    });
+    container.querySelectorAll("[data-bt-open-chart]:not([data-bt-bound])").forEach((a) => {
+      a.setAttribute("data-bt-bound", "1");
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // don't also toggle the parent row closed
+        const list = a.closest("ul.tag-trade-list");
+        const st = list && btTradeListState.get(list.id);
+        const t = st && st.rows[Number(a.getAttribute("data-bt-open-chart"))];
+        if (t) openTradeChartLazy(t, a);
+      });
+    });
+    container.querySelectorAll("[data-bt-load-more]:not([data-bt-bound])").forEach((btn) => {
+      btn.setAttribute("data-bt-bound", "1");
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const uid = btn.getAttribute("data-bt-load-more");
+        const st = btTradeListState.get(uid);
+        if (!st) return;
+        const nextShown = Math.min(st.shown + BT_TRADE_LIST_PAGE_SIZE, st.rows.length);
+        const newItemsHtml = st.rows.slice(st.shown, nextShown).map((t, i) => btTradeListItemHtml(t, st.shown + i)).join("");
+        st.shown = nextShown;
+        const moreLi = btn.closest("li");
+        moreLi.insertAdjacentHTML("beforebegin", newItemsHtml);
+        if (st.shown < st.rows.length) {
+          btn.textContent = `Load more (${st.rows.length - st.shown} left)`;
+        } else {
+          moreLi.remove();
+        }
+        bindBtTradeToggles(document.getElementById(uid)); // wire up the newly inserted items
+      });
+    });
+  }
+
   function renderRMultDistribution(trades) {
     const rTrades = trades.filter((t) => typeof t.r_multiple === "number" && isFinite(t.r_multiple));
     if (!rTrades.length) { els.rmultBox.innerHTML = ""; els.rmultBox.style.display = "none"; return; }
@@ -257,19 +332,23 @@
       { label: "1R to 2R", test: (r) => r >= 1 && r < 2, positive: true },
       { label: "2R to 3R", test: (r) => r >= 2 && r < 3, positive: true },
       { label: "> 3R", test: (r) => r >= 3, positive: true },
-    ].map((b) => ({ ...b, count: rTrades.filter((t) => b.test(t.r_multiple)).length }));
-    const maxCount = Math.max(1, ...buckets.map((b) => b.count));
+    ].map((b) => ({ ...b, trades: rTrades.filter((t) => b.test(t.r_multiple)) }));
+    const maxCount = Math.max(1, ...buckets.map((b) => b.trades.length));
     els.rmultBox.innerHTML = `
       <div class="panel-box-head"><span class="title">R-Multiple Distribution</span></div>
       <p style="color:var(--text-faint); font-size:12.5px; margin:-6px 0 14px;">${rTrades.length} of ${trades.length} trade${trades.length === 1 ? "" : "s"} carry an R value. A healthy edge should skew toward the right of zero.</p>
-      ${buckets.map((b) => `
-        <div class="bar-row">
+      ${buckets.filter((b) => b.trades.length).map((b) => {
+        const uid = `bt-trade-list-${btReportRowSeq++}`;
+        return `
+        <div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
           <div class="bar-label">${b.label}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:${(b.count / maxCount) * 100}%; background:${b.positive ? "var(--green)" : "var(--red)"};"></div></div>
-          <div class="bar-count">${b.count}x</div>
+          <div class="bar-track"><div class="bar-fill" style="width:${(b.trades.length / maxCount) * 100}%; background:${b.positive ? "var(--green)" : "var(--red)"};"></div></div>
+          <div class="bar-count">${b.trades.length}x</div>
         </div>
-      `).join("")}
+        ${btTradeListHtml(b.trades, uid)}`;
+      }).join("")}
     `;
+    bindBtTradeToggles(els.rmultBox);
   }
 
   function renderSymbolBreakdown(trades) {
@@ -289,14 +368,17 @@
         const wins = ts.filter((t) => t.win).length;
         const winRate = Math.round((wins / ts.length) * 100);
         const net = ts.reduce((s, t) => s + (t.pnl_dollars || 0), 0);
+        const uid = `bt-trade-list-${btReportRowSeq++}`;
         return `
-        <div class="bar-row">
+        <div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
           <div class="bar-label">${escapeHtml(sym)}</div>
           <div class="bar-track"><div class="bar-fill" style="width:${(ts.length / maxCount) * 100}%; background:${net >= 0 ? "var(--green)" : "var(--red)"};" title="${winRate}% win, ${fmtMoney(net)}"></div></div>
           <div class="bar-count">${ts.length}x</div>
-        </div>`;
+        </div>
+        ${btTradeListHtml(ts, uid)}`;
       }).join("")}
     `;
+    bindBtTradeToggles(els.symbolBox);
   }
 
   function renderDowBreakdown(trades) {
@@ -316,14 +398,17 @@
       <div class="panel-box-head"><span class="title">Performance by Day of Week</span></div>
       ${entries.map(([dow, ts]) => {
         const net = ts.reduce((s, t) => s + (t.pnl_dollars || 0), 0);
+        const uid = `bt-trade-list-${btReportRowSeq++}`;
         return `
-        <div class="bar-row">
+        <div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
           <div class="bar-label">${DOW[dow]}</div>
           <div class="bar-track"><div class="bar-fill" style="width:${(ts.length / maxCount) * 100}%; background:${net >= 0 ? "var(--green)" : "var(--red)"};" title="${fmtMoney(net)}"></div></div>
           <div class="bar-count">${ts.length}x</div>
-        </div>`;
+        </div>
+        ${btTradeListHtml(ts, uid)}`;
       }).join("")}
     `;
+    bindBtTradeToggles(els.dowBox);
   }
 
   // ================= DOM refs =================
@@ -367,6 +452,7 @@
     chartLegendBetterEntry: document.getElementById("rpt-chart-legend-better-entry"),
     chartLegendBetterExit: document.getElementById("rpt-chart-legend-better-exit"),
     chartPracticeBtn: document.getElementById("rpt-chart-practice-btn"),
+    chartRewindBtn: document.getElementById("rpt-chart-rewind-btn"),
   };
 
   function showOnly(which) {
@@ -552,11 +638,43 @@
   let reportTradesRows = [];
   let reportTradesCols = [];
   let reportTradesShown = 0;
+  // Sorting state for the Trades table -- null sortKey means "leave in
+  // whatever order the backend returned" (unsorted, the old/only
+  // behavior); clicking a header sets it. Kept separate from
+  // currentReport.trades, which stays in its original saved order since
+  // that's what trade-bars lookups below are indexed against.
+  let reportSortKey = null;
+  let reportSortDir = "desc";
+
+  function sortReportTradeRows() {
+    if (!reportSortKey) return;
+    const key = reportSortKey;
+    reportTradesRows.sort((a, b) => {
+      let av = a[key], bv = b[key];
+      if (key === "date") { av = (a.date || "") + (a.entry_time || ""); bv = (b.date || "") + (b.entry_time || ""); }
+      if (typeof av === "string" || typeof bv === "string") {
+        av = av == null ? "" : String(av);
+        bv = bv == null ? "" : String(bv);
+        return reportSortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+      }
+      av = typeof av === "number" && isFinite(av) ? av : (reportSortDir === "asc" ? Infinity : -Infinity);
+      bv = typeof bv === "number" && isFinite(bv) ? bv : (reportSortDir === "asc" ? Infinity : -Infinity);
+      return reportSortDir === "asc" ? av - bv : bv - av;
+    });
+  }
+
+  function renderReportTradesHead() {
+    els.tradesHead.innerHTML = reportTradesCols.map(([key, label]) => {
+      if (key === "chart") return `<th>${label}</th>`;
+      const cls = reportSortKey === key ? ` sorted ${reportSortDir}` : "";
+      return `<th><span class="headcell${cls}" data-sort="${key}">${label}</span></th>`;
+    }).join("");
+  }
 
   function renderReportTradesBody() {
     const shown = reportTradesShown;
     const rowsHtml = reportTradesRows.slice(0, shown)
-      .map((t, idx) => `<tr>${reportTradesCols.map(([key]) => `<td>${tradeCell(key, t, idx)}</td>`).join("")}</tr>`)
+      .map((t) => `<tr>${reportTradesCols.map(([key]) => `<td>${tradeCell(key, t, t._origIdx)}</td>`).join("")}</tr>`)
       .join("");
     const remaining = reportTradesRows.length - shown;
     const moreHtml = remaining > 0
@@ -604,7 +722,7 @@
       case "r_multiple": return fmtR(t.r_multiple);
       case "shares": return t.shares != null ? t.shares : "—";
       case "chart":
-        return Array.isArray(t.bars) && t.bars.length
+        return t.has_bars || (Array.isArray(t.bars) && t.bars.length)
           ? `<button type="button" class="rpt-view-chart-btn" data-trade-idx="${idx}">View Chart</button>`
           : `<button type="button" class="rpt-view-chart-btn" disabled title="Charts render automatically after a backtest; if this one is still missing, use 'Generate Trade Charts' above">View Chart</button>`;
       default: return escapeHtml(t[key] != null ? t[key] : "—");
@@ -656,8 +774,8 @@
         <div class="stat"><div class="label-row"><span class="label">Avg Trade</span></div><div class="value ${d.avgTradePnl >= 0 ? "up" : "down"}">${fmtMoney(d.avgTradePnl)}</div></div>
         <div class="stat"><div class="label-row"><span class="label">Gross Profit</span></div><div class="value up">${fmtMoney(d.grossProfit)}</div></div>
         <div class="stat"><div class="label-row"><span class="label">Gross Loss</span></div><div class="value down">${fmtMoney(d.grossLoss)}</div></div>
-        <div class="stat${d.best && Array.isArray(d.best.bars) && d.best.bars.length ? " rpt-stat-clickable" : ""}" data-stat-trade="${d.best ? "best" : ""}" title="${d.best ? escapeHtml(d.best.symbol + " on " + d.best.date) + (Array.isArray(d.best.bars) && d.best.bars.length ? " — click to view chart" : " — chart not generated yet") : ""}"><div class="label-row"><span class="label">Best Trade</span></div><div class="value up">${d.best ? fmtMoney(d.best.pnl_dollars) : "—"}</div><div class="sub-value">${d.best ? escapeHtml(d.best.symbol) : ""}</div></div>
-        <div class="stat${d.worst && Array.isArray(d.worst.bars) && d.worst.bars.length ? " rpt-stat-clickable" : ""}" data-stat-trade="${d.worst ? "worst" : ""}" title="${d.worst ? escapeHtml(d.worst.symbol + " on " + d.worst.date) + (Array.isArray(d.worst.bars) && d.worst.bars.length ? " — click to view chart" : " — chart not generated yet") : ""}"><div class="label-row"><span class="label">Worst Trade</span></div><div class="value down">${d.worst ? fmtMoney(d.worst.pnl_dollars) : "—"}</div><div class="sub-value">${d.worst ? escapeHtml(d.worst.symbol) : ""}</div></div>
+        <div class="stat${d.best && (d.best.has_bars || (Array.isArray(d.best.bars) && d.best.bars.length)) ? " rpt-stat-clickable" : ""}" data-stat-trade="${d.best ? "best" : ""}" title="${d.best ? escapeHtml(d.best.symbol + " on " + d.best.date) + ((d.best.has_bars || (Array.isArray(d.best.bars) && d.best.bars.length)) ? " — click to view chart" : " — chart not generated yet") : ""}"><div class="label-row"><span class="label">Best Trade</span></div><div class="value up">${d.best ? fmtMoney(d.best.pnl_dollars) : "—"}</div><div class="sub-value">${d.best ? escapeHtml(d.best.symbol) : ""}</div></div>
+        <div class="stat${d.worst && (d.worst.has_bars || (Array.isArray(d.worst.bars) && d.worst.bars.length)) ? " rpt-stat-clickable" : ""}" data-stat-trade="${d.worst ? "worst" : ""}" title="${d.worst ? escapeHtml(d.worst.symbol + " on " + d.worst.date) + ((d.worst.has_bars || (Array.isArray(d.worst.bars) && d.worst.bars.length)) ? " — click to view chart" : " — chart not generated yet") : ""}"><div class="label-row"><span class="label">Worst Trade</span></div><div class="value down">${d.worst ? fmtMoney(d.worst.pnl_dollars) : "—"}</div><div class="sub-value">${d.worst ? escapeHtml(d.worst.symbol) : ""}</div></div>
         <div class="stat"><div class="label-row"><span class="label">Avg Hold Time</span></div><div class="value">${fmtMinutes(d.avgHoldMinutes)}</div></div>
         <div class="stat"><div class="label-row"><span class="label">Total Shares</span></div><div class="value">${d.totalShares.toLocaleString()}</div></div>
         <div class="stat"><div class="label-row"><span class="label">Symbols Traded</span></div><div class="value">${d.uniqueSymbols}</div>${d.topSymbol ? `<div class="sub-value">most: ${escapeHtml(d.topSymbol)} (${d.topSymbolCount})</div>` : ""}</div>
@@ -665,9 +783,10 @@
 
     // trades table
     reportTradesCols = tradeColumns(trades, report.source === "backend");
-    reportTradesRows = trades;
-    reportTradesShown = Math.min(REPORT_TRADES_PAGE_SIZE, trades.length);
-    els.tradesHead.innerHTML = reportTradesCols.map(([, label]) => `<th>${label}</th>`).join("");
+    reportTradesRows = trades.map((t, i) => Object.assign(t, { _origIdx: i }));
+    sortReportTradeRows();
+    reportTradesShown = Math.min(REPORT_TRADES_PAGE_SIZE, reportTradesRows.length);
+    renderReportTradesHead();
     renderReportTradesBody();
     els.tradesCount.textContent = `${trades.length} trade${trades.length === 1 ? "" : "s"}`;
 
@@ -783,9 +902,9 @@
         const maxAttempts = Math.max(4, Math.ceil((trades.length * 15000 + 30000) / POLL_MS));
         let attempt = 0;
 
-        function allEnriched() {
+  function allEnriched() {
           return currentReport && Array.isArray(currentReport.trades)
-            && currentReport.trades.every((t) => Array.isArray(t.bars) && t.bars.length);
+            && currentReport.trades.every((t) => t.has_bars || (Array.isArray(t.bars) && t.bars.length));
         }
 
         function poll() {
@@ -851,7 +970,34 @@
     els.chartLegendBetterExit.style.display = t.better_exit_price ? "" : "none";
 
     wirePracticeHandoff(t);
+    wireRewindHandoff(t);
     buildTradeChart(t);
+  }
+
+  // Same handoff pattern as wirePracticeHandoff above, just a different
+  // localStorage key and destination tab -- rewind.js reads
+  // REWIND_HANDOFF_KEY once at boot (see loadPendingBacktestHandoff there).
+  const REWIND_HANDOFF_KEY = "rewind:pending_backtest_trade";
+  function wireRewindHandoff(t) {
+    if (!els.chartRewindBtn) return;
+    const hasBars = Array.isArray(t.bars) && t.bars.length;
+    els.chartRewindBtn.style.display = hasBars ? "" : "none";
+    if (!hasBars) return;
+    els.chartRewindBtn.onclick = (e) => {
+      e.preventDefault();
+      const payload = JSON.stringify(Object.assign({}, t, {
+        job_id: currentId,
+        label: (currentReport && currentReport.label) || null,
+      }));
+      try {
+        localStorage.setItem(REWIND_HANDOFF_KEY, payload);
+        if (localStorage.getItem(REWIND_HANDOFF_KEY) !== payload) throw new Error("readback mismatch");
+      } catch (err) {
+        alert("Couldn't hand this trade off to Rewind (browser storage is full or unavailable). Try clearing some site data, or open Rewind from the nav and pick this run manually.");
+        return;
+      }
+      window.open("rewind.html", "_blank", "noopener");
+    };
   }
 
   // Hands this backtest trade's own bars + entry/exit/pnl/verdict off to
@@ -1104,12 +1250,49 @@
     rptMacdChart.timeScale().fitContent();
   }
 
+  // ================= lazy per-trade bar fetch =================
+  // GET /report now ships every trade WITHOUT bars by default (see the
+  // backend route's own comment) -- has_bars just says whether a chart
+  // exists to fetch. Anything that wants to actually open a trade's chart
+  // goes through here instead of calling openTradeChart directly: fetch
+  // once, cache the result onto the trade object itself (openTradeChart
+  // requires t.bars up front, since it feeds a synchronous chart-drawing
+  // path built for CSV-imported trades that always carry bars inline; a
+  // repeat click on the same trade is then already-cached and instant),
+  // by _origIdx so it's correct regardless of the table's current sort.
+  function openTradeChartLazy(t, triggerEl) {
+    if (Array.isArray(t.bars) && t.bars.length) { openTradeChart(t); return; }
+    if (!t.has_bars || t._origIdx == null) return; // nothing to fetch -- chart genuinely isn't ready yet
+    const original = triggerEl ? triggerEl.textContent : null;
+    if (triggerEl) { triggerEl.textContent = "Loading…"; triggerEl.style.pointerEvents = "none"; }
+    authedHeaders()
+      .then((headers) => fetch(`${API()}/backtest/history/${currentId}/report/trade-bars/${t._origIdx}`, { headers }))
+      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then((data) => {
+        t.bars = Array.isArray(data.bars) ? data.bars : [];
+        openTradeChart(t);
+      })
+      .catch((err) => { alert("Couldn't load this trade's chart: " + err.message); })
+      .finally(() => { if (triggerEl) { triggerEl.textContent = original; triggerEl.style.pointerEvents = ""; } });
+  }
+
   els.detailBox.addEventListener("click", (e) => {
     const card = e.target.closest(".rpt-stat-clickable");
     if (!card) return;
     const key = card.dataset.statTrade;
     const trade = key && statHighlightTrades[key];
-    if (trade) openTradeChart(trade);
+    if (trade) openTradeChartLazy(trade);
+  });
+  els.tradesHead.addEventListener("click", (e) => {
+    const span = e.target.closest("[data-sort]");
+    if (!span) return;
+    const key = span.getAttribute("data-sort");
+    if (reportSortKey === key) reportSortDir = reportSortDir === "asc" ? "desc" : "asc";
+    else { reportSortKey = key; reportSortDir = "desc"; }
+    sortReportTradeRows();
+    reportTradesShown = Math.min(REPORT_TRADES_PAGE_SIZE, reportTradesRows.length);
+    renderReportTradesHead();
+    renderReportTradesBody();
   });
   els.tradesBody.addEventListener("click", (e) => {
     const moreBtn = e.target.closest("#report-trades-load-more-btn");
@@ -1122,7 +1305,7 @@
     if (!btn || btn.disabled) return;
     const idx = Number(btn.dataset.tradeIdx);
     const trade = currentReport && currentReport.trades && currentReport.trades[idx];
-    if (trade) openTradeChart(trade);
+    if (trade) openTradeChartLazy(trade, btn);
   });
   els.chartModalBackdrop.addEventListener("click", closeTradeChart);
   els.chartModalClose.addEventListener("click", closeTradeChart);

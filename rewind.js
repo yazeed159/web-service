@@ -834,6 +834,41 @@
   // to the normal setup screen if the id turns out to be invalid.
   const directTradeId = new URLSearchParams(window.location.search).get("trade");
 
+  // report.js's "Rewind this trade" button hands a single backtest trade
+  // off via localStorage (same-origin, so this new tab can read it right
+  // away) -- same handoff pattern practice.js uses for its own "Practice
+  // this trade" button. Deferred to DOMContentLoaded: reading localStorage
+  // and building the chart is fully synchronous, with none of the network
+  // latency the ?trade=<id> deep-link above naturally has before it ever
+  // touches the chart -- running this immediately, mid-parse, would race
+  // the deferred lightweight-charts <script> tag (still loading at that
+  // point) and fail to render with nothing shown on screen.
+  (function loadPendingBacktestHandoff() {
+    const REWIND_HANDOFF_KEY = "rewind:pending_backtest_trade";
+    let raw;
+    try {
+      raw = localStorage.getItem(REWIND_HANDOFF_KEY);
+      if (raw) localStorage.removeItem(REWIND_HANDOFF_KEY);
+    } catch (e) { raw = null; }
+    if (!raw) return;
+
+    function boot() {
+      let t;
+      try { t = JSON.parse(raw); } catch (e) { return; } // malformed handoff -- nothing to recover
+      const run = { id: t.job_id, label: t.label };
+      const trade = normalizeBacktestTrade(t, run);
+      state.source = "backtest";
+      state.detailCache[trade.id] = trade;
+      startQuiz(getFilters(), [trade.id]);
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", boot);
+    } else {
+      boot();
+    }
+  })();
+
   window.fetchTradesIndex()
     .then((rows) => {
       state.index = Array.isArray(rows) ? rows : [];
@@ -1399,7 +1434,7 @@
   // here: a clear message plus a way to move on.
   function showStageError(err) {
     if (state.current && state.current.replayHandle) { state.current.replayHandle.stop(); state.current.replayHandle = null; }
-    els.card.innerHTML = `<div class="empty-state">Something went wrong showing this trade (${escapeHtml(String((err && err.message) || err))}). <button class="btn-advanced" id="qz-skip">Skip this question</button></div>`;
+    els.card.innerHTML = `<div class="empty-state">Something went wrong showing this trade (${escapeHtml(String((err && err.message) || err))}). <button class="btn-advanced" id="qz-skip">Skip this setup</button></div>`;
     const skip = document.getElementById("qz-skip");
     if (skip) skip.addEventListener("click", () => { state.qIndex++; loadQuestion(); });
   }
@@ -2544,12 +2579,12 @@
       ${trade.walk_away_rule ? `<div class="quiz-walkaway"><b>Walk-away rule:</b> ${escapeHtml(trade.walk_away_rule)}</div>` : ""}
 
       <div class="quiz-next-row">
-        <button class="btn-advanced" id="qz-replay-again-btn" type="button">↻ Retry this question</button>
+        <button class="btn-advanced" id="qz-replay-again-btn" type="button">↻ Retry this setup</button>
         <button class="btn-advanced" id="qz-full-day-btn" type="button" title="Load this symbol's whole session so you can zoom/pan out past the trade window">Show full day</button>
         ${trade._source === "backtest"
           ? `<span class="btn-advanced" style="opacity:.6; cursor:default;" title="Generated from a backtest run, not saved in your journal">Practice-generated setup</span>`
           : `<a class="btn-advanced" href="trade.html?id=${encodeURIComponent(trade.id)}" target="_blank" rel="noopener">Open full trade page</a>`}
-        <button class="btn-confirm" id="qz-next">${isLast ? "See results" : "Next question"} <span class="kbd">↵</span></button>
+        <button class="btn-confirm" id="qz-next">${isLast ? "See results" : "Next setup"} <span class="kbd">↵</span></button>
       </div>
     `;
 
@@ -2649,7 +2684,7 @@
 
     els.recap.innerHTML = `
       <div class="rewind-recap-stats">
-        <div class="rewind-stat"><span class="rs-num">${total}</span><span class="rs-lbl">Trades reviewed</span></div>
+        <div class="rewind-stat"><span class="rs-num">${total}</span><span class="rs-lbl">Setups reviewed</span></div>
         <div class="rewind-stat"><span class="rs-num">${entered}</span><span class="rs-lbl">Entered</span></div>
         <div class="rewind-stat"><span class="rs-num">${passed}</span><span class="rs-lbl">Passed</span></div>
       </div>

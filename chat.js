@@ -154,22 +154,42 @@
 
   const CHIP_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 5.8L20 10l-6.1 2.2L12 18l-1.9-5.8L4 10l6.1-2.2z"></path></svg>`;
 
-  // The chip list is built once up front (it's static, not tied to the
-  // trades fetch) and its visibility is toggled from then on rather than
-  // being destroyed after the first message -- so the hints stay one tap
-  // away from the header button for the rest of the conversation instead
-  // of only ever showing on an empty chat.
+  // Only a handful of prompts show up front -- dumping all 16 into the
+  // panel on first open ate up enough vertical space that the input row
+  // (where you'd actually type your own first message) got pushed out of
+  // view. A "More hints" chip reveals the rest in place on demand instead.
+  const INITIAL_CHIP_COUNT = 4;
+  let chipsExpanded = false;
+
+  // The chip list is rebuilt (collapsed vs expanded) rather than being
+  // destroyed after the first message -- its visibility is toggled from
+  // then on, so the hints stay one tap away from the header button for
+  // the rest of the conversation instead of only ever showing on an
+  // empty chat.
   function renderChips() {
-    chipsEl.innerHTML = STARTER_PROMPTS.map(
-      (p) => `<button type="button" class="chat-chip">${CHIP_ICON}${escapeHtml(p)}</button>`
-    ).join("");
-    chipsEl.querySelectorAll(".chat-chip").forEach((btn) => {
+    const shown = chipsExpanded ? STARTER_PROMPTS : STARTER_PROMPTS.slice(0, INITIAL_CHIP_COUNT);
+    const chipsHtml = shown
+      .map((p) => `<button type="button" class="chat-chip">${CHIP_ICON}${escapeHtml(p)}</button>`)
+      .join("");
+    const moreHtml = chipsExpanded
+      ? ""
+      : `<button type="button" class="chat-chip chat-chip-more" id="chat-chips-more">More hints…</button>`;
+    chipsEl.innerHTML = chipsHtml + moreHtml;
+
+    chipsEl.querySelectorAll(".chat-chip:not(.chat-chip-more)").forEach((btn) => {
       btn.addEventListener("click", () => {
         inputEl.value = btn.textContent;
         setChipsVisible(false);
         formEl.requestSubmit();
       });
     });
+    const moreBtn = document.getElementById("chat-chips-more");
+    if (moreBtn) {
+      moreBtn.addEventListener("click", () => {
+        chipsExpanded = true;
+        renderChips();
+      });
+    }
   }
 
   function setChipsVisible(visible) {

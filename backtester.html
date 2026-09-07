@@ -35,6 +35,13 @@
      keep it plain text so only the toggle itself reads as clickable. */
   #bt-manual-details summary .hint-text { background: none; border: none; padding: 0; margin: 0; font-weight: 400; color: var(--text-faint); }
   #bt-manual-details #bt-manual-fields { margin-top: 16px; display: flex; flex-direction: column; gap: 16px; }
+  /* "Configure with AI" chip groups (popular presets vs. free-form starters).
+     #ai-cfg-chips is display:flex (see common.css .chat-chips) -- switch it
+     to a column of stacked groups, each group its own flex-wrap row. */
+  #ai-cfg-chips { flex-direction: column; align-items: stretch; gap: 8px; }
+  .chat-chip-group-label { font-size: 11px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: .03em; margin: 2px 0 -2px; }
+  .chat-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chat-chip-preset { border-color: var(--primary-soft); }
   .rpt-view-report-link { margin-left: 10px; }
   .run-card-view { font-size: 12px; color: var(--primary); text-decoration: none; }
   .run-card-view:hover { text-decoration: underline; }
@@ -239,12 +246,13 @@
               <option value="risk_pct_of_capital">% of capital risked per trade (compounds)</option>
             </select>
           </div>
-          <div class="bt-field"><label class="bt-label" for="bt-position-size">Position size $</label><input type="number" id="bt-position-size" value="2000" min="0" step="100"></div>
-          <div class="bt-field"><label class="bt-label" for="bt-position-size-pct" title="Used when Position sizing = '% of capital per trade'">Position size (% of capital)</label><input type="number" id="bt-position-size-pct" value="10" min="0" max="100" step="1"></div>
-          <div class="bt-field"><label class="bt-label" for="bt-risk-pct-of-capital" title="Used when Position sizing = '% of capital risked per trade'">Risk per trade (% of capital)</label><input type="number" id="bt-risk-pct-of-capital" value="1" min="0" max="100" step="0.25"></div>
+          <div class="bt-field" data-show-when="bt-position-sizing-mode=fixed_dollars"><label class="bt-label" for="bt-position-size">Position size $</label><input type="number" id="bt-position-size" value="2000" min="0" step="100"></div>
+          <div class="bt-field" data-show-when="bt-position-sizing-mode=pct_of_capital"><label class="bt-label" for="bt-position-size-pct" title="Used when Position sizing = '% of capital per trade'">Position size (% of capital)</label><input type="number" id="bt-position-size-pct" value="10" min="0" max="100" step="1"></div>
+          <div class="bt-field" data-show-when="bt-position-sizing-mode=risk_pct_of_capital"><label class="bt-label" for="bt-risk-pct-of-capital" title="Used when Position sizing = '% of capital risked per trade'">Risk per trade (% of capital)</label><input type="number" id="bt-risk-pct-of-capital" value="1" min="0" max="100" step="0.25"></div>
           <label class="bt-check" title="Estimates a per-order commission modeled on IBKR Pro's Tiered US-stock schedule (~$0.0035/share declining with monthly volume, $0.35 min/order, capped at 1% of trade value) plus a small pass-through fee estimate, and nets it out of each trade's P&amp;L. This is an approximation, not IBKR's actual live rates.">
             <input type="checkbox" id="bt-include-commissions" checked> Estimate commissions (IBKR tiered)
           </label>
+          <div class="bt-field"><label class="bt-label" for="bt-slippage-bps" title="Every entry (chasing a breakout) and every market-style exit (stop, time stop, momentum stall, giveback, end-of-day flatten) gets nudged this many basis points against you before P&amp;L is computed. Target exits are treated as a resting limit order and left alone. 0 = old zero-slippage behavior. Small-cap momentum names can slip a lot worse than this default in real trading -- treat it as a floor on realism, not a precise number.">Slippage (bps, 0=off)</label><input type="number" id="bt-slippage-bps" value="5" min="0" step="1"></div>
           <div class="bt-field"><label class="bt-label" for="bt-session-start" title="When the scan/entry window opens (ET). Use a pre-market time like 07:00 to trade the pre-market/early session instead of waiting for the 09:30 open.">Session start (ET)</label><input type="time" id="bt-session-start" value="09:30"></div>
           <div class="bt-field"><label class="bt-label" for="bt-flatten-time">Force-exit (ET)</label><input type="time" id="bt-flatten-time" value="15:55"></div>
           <div class="bt-field span2"><label class="bt-label" for="bt-notes" title="Anything the AI (or you) noted that doesn't have a matching field below -- saved with the run for reference, but NOT simulated by the engine.">Strategy notes (reference only — not simulated)</label><textarea id="bt-notes" class="bt-notes" rows="2" placeholder="e.g. 'only take the first 2 runners of the day', 'skip anything under 10M float'…"></textarea></div>
@@ -271,14 +279,14 @@
             </select>
           </div>
           <div class="bt-field"><label class="bt-label" for="bt-orb-minutes">Opening range (min)</label><input type="number" id="bt-orb-minutes" value="5" min="1" step="1"></div>
-          <div class="bt-field"><label class="bt-label" for="bt-donchian-lookback">Donchian lookback (bars)</label><input type="number" id="bt-donchian-lookback" value="10" min="2" step="1"></div>
-          <div class="bt-field"><label class="bt-label" for="bt-ema-period" title="Used by 9 EMA dip &amp; reclaim / EMA reclaim">EMA period (bars)</label><input type="number" id="bt-ema-period" value="9" min="2" step="1"></div>
-          <div class="bt-field"><label class="bt-label" for="bt-macd-fast" title="Used by MACD bullish cross">MACD fast (bars)</label><input type="number" id="bt-macd-fast" value="12" min="2" step="1"></div>
-          <div class="bt-field"><label class="bt-label" for="bt-macd-slow" title="Used by MACD bullish cross">MACD slow (bars)</label><input type="number" id="bt-macd-slow" value="26" min="2" step="1"></div>
-          <div class="bt-field"><label class="bt-label" for="bt-macd-signal" title="Used by MACD bullish cross">MACD signal (bars)</label><input type="number" id="bt-macd-signal" value="9" min="2" step="1"></div>
-          <div class="bt-field"><label class="bt-label" for="bt-rsi-period" title="Used by RSI oversold bounce">RSI period (bars)</label><input type="number" id="bt-rsi-period" value="14" min="2" step="1"></div>
-          <div class="bt-field"><label class="bt-label" for="bt-rsi-oversold" title="Used by RSI oversold bounce">RSI oversold level</label><input type="number" id="bt-rsi-oversold" value="30" min="1" max="50" step="1"></div>
-          <label class="bt-check" title="For non-ROB entry styles: only look for the pattern after the opening range window closes">
+          <div class="bt-field" data-show-when="bt-entry-mode=donchian_break"><label class="bt-label" for="bt-donchian-lookback">Donchian lookback (bars)</label><input type="number" id="bt-donchian-lookback" value="10" min="2" step="1"></div>
+          <div class="bt-field" data-show-when="bt-entry-mode=ema_dip_reclaim,ema_reclaim"><label class="bt-label" for="bt-ema-period" title="Used by 9 EMA dip &amp; reclaim / EMA reclaim">EMA period (bars)</label><input type="number" id="bt-ema-period" value="9" min="2" step="1"></div>
+          <div class="bt-field" data-show-when="bt-entry-mode=macd_bullish_cross"><label class="bt-label" for="bt-macd-fast" title="Used by MACD bullish cross">MACD fast (bars)</label><input type="number" id="bt-macd-fast" value="12" min="2" step="1"></div>
+          <div class="bt-field" data-show-when="bt-entry-mode=macd_bullish_cross"><label class="bt-label" for="bt-macd-slow" title="Used by MACD bullish cross">MACD slow (bars)</label><input type="number" id="bt-macd-slow" value="26" min="2" step="1"></div>
+          <div class="bt-field" data-show-when="bt-entry-mode=macd_bullish_cross"><label class="bt-label" for="bt-macd-signal" title="Used by MACD bullish cross">MACD signal (bars)</label><input type="number" id="bt-macd-signal" value="9" min="2" step="1"></div>
+          <div class="bt-field" data-show-when="bt-entry-mode=rsi_oversold_bounce"><label class="bt-label" for="bt-rsi-period" title="Used by RSI oversold bounce">RSI period (bars)</label><input type="number" id="bt-rsi-period" value="14" min="2" step="1"></div>
+          <div class="bt-field" data-show-when="bt-entry-mode=rsi_oversold_bounce"><label class="bt-label" for="bt-rsi-oversold" title="Used by RSI oversold bounce">RSI oversold level</label><input type="number" id="bt-rsi-oversold" value="30" min="1" max="50" step="1"></div>
+          <label class="bt-check" data-show-when="bt-entry-mode=red_candle_break,donchian_break,inside_bar_break,vwap_reclaim,ema_dip_reclaim,ema_reclaim,macd_bullish_cross,rsi_oversold_bounce" title="Only look for the pattern after the opening range window closes. Has no effect on Opening range breakout, which always waits for its own ORB window regardless of this checkbox -- that's why it's hidden for that entry style.">
             <input type="checkbox" id="bt-entry-after-orb" checked> Wait for opening range first
           </label>
         </div>
@@ -310,10 +318,10 @@
               <option value="atr_multiple">ATR multiple below entry</option>
             </select>
           </div>
-          <div class="bt-field"><label class="bt-label" for="bt-fixed-stop-cents">Fixed ¢</label><input type="number" id="bt-fixed-stop-cents" value="5" min="0" step="0.5"></div>
-          <div class="bt-field"><label class="bt-label" for="bt-fixed-stop-pct">Fixed %</label><input type="number" id="bt-fixed-stop-pct" value="1" min="0" step="0.1"></div>
-          <div class="bt-field"><label class="bt-label" for="bt-atr-period">ATR period</label><input type="number" id="bt-atr-period" value="14" min="2" step="1"></div>
-          <div class="bt-field"><label class="bt-label" for="bt-atr-mult">ATR mult</label><input type="number" id="bt-atr-mult" value="1.5" min="0" step="0.1"></div>
+          <div class="bt-field" data-show-when="bt-stop-mode=fixed_cents"><label class="bt-label" for="bt-fixed-stop-cents">Fixed ¢</label><input type="number" id="bt-fixed-stop-cents" value="5" min="0" step="0.5"></div>
+          <div class="bt-field" data-show-when="bt-stop-mode=fixed_pct"><label class="bt-label" for="bt-fixed-stop-pct">Fixed %</label><input type="number" id="bt-fixed-stop-pct" value="1" min="0" step="0.1"></div>
+          <div class="bt-field" data-show-when="bt-stop-mode=atr_multiple"><label class="bt-label" for="bt-atr-period">ATR period</label><input type="number" id="bt-atr-period" value="14" min="2" step="1"></div>
+          <div class="bt-field" data-show-when="bt-stop-mode=atr_multiple"><label class="bt-label" for="bt-atr-mult">ATR mult</label><input type="number" id="bt-atr-mult" value="1.5" min="0" step="0.1"></div>
           <div class="bt-field"><label class="bt-label" for="bt-breakeven-after-cents" title="Once armed, stop ratchets up to entry price and stays there">Breakeven after ¢ (0=off)</label><input type="number" id="bt-breakeven-after-cents" value="0" min="0" step="0.5"></div>
         </div>
       </div>
@@ -343,6 +351,36 @@
           <label class="bt-check"><input type="checkbox" id="bt-allow-reentry" checked title="After a trade exits, keep scanning the rest of the session for another valid setup under the same rule instead of stopping at one per symbol/day"> Allow multiple trades per symbol/day</label>
           <div class="bt-field"><label class="bt-label" for="bt-max-trades-per-day" title="Cap on trades taken per symbol/day when re-entry is allowed">Max trades / symbol / day</label><input type="number" id="bt-max-trades-per-day" value="3" min="1" step="1"></div>
           <div class="bt-field"><label class="bt-label" for="bt-reentry-cooldown-minutes" title="Minutes to wait after an exit before scanning for a re-entry resumes (a 1-bar minimum always applies)">Re-entry cooldown (min)</label><input type="number" id="bt-reentry-cooldown-minutes" value="0" min="0" step="1"></div>
+        </div>
+      </div>
+
+      <div class="panel-box bt-section">
+        <div class="panel-box-head">
+          <span class="bt-section-icon exits"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"></path><path d="M10 20V4"></path><path d="M16 20v-7"></path><path d="M22 20v-3"></path></svg></span>
+          <span class="title">Position Building (scale in / trail-protect)</span>
+        </div>
+        <p class="hint-text">
+          Off by default. When on, the position opens at a fraction of full size and adds more as the trade
+          proves itself -- price makes a new high, holds there for a bit (no new high, but not stopped out),
+          then breaks above that held high again. Never adds to a trade that isn't already working.
+        </p>
+        <div class="bt-field-grid">
+          <label class="bt-check"><input type="checkbox" id="bt-scale-in-enabled" title="Start at a fraction of full size and add on strength instead of taking the whole position on the first fill"> Scale in (start small, add on strength)</label>
+          <div class="bt-field"><label class="bt-label" for="bt-scale-in-initial-pct">Opening size (% of full)</label><input type="number" id="bt-scale-in-initial-pct" value="50" min="1" max="100" step="5"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-scale-in-add-pct">Each add (% of full)</label><input type="number" id="bt-scale-in-add-pct" value="25" min="1" max="100" step="5"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-scale-in-max-adds">Max adds</label><input type="number" id="bt-scale-in-max-adds" value="2" min="0" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-scale-in-hold-bars" title="How many bars price must hold a new high (no further new high, but not stopped out) before the next break above it triggers an add">Hold bars before add</label><input type="number" id="bt-scale-in-hold-bars" value="2" min="1" step="1"></div>
+          <div class="bt-field"><label class="bt-label" for="bt-scale-in-min-gain-cents" title="Don't start watching for an add until the trade has at least this much open gain">Min open gain before arming (¢)</label><input type="number" id="bt-scale-in-min-gain-cents" value="10" min="0" step="0.5"></div>
+        </div>
+        <p class="hint-text">
+          No fixed profit targets or partial exits -- the whole position exits together, whenever it exits.
+          Instead, once enabled, the stop ratchets up (never down) to lock in a growing share of the peak
+          gain the further the trade runs -- protects more of the move the deeper it works, rather than one
+          fixed giveback the whole time.
+        </p>
+        <div class="bt-field-grid">
+          <label class="bt-check"><input type="checkbox" id="bt-trail-protect-enabled" title="Ratchet the stop to lock in a growing fraction of the peak gain as the trade's peak R climbs, instead of a fixed giveback"> Tightening trail-protect stop</label>
+          <div class="bt-field"><label class="bt-label" for="bt-trail-protect-ladder" title="Comma-separated peak-R:protect% rungs, e.g. 0.5:30, 1:50, 2:65, 3:80 means once peak reaches half a risk-unit protect 30% of the gain, 50% by 1R, 65% by 2R, 80% by 3R+">Ladder (R:protect%, comma-sep)</label><input type="text" id="bt-trail-protect-ladder" value="0.5:30, 1:50, 2:65, 3:80" placeholder="0.5:30, 1:50, 2:65, 3:80"></div>
         </div>
       </div>
 

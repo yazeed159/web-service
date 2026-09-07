@@ -864,6 +864,43 @@
     return 0;
   }
 
+  // ---------------------------------------------------------------
+  // reaction lag -- computeScannerPopIndex() finds the bar a scanner
+  // would actually flag, but dropping the trader straight into that
+  // bar means "getting in" at the very first tick of the move, which
+  // nobody manages in practice: an alert still has to be noticed,
+  // the chart pulled up, the setup sized up, and the buy button
+  // clicked. All of that takes real time, and price is normally
+  // already running by the time it's done. We model that as "keep
+  // walking bars forward past the alert until price is up at least
+  // REACTION_MIN_MOVE_PCT from where the alert fired" -- a proxy for
+  // the lag, since we don't have sub-minute alert-to-click timing to
+  // work with. Capped at REACTION_MAX_DELAY_BARS so a stock that
+  // pops once and immediately stalls doesn't push the entry out
+  // indefinitely chasing a move that already ended; floored at
+  // REACTION_MIN_DELAY_BARS so even a runaway first bar still costs
+  // at least one bar of reaction time.
+  // ---------------------------------------------------------------
+  const REACTION_MIN_DELAY_BARS = 1;   // at least this much lag, even if price rips instantly
+  const REACTION_MAX_DELAY_BARS = 4;   // ...but never wait longer than this chasing a stalled move
+  const REACTION_MIN_MOVE_PCT = 0.02;  // "noticeably already moving" by the time you'd realistically click buy
+
+  function computeEntryIndex(trade) {
+    const bars = trade.bars;
+    const popIdx = computeScannerPopIndex(trade);
+    if (!Array.isArray(bars) || !bars.length) return popIdx;
+    const alertPrice = Number(bars[popIdx].o ?? bars[popIdx].c) || 0;
+    const floorIdx = Math.min(popIdx + REACTION_MIN_DELAY_BARS, bars.length - 1);
+    const ceilIdx = Math.min(popIdx + REACTION_MAX_DELAY_BARS, bars.length - 1);
+    let entryIdx = floorIdx;
+    for (let i = floorIdx; i <= ceilIdx; i++) {
+      entryIdx = i;
+      const price = Number(bars[i].c) || 0;
+      if (alertPrice > 0 && (price - alertPrice) / alertPrice >= REACTION_MIN_MOVE_PCT) break;
+    }
+    return entryIdx;
+  }
+
   function loadChart(id, resumeFrom) {
     stopPlayback();
     fetchDetail(id).then((trade) => {
@@ -906,7 +943,7 @@
   function startSession(trade, resumeFrom) {
     state.trade = trade;
     state.bars = trade.bars;
-    state.barIndex = resumeFrom ? Math.min(resumeFrom.barIndex || 0, trade.bars.length - 1) : computeScannerPopIndex(trade);
+    state.barIndex = resumeFrom ? Math.min(resumeFrom.barIndex || 0, trade.bars.length - 1) : computeEntryIndex(trade);
     state.tickIndex = 0;
     state.prevClose = state.barIndex > 0 ? state.bars[state.barIndex - 1].c : null;
     state.ticks = genSecondTicks(state.bars[state.barIndex], state.prevClose, `${trade.id}:practice:${state.barIndex}`);
@@ -1214,7 +1251,7 @@
   }
 
   // "Show full day" -- offered only on the post-round recap (see
-  // renderRecap below), never during live play. computeScannerPopIndex()
+  // renderRecap below), never during live play. computeEntryIndex()
   // (used to pick where playback starts) assumes state.bars opens with a
   // quiet pre-move baseline; it only ever runs once, at session start, so
   // swapping state.bars for the whole session's bars here -- after the
@@ -2000,27 +2037,53 @@
   // localStorage (consumed once); trade.html's "Practice" button links
   // here with ?trade=<id> for a real logged trade instead. Either one
   // skips straight past the setup screen into that chart.
+  //
+  // The backtest-handoff branch below used to run as one plain IIFE at
+  // parse time, with loadBacktestTrade() itself inside the same try/catch
+  // as the JSON.parse call. Two bugs from that: (1) reading localStorage
+  // and building the chart is fully synchronous, so it ran before the
+  // deferred lightweight-charts <script> tag (see practice.html) had
+  // executed -- LightweightCharts was still undefined, buildPlayChart()
+  // threw, and (2) that throw landed inside the same catch meant for
+  // "ignore malformed JSON", so it was silently swallowed and the page
+  // was left stuck on nothing, no error, no fallback. Deferring to
+  // DOMContentLoaded fixes the race (deferred scripts always finish
+  // before that fires); narrowing the try/catch to just the JSON.parse
+  // means a real rendering error now surfaces normally instead of
+  // vanishing.
   (function loadPendingBacktestHandoff() {
     let raw;
     try {
       raw = localStorage.getItem(PENDING_BACKTEST_KEY);
       if (raw) localStorage.removeItem(PENDING_BACKTEST_KEY);
     } catch (e) { raw = null; }
-    if (raw) {
+
+    function boot() {
+      if (raw) {
+        let trade = null;
+        try {
+          trade = JSON.parse(raw);
+        } catch (e) { /* malformed handoff -- fall through to the deep-link/setup-screen path below */ }
+        if (trade) {
+          loadBacktestTrade(trade); // outside the try/catch above -- a real render error should surface, not vanish
+          return;
+        }
+      }
+
+      // Deep link from trade.html's "Practice" button: ?trade=<id> jumps
+      // straight into trading that specific logged journal trade, same
+      // ?trade=<id> convention rewind.html already uses for its own
+      // "Replay"/Rewind link -- skips the random-pick setup screen.
       try {
-        const trade = JSON.parse(raw);
-        loadBacktestTrade(trade);
-        return;
-      } catch (e) { /* ignore malformed handoff, fall through below */ }
+        const tradeId = new URLSearchParams(window.location.search).get("trade");
+        if (tradeId) loadChart(tradeId);
+      } catch (e) { /* ignore */ }
     }
 
-    // Deep link from trade.html's "Practice" button: ?trade=<id> jumps
-    // straight into trading that specific logged journal trade, same
-    // ?trade=<id> convention rewind.html already uses for its own
-    // "Replay"/Rewind link -- skips the random-pick setup screen.
-    try {
-      const tradeId = new URLSearchParams(window.location.search).get("trade");
-      if (tradeId) loadChart(tradeId);
-    } catch (e) { /* ignore */ }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", boot);
+    } else {
+      boot();
+    }
   })();
 })();

@@ -121,6 +121,7 @@
     positionSizePct: document.getElementById("bt-position-size-pct"),
     riskPctOfCapital: document.getElementById("bt-risk-pct-of-capital"),
     includeCommissions: document.getElementById("bt-include-commissions"),
+    slippageBps: document.getElementById("bt-slippage-bps"),
     sessionStart: document.getElementById("bt-session-start"),
     flattenTime: document.getElementById("bt-flatten-time"),
     notes: document.getElementById("bt-notes"),
@@ -150,6 +151,14 @@
     allowReentry: document.getElementById("bt-allow-reentry"),
     maxTradesPerDay: document.getElementById("bt-max-trades-per-day"),
     reentryCooldownMinutes: document.getElementById("bt-reentry-cooldown-minutes"),
+    scaleInEnabled: document.getElementById("bt-scale-in-enabled"),
+    scaleInInitialPct: document.getElementById("bt-scale-in-initial-pct"),
+    scaleInAddPct: document.getElementById("bt-scale-in-add-pct"),
+    scaleInMaxAdds: document.getElementById("bt-scale-in-max-adds"),
+    scaleInHoldBars: document.getElementById("bt-scale-in-hold-bars"),
+    scaleInMinGainCents: document.getElementById("bt-scale-in-min-gain-cents"),
+    trailProtectEnabled: document.getElementById("bt-trail-protect-enabled"),
+    trailProtectLadder: document.getElementById("bt-trail-protect-ladder"),
     runBtn: document.getElementById("bt-run-btn"),
     cancelBtn: document.getElementById("bt-cancel-btn"),
     runStatus: document.getElementById("bt-run-status"),
@@ -172,6 +181,32 @@
     els.start.value = iso(start);
   })();
 
+  // Fields tagged data-show-when="<select-id>=<val1>,<val2>,..." in the
+  // HTML are only relevant for some entry_mode/stop_mode/position_sizing_mode
+  // choices -- e.g. "Donchian lookback" only does anything when Entry style
+  // is set to the Donchian breakout, "ATR period/mult" only matter for the
+  // ATR stop style, etc. (see orb_strategy.py's dispatch logic: an unused
+  // field's value is simply never read). Rather than show every knob all
+  // the time -- which makes it look like changing an ATR field while on a
+  // fixed-cents stop would do something -- hide whatever the current mode
+  // selections don't use. The underlying <input> is still there and still
+  // gets sent by buildPayload() (harmless; the backend ignores it), this
+  // only affects what's visible.
+  function syncConditionalFields() {
+    document.querySelectorAll("[data-show-when]").forEach((el) => {
+      const [ctrlId, allowedCsv] = el.dataset.showWhen.split("=");
+      const ctrl = document.getElementById(ctrlId);
+      if (!ctrl) return;
+      const allowed = allowedCsv.split(",");
+      el.style.display = allowed.includes(ctrl.value) ? "" : "none";
+    });
+  }
+  ["bt-entry-mode", "bt-stop-mode", "bt-position-sizing-mode"].forEach((id) => {
+    const ctrl = document.getElementById(id);
+    if (ctrl) ctrl.addEventListener("change", syncConditionalFields);
+  });
+  syncConditionalFields();
+
   function checkApi() {
     if (placeholderNotSet()) {
       els.apiPill.textContent = "API not configured";
@@ -191,6 +226,26 @@
   }
   checkApi();
 
+  // trail_protect_ladder travels over the wire as [[peak_r, protect_frac_0_to_1], ...]
+  // (see orb_strategy.py / backtester-ai.js FIELD_SCHEMA), but the form field is a
+  // single human-typed "1:50, 2:65, 3:80" text input (R:percent). These two convert
+  // between the two shapes so buildPayload()/applyPayload() can round-trip it.
+  function parseLadderInput(str) {
+    return (str || "")
+      .split(",")
+      .map((chunk) => chunk.trim())
+      .filter(Boolean)
+      .map((chunk) => chunk.split(":").map((n) => parseFloat(n.trim())))
+      .filter(([r, pct]) => Number.isFinite(r) && Number.isFinite(pct))
+      .map(([r, pct]) => [r, pct > 1 ? pct / 100 : pct]);
+  }
+  function formatLadderValue(ladder) {
+    if (!Array.isArray(ladder) || !ladder.length) return "";
+    return ladder
+      .map(([r, frac]) => `${r}:${Math.round(frac > 1 ? frac : frac * 100)}`)
+      .join(", ");
+  }
+
   function buildPayload() {
     return {
       label: els.label.value.trim(),
@@ -207,6 +262,9 @@
       position_size_pct: els.positionSizePct ? Number(els.positionSizePct.value) || 0 : undefined,
       risk_pct_of_capital: els.riskPctOfCapital ? Number(els.riskPctOfCapital.value) || 0 : undefined,
       include_commissions: els.includeCommissions ? !!els.includeCommissions.checked : true,
+      // 0 is a valid, meaningful value here (slippage off) -- don't let
+      // the usual `|| default` pattern stomp it back to the default.
+      slippage_bps: els.slippageBps && els.slippageBps.value !== "" ? Number(els.slippageBps.value) : 5,
       session_start: els.sessionStart.value || "09:30",
       flatten_time: els.flattenTime.value || "15:55",
       // Not read or acted on by the engine -- just carried through to
@@ -247,6 +305,15 @@
       allow_reentry: els.allowReentry ? !!els.allowReentry.checked : true,
       max_trades_per_day: els.maxTradesPerDay ? Number(els.maxTradesPerDay.value) || 3 : 3,
       reentry_cooldown_minutes: els.reentryCooldownMinutes ? Number(els.reentryCooldownMinutes.value) || 0 : 0,
+
+      scale_in_enabled: els.scaleInEnabled ? !!els.scaleInEnabled.checked : false,
+      scale_in_initial_size_pct: els.scaleInInitialPct ? Number(els.scaleInInitialPct.value) || 50 : 50,
+      scale_in_add_size_pct: els.scaleInAddPct ? Number(els.scaleInAddPct.value) || 25 : 25,
+      scale_in_max_adds: els.scaleInMaxAdds ? Number(els.scaleInMaxAdds.value) || 0 : 0,
+      scale_in_hold_bars: els.scaleInHoldBars ? Number(els.scaleInHoldBars.value) || 2 : 2,
+      scale_in_min_gain_cents: els.scaleInMinGainCents ? Number(els.scaleInMinGainCents.value) || 0 : 0,
+      trail_protect_enabled: els.trailProtectEnabled ? !!els.trailProtectEnabled.checked : false,
+      trail_protect_ladder: els.trailProtectLadder ? parseLadderInput(els.trailProtectLadder.value) : [],
     };
   }
 
@@ -268,6 +335,7 @@
     set(els.positionSizePct, p.position_size_pct);
     set(els.riskPctOfCapital, p.risk_pct_of_capital);
     setChk(els.includeCommissions, p.include_commissions !== false);
+    set(els.slippageBps, p.slippage_bps);
     set(els.sessionStart, p.session_start);
     set(els.flattenTime, p.flatten_time);
     set(els.notes, p.notes);
@@ -297,6 +365,21 @@
     setChk(els.allowReentry, p.allow_reentry !== false);
     set(els.maxTradesPerDay, p.max_trades_per_day);
     set(els.reentryCooldownMinutes, p.reentry_cooldown_minutes);
+    setChk(els.scaleInEnabled, p.scale_in_enabled);
+    set(els.scaleInInitialPct, p.scale_in_initial_size_pct);
+    set(els.scaleInAddPct, p.scale_in_add_size_pct);
+    set(els.scaleInMaxAdds, p.scale_in_max_adds);
+    set(els.scaleInHoldBars, p.scale_in_hold_bars);
+    set(els.scaleInMinGainCents, p.scale_in_min_gain_cents);
+    setChk(els.trailProtectEnabled, p.trail_protect_enabled);
+    if (els.trailProtectLadder && p.trail_protect_ladder !== undefined) {
+      els.trailProtectLadder.value = formatLadderValue(p.trail_protect_ladder);
+    }
+    // Setting .value programmatically (as every line above just did) never
+    // fires a "change" event, so the visibility toggling wired up near
+    // checkApi() wouldn't otherwise notice entry_mode/stop_mode/
+    // position_sizing_mode changed -- re-run it explicitly here.
+    syncConditionalFields();
     // Note: no scroll call here on purpose. flashFormSections() (called
     // right after this by backtester-ai.js) does the scrolling -- having
     // both fire in the same tick made the page jump to two different
