@@ -58,7 +58,7 @@ window.CHART_SERVICE_URL = "https://chart-service-wroj.onrender.com";
 // whatever tunnel (Cloudflare Tunnel / ngrok) you put in front of its
 // port 8800. Leave blank and the Live Trading page will just show an
 // error instead of failing silently.
-window.LIVE_SERVICE_URL = "https://wells-achieving-school-analyzed.trycloudflare.com";
+window.LIVE_SERVICE_URL = "https://artificial-grace-pairs-aims.trycloudflare.com";
 
 // Supabase project -- used by auth.js for login/signup and to read/write
 // this user's own trades (Row Level Security scopes every query to
