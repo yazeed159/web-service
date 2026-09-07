@@ -638,6 +638,7 @@
           <span class="title">${partial ? "Running…" : "Done"}</span>
           ${reportHref && !partial ? `<a class="link" href="${reportHref}" target="_blank" rel="noopener">Open full report →</a>` : ""}
         </div>
+        ${lastJobId && !partial ? `<div style="margin-bottom:12px;"><button class="link" id="bt-save-strategy-btn" style="background:none;border:none;padding:0;cursor:pointer;">Save as Strategy →</button></div>` : ""}
         <div class="stat-grid">
           <div class="stat">
             <div class="label-row"><span class="label">Net P&amp;L</span></div>
@@ -660,6 +661,9 @@
         ${reportHref && !partial ? `<div class="bt-run-row" style="margin-top:16px;"><a class="btn-confirm" style="text-decoration:none; display:inline-block;" href="${reportHref}" target="_blank" rel="noopener">View Full Report</a></div>` : ""}
       </div>
     `;
+
+    const saveBtn = document.getElementById("bt-save-strategy-btn");
+    if (saveBtn) saveBtn.addEventListener("click", () => saveAsStrategy(lastJobId, lastLabel, saveBtn));
   }
 
   function loadHistory() {
@@ -692,6 +696,13 @@
               deleteHistoryEntry(entry.id);
             });
           }
+          const saveBtn = card.querySelector(".run-card-save-strategy");
+          if (saveBtn) {
+            saveBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              saveAsStrategy(entry.id, entry.label, saveBtn);
+            });
+          }
         });
       })
       .catch((err) => {
@@ -707,6 +718,7 @@
         <div class="run-card-head">
           <span class="run-card-title">${escapeHtml(entry.label || "(untitled run)")}</span>
           <div style="display:flex; align-items:center; gap:10px;">
+            <button class="link run-card-save-strategy" style="background:none;border:none;padding:0;cursor:pointer;" title="Save this run's rules as a reusable strategy you can pick on the Live Trading page">Save as Strategy</button>
             <a class="link run-card-view" href="report.html?id=${encodeURIComponent(entry.id)}" target="_blank" rel="noopener" title="Open the full saved report for this run">View Report</a>
             <button class="run-card-delete" title="Delete this run" aria-label="Delete this run">&times;</button>
           </div>
@@ -720,6 +732,32 @@
           <div><div class="pb-label">Avg R</div><div class="pb-value">${fmtR(s.avg_r)}</div></div>
         </div>
       </div>`;
+  }
+
+  // Turns a finished run into a reusable strategy (chart_service.py's
+  // /backtest/history/<id>/save-strategy) -- the thing that connects this
+  // page to the Live Trading picker. Shared by the "Done" results panel
+  // (fresh run) and each history card (an older run).
+  function saveAsStrategy(jobId, defaultName, btn) {
+    const name = window.prompt("Name this strategy (you'll pick it by this name on the Live Trading page):", defaultName || "");
+    if (name === null) return; // cancelled
+    const trimmed = name.trim();
+    if (!trimmed) { alert("Strategy name is required."); return; }
+    const originalLabel = btn ? btn.textContent : null;
+    if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+    authedHeaders()
+      .then((headers) => fetch(`${API()}/backtest/history/${jobId}/save-strategy`, {
+        method: "POST", headers, body: JSON.stringify({ name: trimmed }),
+      }))
+      .then((r) => r.json().then((body) => {
+        if (!r.ok) throw new Error(body.error || ("HTTP " + r.status));
+        return body;
+      }))
+      .then(() => {
+        alert(`Saved "${trimmed}". It'll show up in the strategy picker on the Live Trading page.`);
+      })
+      .catch((err) => alert("Couldn't save strategy: " + err.message))
+      .finally(() => { if (btn) { btn.disabled = false; btn.textContent = originalLabel; } });
   }
 
   function deleteHistoryEntry(id) {
