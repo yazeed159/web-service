@@ -185,6 +185,24 @@
     <div id="lt-mode-banner" class="lt-mode-banner paper">PAPER — no real orders will be placed</div>
 
     <div class="card">
+      <h2>Account</h2>
+      <div class="lt-field" style="max-width: 220px;">
+        <label for="lt-account-mode">Account</label>
+        <select id="lt-account-mode">
+          <option value="paper" selected>Paper</option>
+          <option value="live">Live</option>
+        </select>
+      </div>
+      <div id="lt-account-stats" class="lt-detail-stats">
+        <div><div class="pb-label">Net Liquidation</div><div class="pb-value" id="lt-acct-netliq">—</div></div>
+        <div><div class="pb-label">Buying Power</div><div class="pb-value" id="lt-acct-bp">—</div></div>
+        <div><div class="pb-label">Unrealized P&amp;L</div><div class="pb-value" id="lt-acct-upnl">—</div></div>
+        <div><div class="pb-label">Realized P&amp;L (today)</div><div class="pb-value" id="lt-acct-rpnl">—</div></div>
+      </div>
+      <div id="lt-account-error" class="lt-empty" style="display:none;"></div>
+    </div>
+
+    <div class="card">
       <h2>Start a run</h2>
 
       <div class="lt-field">
@@ -216,8 +234,17 @@
           </select>
         </div>
         <div class="lt-field">
-          <label for="lt-shares">Shares per trade</label>
-          <input id="lt-shares" type="number" step="1" value="100">
+          <label for="lt-size-mode">Position size</label>
+          <select id="lt-size-mode">
+            <option value="shares" selected>Fixed shares</option>
+            <option value="dollars">Fixed $ amount</option>
+            <option value="pct_equity">% of account equity</option>
+          </select>
+        </div>
+        <div class="lt-field">
+          <label for="lt-size-value" id="lt-size-value-label">Shares per trade</label>
+          <input id="lt-size-value" type="number" step="1" value="100">
+          <div id="lt-size-value-note" class="lt-symbol-note"></div>
         </div>
         <div class="lt-field">
           <label for="lt-max-loss">Max daily loss ($) — halts new entries once hit</label>

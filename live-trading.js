@@ -1,5 +1,5 @@
 // live-trading.js
-// Talks to live-service's control API (see live-service/app.py in the
+// Talks to live-service's control API (see live-service/live_app.py in the
 // live-trading-stack repo) -- NOT chart_service.py. That service runs on
 // your own machine (Docker Compose, next to IB Gateway) and is reached
 // through whatever tunnel URL you put in window.LIVE_SERVICE_URL
@@ -171,6 +171,26 @@
       });
   }
 
+  // --- Position sizing field (Fixed shares / Fixed $ / % of equity) ---
+
+  const SIZE_MODE_LABELS = {
+    shares: { label: "Shares per trade", step: "1", value: "100", note: "" },
+    dollars: { label: "Dollar amount per trade", step: "50", value: "1000",
+      note: "Converted to a share count at entry: floor($ amount ÷ entry price)." },
+    pct_equity: { label: "% of account equity per trade", step: "0.5", value: "2",
+      note: "Uses a snapshot of Net Liquidation taken when you hit Run — see the Account panel above." },
+  };
+
+  function onSizeModeChange() {
+    const mode = document.getElementById("lt-size-mode").value;
+    const cfg = SIZE_MODE_LABELS[mode];
+    document.getElementById("lt-size-value-label").textContent = cfg.label;
+    const input = document.getElementById("lt-size-value");
+    input.step = cfg.step;
+    if (!input.dataset.userEdited) input.value = cfg.value;
+    document.getElementById("lt-size-value-note").textContent = cfg.note;
+  }
+
   function startRun() {
     const errEl = document.getElementById("lt-start-error");
     errEl.textContent = "";
@@ -180,7 +200,8 @@
     const symbols = document.getElementById("lt-symbols").value
       .split(",").map((s) => s.trim().toUpperCase()).filter(Boolean);
     const mode = document.getElementById("lt-mode").value;
-    const shares_per_trade = parseInt(document.getElementById("lt-shares").value, 10) || 100;
+    const size_mode = document.getElementById("lt-size-mode").value;
+    const size_value = parseFloat(document.getElementById("lt-size-value").value);
     const max_daily_loss_usd = parseFloat(document.getElementById("lt-max-loss").value) || 200;
     const maxTradesRaw = document.getElementById("lt-max-trades").value;
 
@@ -192,13 +213,17 @@
       errEl.textContent = "Enter at least one symbol to trade.";
       return;
     }
+    if (!size_value || size_value <= 0) {
+      errEl.textContent = "Enter a position size greater than 0.";
+      return;
+    }
     if (mode === "live" && !confirm(
       "This will place REAL orders with REAL money on your IBKR live account. Are you sure?"
     )) {
       return;
     }
 
-    const body = { symbols, mode, shares_per_trade, max_daily_loss_usd, params: {} };
+    const body = { symbols, mode, size_mode, size_value, max_daily_loss_usd, params: {} };
     if (strategyId) {
       body.strategy_id = strategyId;
     } else {
@@ -242,6 +267,10 @@
     ).join("");
     const stopDisabled = r.status === "stopped" ? "disabled" : "";
     const label = r.strategy_name || r.entry_mode || "(custom run)";
+    const sizing = r.sizing || {};
+    const sizingLabel = sizing.mode === "dollars" ? `$${sizing.value}/trade`
+      : sizing.mode === "pct_equity" ? `${sizing.value}% equity/trade`
+      : `${sizing.value} sh/trade`;
     const viewStratBtn = r.strategy_id
       ? `<button class="lt-run-strategy-link" id="lt-view-strat-${escapeHtml(r.run_id)}">View strategy details</button>`
       : "";
@@ -254,6 +283,7 @@
               <span class="pill ${r.mode === "live" ? "loss" : ""}">${escapeHtml(r.mode)}</span>
               <span class="pill">${escapeHtml(r.status)}</span>
               ${r.halted ? '<span class="pill loss">halted (max daily loss)</span>' : ""}
+              <span class="pill">${escapeHtml(sizingLabel)}</span>
               &nbsp;P&amp;L today: <strong>${fmtMoney(r.realized_pnl_today)}</strong>
               ${viewStratBtn}
             </div>
@@ -311,13 +341,40 @@
       : "PAPER — no real orders will be placed";
   }
 
+  // --- Account panel (net liq / buying power / today's PnL) ---
+
+  function loadAccount() {
+    const mode = document.getElementById("lt-account-mode").value;
+    const errEl = document.getElementById("lt-account-error");
+    errEl.style.display = "none";
+    apiCall(`/api/live/account?mode=${encodeURIComponent(mode)}`)
+      .then((acct) => {
+        document.getElementById("lt-acct-netliq").textContent = acct.NetLiquidation != null ? fmtMoney(acct.NetLiquidation) : "—";
+        document.getElementById("lt-acct-bp").textContent = acct.BuyingPower != null ? fmtMoney(acct.BuyingPower) : "—";
+        document.getElementById("lt-acct-upnl").textContent = acct.UnrealizedPnL != null ? fmtMoney(acct.UnrealizedPnL) : "—";
+        document.getElementById("lt-acct-rpnl").textContent = acct.RealizedPnL != null ? fmtMoney(acct.RealizedPnL) : "—";
+      })
+      .catch((err) => {
+        errEl.style.display = "block";
+        errEl.textContent = "Couldn't load account info: " + err.message;
+      });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("lt-start-btn").addEventListener("click", startRun);
     document.getElementById("lt-refresh-btn").addEventListener("click", refreshStatus);
     document.getElementById("lt-mode").addEventListener("change", updateModeBanner);
     document.getElementById("lt-strategy").addEventListener("change", onStrategyChange);
+    document.getElementById("lt-size-mode").addEventListener("change", onSizeModeChange);
+    document.getElementById("lt-size-value").addEventListener("input", function () {
+      this.dataset.userEdited = "1";
+    });
+    document.getElementById("lt-account-mode").addEventListener("change", loadAccount);
+    onSizeModeChange();
     loadStrategies();
     refreshStatus();
+    loadAccount();
     setInterval(refreshStatus, 5000);
+    setInterval(loadAccount, 15000);
   });
 })();
