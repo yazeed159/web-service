@@ -76,7 +76,13 @@ window.TradeLogShare = (function () {
     .legend{display:flex; flex-wrap:wrap; gap:12px; font-size:11px; color:var(--text-faint); margin-bottom:8px;}
     .legend-item{display:flex; align-items:center; gap:4px;}
     .legend-swatch{width:9px; height:9px; border-radius:2px; display:inline-block;}
-    #candle-chart{width:100%; height:380px;}
+    #candle-chart{width:100%; height:380px; position:relative;}
+    .chart-info-overlay{position:absolute; top:8px; left:10px; z-index:3; pointer-events:none; display:flex; flex-direction:column; gap:2px; font-family:var(--mono); font-size:11.5px; line-height:1.5;}
+    .chart-info-overlay .row{display:flex; gap:6px; align-items:baseline;}
+    .chart-info-overlay .k{color:var(--text-faint);}
+    .chart-info-overlay .v{color:var(--text); font-weight:600;}
+    .chart-info-overlay .v.up{color:var(--green);}
+    .chart-info-overlay .v.down{color:var(--red);}
     .footer-note{margin-top:22px; font-size:11.5px; color:var(--text-faint); border-top:1px solid var(--border-soft); padding-top:14px;}
     .stat-row{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; margin-bottom:18px;}
     .stat-row .cell{background:var(--panel); padding:12px 14px;}
@@ -237,9 +243,43 @@ ${scriptExtra || ""}
   var volSeries = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol" });
   chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
   volSeries.setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" }; }));
-  chart.addLineSeries({ color:"#e8a94c", lineWidth:1, priceLineVisible:false, lastValueVisible:false }).setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.vwap }; }));
-  chart.addLineSeries({ color:"#9aa8a1", lineWidth:1, priceLineVisible:false, lastValueVisible:false }).setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.ema9 }; }));
-  chart.addLineSeries({ color:"#5b93f0", lineWidth:1, priceLineVisible:false, lastValueVisible:false }).setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.ema20 }; }));
+  var vwapSeries = chart.addLineSeries({ color:"#e8a94c", lineWidth:1, priceLineVisible:false, lastValueVisible:false });
+  vwapSeries.setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.vwap }; }));
+  var ema9Series = chart.addLineSeries({ color:"#9aa8a1", lineWidth:1, priceLineVisible:false, lastValueVisible:false });
+  ema9Series.setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.ema9 }; }));
+  var ema20Series = chart.addLineSeries({ color:"#5b93f0", lineWidth:1, priceLineVisible:false, lastValueVisible:false });
+  ema20Series.setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.ema20 }; }));
+
+  // Top-left info overlay: live volume/VWAP/EMA9/EMA20 readout that
+  // tracks the crosshair, same as the interactive trade.js chart this
+  // snapshot was exported from. Falls back to the last bar's values
+  // when nothing is hovered.
+  var infoOverlay = document.createElement("div");
+  infoOverlay.className = "chart-info-overlay";
+  el.appendChild(infoOverlay);
+  function fmtPrice(v){ return (v == null || isNaN(v)) ? "—" : Number(v).toFixed(2); }
+  function volRowHtml(vol, color){ return '<div class="row"><span class="k">Vol</span><span class="v' + (color ? (" " + color) : "") + '">' + (vol == null ? "—" : Number(vol).toLocaleString()) + '</span></div>'; }
+  function indicatorRowsHtml(vwap, ema9, ema20){
+    return '<div class="row"><span class="k">VWAP</span><span class="v" style="color:#e8a94c">' + fmtPrice(vwap) + '</span></div>'
+      + '<div class="row"><span class="k">EMA9</span><span class="v" style="color:#9aa8a1">' + fmtPrice(ema9) + '</span></div>'
+      + '<div class="row"><span class="k">EMA20</span><span class="v" style="color:#5b93f0">' + fmtPrice(ema20) + '</span></div>';
+  }
+  var lastBar = bars.length ? bars[bars.length - 1] : null;
+  function renderOverlay(vol, upDown, vwap, ema9, ema20){ infoOverlay.innerHTML = volRowHtml(vol, upDown) + indicatorRowsHtml(vwap, ema9, ema20); }
+  renderOverlay(lastBar ? lastBar.v : null, "", lastBar ? lastBar.vwap : null, lastBar ? lastBar.ema9 : null, lastBar ? lastBar.ema20 : null);
+  chart.subscribeCrosshairMove(function(param){
+    var volBar = param.seriesData && param.seriesData.get(volSeries);
+    var vwapBar = param.seriesData && param.seriesData.get(vwapSeries);
+    var ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
+    var ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
+    var upDown = volBar ? (volBar.color && volBar.color.indexOf("47,208,138") !== -1 ? "up" : "down") : "";
+    renderOverlay(
+      volBar ? volBar.value : (lastBar ? lastBar.v : null), upDown,
+      vwapBar ? vwapBar.value : (lastBar ? lastBar.vwap : null),
+      ema9Bar ? ema9Bar.value : (lastBar ? lastBar.ema9 : null),
+      ema20Bar ? ema20Bar.value : (lastBar ? lastBar.ema20 : null)
+    );
+  });
 
   var markers = [];
   var entryUnix = toUnix(barAt(toUnix(trade.trade_date + " " + trade.entry_time)).t);

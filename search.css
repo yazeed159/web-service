@@ -1,0 +1,47 @@
+/* search.css — full results page for the header search (search.html).
+ * The header search's live dropdown only ever shows a handful of rows
+ * for a quick glance; this is the "see everything that matched" page
+ * it links to on Enter / "View all results". Scoped to sr-* classes
+ * plus reuses .controls/.filter-btn/.panel-box/.pill from common.css.
+ */
+
+.sr-controls-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+
+/* "Also search notes" is a toggle (aria-pressed), not a radio-style
+   .active filter -- same visual treatment as .filter-btn.active, keyed
+   off the ARIA state instead so screen readers and styling agree. */
+.filter-btn[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+
+.sr-sort-group { display: flex; gap: 6px; margin-left: auto; }
+
+.sr-count { color: var(--text-dim); font-size: 13.5px; }
+.sr-count .sr-query { color: var(--text); font-weight: 600; }
+
+.sr-list { display: flex; flex-direction: column; gap: 2px; }
+
+.sr-row {
+  display: flex; align-items: center; gap: 14px; padding: 12px 10px; border-radius: var(--radius-sm);
+  color: var(--text); text-decoration: none; font-size: 13.5px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.sr-row:last-child { border-bottom: none; }
+.sr-row:hover { background: var(--panel-2); }
+
+.sr-row .sr-sym { font-family: var(--mono); font-weight: 700; min-width: 62px; flex: none; }
+.sr-row .sr-date { color: var(--text-faint); font-size: 12.5px; min-width: 84px; flex: none; }
+.sr-row .sr-field-tag { flex: none; }
+.sr-row .sr-snip {
+  color: var(--text-dim); flex: 1 1 auto; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.sr-row .sr-pnl { margin-left: auto; font-family: var(--mono); font-size: 13px; flex: none; }
+.sr-list mark { background: var(--primary-soft); color: var(--primary); border-radius: 3px; padding: 0 2px; }
+
+@media (max-width: 700px) {
+  .sr-controls-row { flex-direction: column; align-items: stretch; }
+  .sr-sort-group { margin-left: 0; }
+  .sr-row { flex-wrap: wrap; gap: 6px 12px; }
+  .sr-row .sr-date { order: 1; }
+  .sr-row .sr-snip { order: 3; flex-basis: 100%; white-space: normal; }
+  .sr-row .sr-pnl { order: 2; }
+}

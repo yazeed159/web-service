@@ -141,6 +141,7 @@
       "detail-winloss-donut", "detail-winloss-compare",
       "detail-rvol-dist", "detail-rvol-perf", "detail-avgvol-dist", "detail-avgvol-perf", "detail-float",
       "report-month-dist", "report-month-perf", "dd-cum-pnl", "dd-cum-drawdown",
+      "report-cum-pnl", "detail-cum-pnl",
     ].forEach((id) => { const el = document.getElementById(id); if (el) el.innerHTML = '<div class="empty-state small">No data yet.</div>'; });
     [
       "wld-summary", "wld-top-win", "wld-top-loss", "dd-summary", "dd-periods",
@@ -235,8 +236,9 @@
       const barW = Math.max(Math.abs(r.value) * scale, r.value === 0 ? 0 : 1.5);
       const x = hasNeg ? (r.value >= 0 ? labelW + zeroX : labelW + zeroX - barW) : labelW;
       const color = r.color || "var(--green)";
+      const tip = `${escapeHtml(r.label)}: ${escapeHtml(fmt(r.value))}`;
       return `<text x="${labelW - 8}" y="${(y + barH / 2 + 4).toFixed(1)}" font-size="11" fill="var(--text-dim)" text-anchor="end">${escapeHtml(r.label)}</text>` +
-        `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH}" rx="2" fill="${color}"/>`;
+        `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH}" rx="2" fill="${color}"><title>${tip}</title></rect>`;
     }).join("");
     const zeroLine = hasNeg ? `<line x1="${(labelW + zeroX).toFixed(1)}" y1="${topPad}" x2="${(labelW + zeroX).toFixed(1)}" y2="${(topPad + rows.length * rowH).toFixed(1)}" stroke="var(--text-faint)" stroke-width="1.3"/>` : "";
     return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" style="overflow:visible; display:block;">${axis}${bars}${zeroLine}</svg>`;
@@ -278,36 +280,93 @@
     </svg>`;
   }
 
-  // points: array of numbers in chronological order (e.g. cumulative
-  // equity or drawdown). Draws a simple filled line chart with a
-  // labeled y-axis -- used for the Cumulative P&L / Cumulative
-  // Drawdown panels.
-  function svgLineAreaChart(points, opts) {
+  // Interactive line/area chart -- same crosshair + tooltip UX as the
+  // dashboard's equity curve (bindEquityInteractivity below), generalized
+  // so any number of independent instances can live on one page at once
+  // (Reports has several: Drawdown tab's two charts, Overview's
+  // date-range-toggle one, Win/Loss/Expectation's). Renders its own
+  // wrap/svg/crosshair/tooltip markup straight into `container` and binds
+  // events scoped to that element, rather than assuming fixed page-wide
+  // ids the way the dashboard's singleton chart does.
+  // series: [{ x: <label shown in tooltip>, y: <number> }, ...] in
+  // chronological order.
+  let mlcSeq = 0;
+  function renderMiniLineChart(container, series, opts) {
     opts = opts || {};
-    const width = opts.width || 640, height = opts.height || 220;
-    const padL = 56, padR = 12, padT = 12, padB = 22;
-    const plotW = width - padL - padR, plotH = height - padT - padB;
-    const color = opts.color || "var(--green)";
-    const min = Math.min(0, ...points), max = Math.max(0, ...points);
+    if (!container) return;
+    if (!series.length) { container.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
+    const valueFmt = opts.valueFmt || fmtMoney;
+    const W = 1000, H = opts.height || 130, PAD = 8;
+
+    const values = series.map((p) => p.y);
+    const min = Math.min(0, ...values), max = Math.max(0, ...values);
     const range = max - min || 1;
-    const xAt = (i) => padL + (points.length > 1 ? (i / (points.length - 1)) * plotW : 0);
-    const yAt = (v) => padT + plotH - ((v - min) / range) * plotH;
-    const zeroY = yAt(0);
-    const linePts = points.map((v, i) => `${xAt(i).toFixed(1)},${yAt(v).toFixed(1)}`).join(" ");
-    const areaPts = `${padL.toFixed(1)},${zeroY.toFixed(1)} ${linePts} ${xAt(points.length - 1).toFixed(1)},${zeroY.toFixed(1)}`;
-    const gridCount = 4;
-    let axis = "";
-    for (let i = 0; i <= gridCount; i++) {
-      const val = min + (i / gridCount) * range;
-      const gy = yAt(val);
-      axis += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${width - padR}" y2="${gy.toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.6"/>`;
-      axis += `<text x="${padL - 8}" y="${(gy + 3).toFixed(1)}" font-size="10" fill="var(--text-faint)" text-anchor="end">${escapeHtml(fmtAxisMoney(val))}</text>`;
+    const coords = series.map((p, i) => {
+      const x = series.length > 1 ? (i / (series.length - 1)) * W : 0;
+      const y = H - PAD - ((p.y - min) / range) * (H - PAD * 2);
+      return [x, y];
+    });
+    const pathD = coords.map((c, i) => (i === 0 ? "M" : "L") + c[0].toFixed(1) + "," + c[1].toFixed(1)).join(" ");
+    const zeroY = H - PAD - ((0 - min) / range) * (H - PAD * 2);
+    const fillD = pathD + ` L${coords[coords.length - 1][0].toFixed(1)},${zeroY.toFixed(1)} L0,${zeroY.toFixed(1)} Z`;
+    const finalPositive = values[values.length - 1] >= 0;
+    const gradId = "mlcGrad" + (mlcSeq++);
+    const swatch = finalPositive ? "#2fd08a" : "#f2555a";
+
+    container.innerHTML = `
+      <div class="equity-chart-wrap mini-line-wrap">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%; height:${H}px; display:block;">
+          <line x1="0" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" class="equity-zero" />
+          <path d="${fillD}" fill="url(#${gradId})" />
+          <path d="${pathD}" class="equity-path ${finalPositive ? "" : "neg"}" />
+          <circle class="mlc-hover-dot" r="4" fill="var(--panel)" stroke="${finalPositive ? "var(--green)" : "var(--red)"}" stroke-width="2" style="display:none;" />
+          <defs>
+            <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="${swatch}" stop-opacity="0.2" />
+              <stop offset="100%" stop-color="${swatch}" stop-opacity="0" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="equity-crosshair mlc-crosshair"></div>
+        <div class="equity-tooltip mlc-tooltip"></div>
+      </div>`;
+
+    const wrap = container.querySelector(".mini-line-wrap");
+    const crosshair = container.querySelector(".mlc-crosshair");
+    const tooltip = container.querySelector(".mlc-tooltip");
+    const dot = container.querySelector(".mlc-hover-dot");
+
+    function nearestIndex(clientX) {
+      const rect = wrap.getBoundingClientRect();
+      const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+      return Math.round(frac * (series.length - 1));
     }
-    return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" style="overflow:visible; display:block;">
-      ${axis}
-      <polygon points="${areaPts}" fill="${color}" opacity="0.16"/>
-      <polyline points="${linePts}" fill="none" stroke="${color}" stroke-width="2"/>
-    </svg>`;
+    function showAt(clientX) {
+      const i = nearestIndex(clientX);
+      const [cx, cy] = coords[i];
+      const rect = wrap.getBoundingClientRect();
+      const pxX = (cx / W) * rect.width;
+      crosshair.style.display = "block";
+      crosshair.style.left = `${pxX}px`;
+      dot.style.display = "block";
+      dot.setAttribute("cx", cx.toFixed(1));
+      dot.setAttribute("cy", cy.toFixed(1));
+      const p = series[i];
+      tooltip.innerHTML = `<div class="eq-date">${escapeHtml(p.x)}</div><div class="eq-bal">${valueFmt(p.y)}</div>`;
+      tooltip.style.display = "block";
+      const ttWidth = tooltip.offsetWidth || 120;
+      let left = pxX + 10;
+      if (left + ttWidth > rect.width) left = pxX - ttWidth - 10;
+      if (left < 0) left = 4;
+      tooltip.style.left = `${left}px`;
+    }
+    function hide() {
+      crosshair.style.display = "none";
+      tooltip.style.display = "none";
+      dot.style.display = "none";
+    }
+    wrap.addEventListener("pointermove", (e) => showAt(e.clientX));
+    wrap.addEventListener("pointerleave", hide);
   }
 
 
@@ -340,6 +399,48 @@
     const more = shown < sorted.length ? tradeListMoreHtml(uid, sorted.length - shown) : "";
     return `<ul class="tag-trade-list" id="${uid}">${items}${more}</ul>`;
   }
+  // Shared "key -> {trades, net}" breakdown table with a Load More button
+  // -- used by Overview's "By symbol" and the Sector/Country tables. A
+  // busy account can have hundreds of symbols; rendering a <tr> for every
+  // one of them at once (even those collapsed) is exactly what was
+  // making the Reports page slow to load. Same fix as tradeListHtml's
+  // Load More above, just at the row level instead of the nested
+  // trade-list level.
+  const BREAKDOWN_PAGE_SIZE = 25;
+  const breakdownTableState = new Map(); // elId -> { rowsHtml, shown }
+
+  function renderPaginatedBreakdownTable(elId, entries, colLabel, rowHtmlFn) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (!entries.length) {
+      el.innerHTML = `<div class="empty-state small">No ${escapeHtml(colLabel.toLowerCase())} data yet.</div>`;
+      return;
+    }
+    breakdownTableState.set(elId, { rowsHtml: entries.map(rowHtmlFn), shown: BREAKDOWN_PAGE_SIZE });
+    el.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>${colLabel}</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody id="${elId}-tbody"></tbody></table></div>`;
+    renderBreakdownTablePage(elId);
+  }
+
+  function renderBreakdownTablePage(elId) {
+    const state = breakdownTableState.get(elId);
+    const tbody = document.getElementById(`${elId}-tbody`);
+    if (!state || !tbody) return;
+    const shown = Math.min(state.shown, state.rowsHtml.length);
+    const remaining = state.rowsHtml.length - shown;
+    const moreHtml = remaining > 0
+      ? `<tr class="report-row-more"><td colspan="4" style="text-align:center; padding:10px;"><button type="button" class="btn-load-more" data-load-more-table="${elId}">Load more (${remaining} left)</button></td></tr>`
+      : "";
+    tbody.innerHTML = state.rowsHtml.slice(0, shown).join("") + moreHtml;
+    bindTradeToggles(tbody);
+    const btn = tbody.querySelector("[data-load-more-table]");
+    if (btn) {
+      btn.addEventListener("click", () => {
+        state.shown += BREAKDOWN_PAGE_SIZE;
+        renderBreakdownTablePage(elId);
+      });
+    }
+  }
+
   function bindTradeToggles(container) {
     container.querySelectorAll("[data-trade-toggle]").forEach((row) => {
       row.addEventListener("click", () => {
@@ -1383,6 +1484,7 @@
     safeRender(renderDetailedStats, "renderDetailedStats");
     safeRender(renderDetailSubtabs, "renderDetailSubtabs");
     safeRender(renderPeriodDistPerf, "renderPeriodDistPerf");
+    safeRender(renderOverviewCumulativePnl, "renderOverviewCumulativePnl");
     safeRender(renderStreaks, "renderStreaks");
     safeRender(renderHighlights, "renderHighlights");
     safeRender(renderSymbolBreakdown, "renderSymbolBreakdown");
@@ -1446,7 +1548,7 @@
     const rows = Array.from(bySym.entries()).sort((a, b) => b[1].net - a[1].net);
     const maxAbs = Math.max(1, ...rows.map((r) => Math.abs(r[1].net)));
 
-    const html = rows.map(([sym, e]) => {
+    renderPaginatedBreakdownTable("report-symbol", rows, "Symbol", ([sym, e]) => {
       const winRate = (e.trades.filter((t) => t.win).length / e.trades.length) * 100;
       const pct = (Math.abs(e.net) / maxAbs) * 100;
       const color = e.net >= 0 ? "var(--green)" : "var(--red)";
@@ -1459,11 +1561,7 @@
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${e.net >= 0 ? "up" : "down"}">${fmtMoney(e.net)}</span></td>
       </tr>
       <tr class="report-row-detail"><td colspan="4" style="padding:0; border-bottom:none;">${tradeListHtml(e.trades, uid)}</td></tr>`;
-    }).join("");
-
-    const symEl = document.getElementById("report-symbol");
-    symEl.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Symbol</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
-    bindTradeToggles(symEl);
+    });
   }
 
   function renderDowBreakdown() {
@@ -1667,14 +1765,14 @@
   }
 
   function renderBreakdownTable(elId, map, colLabel) {
-    const el = document.getElementById(elId);
     if (!map) {
-      el.innerHTML = `<div class="empty-state small">No ${escapeHtml(colLabel.toLowerCase())} data on these trades yet.</div>`;
+      const el = document.getElementById(elId);
+      if (el) el.innerHTML = `<div class="empty-state small">No ${escapeHtml(colLabel.toLowerCase())} data on these trades yet.</div>`;
       return;
     }
     const rows = Array.from(map.entries()).sort((a, b) => b[1].net - a[1].net);
     const maxAbs = Math.max(1, ...rows.map(([, e]) => Math.abs(e.net)));
-    const html = rows.map(([key, e]) => {
+    renderPaginatedBreakdownTable(elId, rows, colLabel, ([key, e]) => {
       const winRate = (e.trades.filter((t) => t.win).length / e.trades.length) * 100;
       const pct = (Math.abs(e.net) / maxAbs) * 100;
       const color = e.net >= 0 ? "var(--green)" : "var(--red)";
@@ -1686,9 +1784,7 @@
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${e.net >= 0 ? "up" : "down"}">${fmtMoney(e.net)}</span></td>
       </tr>
       <tr class="report-row-detail"><td colspan="4" style="padding:0; border-bottom:none;">${tradeListHtml(e.trades, uid)}</td></tr>`;
-    }).join("");
-    el.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>${colLabel}</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
-    bindTradeToggles(el);
+    });
   }
 
   function renderSectorCountryBreakdown() {
@@ -2164,6 +2260,7 @@
     safeRender(renderDetailExpectationBar, "renderDetailExpectationBar");
     safeRender(renderDetailDistribution, "renderDetailDistribution");
     safeRender(renderDetailExpectancy, "renderDetailExpectancy");
+    safeRender(renderDetailCumulativePnl, "renderDetailCumulativePnl");
     safeRender(renderDetailRvol, "renderDetailRvol");
     safeRender(renderDetailAvgVol, "renderDetailAvgVol");
     safeRender(() => renderBreakdownTable("detail-float", groupByField("float_tag"), "Float"), "renderBreakdownTable(detail-float)");
@@ -2497,7 +2594,61 @@
     const cumPnl = trades.map((t) => t._balance - startBalance);
     let runPeak = -Infinity;
     const drawdown = cumPnl.map((v) => { runPeak = Math.max(runPeak, v); return v - runPeak; });
-    pnlEl.innerHTML = svgLineAreaChart(cumPnl, { color: "var(--green)" });
-    ddEl.innerHTML = svgLineAreaChart(drawdown, { color: "var(--red)" });
+    renderMiniLineChart(pnlEl, trades.map((t, i) => ({ x: t.trade_date, y: cumPnl[i] })));
+    renderMiniLineChart(ddEl, trades.map((t, i) => ({ x: t.trade_date, y: drawdown[i] })));
+  }
+
+  // ================================================================
+  // REPORTS — Overview: Cumulative P&L with its own 30/60/90/All toggle
+  // (Detailed's Win/Loss/Expectation cumulative chart below reuses the
+  // page's already-selected date range instead, since it sits alongside
+  // panels that don't have their own toggle either.)
+  // ================================================================
+  let overviewCumRange = "90"; // "30" | "60" | "90" | "all"
+
+  function overviewCumSubset() {
+    if (overviewCumRange === "all" || !trades.length) return trades;
+    const days = parseInt(overviewCumRange, 10);
+    const anchor = new Date(trades[trades.length - 1].trade_date + "T12:00:00");
+    const cutoff = new Date(anchor);
+    cutoff.setDate(cutoff.getDate() - days);
+    const subset = trades.filter((t) => new Date(t.trade_date + "T12:00:00") >= cutoff);
+    return subset.length ? subset : trades;
+  }
+
+  function bindOverviewCumRangeToggle() {
+    const wrap = document.getElementById("ov-cumpnl-range-toggle");
+    if (!wrap || wrap.dataset.bound) return;
+    wrap.dataset.bound = "1";
+    wrap.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-range]");
+      if (!btn) return;
+      overviewCumRange = btn.dataset.range;
+      wrap.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === btn));
+      renderOverviewCumulativePnl();
+    });
+  }
+
+  function renderOverviewCumulativePnl() {
+    bindOverviewCumRangeToggle();
+    const el = document.getElementById("report-cum-pnl");
+    if (!el) return;
+    const subset = overviewCumSubset();
+    if (!subset.length) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
+    let running = 0;
+    const series = subset.map((t) => { running += t.pnl_after_comm; return { x: t.trade_date, y: running }; });
+    renderMiniLineChart(el, series);
+  }
+
+  // Win/Loss/Expectation's own Cumulative P&L -- tracks whatever `trades`
+  // currently holds (the page's overall date range / filters), same as
+  // its sibling panels in that grid.
+  function renderDetailCumulativePnl() {
+    const el = document.getElementById("detail-cum-pnl");
+    if (!el) return;
+    if (!trades.length) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
+    let running = 0;
+    const series = trades.map((t) => { running += t.pnl_after_comm; return { x: t.trade_date, y: running }; });
+    renderMiniLineChart(el, series);
   }
 })();

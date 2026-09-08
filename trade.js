@@ -26,6 +26,11 @@
   let currentCandleChart = null;
   let currentMacdChart = null;
   let chartResizeListenerAttached = false;
+  // Which timeframe the candle chart is currently resampled to (1/5/15/60
+  // minutes). Kept at module scope, not inside buildCharts, so it
+  // survives a "Show full day" rebuild -- switching to 5m and then
+  // loading the full day keeps showing 5m instead of silently resetting.
+  let currentInterval = 1;
 
   // "Show full day" -- widens the chart past the narrow window that got
   // stored with this trade, by pulling the rest of that symbol's session
@@ -274,7 +279,7 @@
             <span class="legend-item"><span class="legend-swatch" style="background:#8b7cf6"></span>better entry</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#ec6cad"></span>better exit</span>
           </div>
-          <div style="display:flex; align-items:center; gap:12px;">
+          <div style="display:flex; align-items:center; gap:12px;" id="chart-controls">
             <span>Scroll to zoom · drag to pan</span>
             <a class="icon-btn icon-btn-visible" id="replay-btn" title="Rewind this trade" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px; text-decoration:none;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
@@ -699,14 +704,29 @@
     if (currentCandleChart) { try { currentCandleChart.remove(); } catch (e) {} currentCandleChart = null; }
     if (currentMacdChart) { try { currentMacdChart.remove(); } catch (e) {} currentMacdChart = null; }
 
-    const candleData = bars.map((b) => ({ time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c }));
-    const volData = bars.map((b) => ({ time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" }));
-    const vwapData = bars.map((b) => ({ time: toUnix(b.t), value: b.vwap }));
-    const ema9Data = bars.map((b) => ({ time: toUnix(b.t), value: b.ema9 }));
-    const ema20Data = bars.map((b) => ({ time: toUnix(b.t), value: b.ema20 }));
-    const macdData = bars.map((b) => ({ time: toUnix(b.t), value: b.macd }));
-    const signalData = bars.map((b) => ({ time: toUnix(b.t), value: b.macd_signal }));
-    const histData = bars.map((b) => ({ time: toUnix(b.t), value: b.macd_hist, color: b.macd_hist >= 0 ? "#2fd08a" : "#f2555a" }));
+    // Builds every series' data array from whichever bar set is currently
+    // displayed -- the raw 1-minute bars, or a 5m/15m/1h set resampled
+    // from them client-side (see the timeframe switcher further down).
+    // Kept as a function so switching timeframe just re-derives these and
+    // calls setData() again on the existing series, instead of tearing
+    // down and rebuilding the whole chart (which would also have to
+    // re-plumb the pointers/price-lines below).
+    function seriesDataFor(displayBars) {
+      return {
+        candleData: displayBars.map((b) => ({ time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c })),
+        volData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" })),
+        vwapData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.vwap })),
+        ema9Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema9 })),
+        ema20Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema20 })),
+        macdData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd })),
+        signalData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd_signal })),
+        histData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd_hist, color: (b.macd_hist || 0) >= 0 ? "#2fd08a" : "#f2555a" })),
+      };
+    }
+
+    const initialDisplayBars = currentInterval === 1 ? bars : window.ChartIndicators.resampleBars(bars, currentInterval);
+    let currentSeriesData = seriesDataFor(initialDisplayBars);
+    const { candleData, volData, vwapData, ema9Data, ema20Data, macdData, signalData, histData } = currentSeriesData;
 
     const candleEl = document.getElementById("candle-chart");
     const commonOpts = {
@@ -753,11 +773,18 @@
     candleChart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     volSeries.setData(volData);
 
+    const vwapSeries = candleChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    vwapSeries.setData(vwapData);
+    const ema9Series = candleChart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    ema9Series.setData(ema9Data);
+    const ema20Series = candleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    ema20Series.setData(ema20Data);
+
     // Top-left info overlay: float (static, from indicators -- same field
-    // the "About" card's volumeFloatPills reads) plus a live volume
-    // readout that tracks the crosshair the way a broker platform's OHLCV
-    // legend does. Falls back to the last bar's volume when nothing is
-    // hovered, so the readout is never blank.
+    // the "About" card's volumeFloatPills reads) plus a live volume/VWAP/
+    // EMA9/EMA20 readout that tracks the crosshair the way a broker
+    // platform's OHLCV legend does. Falls back to the last bar's values
+    // when nothing is hovered, so the readout is never blank.
     candleEl.style.position = "relative";
     let infoOverlay = candleEl.querySelector(".chart-info-overlay");
     if (!infoOverlay) {
@@ -771,17 +798,25 @@
       : "";
     const volRowHtml = (vol, color) =>
       `<div class="row"><span class="k">Vol</span><span class="v${color ? ` ${color}` : ""}">${vol == null ? "—" : Number(vol).toLocaleString()}</span></div>`;
-    infoOverlay.innerHTML = floatRow + volRowHtml(volData.length ? volData[volData.length - 1].value : null);
+    function lastOf(arr) { return arr.length ? arr[arr.length - 1].value : null; }
+    function renderOverlay(vol, upDown, vwapVal, ema9Val, ema20Val) {
+      infoOverlay.innerHTML = floatRow + volRowHtml(vol, upDown) + window.ChartIndicators.indicatorRowsHtml(vwapVal, ema9Val, ema20Val);
+    }
+    renderOverlay(lastOf(currentSeriesData.volData), "", lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data));
     candleChart.subscribeCrosshairMove((param) => {
-      const bar = param.seriesData && param.seriesData.get(volSeries);
-      const vol = bar ? bar.value : (volData.length ? volData[volData.length - 1].value : null);
-      const upDown = bar ? (bar.color && bar.color.indexOf("47,208,138") !== -1 ? "up" : "down") : "";
-      infoOverlay.innerHTML = floatRow + volRowHtml(vol, upDown);
+      const volBar = param.seriesData && param.seriesData.get(volSeries);
+      const vol = volBar ? volBar.value : lastOf(currentSeriesData.volData);
+      const upDown = volBar ? (volBar.color && volBar.color.indexOf("47,208,138") !== -1 ? "up" : "down") : "";
+      const vwapBar = param.seriesData && param.seriesData.get(vwapSeries);
+      const ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
+      const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
+      renderOverlay(
+        vol, upDown,
+        vwapBar ? vwapBar.value : lastOf(currentSeriesData.vwapData),
+        ema9Bar ? ema9Bar.value : lastOf(currentSeriesData.ema9Data),
+        ema20Bar ? ema20Bar.value : lastOf(currentSeriesData.ema20Data)
+      );
     });
-
-    candleChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(vwapData);
-    candleChart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema9Data);
-    candleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema20Data);
 
     // Find the candle a marker's timestamp falls ON, so we can compare the
     // fill price against THAT candle's actual high/low instead of guessing
@@ -1141,15 +1176,56 @@
     const macdEl = document.getElementById("macd-chart");
     const macdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: 110 });
     currentMacdChart = macdChart;
-    macdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } }).setData(histData);
-    macdChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(macdData);
-    macdChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(signalData);
+    const macdHistSeries = macdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } });
+    macdHistSeries.setData(histData);
+    const macdLineSeries = macdChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    macdLineSeries.setData(macdData);
+    const macdSignalLineSeries = macdChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    macdSignalLineSeries.setData(signalData);
 
     candleChart.timeScale().subscribeVisibleLogicalRangeChange((range) => { if (range) macdChart.timeScale().setVisibleLogicalRange(range); });
     macdChart.timeScale().subscribeVisibleLogicalRangeChange((range) => { if (range) candleChart.timeScale().setVisibleLogicalRange(range); });
 
     candleChart.timeScale().fitContent();
     macdChart.timeScale().fitContent();
+
+    // Timeframe switcher (1m/5m/15m/1h), resampled client-side from the
+    // 1-minute bars already loaded -- no extra network call. Switching
+    // just re-derives each series' data and calls setData() again; the
+    // pointers/price-lines below are positioned by absolute time/price
+    // (timeToCoordinate/priceToCoordinate), so they keep working
+    // unchanged at any timeframe.
+    function applyInterval(minutes) {
+      currentInterval = minutes;
+      const displayBars = minutes === 1 ? bars : window.ChartIndicators.resampleBars(bars, minutes);
+      currentSeriesData = seriesDataFor(displayBars);
+      candleSeries.setData(currentSeriesData.candleData);
+      volSeries.setData(currentSeriesData.volData);
+      vwapSeries.setData(currentSeriesData.vwapData);
+      ema9Series.setData(currentSeriesData.ema9Data);
+      ema20Series.setData(currentSeriesData.ema20Data);
+      macdHistSeries.setData(currentSeriesData.histData);
+      macdLineSeries.setData(currentSeriesData.macdData);
+      macdSignalLineSeries.setData(currentSeriesData.signalData);
+      renderOverlay(
+        lastOf(currentSeriesData.volData), "",
+        lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data)
+      );
+      candleChart.timeScale().fitContent();
+      macdChart.timeScale().fitContent();
+      repositionPointers();
+    }
+
+    const chartControls = document.getElementById("chart-controls");
+    if (chartControls) {
+      const existingSwitcher = chartControls.querySelector(".tf-switcher");
+      if (existingSwitcher) existingSwitcher.remove();
+      const switcher = window.ChartIndicators.buildTimeframeSwitcher({
+        active: currentInterval,
+        onSelect: applyInterval,
+      });
+      chartControls.insertBefore(switcher, chartControls.firstChild);
+    }
 
     // Attached once ever (buildCharts can now re-run for the full-day
     // rebuild) -- reads currentCandleChart/currentMacdChart live rather

@@ -400,6 +400,10 @@
           </div>
           <div class="report-grid" style="margin-top:18px;">
             <div class="panel-box">
+              <div class="panel-box-head"><span class="title">Cumulative P&amp;L</span></div>
+              <div id="detail-cum-pnl"><div class="loading-line">Loading…</div></div>
+            </div>
+            <div class="panel-box">
               <div class="panel-box-head"><span class="title">Expectancy</span></div>
               <div id="detail-expectancy"><div class="loading-line">Loading…</div></div>
             </div>
@@ -437,6 +441,19 @@
         </div>
 
         <div class="toptab-panel" id="toptab-overview">
+        <div class="section-label" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+          <span>Cumulative P&amp;L</span>
+          <div class="eq-range-toggle" id="ov-cumpnl-range-toggle">
+            <button data-range="30">30D</button>
+            <button data-range="60">60D</button>
+            <button data-range="90" class="active">90D</button>
+            <button data-range="all">All</button>
+          </div>
+        </div>
+        <div class="panel-box">
+          <div id="report-cum-pnl"><div class="loading-line">Loading…</div></div>
+        </div>
+
         <div class="section-label" style="margin-top:32px; display:flex; align-items:center; justify-content:space-between; gap:12px;">
           <span id="report-period-label">Trade distribution &amp; performance by month</span>
           <select id="report-period-select" class="select-clean" title="Rollup timeframe">

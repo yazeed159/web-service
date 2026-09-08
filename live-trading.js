@@ -68,6 +68,50 @@
     );
   }
 
+  // Strategy edits ("Save forever") go straight to chart_service.py, NOT
+  // live-service -- same Supabase row, same auth (Bearer <supabase JWT>,
+  // via the same authedHeaders() above), and it means saving a strategy's
+  // params works even if your local live-service tunnel is down. See
+  // chart_service.py's PUT /strategies/<id> (strategy_store.update_strategy).
+  const CHART_API = () => (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
+  function chartApiCall(path, opts) {
+    if (!CHART_API()) return Promise.reject(new Error("window.CHART_SERVICE_URL isn't set in config.js yet."));
+    return authedHeaders((opts && opts.headers) || {}).then((headers) =>
+      fetch(CHART_API() + path, Object.assign({}, opts, { headers })).then((r) =>
+        r.json().then((body) => {
+          if (!r.ok) throw new Error(body.error || ("HTTP " + r.status));
+          return body;
+        })
+      )
+    );
+  }
+
+  // Live gappers snapshot -- same GET /gappers chart_service.py endpoint
+  // scanner.js polls for the Scanner page (backed by gappers_store.py,
+  // written by chart-service's scanner.py Cron Job). Used two ways here:
+  // a saved (non-preset) strategy's top_gappers run leaves Symbols blank
+  // and lets live_engine.py resolve + keep re-polling it server-side (see
+  // describeSymbolRule above); this fetch is only for the "Fill from live
+  // scanner" button, which takes a one-time snapshot -- handy for presets,
+  // which have no Supabase row for the server to resolve against, and as
+  // a manual override for a saved strategy too.
+  function fetchLiveGappers() {
+    return chartApiCall("/gappers");
+  }
+
+  function symbolsFromGappers(data, rule) {
+    rule = rule || {};
+    const minPrice = rule.min_price != null ? rule.min_price : 1;
+    const maxPrice = rule.max_price != null ? rule.max_price : 50;
+    const minGap = rule.min_gap_pct != null ? rule.min_gap_pct : 5;
+    const topN = rule.top_n != null ? rule.top_n : 5;
+    return (data.rows || [])
+      .filter((r) => r.price >= minPrice && r.price <= maxPrice && r.gap_pct >= minGap)
+      .sort((a, b) => b.gap_pct - a.gap_pct)
+      .slice(0, topN)
+      .map((r) => r.symbol);
+  }
+
   function fmtMoney(n) {
     const v = Number(n || 0);
     return (v < 0 ? "-$" : "$") + Math.abs(v).toFixed(2);
@@ -92,7 +136,7 @@
     if (rule.mode === "top_gappers") {
       return `Live top-gappers scan (top ${rule.top_n != null ? rule.top_n : 5}, ` +
         `$${rule.min_price != null ? rule.min_price : 1}–$${rule.max_price != null ? rule.max_price : 50}, ` +
-        `min gap ${rule.min_gap_pct != null ? rule.min_gap_pct : 5}%) — no live scanner yet, so this needs symbols entered by hand today`;
+        `min gap ${rule.min_gap_pct != null ? rule.min_gap_pct : 5}%) — see the Scanner page for what's qualifying live`;
     }
     return "unknown";
   }
@@ -123,38 +167,289 @@
     `;
   }
 
+  // --- Strategy parameters editor ("Start a run" panel) -----------------
+  // Every knob orb_strategy.py's DEFAULT_PARAMS understands, editable
+  // per-run and optionally persisted ("Save forever") back to the same
+  // Supabase row the Backtester reads/writes -- see strategy_store.py and
+  // chart_service.py's PUT /strategies/<id>. Field id <-> params key
+  // mapping mirrors backtester.js's buildPayload/patchPayload exactly, so
+  // a strategy edited here shows up identically next time it's loaded in
+  // the Backtester (and vice versa).
+  const PARAM_FIELDS = [
+    { id: "lt-p-entry-mode", key: "entry_mode", kind: "value" },
+    { id: "lt-p-session-start", key: "session_open", kind: "value" },
+    { id: "lt-p-flatten-time", key: "flatten_time", kind: "value" },
+    { id: "lt-p-slippage-bps", key: "slippage_bps", kind: "number" },
+    { id: "lt-p-orb-minutes", key: "orb_minutes", kind: "number" },
+    { id: "lt-p-donchian-lookback", key: "donchian_lookback", kind: "number" },
+    { id: "lt-p-ema-period", key: "ema_period", kind: "number" },
+    { id: "lt-p-macd-fast", key: "macd_fast", kind: "number" },
+    { id: "lt-p-macd-slow", key: "macd_slow", kind: "number" },
+    { id: "lt-p-macd-signal", key: "macd_signal", kind: "number" },
+    { id: "lt-p-rsi-period", key: "rsi_period", kind: "number" },
+    { id: "lt-p-rsi-oversold", key: "rsi_oversold", kind: "number" },
+    { id: "lt-p-entry-after-orb", key: "entry_after_orb", kind: "checkbox" },
+    { id: "lt-p-stop-mode", key: "stop_mode", kind: "value" },
+    { id: "lt-p-fixed-stop-cents", key: "fixed_stop_cents", kind: "number" },
+    { id: "lt-p-fixed-stop-pct", key: "fixed_stop_pct", kind: "number" },
+    { id: "lt-p-atr-period", key: "atr_period", kind: "number" },
+    { id: "lt-p-atr-mult", key: "atr_mult", kind: "number" },
+    { id: "lt-p-breakeven-after-cents", key: "breakeven_after_cents", kind: "number" },
+    { id: "lt-p-target-r", key: "target_r", kind: "number" },
+    { id: "lt-p-time-stop-minutes", key: "time_stop_minutes", kind: "number" },
+    { id: "lt-p-time-stop-min-gain-cents", key: "time_stop_min_gain_cents", kind: "number" },
+    { id: "lt-p-giveback-cents", key: "giveback_cents", kind: "number" },
+    { id: "lt-p-giveback-pct", key: "giveback_pct", kind: "number" },
+    { id: "lt-p-giveback-arm-cents", key: "giveback_arm_cents", kind: "number" },
+    { id: "lt-p-stall-exit", key: "stall_exit", kind: "checkbox" },
+    { id: "lt-p-allow-reentry", key: "allow_reentry", kind: "checkbox" },
+    { id: "lt-p-max-trades-per-day", key: "max_trades_per_day", kind: "number" },
+    { id: "lt-p-reentry-cooldown-minutes", key: "reentry_cooldown_minutes", kind: "number" },
+    { id: "lt-p-scale-in-enabled", key: "scale_in_enabled", kind: "checkbox" },
+    { id: "lt-p-scale-in-initial-pct", key: "scale_in_initial_size_pct", kind: "number" },
+    { id: "lt-p-scale-in-add-pct", key: "scale_in_add_size_pct", kind: "number" },
+    { id: "lt-p-scale-in-max-adds", key: "scale_in_max_adds", kind: "number" },
+    { id: "lt-p-scale-in-hold-bars", key: "scale_in_hold_bars", kind: "number" },
+    { id: "lt-p-scale-in-min-gain-cents", key: "scale_in_min_gain_cents", kind: "number" },
+    { id: "lt-p-trail-protect-enabled", key: "trail_protect_enabled", kind: "checkbox" },
+    { id: "lt-p-trail-protect-ladder", key: "trail_protect_ladder", kind: "ladder" },
+  ];
+
+  // trail_protect_ladder travels over the wire as [[peak_r, protect_frac_0_to_1], ...]
+  // but the field is a human-typed "1:50, 2:65, 3:80" (R:percent) string --
+  // same convention (and same conversion) as backtester.js.
+  function parseLadderInput(str) {
+    return (str || "")
+      .split(",")
+      .map((chunk) => chunk.trim())
+      .filter(Boolean)
+      .map((chunk) => chunk.split(":").map((n) => parseFloat(n.trim())))
+      .filter(([r, pct]) => Number.isFinite(r) && Number.isFinite(pct))
+      .map(([r, pct]) => [r, pct > 1 ? pct / 100 : pct]);
+  }
+  function formatLadderValue(ladder) {
+    if (!Array.isArray(ladder) || !ladder.length) return "";
+    return ladder.map(([r, frac]) => `${r}:${Math.round(frac > 1 ? frac : frac * 100)}`).join(", ");
+  }
+
+  function buildParamsFromEditor() {
+    const out = {};
+    PARAM_FIELDS.forEach((f) => {
+      const el = document.getElementById(f.id);
+      if (!el) return;
+      if (f.kind === "checkbox") out[f.key] = !!el.checked;
+      else if (f.kind === "number") out[f.key] = Number(el.value) || 0;
+      else if (f.kind === "ladder") out[f.key] = parseLadderInput(el.value);
+      else out[f.key] = el.value;
+    });
+    return out;
+  }
+
+  // Patch-only: writes whatever `p` mentions into the editor, leaves every
+  // other field exactly as-is. applyParamsToEditor() below (what
+  // everything else calls) always resets to the HTML-authored defaults
+  // first, so a caller only ever sees this as a full replace, same
+  // two-step pattern as backtester.js's patchPayload/applyPayload.
+  function patchParamsEditor(p) {
+    if (!p) return;
+    PARAM_FIELDS.forEach((f) => {
+      const el = document.getElementById(f.id);
+      if (!el || p[f.key] === undefined || p[f.key] === null) return;
+      if (f.kind === "checkbox") el.checked = !!p[f.key];
+      else if (f.kind === "ladder") el.value = formatLadderValue(p[f.key]);
+      else el.value = p[f.key];
+    });
+    syncParamsConditionalFields();
+  }
+
+  // Fields tagged data-show-when="<select-id>=<val1>,<val2>,..." only
+  // matter for some entry_mode/stop_mode choices -- same pattern (and
+  // same reasoning) as backtester.js's syncConditionalFields.
+  function syncParamsConditionalFields() {
+    document.querySelectorAll("#lt-params-editor [data-show-when]").forEach((el) => {
+      const [ctrlId, allowedCsv] = el.dataset.showWhen.split("=");
+      const ctrl = document.getElementById(ctrlId);
+      if (!ctrl) return;
+      const allowed = allowedCsv.split(",");
+      el.style.display = allowed.includes(ctrl.value) ? "" : "none";
+    });
+  }
+
+  // Snapshot of every field's HTML-authored default, taken once at load
+  // (see DOMContentLoaded below) -- these already equal orb_strategy.py's
+  // DEFAULT_PARAMS, since that's what the HTML's value="" attributes were
+  // seeded from. applyParamsToEditor() always resets to this baseline
+  // first, so a strategy that omits some key (an older saved strategy, a
+  // preset) shows that field at the real engine default instead of
+  // whatever a *previously* selected strategy happened to leave behind.
+  let EDITOR_HTML_DEFAULTS = null;
+  // JSON snapshot of the editor right after the last populate (from a
+  // strategy's saved params, or a save) -- what "Reset" reverts to and
+  // what the dirty-note compares against.
+  let editorLoadedSnapshot = null;
+
+  function applyParamsToEditor(params) {
+    patchParamsEditor(EDITOR_HTML_DEFAULTS);
+    patchParamsEditor(params || {});
+    editorLoadedSnapshot = JSON.stringify(buildParamsFromEditor());
+    updateParamsDirtyState();
+  }
+
+  function updateParamsDirtyState() {
+    const noteEl = document.getElementById("lt-params-dirty");
+    if (!noteEl) return;
+    const dirty = editorLoadedSnapshot !== null && JSON.stringify(buildParamsFromEditor()) !== editorLoadedSnapshot;
+    noteEl.style.display = dirty ? "inline" : "none";
+  }
+
+  function resetParamsEditor() {
+    const sel = document.getElementById("lt-strategy");
+    const strat = sel.value ? strategiesById[sel.value] : null;
+    if (!strat) return;
+    applyParamsToEditor(strat.params || {});
+    document.getElementById("lt-params-save-status").textContent = "";
+  }
+
+  function saveParamsForever() {
+    const sel = document.getElementById("lt-strategy");
+    const strategyId = sel.value;
+    const strat = strategyId ? strategiesById[strategyId] : null;
+    const statusEl = document.getElementById("lt-params-save-status");
+    const btn = document.getElementById("lt-params-save");
+    if (!strat || !strategyId || strategyId.indexOf("preset:") === 0) return;
+
+    const params = buildParamsFromEditor();
+    btn.disabled = true;
+    btn.textContent = "Saving…";
+    statusEl.textContent = "";
+    statusEl.classList.remove("warn");
+
+    chartApiCall(`/strategies/${encodeURIComponent(strategyId)}`, {
+      method: "PUT",
+      body: JSON.stringify({ params: params }),
+    })
+      .then((row) => {
+        // Merge (not replace) so anything the PUT response doesn't touch
+        // -- source_summary_stats, source_backtest_run_id -- stays put.
+        strategiesById[strategyId] = Object.assign({}, strat, row);
+        editorLoadedSnapshot = JSON.stringify(buildParamsFromEditor());
+        updateParamsDirtyState();
+        document.getElementById("lt-strategy-details").innerHTML = renderStrategyDetails(strategiesById[strategyId]);
+        statusEl.textContent = "Saved — this strategy will use these settings everywhere, including the Backtester.";
+      })
+      .catch((err) => {
+        statusEl.textContent = "Couldn't save: " + err.message;
+        statusEl.classList.add("warn");
+      })
+      .finally(() => {
+        btn.disabled = false;
+        btn.textContent = "Save forever";
+      });
+  }
+
   // --- Start-a-run form ---
 
   function onStrategyChange() {
     const sel = document.getElementById("lt-strategy");
     const detailsEl = document.getElementById("lt-strategy-details");
+    const editorEl = document.getElementById("lt-params-editor");
+    const saveBtn = document.getElementById("lt-params-save");
+    const paramsStatusEl = document.getElementById("lt-params-save-status");
     const symbolsInput = document.getElementById("lt-symbols");
     const noteEl = document.getElementById("lt-symbols-note");
+    const fillBtn = document.getElementById("lt-symbols-fill-scanner");
     const strat = sel.value ? strategiesById[sel.value] : null;
 
     if (!strat) {
       detailsEl.style.display = "none";
       detailsEl.innerHTML = "";
+      editorEl.style.display = "none";
+      editorLoadedSnapshot = null;
+      paramsStatusEl.textContent = "";
       noteEl.textContent = "";
       noteEl.classList.remove("warn");
+      fillBtn.style.display = "none";
       return;
     }
 
     detailsEl.style.display = "block";
     detailsEl.innerHTML = renderStrategyDetails(strat);
 
+    editorEl.style.display = "block";
+    applyParamsToEditor(strat.params || {});
+    paramsStatusEl.textContent = "";
+    // Presets aren't real Supabase rows (see builtInStrategies) -- nothing
+    // for "Save forever" to write to. Tweaking params for one run still
+    // works fine; it just can't stick permanently.
+    const isPreset = sel.value.indexOf("preset:") === 0;
+    saveBtn.disabled = isPreset;
+    saveBtn.title = isPreset
+      ? "Starter presets aren't saved strategies, so there's nothing to save to — these tweaks still apply to this run."
+      : "";
+
     const rule = strat.symbol_rule || {};
     if (rule.mode === "manual") {
       symbolsInput.value = (rule.symbols || []).join(", ");
       noteEl.textContent = "Prefilled from this strategy's saved symbol list — edit freely for this run.";
       noteEl.classList.remove("warn");
-    } else if (rule.mode === "top_gappers") {
-      noteEl.textContent = "This strategy scans for top gappers live, but that scanner doesn't exist yet — enter symbols by hand to trade its rules against specific tickers.";
+      fillBtn.style.display = "none";
+    } else if (rule.mode === "top_gappers" && !isPreset) {
+      // Real (saved) strategy: leave Symbols blank and live_engine.py
+      // resolves it against the live scanner at start, then keeps
+      // re-polling for newly-qualifying symbols while the run is live
+      // (see start_run's gappers_rule handling). Typing something here
+      // still works -- it's treated as an explicit one-off override,
+      // same as any other strategy -- it just trades that fixed list
+      // instead of tracking the scan.
+      symbolsInput.value = "";
+      noteEl.textContent = "This strategy trades whatever the live top-gappers scanner finds — leave Symbols blank to auto-select and keep tracking the scan while the run is live (see the Scanner page), or enter symbols to override with a fixed list for just this run.";
+      noteEl.classList.remove("warn");
+      fillBtn.style.display = "";
+    } else if (rule.mode === "top_gappers" && isPreset) {
+      // Presets are client-side only (no Supabase row), so there's no
+      // strategy_id for live_engine.py to resolve a gappers_rule against
+      // -- "Fill from live scanner" below takes a one-time snapshot
+      // instead. Save this as a real strategy from the Backtester first
+      // if you want it to auto-track the scan the way a saved strategy does.
+      symbolsInput.value = "";
+      noteEl.textContent = "This preset scans for top gappers, but starter presets aren't saved strategies, so there's nothing for the live scanner to auto-track — use \"Fill from live scanner\" for today's snapshot, or enter symbols by hand.";
       noteEl.classList.add("warn");
+      fillBtn.style.display = "";
     } else {
       noteEl.textContent = "";
       noteEl.classList.remove("warn");
+      fillBtn.style.display = "none";
     }
+  }
+
+  function fillSymbolsFromScanner() {
+    const sel = document.getElementById("lt-strategy");
+    const strat = sel.value ? strategiesById[sel.value] : null;
+    const noteEl = document.getElementById("lt-symbols-note");
+    const fillBtn = document.getElementById("lt-symbols-fill-scanner");
+    if (!strat) return;
+    const rule = strat.symbol_rule || {};
+    fillBtn.disabled = true;
+    fillBtn.textContent = "Loading…";
+    fetchLiveGappers()
+      .then((data) => {
+        const symbols = symbolsFromGappers(data, rule);
+        document.getElementById("lt-symbols").value = symbols.join(", ");
+        noteEl.classList.remove("warn");
+        noteEl.textContent = symbols.length
+          ? `Filled with ${symbols.length} symbol${symbols.length === 1 ? "" : "s"} qualifying right now — this is a one-time snapshot, not a live-tracked list; re-fill any time.`
+          : (data.session_active
+            ? "Nothing qualifying yet today — the premarket scan (4:00–9:30 ET) is running, try again shortly."
+            : "Nothing to fill — outside today's scan window (4:00–9:30 ET weekdays), or no gappers qualified.");
+      })
+      .catch((err) => {
+        noteEl.classList.add("warn");
+        noteEl.textContent = "Couldn't load the live scanner: " + err.message;
+      })
+      .finally(() => {
+        fillBtn.disabled = false;
+        fillBtn.textContent = "Fill from live scanner";
+      });
   }
 
   // --- Built-in presets (window.STRATEGY_PRESETS, from strategy-presets.js) ---
@@ -275,7 +570,16 @@
       errEl.textContent = 'Pick a strategy above, or open "Advanced" to run a one-off entry style.';
       return;
     }
-    if (!symbols.length) {
+    // A saved (non-preset) strategy with a top_gappers symbol_rule can
+    // start with Symbols left blank -- live_engine.py resolves it against
+    // the live scanner itself (see onStrategyChange's note above). Every
+    // other path (manual rule, a preset, or the Advanced one-off form)
+    // still needs an explicit list, same as always.
+    const strat = strategyId ? strategiesById[strategyId] : null;
+    const isPreset = !!strategyId && strategyId.indexOf("preset:") === 0;
+    const rule = strat ? (strat.symbol_rule || {}) : {};
+    const symbolsCanAutoResolve = !!strat && !isPreset && rule.mode === "top_gappers";
+    if (!symbols.length && !symbolsCanAutoResolve) {
       errEl.textContent = "Enter at least one symbol to trade.";
       return;
     }
@@ -293,22 +597,35 @@
     if (strategyId && strategyId.indexOf("preset:") === 0) {
       // Built-in preset -- no Supabase row exists for this id, so send
       // its entry_mode/params directly instead of strategy_id (same
-      // one-off-run path the Advanced form below already uses). Also
-      // send its friendly name as strategy_name so run history shows
-      // "Ross Cameron style gap-and-go breakout" instead of a raw
-      // entry_mode string -- see app.py's start()/start_run's
-      // strategy_label.
+      // one-off-run path the Advanced form below already uses). Params
+      // come straight from the editor, which was pre-filled from this
+      // preset's own config -- so any tweaks made there (see the
+      // Strategy parameters panel) apply to this run even though a
+      // preset itself can never be "saved forever". Also send its
+      // friendly name as strategy_name so run history shows "Ross
+      // Cameron style gap-and-go breakout" instead of a raw entry_mode
+      // string -- see app.py's start()/start_run's strategy_label.
       const strat = strategiesById[strategyId];
-      body.entry_mode = strat.entry_mode;
-      body.params = Object.assign({}, strat.params);
+      body.params = buildParamsFromEditor();
+      body.entry_mode = body.params.entry_mode;
       body.strategy_name = strat.name;
     } else if (strategyId) {
       body.strategy_id = strategyId;
+      // Whatever's currently sitting in the editor -- edited or not --
+      // rides along as param_overrides. live_engine.py's start_run layers
+      // these on top of the strategy's saved params (highest precedence),
+      // so editing here without hitting "Save forever" only changes this
+      // one run; hit "Save forever" first to make it stick for next time
+      // (and for the Backtester).
+      body.params = buildParamsFromEditor();
     } else {
       body.entry_mode = advancedEntryMode;
       body.params.stop_mode = document.getElementById("lt-stop-mode").value;
       body.params.target_r = parseFloat(document.getElementById("lt-target-r").value) || 2.0;
     }
+    // Explicit "override" field outside the params editor -- always wins
+    // if filled in, on top of either path above (matches its label/
+    // placeholder: "uses the strategy's own setting" when left blank).
     if (maxTradesRaw) body.params.max_trades_per_day = parseInt(maxTradesRaw, 10);
 
     apiCall("/api/live/start", { method: "POST", body: JSON.stringify(body) })
@@ -507,9 +824,30 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("lt-start-btn").addEventListener("click", startRun);
+    document.getElementById("lt-symbols-fill-scanner").addEventListener("click", fillSymbolsFromScanner);
     document.getElementById("lt-refresh-btn").addEventListener("click", refreshStatus);
     document.getElementById("lt-mode").addEventListener("change", updateModeBanner);
     document.getElementById("lt-strategy").addEventListener("change", onStrategyChange);
+
+    // Strategy parameters editor: capture the HTML-authored defaults
+    // (== orb_strategy.DEFAULT_PARAMS) before anything else touches these
+    // fields, then wire every field to keep conditional visibility and
+    // the "Unsaved changes" note in sync as the person edits.
+    EDITOR_HTML_DEFAULTS = buildParamsFromEditor();
+    PARAM_FIELDS.forEach((f) => {
+      const el = document.getElementById(f.id);
+      if (!el) return;
+      el.addEventListener("input", function () {
+        syncParamsConditionalFields();
+        updateParamsDirtyState();
+      });
+      el.addEventListener("change", function () {
+        syncParamsConditionalFields();
+        updateParamsDirtyState();
+      });
+    });
+    document.getElementById("lt-params-reset").addEventListener("click", resetParamsEditor);
+    document.getElementById("lt-params-save").addEventListener("click", saveParamsForever);
 
     document.getElementById("lt-size-mode").addEventListener("change", onSizeModeChange);
     document.getElementById("lt-size-value").addEventListener("input", function () {

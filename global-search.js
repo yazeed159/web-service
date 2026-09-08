@@ -1,29 +1,28 @@
-// global-search.js — header search, docked under the topbar.
+// global-search.js — the ONE header search control.
 //
-// This is a from-scratch implementation. The markup/behavior below is
-// built entirely against the .gs-dock* class contract that already lives
-// in common.css (see the "global-search.css" comment block there) --
-// there was no prior global-search.js in the export this replaces, so
-// there's no old behavior being preserved here on purpose. Two decisions
-// worth flagging if this needs revisiting:
+// Replaces two separate, overlapping search implementations (an old
+// one baked into common.js and a newer one in this file) that were
+// both self-mounting into every page at once -- hence two search
+// icons in the topbar doing slightly different things. There is now
+// exactly one: a permanent search box that lives in the header itself
+// on desktop (not an icon you have to click to reveal a box), with a
+// live-as-you-type dropdown (debounced, no need to press Enter) for a
+// quick glance, and Enter (or "View all results") taking you to a
+// dedicated full results page, search.html, for everything that
+// matched. On narrow/mobile widths there isn't room for a permanent
+// header box, so it collapses to a single icon button that expands
+// the same box + dropdown as a docked panel under the topbar.
 //
-//   1. Search only runs on submit (Enter, or the button), never on every
-//      keystroke. No debounce timer, no live dropdown-as-you-type.
-//   2. The dock is a full-width sticky panel docked directly under the
-//      topbar (.gs-dock, already styled in common.css) -- not a cramped
-//      header input with a tiny flyout.
-//
-// Self-mounting: this file finds .topbar-right and .main on whatever
-// page it's loaded from and injects both the trigger button and the
-// dock into them. Nothing to add per-page beyond the <script> tag --
-// no HTML changes needed elsewhere for a new page to pick this up.
+// Self-mounting: finds .topbar/.topbar-right on whatever page it's
+// loaded from and injects itself. Nothing else to add per-page beyond
+// the <script> tag.
 (function () {
   "use strict";
 
+  if (/\/login(\.html)?\/?$/.test(window.location.pathname)) return;
+  const topbar = document.querySelector(".topbar");
   const topbarRight = document.querySelector(".topbar-right");
-  const main = document.querySelector(".main");
-  const topbar = document.querySelector(".main > .topbar");
-  if (!topbarRight || !main || !topbar) return; // page doesn't have the shell this mounts into
+  if (!topbar || !topbarRight) return;
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -35,63 +34,66 @@
     if (v == null || !isFinite(v)) return "";
     return (v >= 0 ? "+$" : "-$") + Math.abs(v).toFixed(2);
   }
+  function highlight(text, query) {
+    const escaped = escapeHtml(text || "");
+    const escapedQuery = escapeHtml(query || "");
+    if (!escapedQuery) return escaped;
+    const re = new RegExp(escapeRegex(escapedQuery), "ig");
+    return escaped.replace(re, (m) => `<mark>${m}</mark>`);
+  }
 
-  // ---- mount: trigger button + dock ------------------------------------
-
-  const SEARCH_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`;
+  // One search glyph, used everywhere search shows up (header box,
+  // mobile trigger, search.html) -- drawn a little bolder than the
+  // thin 2px nav icons since it's the header's primary action, not a
+  // copy-pasted stand-in.
+  const SEARCH_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"></circle><line x1="20" y1="20" x2="15.3" y2="15.3"></line></svg>`;
   const CLOSE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+  window.SEARCH_ICON_SVG = SEARCH_ICON; // reused as-is by search.html's own header
 
-  const trigger = document.createElement("button");
-  trigger.type = "button";
-  trigger.className = "icon-btn icon-btn-visible";
-  trigger.id = "gs-trigger";
-  trigger.title = "Search (Ctrl/\u2318 K)";
-  trigger.setAttribute("aria-label", "Search your trades");
-  trigger.innerHTML = SEARCH_ICON;
-  // Search reads best as the primary action in the corner -- goes first,
-  // ahead of the mobile menu button/anything else already in there.
-  topbarRight.insertBefore(trigger, topbarRight.firstChild);
+  // ---- mount: header box (desktop) / trigger (mobile) -------------------
 
-  const dock = document.createElement("div");
-  dock.className = "gs-dock";
-  dock.id = "gs-dock";
-  dock.innerHTML = `
-    <div class="gs-dock-inner">
-      <form class="gs-dock-row" id="gs-form" autocomplete="off">
-        ${SEARCH_ICON}
-        <input class="gs-dock-input" id="gs-input" type="search"
-               placeholder="Search by symbol… then press Enter" aria-label="Search your trades">
-        <button type="button" class="gs-dock-toggle" id="gs-notes-toggle" aria-pressed="false">Search notes too</button>
-        <select class="gs-dock-sort" id="gs-sort" aria-label="Sort results">
-          <option value="recent">Most recent</option>
-          <option value="pnl">Best P&amp;L</option>
-        </select>
-        <button type="button" class="gs-dock-close" id="gs-close" title="Close" aria-label="Close search">${CLOSE_ICON}</button>
-      </form>
-      <div class="gs-dock-status" id="gs-status"></div>
-      <div class="gs-dock-results" id="gs-results"></div>
+  const root = document.createElement("div");
+  root.className = "header-search";
+  root.id = "hs-root";
+  root.innerHTML = `
+    <form class="header-search-box" id="hs-form" autocomplete="off">
+      ${SEARCH_ICON}
+      <input type="text" id="hs-input" class="header-search-input" placeholder="Search trades\u2026" aria-label="Search your trades">
+      <button type="button" class="header-search-clear" id="hs-clear" aria-label="Clear search" hidden>${CLOSE_ICON}</button>
+      <kbd class="header-search-kbd">/</kbd>
+      <button type="button" class="header-search-close" id="hs-mobile-close" aria-label="Close search">${CLOSE_ICON}</button>
+    </form>
+    <div class="header-search-panel" id="hs-panel">
+      <div class="header-search-status" id="hs-status"></div>
+      <div class="header-search-results" id="hs-results"></div>
     </div>
   `;
-  // Sits between the topbar and .content -- both are already .main's
-  // direct children, so this only ever needs one known anchor point.
-  main.insertBefore(dock, topbar.nextSibling);
+  topbar.insertBefore(root, topbarRight);
 
-  const formEl = dock.querySelector("#gs-form");
-  const inputEl = dock.querySelector("#gs-input");
-  const notesToggle = dock.querySelector("#gs-notes-toggle");
-  const sortEl = dock.querySelector("#gs-sort");
-  const closeBtn = dock.querySelector("#gs-close");
-  const statusEl = dock.querySelector("#gs-status");
-  const resultsEl = dock.querySelector("#gs-results");
+  // Mobile-only trigger -- reuses the existing .icon-btn convention
+  // (display:none above 760px, flex below it), same as mobile-nav-btn,
+  // so there's no separate breakpoint rule to keep in sync here.
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "icon-btn";
+  trigger.id = "hs-trigger";
+  trigger.title = "Search";
+  trigger.setAttribute("aria-label", "Search your trades");
+  trigger.innerHTML = SEARCH_ICON;
+  topbarRight.insertBefore(trigger, topbarRight.firstChild);
 
-  // ---- data (fetched lazily, once, on first use) ------------------------
+  const formEl = root.querySelector("#hs-form");
+  const inputEl = root.querySelector("#hs-input");
+  const clearBtn = root.querySelector("#hs-clear");
+  const mobileCloseBtn = root.querySelector("#hs-mobile-close");
+  const panelEl = root.querySelector("#hs-panel");
+  const statusEl = root.querySelector("#hs-status");
+  const resultsEl = root.querySelector("#hs-results");
 
-  let trades = null; // Array | null, from window.fetchTradesIndex()
+  // ---- data (fetched lazily, once, on first use) -------------------
+
+  let trades = null;
   let tradesPromise = null;
-  let notesById = null; // Map<trade_id, {verdict,lessons,walk_away_rule,better_entry,better_exit,symbol_info}> | null
-  let notesPromise = null;
-  let searchNotes = false;
-
   function loadTrades() {
     if (!tradesPromise) {
       tradesPromise = window.fetchTradesIndex().then((rows) => {
@@ -102,177 +104,123 @@
     return tradesPromise;
   }
 
-  // Bulk-loads just the note-ish columns for every trade, once -- "lazily
-  // indexed on first use" per common.css's comment. Never fetched unless
-  // the person actually turns "Search notes too" on, since it's a second
-  // full-table read the plain symbol search doesn't need.
-  function loadNotes() {
-    if (!notesPromise) {
-      notesPromise = window.AUTH_READY.then((session) => {
-        if (!session || !window.sb) { notesById = new Map(); return notesById; }
-        return window.sb
-          .from("trade_details")
-          .select("trade_id,verdict,lessons,walk_away_rule,better_entry,better_exit,symbol_info")
-          .then((res) => {
-            notesById = new Map();
-            (res.data || []).forEach((row) => notesById.set(row.trade_id, row));
-            return notesById;
-          });
-      });
-    }
-    return notesPromise;
-  }
+  // ---- open / close --------------------------------------------------
 
-  // ---- open / close -------------------------------------------------
+  function openPanel() { panelEl.classList.add("open"); }
+  function closePanel() { panelEl.classList.remove("open"); }
 
-  function openDock() {
-    dock.classList.add("open");
+  function isMobile() { return window.innerWidth <= 760; }
+
+  function openMobile() {
+    root.classList.add("mobile-open");
     loadTrades().catch(() => {});
-    // Focus after the open animation's first frame so mobile keyboards
-    // don't fight the panel's own transform.
+    // Focus after layout settles so the on-screen keyboard doesn't
+    // fight the panel's own position:fixed transition.
     requestAnimationFrame(() => inputEl.focus());
-    document.addEventListener("keydown", onKeydown, true);
+    document.addEventListener("keydown", onEsc, true);
   }
-  function closeDock() {
-    dock.classList.remove("open");
-    document.removeEventListener("keydown", onKeydown, true);
+  function closeMobile() {
+    root.classList.remove("mobile-open");
+    closePanel();
+    document.removeEventListener("keydown", onEsc, true);
   }
-  function toggleDock() {
-    if (dock.classList.contains("open")) closeDock();
-    else openDock();
+  function onEsc(ev) {
+    if (ev.key === "Escape") { closeMobile(); trigger.focus(); }
   }
 
-  trigger.addEventListener("click", toggleDock);
-  closeBtn.addEventListener("click", closeDock);
+  trigger.addEventListener("click", () => {
+    if (!isMobile()) return; // hidden by CSS anyway above 760px
+    root.classList.contains("mobile-open") ? closeMobile() : openMobile();
+  });
+  mobileCloseBtn.addEventListener("click", closeMobile);
 
-  function onKeydown(ev) {
-    if (ev.key === "Escape") { closeDock(); trigger.focus(); }
-  }
-  // Ctrl/Cmd+K opens from anywhere on the page, not just while the dock's
-  // already open -- this one's global, so it's wired once, up top.
-  document.addEventListener("keydown", (ev) => {
-    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "k") {
-      ev.preventDefault();
-      openDock();
-    }
+  inputEl.addEventListener("focus", () => {
+    loadTrades().catch(() => {});
+    if (inputEl.value.trim()) openPanel();
   });
 
-  notesToggle.addEventListener("click", () => {
-    searchNotes = !searchNotes;
-    notesToggle.setAttribute("aria-pressed", String(searchNotes));
-    notesToggle.textContent = searchNotes ? "Searching notes too" : "Search notes too";
-    if (searchNotes) {
-      statusEl.textContent = "Indexing notes\u2026";
-      loadNotes().then(() => {
-        if (inputEl.value.trim()) runSearch();
-        else statusEl.textContent = "";
-      });
-    } else if (inputEl.value.trim()) {
-      runSearch();
-    }
+  document.addEventListener("click", (ev) => {
+    if (root.contains(ev.target) || ev.target === trigger) return;
+    closePanel();
+    if (isMobile()) closeMobile();
   });
 
-  sortEl.addEventListener("change", () => { if (inputEl.value.trim()) runSearch(); });
+  // ---- live results, debounced, no Enter required --------------------
 
-  // ---- search, on submit only --------------------------------------
+  const LIVE_LIMIT = 6;
+  let debounceTimer = null;
 
-  formEl.addEventListener("submit", (ev) => {
-    ev.preventDefault();
-    runSearch();
+  inputEl.addEventListener("input", () => {
+    clearBtn.hidden = !inputEl.value;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(runLiveSearch, 140);
   });
 
-  function snippetFor(query, text) {
-    if (!text) return null;
-    const idx = text.toLowerCase().indexOf(query.toLowerCase());
-    if (idx === -1) return null;
-    const start = Math.max(0, idx - 40);
-    const end = Math.min(text.length, idx + query.length + 60);
-    const prefix = start > 0 ? "\u2026" : "";
-    const suffix = end < text.length ? "\u2026" : "";
-    return prefix + text.slice(start, end) + suffix;
-  }
-
-  // Escapes first, then matches on the escaped forms -- so this never has
-  // to worry about a query containing HTML-special characters ending up
-  // unescaped in the result.
-  function highlight(text, query) {
-    const escaped = escapeHtml(text || "");
-    const escapedQuery = escapeHtml(query || "");
-    if (!escapedQuery) return escaped;
-    const re = new RegExp(escapeRegex(escapedQuery), "ig");
-    return escaped.replace(re, (m) => `<mark>${m}</mark>`);
-  }
-
-  const NOTE_FIELDS = ["verdict", "lessons", "walk_away_rule", "better_entry", "better_exit"];
-
-  function matchTrade(t, query, notes) {
-    const q = query.toLowerCase();
-    if ((t.symbol || "").toLowerCase().includes(q)) {
-      return { snippet: t.setup_type || null, snippetIsNote: false };
-    }
-    if (!searchNotes) return null;
-    if (!notes) return null;
-    for (const field of NOTE_FIELDS) {
-      const val = notes[field];
-      if (typeof val === "string" && val.toLowerCase().includes(q)) {
-        return { snippet: snippetFor(query, val), snippetIsNote: true };
-      }
-    }
-    const info = notes.symbol_info;
-    if (info && ((info.name || "").toLowerCase().includes(q) || (info.description || "").toLowerCase().includes(q))) {
-      return { snippet: info.description ? snippetFor(query, info.description) : info.name, snippetIsNote: true };
-    }
-    return null;
-  }
-
-  const RESULT_LIMIT = 40;
-
-  function runSearch() {
-    const query = inputEl.value.trim();
-    if (!query) { statusEl.textContent = ""; resultsEl.innerHTML = ""; return; }
-
-    statusEl.textContent = "Searching\u2026";
+  clearBtn.addEventListener("click", () => {
+    inputEl.value = "";
+    clearBtn.hidden = true;
+    closePanel();
     resultsEl.innerHTML = "";
+    statusEl.textContent = "";
+    inputEl.focus();
+  });
 
-    const notesReady = searchNotes ? loadNotes() : Promise.resolve(notesById);
-
-    Promise.all([loadTrades(), notesReady])
-      .then(([rows, notes]) => {
-        const matches = [];
-        for (const t of rows) {
-          const hit = matchTrade(t, query, notes ? notes.get(t.id) : null);
-          if (hit) matches.push({ trade: t, ...hit });
-        }
-
-        matches.sort((a, b) => {
-          if (sortEl.value === "pnl") return (b.trade.pnl_after_comm || 0) - (a.trade.pnl_after_comm || 0);
-          return (b.trade.trade_date + (b.trade.entry_time || "")).localeCompare(a.trade.trade_date + (a.trade.entry_time || ""));
-        });
+  function runLiveSearch() {
+    const q = inputEl.value.trim();
+    if (!q) { closePanel(); resultsEl.innerHTML = ""; statusEl.textContent = ""; return; }
+    openPanel();
+    statusEl.textContent = trades ? "" : "Loading\u2026";
+    loadTrades()
+      .then((rows) => {
+        const ql = q.toLowerCase();
+        const matches = rows.filter((t) => (t.symbol || "").toLowerCase().includes(ql));
+        // Most-recent-first: the useful default for "did I trade this
+        // lately", with no sort picker needed for a 6-row glance --
+        // the full sort options live on search.html, for the full list.
+        matches.sort((a, b) => (b.trade_date + (b.entry_time || "")).localeCompare(a.trade_date + (a.entry_time || "")));
 
         if (!matches.length) {
-          statusEl.textContent = `No trades match "${query}"${searchNotes ? "" : " -- try \u201cSearch notes too\u201d"}.`;
+          statusEl.textContent = `No trades match "${q}".`;
           resultsEl.innerHTML = "";
           return;
         }
-
-        const shown = matches.slice(0, RESULT_LIMIT);
-        statusEl.textContent = `${matches.length} match${matches.length === 1 ? "" : "es"}${matches.length > shown.length ? ` (showing first ${shown.length})` : ""}.`;
-
-        resultsEl.innerHTML = shown.map(({ trade: t, snippet }) => {
-          const snippetHtml = snippet
-            ? `<span class="gs-snip">${highlight(snippet, query)}</span>`
-            : `<span class="gs-snip dim">${escapeHtml(t.side || "")}</span>`;
-          return `
-            <a class="gs-dock-item" href="trade.html?id=${encodeURIComponent(t.id)}">
-              <span class="gs-sym">${highlight(t.symbol || "", query)}</span>
-              <span class="gs-date">${escapeHtml(t.trade_date || "")}</span>
-              ${snippetHtml}
-              <span class="gs-pnl ${(t.pnl_after_comm || 0) >= 0 ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span>
-            </a>`;
-        }).join("");
+        statusEl.textContent = "";
+        const shown = matches.slice(0, LIVE_LIMIT);
+        resultsEl.innerHTML = shown.map((t) => `
+          <a class="header-search-item" href="trade.html?id=${encodeURIComponent(t.id)}">
+            <span class="hs-sym">${highlight(t.symbol || "", q)}</span>
+            <span class="hs-date">${escapeHtml(t.trade_date || "")}</span>
+            <span class="pill ${t.win ? "win" : "loss"}">${t.win ? "WIN" : "LOSS"}</span>
+            <span class="hs-pnl ${(t.pnl_after_comm || 0) >= 0 ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span>
+          </a>`).join("") +
+          `<a class="header-search-viewall" href="search.html?q=${encodeURIComponent(q)}">
+            ${matches.length > shown.length ? `View all ${matches.length} results` : "View full results"} \u2192
+          </a>`;
       })
-      .catch((err) => {
-        statusEl.textContent = "Couldn't search (" + String((err && err.message) || err) + ").";
-      });
+      .catch(() => { statusEl.textContent = "Couldn't search your trades."; });
   }
+
+  // ---- Enter (or the mobile "go") -- full results page ----------------
+
+  formEl.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const q = inputEl.value.trim();
+    if (!q) { inputEl.focus(); return; }
+    window.location.href = "search.html?q=" + encodeURIComponent(q);
+  });
+
+  // ---- keyboard shortcuts ---------------------------------------------
+  // "/" and Ctrl/Cmd+K both just focus the box on desktop (it's always
+  // there); on mobile they open it, since it's collapsed behind the icon.
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "/") {
+      const tag = (document.activeElement && document.activeElement.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || (document.activeElement && document.activeElement.isContentEditable)) return;
+      ev.preventDefault();
+      isMobile() ? openMobile() : inputEl.focus();
+    } else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "k") {
+      ev.preventDefault();
+      isMobile() ? openMobile() : inputEl.focus();
+    }
+  });
 })();

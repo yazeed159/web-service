@@ -939,6 +939,10 @@
   // callback has run. No image is generated or shown; everything is
   // drawn client-side from the raw bar data.
   let rptCandleChart = null, rptMacdChart = null, rptRepositionPointers = null;
+  // Persists across chart opens, same reasoning as trade.js's
+  // currentInterval -- if someone switches to 5m, the next trade they
+  // open stays on 5m instead of silently resetting to 1m.
+  let rptCurrentInterval = 1;
 
   function toUnix(t) { return Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000); }
 
@@ -1041,14 +1045,23 @@
 
   function buildTradeChart(trade) {
     const bars = trade.bars;
-    const candleData = bars.map((b) => ({ time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c }));
-    const volData = bars.map((b) => ({ time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" }));
-    const vwapData = bars.map((b) => ({ time: toUnix(b.t), value: b.vwap }));
-    const ema9Data = bars.map((b) => ({ time: toUnix(b.t), value: b.ema9 }));
-    const ema20Data = bars.map((b) => ({ time: toUnix(b.t), value: b.ema20 }));
-    const macdData = bars.map((b) => ({ time: toUnix(b.t), value: b.macd }));
-    const signalData = bars.map((b) => ({ time: toUnix(b.t), value: b.macd_signal }));
-    const histData = bars.map((b) => ({ time: toUnix(b.t), value: b.macd_hist, color: b.macd_hist >= 0 ? "#2fd08a" : "#f2555a" }));
+    // Same seriesDataFor/resample pattern as trade.js buildCharts() --
+    // see chart-indicators.js for the shared resampling logic.
+    function seriesDataFor(displayBars) {
+      return {
+        candleData: displayBars.map((b) => ({ time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c })),
+        volData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" })),
+        vwapData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.vwap })),
+        ema9Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema9 })),
+        ema20Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema20 })),
+        macdData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd })),
+        signalData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd_signal })),
+        histData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd_hist, color: (b.macd_hist || 0) >= 0 ? "#2fd08a" : "#f2555a" })),
+      };
+    }
+    const initialDisplayBars = rptCurrentInterval === 1 ? bars : window.ChartIndicators.resampleBars(bars, rptCurrentInterval);
+    let currentSeriesData = seriesDataFor(initialDisplayBars);
+    const { candleData, volData, vwapData, ema9Data, ema20Data, macdData, signalData, histData } = currentSeriesData;
 
     const candleEl = document.getElementById("rpt-candle-chart");
     const macdEl = document.getElementById("rpt-macd-chart");
@@ -1077,9 +1090,44 @@
     rptCandleChart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     volSeries.setData(volData);
 
-    rptCandleChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(vwapData);
-    rptCandleChart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema9Data);
-    rptCandleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(ema20Data);
+    const vwapSeries = rptCandleChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    vwapSeries.setData(vwapData);
+    const ema9Series = rptCandleChart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    ema9Series.setData(ema9Data);
+    const ema20Series = rptCandleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    ema20Series.setData(ema20Data);
+
+    // Top-left info overlay: live volume/VWAP/EMA9/EMA20 readout that
+    // tracks the crosshair, same as trade.js's chart. Falls back to the
+    // last bar's values when nothing is hovered.
+    candleEl.style.position = "relative";
+    let infoOverlay = candleEl.querySelector(".chart-info-overlay");
+    if (!infoOverlay) {
+      infoOverlay = document.createElement("div");
+      infoOverlay.className = "chart-info-overlay";
+      candleEl.appendChild(infoOverlay);
+    }
+    const volRowHtml = (vol, color) =>
+      `<div class="row"><span class="k">Vol</span><span class="v${color ? ` ${color}` : ""}">${vol == null ? "—" : Number(vol).toLocaleString()}</span></div>`;
+    function lastOf(arr) { return arr.length ? arr[arr.length - 1].value : null; }
+    function renderOverlay(vol, upDown, vwapVal, ema9Val, ema20Val) {
+      infoOverlay.innerHTML = volRowHtml(vol, upDown) + window.ChartIndicators.indicatorRowsHtml(vwapVal, ema9Val, ema20Val);
+    }
+    renderOverlay(lastOf(currentSeriesData.volData), "", lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data));
+    rptCandleChart.subscribeCrosshairMove((param) => {
+      const volBar = param.seriesData && param.seriesData.get(volSeries);
+      const vol = volBar ? volBar.value : lastOf(currentSeriesData.volData);
+      const upDown = volBar ? (volBar.color && volBar.color.indexOf("47,208,138") !== -1 ? "up" : "down") : "";
+      const vwapBar = param.seriesData && param.seriesData.get(vwapSeries);
+      const ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
+      const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
+      renderOverlay(
+        vol, upDown,
+        vwapBar ? vwapBar.value : lastOf(currentSeriesData.vwapData),
+        ema9Bar ? ema9Bar.value : lastOf(currentSeriesData.ema9Data),
+        ema20Bar ? ema20Bar.value : lastOf(currentSeriesData.ema20Data)
+      );
+    });
 
     // Entry/exit price lines -- solid, actual fills. No axis title: the
     // pointer triangles below (same visual language as trade.js's
@@ -1240,14 +1288,50 @@
     setTimeout(repositionPointers, 0);
 
     rptMacdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: macdEl.clientHeight || 100 });
-    rptMacdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } }).setData(histData);
-    rptMacdChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(macdData);
-    rptMacdChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false }).setData(signalData);
+    const macdHistSeries = rptMacdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } });
+    macdHistSeries.setData(histData);
+    const macdLineSeries = rptMacdChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    macdLineSeries.setData(macdData);
+    const macdSignalLineSeries = rptMacdChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    macdSignalLineSeries.setData(signalData);
 
     rptCandleChart.timeScale().subscribeVisibleLogicalRangeChange((range) => { if (range && rptMacdChart) rptMacdChart.timeScale().setVisibleLogicalRange(range); });
     rptMacdChart.timeScale().subscribeVisibleLogicalRangeChange((range) => { if (range && rptCandleChart) rptCandleChart.timeScale().setVisibleLogicalRange(range); });
     rptCandleChart.timeScale().fitContent();
     rptMacdChart.timeScale().fitContent();
+
+    // Timeframe switcher (1m/5m/15m/1h), resampled client-side from the
+    // bars already loaded for this trade -- see trade.js buildCharts()
+    // for the fuller explanation of why the pointers/price-lines don't
+    // need any change when the interval switches.
+    function applyInterval(minutes) {
+      rptCurrentInterval = minutes;
+      const displayBars = minutes === 1 ? bars : window.ChartIndicators.resampleBars(bars, minutes);
+      currentSeriesData = seriesDataFor(displayBars);
+      candleSeries.setData(currentSeriesData.candleData);
+      volSeries.setData(currentSeriesData.volData);
+      vwapSeries.setData(currentSeriesData.vwapData);
+      ema9Series.setData(currentSeriesData.ema9Data);
+      ema20Series.setData(currentSeriesData.ema20Data);
+      macdHistSeries.setData(currentSeriesData.histData);
+      macdLineSeries.setData(currentSeriesData.macdData);
+      macdSignalLineSeries.setData(currentSeriesData.signalData);
+      renderOverlay(
+        lastOf(currentSeriesData.volData), "",
+        lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data)
+      );
+      rptCandleChart.timeScale().fitContent();
+      rptMacdChart.timeScale().fitContent();
+      repositionPointers();
+    }
+    const chartControls = document.getElementById("rpt-chart-controls");
+    if (chartControls) {
+      chartControls.innerHTML = "";
+      chartControls.appendChild(window.ChartIndicators.buildTimeframeSwitcher({
+        active: rptCurrentInterval,
+        onSelect: applyInterval,
+      }));
+    }
   }
 
   // ================= lazy per-trade bar fetch =================

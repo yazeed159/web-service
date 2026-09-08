@@ -96,6 +96,22 @@
   .lt-run-strategy-link { background: none; border: none; padding: 0; color: var(--primary); font-size: 11.5px; cursor: pointer; margin-left: 10px; }
   .lt-run-strategy-detail { margin-top: 10px; }
   #lt-advanced summary { cursor: pointer; font-size: 12.5px; color: var(--text-dim); }
+
+  /* --- Editable strategy-parameters form (live + backtest share the same
+     Supabase row, so editing here can permanently change both) --------- */
+  .lt-params-editor { border: 1px solid var(--border-soft); border-radius: 6px; padding: 14px 16px; margin-top: 10px; background: var(--panel-2); }
+  .lt-params-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .lt-params-title { font-size: 13px; font-weight: 600; }
+  .lt-params-title .hint-text { font-weight: 400; display: block; margin-top: 2px; }
+  .lt-params-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .lt-params-dirty-note { font-size: 11.5px; color: var(--amber, #e8a94c); font-weight: 600; white-space: nowrap; }
+  .lt-params-group { margin-top: 14px; border-top: 1px solid var(--border-soft); padding-top: 12px; }
+  .lt-params-group:first-of-type { margin-top: 14px; }
+  .lt-params-group-title { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); font-weight: 600; margin-bottom: 10px; }
+  .lt-params-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+  .lt-params-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim); grid-column: 1 / -1; }
+  .lt-params-check input { width: auto; }
+  @media (max-width: 640px) { .lt-params-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -263,6 +279,117 @@
 
       <div id="lt-strategy-details" class="lt-strategy-detail" style="display:none;"></div>
 
+      <div id="lt-params-editor" class="lt-params-editor" style="display:none;">
+        <div class="lt-params-head">
+          <div class="lt-params-title">
+            Strategy parameters
+            <span class="hint-text">Edit anything below — it applies to this run right away. Hit "Save forever" to write it back to the strategy itself (also changes what the Backtester loads for it).</span>
+          </div>
+          <div class="lt-params-actions">
+            <span id="lt-params-dirty" class="lt-params-dirty-note" style="display:none;">Unsaved changes</span>
+            <button type="button" class="link" id="lt-params-reset">Reset</button>
+            <button type="button" class="btn-advanced" id="lt-params-save">Save forever</button>
+          </div>
+        </div>
+
+        <div class="lt-params-group" style="margin-top:12px; border-top:none; padding-top:0;">
+          <div class="lt-params-group-title">General</div>
+          <div class="lt-params-grid">
+            <div class="lt-field"><label for="lt-p-entry-mode">Entry style</label>
+              <select id="lt-p-entry-mode" class="select-clean">
+                <option value="orb_breakout">ORB breakout</option>
+                <option value="red_candle_break">Red candle break</option>
+                <option value="donchian_break">Donchian break</option>
+                <option value="inside_bar_break">Inside bar break</option>
+                <option value="vwap_reclaim">VWAP reclaim</option>
+                <option value="ema_dip_reclaim">EMA dip reclaim (9 EMA)</option>
+                <option value="ema_reclaim">EMA reclaim</option>
+                <option value="macd_bullish_cross">MACD bullish cross</option>
+                <option value="rsi_oversold_bounce">RSI oversold bounce</option>
+              </select>
+            </div>
+            <div class="lt-field"><label for="lt-p-session-start">Session start (ET)</label><input id="lt-p-session-start" type="time" value="09:30"></div>
+            <div class="lt-field"><label for="lt-p-flatten-time">Force-exit (ET)</label><input id="lt-p-flatten-time" type="time" value="15:55"></div>
+            <div class="lt-field"><label for="lt-p-slippage-bps" title="Mainly a backtest realism knob (models slippage against fills) -- carried in a strategy's params either way, so it's editable here too for parity with the Backtester.">Slippage (bps, 0=off)</label><input id="lt-p-slippage-bps" type="number" step="1" value="5"></div>
+          </div>
+        </div>
+
+        <div class="lt-params-group">
+          <div class="lt-params-group-title">Entry</div>
+          <div class="lt-params-grid">
+            <div class="lt-field"><label for="lt-p-orb-minutes">Opening range (min)</label><input id="lt-p-orb-minutes" type="number" min="1" step="1" value="5"></div>
+            <div class="lt-field" data-show-when="lt-p-entry-mode=donchian_break"><label for="lt-p-donchian-lookback">Donchian lookback (bars)</label><input id="lt-p-donchian-lookback" type="number" min="2" step="1" value="10"></div>
+            <div class="lt-field" data-show-when="lt-p-entry-mode=ema_dip_reclaim,ema_reclaim"><label for="lt-p-ema-period">EMA period (bars)</label><input id="lt-p-ema-period" type="number" min="2" step="1" value="9"></div>
+            <div class="lt-field" data-show-when="lt-p-entry-mode=macd_bullish_cross"><label for="lt-p-macd-fast">MACD fast (bars)</label><input id="lt-p-macd-fast" type="number" min="2" step="1" value="12"></div>
+            <div class="lt-field" data-show-when="lt-p-entry-mode=macd_bullish_cross"><label for="lt-p-macd-slow">MACD slow (bars)</label><input id="lt-p-macd-slow" type="number" min="2" step="1" value="26"></div>
+            <div class="lt-field" data-show-when="lt-p-entry-mode=macd_bullish_cross"><label for="lt-p-macd-signal">MACD signal (bars)</label><input id="lt-p-macd-signal" type="number" min="2" step="1" value="9"></div>
+            <div class="lt-field" data-show-when="lt-p-entry-mode=rsi_oversold_bounce"><label for="lt-p-rsi-period">RSI period (bars)</label><input id="lt-p-rsi-period" type="number" min="2" step="1" value="14"></div>
+            <div class="lt-field" data-show-when="lt-p-entry-mode=rsi_oversold_bounce"><label for="lt-p-rsi-oversold">RSI oversold level</label><input id="lt-p-rsi-oversold" type="number" min="1" max="50" step="1" value="30"></div>
+            <label class="lt-params-check" data-show-when="lt-p-entry-mode=red_candle_break,donchian_break,inside_bar_break,vwap_reclaim,ema_dip_reclaim,ema_reclaim,macd_bullish_cross,rsi_oversold_bounce">
+              <input type="checkbox" id="lt-p-entry-after-orb" checked> Wait for opening range first
+            </label>
+          </div>
+        </div>
+
+        <div class="lt-params-group">
+          <div class="lt-params-group-title">Stop loss</div>
+          <div class="lt-params-grid">
+            <div class="lt-field"><label for="lt-p-stop-mode">Stop style</label>
+              <select id="lt-p-stop-mode" class="select-clean">
+                <option value="pattern">Pattern (entry style's natural stop)</option>
+                <option value="fixed_cents">Fixed cents</option>
+                <option value="fixed_pct">Fixed %</option>
+                <option value="prior_bar_low">Prior bar low</option>
+                <option value="atr_multiple">ATR multiple</option>
+              </select>
+            </div>
+            <div class="lt-field" data-show-when="lt-p-stop-mode=fixed_cents"><label for="lt-p-fixed-stop-cents">Fixed ¢</label><input id="lt-p-fixed-stop-cents" type="number" min="0" step="0.5" value="5"></div>
+            <div class="lt-field" data-show-when="lt-p-stop-mode=fixed_pct"><label for="lt-p-fixed-stop-pct">Fixed %</label><input id="lt-p-fixed-stop-pct" type="number" min="0" step="0.1" value="1"></div>
+            <div class="lt-field" data-show-when="lt-p-stop-mode=atr_multiple"><label for="lt-p-atr-period">ATR period</label><input id="lt-p-atr-period" type="number" min="2" step="1" value="14"></div>
+            <div class="lt-field" data-show-when="lt-p-stop-mode=atr_multiple"><label for="lt-p-atr-mult">ATR mult</label><input id="lt-p-atr-mult" type="number" min="0" step="0.1" value="1.5"></div>
+            <div class="lt-field"><label for="lt-p-breakeven-after-cents" title="Once armed, stop ratchets up to entry price and stays there">Breakeven after ¢ (0=off)</label><input id="lt-p-breakeven-after-cents" type="number" min="0" step="0.5" value="0"></div>
+          </div>
+        </div>
+
+        <div class="lt-params-group">
+          <div class="lt-params-group-title">Profit exits</div>
+          <div class="lt-params-grid">
+            <div class="lt-field"><label for="lt-p-target-r">Target (× risk, 0=off)</label><input id="lt-p-target-r" type="number" min="0" step="0.1" value="2"></div>
+            <div class="lt-field"><label for="lt-p-time-stop-minutes">Time stop (min, 0=off)</label><input id="lt-p-time-stop-minutes" type="number" min="0" step="1" value="0"></div>
+            <div class="lt-field"><label for="lt-p-time-stop-min-gain-cents">…unless gained ¢</label><input id="lt-p-time-stop-min-gain-cents" type="number" min="0" step="0.5" value="0"></div>
+            <div class="lt-field"><label for="lt-p-giveback-cents">Giveback ¢ off peak (0=off)</label><input id="lt-p-giveback-cents" type="number" min="0" step="0.5" value="0"></div>
+            <div class="lt-field"><label for="lt-p-giveback-pct">Giveback % of gain (0=off)</label><input id="lt-p-giveback-pct" type="number" min="0" max="100" step="5" value="0"></div>
+            <div class="lt-field"><label for="lt-p-giveback-arm-cents">Arm giveback after ¢</label><input id="lt-p-giveback-arm-cents" type="number" min="0" step="0.5" value="0"></div>
+            <label class="lt-params-check"><input type="checkbox" id="lt-p-stall-exit"> Exit on momentum stall</label>
+          </div>
+        </div>
+
+        <div class="lt-params-group">
+          <div class="lt-params-group-title">Re-entry</div>
+          <div class="lt-params-grid">
+            <label class="lt-params-check"><input type="checkbox" id="lt-p-allow-reentry" checked> Allow multiple trades per symbol/day</label>
+            <div class="lt-field"><label for="lt-p-max-trades-per-day">Max trades / symbol / day</label><input id="lt-p-max-trades-per-day" type="number" min="1" step="1" value="3"></div>
+            <div class="lt-field"><label for="lt-p-reentry-cooldown-minutes">Re-entry cooldown (min)</label><input id="lt-p-reentry-cooldown-minutes" type="number" min="0" step="1" value="0"></div>
+          </div>
+        </div>
+
+        <div class="lt-params-group">
+          <div class="lt-params-group-title">Position building (scale in / trail-protect)</div>
+          <div class="lt-params-grid">
+            <label class="lt-params-check"><input type="checkbox" id="lt-p-scale-in-enabled"> Scale in (start small, add on strength)</label>
+            <div class="lt-field"><label for="lt-p-scale-in-initial-pct">Opening size (% of full)</label><input id="lt-p-scale-in-initial-pct" type="number" min="1" max="100" step="5" value="50"></div>
+            <div class="lt-field"><label for="lt-p-scale-in-add-pct">Each add (% of full)</label><input id="lt-p-scale-in-add-pct" type="number" min="1" max="100" step="5" value="25"></div>
+            <div class="lt-field"><label for="lt-p-scale-in-max-adds">Max adds</label><input id="lt-p-scale-in-max-adds" type="number" min="0" step="1" value="0"></div>
+            <div class="lt-field"><label for="lt-p-scale-in-hold-bars">Hold bars before add</label><input id="lt-p-scale-in-hold-bars" type="number" min="1" step="1" value="2"></div>
+            <div class="lt-field"><label for="lt-p-scale-in-min-gain-cents">Min open gain before arming (¢)</label><input id="lt-p-scale-in-min-gain-cents" type="number" min="0" step="0.5" value="0"></div>
+            <label class="lt-params-check"><input type="checkbox" id="lt-p-trail-protect-enabled"> Tightening trail-protect stop</label>
+            <div class="lt-field" style="grid-column:1/-1;"><label for="lt-p-trail-protect-ladder" title="Comma-separated peak-R:protect% rungs, e.g. 0.5:30, 1:50, 2:65, 3:80">Ladder (R:protect%, comma-sep)</label><input id="lt-p-trail-protect-ladder" type="text" placeholder="0.5:30, 1:50, 2:65, 3:80"></div>
+          </div>
+        </div>
+
+        <div id="lt-params-save-status" class="lt-symbol-note" style="margin-top:10px;"></div>
+      </div>
+
       <div id="lt-no-strategies" class="lt-empty" style="display:none; text-align:left; padding: 10px 0;">
         No saved strategies from the Backtester yet -- run one there and hit "Save as Strategy" on a run
         you like to add it here permanently. The starter presets above (Ross Cameron gap-and-go, 9 EMA dip
@@ -270,8 +397,11 @@
       </div>
 
       <div class="lt-field" style="margin-top: 14px;">
-        <label for="lt-symbols" id="lt-symbols-label">Symbols (comma-separated)</label>
-        <input id="lt-symbols" type="text" placeholder="MARA, SOFI">
+        <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
+          <label for="lt-symbols" id="lt-symbols-label">Symbols (comma-separated)</label>
+          <button type="button" id="lt-symbols-fill-scanner" class="lt-run-strategy-link" style="display:none;">Fill from live scanner</button>
+        </div>
+        <input id="lt-symbols" type="text" placeholder="MARA, SOFI — or leave blank for a live-scanned strategy">
         <div id="lt-symbols-note" class="lt-symbol-note"></div>
       </div>
 
