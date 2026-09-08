@@ -706,7 +706,16 @@
       const label = p.in_position ? `${sym}: ${p.shares}sh @ ${Number(p.entry_price).toFixed(2)}`
         : p.entry_pending ? `${sym}: order pending`
         : `${sym}: flat`;
-      return `<span class="${cls}">${escapeHtml(label)}</span>`;
+      // Data-feed proof-of-life, right next to the position pill instead
+      // of buried in the event log -- see SymbolState.data_confirmed's
+      // docstring in live_engine.py. Answers "is this symbol actually
+      // getting real IBKR bars at all" at a glance, independent of
+      // whether a trade has ever fired.
+      const feedCls = p.data_confirmed ? "pill win" : "pill loss";
+      const feedLabel = p.data_confirmed
+        ? `${sym} feed: ${p.bar_count} bar${p.bar_count === 1 ? "" : "s"}, last ${fmtRelativeTime(p.last_bar_ts)}${p.last_price != null ? ` @ ${Number(p.last_price).toFixed(2)}` : ""}`
+        : `${sym} feed: no bars received yet`;
+      return `<span class="${cls}">${escapeHtml(label)}</span> <span class="${feedCls}" title="Live IBKR bar feed status for ${escapeHtml(sym)}">${escapeHtml(feedLabel)}</span>`;
     }).join(" ");
     const events = (r.recent_events || []).slice().reverse().map((e) =>
       `<div>[${escapeHtml(e.ts.split("T")[1].split(".")[0])}] ${escapeHtml(e.symbol)} ${escapeHtml(e.type)} — ${escapeHtml(e.detail)}</div>`
