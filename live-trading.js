@@ -644,6 +644,178 @@
     return `${h}h ago`;
   }
 
+  // Second-granularity version of the above, for the live price feed --
+  // last_price_age_s comes straight from the backend (computed server-
+  // side at snapshot time, see SymbolState.last_price_ts in
+  // live_engine.py) rather than re-derived from an ISO timestamp here, so
+  // it's not thrown off by clock drift between browser and server.
+  function fmtAgeS(ageS) {
+    if (ageS == null) return "no data yet";
+    if (ageS < 1) return "just now";
+    if (ageS < 60) return `${Math.round(ageS)}s ago`;
+    const m = Math.round(ageS / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.round(m / 60);
+    return `${h}h ago`;
+  }
+
+  function fmtTimeOnly(iso) {
+    if (!iso) return "—";
+    return iso.split("T")[1].split(".")[0];
+  }
+
+  // Every watched symbol gets Alpaca's real-time trade-tick stream (not
+  // just ones currently in a position -- see alpaca_bars.py's
+  // module docstring), so freshness is judged the same way for a flat
+  // "just watching" row as for an open position: a live single-stock
+  // feed should tick at least every few seconds during market hours.
+  function priceFreshness(ageS) {
+    if (ageS == null) return "stale";
+    if (ageS < 10) return "fresh";
+    if (ageS < 45) return "warn";
+    return "stale";
+  }
+
+  // Stop -> entry -> target price ladder with a dot for the live price --
+  // the whole point being "how close is this to hitting its stop or
+  // target" at a glance, instead of three numbers you have to subtract in
+  // your head. Falls back to no gauge for stop/target-less runs (e.g.
+  // test_heartbeat, which fires plain market orders with no bracket --
+  // see live_engine.py's SymbolState docstring).
+  function buildGauge(entry, stop, target, current, pendingFill) {
+    if (entry == null || stop == null || target == null) return "";
+    const vals = [entry, stop, target];
+    if (current != null) vals.push(current);
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    const pad = (hi - lo) * 0.12 || Math.max(entry * 0.01, 0.05);
+    lo -= pad; hi += pad;
+    const span = hi - lo || 1;
+    const pct = (v) => Math.min(100, Math.max(0, ((v - lo) / span) * 100));
+    const stopPct = pct(stop), entryPct = pct(entry), targetPct = pct(target);
+    const riskLeft = Math.min(stopPct, entryPct), riskRight = Math.max(stopPct, entryPct);
+    const rewardLeft = Math.min(entryPct, targetPct), rewardRight = Math.max(entryPct, targetPct);
+    let curDot = "", curLbl = "";
+    if (current != null) {
+      const curPct = pct(current);
+      const isUp = current >= entry;
+      curDot = `<div class="lt-pos-gauge-dot ${pendingFill ? "pending-entry" : isUp ? "up" : "down"}" style="left:${curPct}%" title="Current: $${current.toFixed(2)}"></div>`;
+      curLbl = `<div class="lt-pos-gauge-cur-lbl ${isUp ? "up" : "down"}" style="left:${curPct}%">$${current.toFixed(2)}</div>`;
+    }
+    return `
+      <div class="lt-pos-gauge">
+        <div class="lt-pos-gauge-track">
+          <div class="lt-pos-gauge-risk" style="left:${riskLeft}%; width:${riskRight - riskLeft}%"></div>
+          <div class="lt-pos-gauge-reward" style="left:${rewardLeft}%; width:${rewardRight - rewardLeft}%"></div>
+          <div class="lt-pos-gauge-entry-line" style="left:${entryPct}%" title="Entry: $${entry.toFixed(2)}"></div>
+          ${curLbl}
+          ${curDot}
+        </div>
+        <div class="lt-pos-gauge-labels">
+          <span class="stop-lbl">stop $${stop.toFixed(2)}</span>
+          <span class="mid">entry $${entry.toFixed(2)}</span>
+          <span class="target-lbl">target $${target.toFixed(2)}</span>
+        </div>
+      </div>`;
+  }
+
+  function renderPositionCard(sym, p) {
+    const stateCls = p.in_position ? "state-in-position" : p.entry_pending ? "state-pending" : "state-flat";
+    const stateBadge = p.in_position
+      ? `<span class="lt-pos-state in-position">In position</span>`
+      : p.entry_pending
+      ? `<span class="lt-pos-state pending">Order pending</span>`
+      : `<span class="lt-pos-state flat">Flat</span>`;
+
+    const fresh = priceFreshness(p.last_price_age_s);
+    const priceHtml = p.last_price != null
+      ? `<span class="lt-pos-freshdot ${fresh}"></span><span class="lt-pos-price">$${Number(p.last_price).toFixed(2)} <span class="age">(${fmtAgeS(p.last_price_age_s)})</span></span>`
+      : `<span class="lt-pos-freshdot stale"></span><span class="lt-pos-price age">no price yet</span>`;
+
+    const pnlHtml = p.unrealized_pnl != null
+      ? `<span class="lt-pos-pnl ${p.unrealized_pnl >= 0 ? "up" : "down"}">${fmtMoney(p.unrealized_pnl)} unrl.</span>`
+      : "";
+
+    // Entry price is entry_fill_price once filled, else the still-working
+    // order's price (dashed gauge dot color signals "not filled yet").
+    const gaugeEntry = p.entry_fill_price != null ? p.entry_fill_price : p.entry_order_price;
+    const gauge = (p.in_position || p.entry_pending)
+      ? buildGauge(gaugeEntry, p.stop_price, p.target_price, p.last_price, p.entry_fill_price == null)
+      : "";
+
+    // Order-lifecycle detail grid -- only the rows that are actually
+    // meaningful for this symbol's current state get shown.
+    const details = [];
+    if (p.entry_pending || p.in_position || p.entry_order_price != null) {
+      details.push(["Entry placed", p.entry_order_price != null
+        ? `$${Number(p.entry_order_price).toFixed(2)} <span style="color:var(--text-faint)">@ ${fmtTimeOnly(p.entry_order_ts)}</span>` : "—"]);
+    }
+    if (p.in_position || p.entry_fill_price != null) {
+      let fillHtml = "—";
+      if (p.entry_fill_price != null) {
+        fillHtml = `$${Number(p.entry_fill_price).toFixed(2)} <span style="color:var(--text-faint)">@ ${fmtTimeOnly(p.entry_fill_ts)}</span>`;
+        if (p.entry_order_price != null) {
+          const slip = p.entry_fill_price - p.entry_order_price;
+          if (Math.abs(slip) >= 0.005) {
+            const bad = slip > 0; // paid more than the order price = worse for a long entry
+            fillHtml += ` <span class="${bad ? "slip-bad" : "slip-good"}">(${slip > 0 ? "+" : ""}${slip.toFixed(2)} slip)</span>`;
+          }
+        }
+      } else if (p.entry_pending) {
+        fillHtml = `<span style="color:var(--amber)">working…</span>`;
+      }
+      details.push(["Entry filled", fillHtml]);
+    }
+    if (p.stop_price != null) details.push(["Stop", `$${Number(p.stop_price).toFixed(2)}`]);
+    if (p.target_price != null) details.push(["Target", `$${Number(p.target_price).toFixed(2)}`]);
+    if (p.in_position) details.push(["Shares", String(p.shares)]);
+    details.push(["Trades today", String(p.trades_today)]);
+
+    const detailsHtml = details.map(([k, v]) =>
+      `<div class="lt-pos-detail-item"><span class="k">${escapeHtml(k)}</span><span class="v">${v}</span></div>`
+    ).join("");
+
+    // Last CLOSED trade in this symbol -- kept around by the backend
+    // after flattening (see SymbolState.exit_price's docstring) so it
+    // stays visible here for a while instead of the row just going blank
+    // the instant a target/stop fires.
+    let lastTradeHtml = "";
+    if (!p.in_position && !p.entry_pending && p.exit_price != null) {
+      const pnl = p.entry_fill_price != null && p.last_trade_shares != null
+        ? (p.exit_price - p.entry_fill_price) * p.last_trade_shares : null;
+      lastTradeHtml = `
+        <div class="lt-pos-last-trade">
+          <span class="lbl">Last trade</span>
+          <span>bought ${p.last_trade_shares || "?"}sh @ <span class="amt">$${p.entry_fill_price != null ? Number(p.entry_fill_price).toFixed(2) : "?"}</span> → sold @ <span class="amt">$${Number(p.exit_price).toFixed(2)}</span></span>
+          <span class="pill">${escapeHtml(p.exit_reason || "closed")}</span>
+          ${pnl != null ? `<span class="amt ${pnl >= 0 ? "up" : "down"}">${fmtMoney(pnl)}</span>` : ""}
+          <span style="color:var(--text-faint)">${escapeHtml(fmtRelativeTime(p.exit_ts))}</span>
+        </div>`;
+    }
+
+    // Data-feed proof-of-life -- see SymbolState.data_confirmed's
+    // docstring in live_engine.py. Kept as a quiet footnote once bars are
+    // flowing; only calls attention to itself (red) when nothing's ever
+    // arrived, which is the actual "is this symbol stuck" question.
+    const feedNote = p.data_confirmed
+      ? `<div class="lt-pos-feed-note">bar feed: ${p.bar_count} bar${p.bar_count === 1 ? "" : "s"}, last bar ${fmtRelativeTime(p.last_bar_ts)}</div>`
+      : `<div class="lt-pos-feed-note warn-txt">bar feed: no bars received yet for ${escapeHtml(sym)}</div>`;
+
+    return `
+      <div class="lt-pos-card ${stateCls}">
+        <div class="lt-pos-top">
+          <span class="lt-pos-sym">${escapeHtml(sym)}</span>
+          ${stateBadge}
+          <span class="lt-pos-spacer"></span>
+          ${pnlHtml}
+          ${priceHtml}
+        </div>
+        ${gauge}
+        <div class="lt-pos-details">${detailsHtml}</div>
+        ${lastTradeHtml}
+        ${feedNote}
+      </div>`;
+  }
+
   // status -> { label, cls } for the colored-dot badge. Anything not
   // recognized falls back to "starting" styling rather than throwing.
   const STATUS_BADGE = {
@@ -701,22 +873,9 @@
   }
 
   function renderRunCard(r) {
-    const posPills = Object.entries(r.positions || {}).map(([sym, p]) => {
-      const cls = p.in_position ? "pill win" : p.entry_pending ? "pill" : "pill";
-      const label = p.in_position ? `${sym}: ${p.shares}sh @ ${Number(p.entry_price).toFixed(2)}`
-        : p.entry_pending ? `${sym}: order pending`
-        : `${sym}: flat`;
-      // Data-feed proof-of-life, right next to the position pill instead
-      // of buried in the event log -- see SymbolState.data_confirmed's
-      // docstring in live_engine.py. Answers "is this symbol actually
-      // getting real IBKR bars at all" at a glance, independent of
-      // whether a trade has ever fired.
-      const feedCls = p.data_confirmed ? "pill win" : "pill loss";
-      const feedLabel = p.data_confirmed
-        ? `${sym} feed: ${p.bar_count} bar${p.bar_count === 1 ? "" : "s"}, last ${fmtRelativeTime(p.last_bar_ts)}${p.last_price != null ? ` @ ${Number(p.last_price).toFixed(2)}` : ""}`
-        : `${sym} feed: no bars received yet`;
-      return `<span class="${cls}">${escapeHtml(label)}</span> <span class="${feedCls}" title="Live IBKR bar feed status for ${escapeHtml(sym)}">${escapeHtml(feedLabel)}</span>`;
-    }).join(" ");
+    const posCards = Object.entries(r.positions || {})
+      .map(([sym, p]) => renderPositionCard(sym, p))
+      .join("");
     const events = (r.recent_events || []).slice().reverse().map((e) =>
       // ib_error events are IBKR's own raw error/permission messages
       // (see live_engine.py's _on_ib_error) -- these explain exactly why
@@ -736,6 +895,16 @@
     const viewStratBtn = r.strategy_id
       ? `<button class="lt-run-strategy-link" id="lt-view-strat-${escapeHtml(r.run_id)}">View strategy details</button>`
       : "";
+    // Whole-connection proof-of-life (see alpaca_bars.py's module
+    // docstring for the singleton-connection rationale) -- separate from
+    // any one symbol's own bar-feed note below it, since this can drop
+    // (and auto-reconnect) even for a symbol that already has bars
+    // sitting in memory from before the disconnect.
+    const feedGlobal = r.data_feed_connected === false
+      ? `<span class="lt-feed-global bad" title="Alpaca bar/trade stream is disconnected -- reconnecting"><span class="dot"></span>Data feed reconnecting…</span>`
+      : `<span class="lt-feed-global ok" title="Alpaca bar/trade stream is connected"><span class="dot"></span>Data feed connected</span>`;
+    const unrealized = r.unrealized_pnl_today;
+    const hasOpenPosition = Object.values(r.positions || {}).some((p) => p.in_position);
     return `
       <div class="lt-run-card ${isStopped ? "is-stopped" : ""}">
         <div class="lt-run-head">
@@ -746,14 +915,16 @@
               <span class="pill ${r.mode === "live" ? "loss" : ""}">${escapeHtml(r.mode)}</span>
               ${r.halted ? '<span class="pill loss">halted (max daily loss)</span>' : ""}
               <span class="pill">${escapeHtml(sizingLabel)}</span>
+              ${!isStopped ? feedGlobal : ""}
               ${stoppedNote}
-              &nbsp;P&amp;L today: <strong>${fmtMoney(r.realized_pnl_today)}</strong>
+              &nbsp;Realized: <strong>${fmtMoney(r.realized_pnl_today)}</strong>
+              ${hasOpenPosition ? `&nbsp;· Unrealized: <strong class="${unrealized >= 0 ? "up" : "down"}">${fmtMoney(unrealized)}</strong>` : ""}
               ${viewStratBtn}
             </div>
           </div>
           <button class="btn-danger" id="lt-stop-${escapeHtml(r.run_id)}" ${stopDisabled}>${isStopped ? "Stopped" : "Stop"}</button>
         </div>
-        <div class="lt-positions">${posPills}</div>
+        <div class="lt-positions">${posCards}</div>
         <div class="lt-run-strategy-detail lt-strategy-detail" id="lt-run-detail-${escapeHtml(r.run_id)}" style="display:none;"></div>
         <div class="lt-events">${events || "<div>no events yet</div>"}</div>
       </div>`;
@@ -871,7 +1042,11 @@
     loadStrategies();
     refreshStatus();
     loadAccount();
-    setInterval(refreshStatus, 5000);
+    // 2s, not the old 5s -- now that a symbol's price/unrealized-PnL/age
+    // update on every trade tick (see live_engine.py's _on_trade_tick),
+    // a slower poll made the "how long ago" figure on this page lag
+    // further behind reality than the backend actually is.
+    setInterval(refreshStatus, 2000);
     setInterval(loadAccount, 15000);
   });
 })();

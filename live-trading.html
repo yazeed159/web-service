@@ -78,7 +78,70 @@
   .btn-danger:active:not(:disabled) { transform: translateY(0); }
   .btn-danger:disabled { background: var(--panel-2); border-color: var(--border); color: var(--text-faint); cursor: not-allowed; }
 
-  .lt-positions { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .lt-positions { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+
+  /* --- Per-symbol position card: order lifecycle + live price/PnL --- */
+  .lt-pos-card { border: 1px solid var(--border-soft); border-radius: 8px; background: var(--panel-2); padding: 10px 12px 12px; }
+  .lt-pos-card.state-in-position { border-color: rgba(47,208,138,0.3); }
+  .lt-pos-card.state-pending { border-color: rgba(232,169,76,0.35); }
+  .lt-pos-top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .lt-pos-sym { font-family: var(--mono); font-size: 13.5px; font-weight: 700; }
+  .lt-pos-state { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+  .lt-pos-state.in-position { background: var(--green-soft); color: var(--green); }
+  .lt-pos-state.pending { background: var(--amber-soft); color: var(--amber); }
+  .lt-pos-state.flat { background: var(--panel); color: var(--text-faint); border: 1px solid var(--border); }
+  .lt-pos-spacer { flex: 1; }
+  .lt-pos-price { font-family: var(--mono); font-size: 12.5px; color: var(--text); display: inline-flex; align-items: center; gap: 5px; }
+  .lt-pos-price .age { font-family: var(--sans); font-size: 10.5px; }
+  .lt-pos-freshdot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .lt-pos-freshdot.fresh { background: var(--green); box-shadow: 0 0 0 2px var(--green-soft); animation: pulseDot 2s ease-in-out infinite; }
+  .lt-pos-freshdot.warn { background: var(--amber); box-shadow: 0 0 0 2px var(--amber-soft); }
+  .lt-pos-freshdot.stale { background: var(--red); box-shadow: 0 0 0 2px var(--red-soft); }
+  .lt-pos-pnl { font-family: var(--mono); font-size: 13px; font-weight: 700; }
+  .lt-pos-pnl.up { color: var(--green); }
+  .lt-pos-pnl.down { color: var(--red); }
+  .lt-pos-pnl.flat-pnl { color: var(--text-faint); font-weight: 500; }
+
+  /* Gauge: stop -> entry -> target price ladder with a live marker for
+     the current price, so where the trade sits relative to its risk/
+     reward is visible at a glance instead of three separate numbers you
+     have to compare by hand. */
+  .lt-pos-gauge { margin: 12px 2px 4px; }
+  .lt-pos-gauge-track { position: relative; height: 6px; border-radius: 4px; background: var(--border-soft); overflow: visible; }
+  .lt-pos-gauge-risk { position: absolute; top: 0; bottom: 0; background: var(--red-soft); border-radius: 4px 0 0 4px; }
+  .lt-pos-gauge-reward { position: absolute; top: 0; bottom: 0; background: var(--green-soft); border-radius: 0 4px 4px 0; }
+  .lt-pos-gauge-entry-line { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text-faint); transform: translateX(-1px); }
+  .lt-pos-gauge-dot { position: absolute; top: 50%; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--panel-2); transform: translate(-50%, -50%); box-shadow: 0 0 0 1px var(--border); z-index: 2; }
+  .lt-pos-gauge-dot.up { background: var(--green); }
+  .lt-pos-gauge-dot.down { background: var(--red); }
+  .lt-pos-gauge-dot.pending-entry { background: var(--amber); }
+  .lt-pos-gauge-labels { display: flex; justify-content: space-between; margin-top: 5px; font-size: 10.5px; font-family: var(--mono); color: var(--text-faint); }
+  .lt-pos-gauge-labels .mid { text-align: center; color: var(--text-dim); }
+  .lt-pos-gauge-labels .stop-lbl { color: var(--red); }
+  .lt-pos-gauge-labels .target-lbl { color: var(--green); text-align: right; }
+  .lt-pos-gauge-cur-lbl { position: absolute; top: -18px; transform: translateX(-50%); font-size: 10px; font-family: var(--mono); font-weight: 700; white-space: nowrap; }
+  .lt-pos-gauge-cur-lbl.up { color: var(--green); }
+  .lt-pos-gauge-cur-lbl.down { color: var(--red); }
+
+  .lt-pos-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px 16px; margin-top: 10px; font-size: 12px; }
+  .lt-pos-detail-item { display: flex; flex-direction: column; gap: 1px; }
+  .lt-pos-detail-item .k { color: var(--text-faint); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+  .lt-pos-detail-item .v { font-family: var(--mono); color: var(--text); }
+  .lt-pos-detail-item .v .slip-good { color: var(--green); }
+  .lt-pos-detail-item .v .slip-bad { color: var(--red); }
+
+  .lt-pos-last-trade { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border-soft); font-size: 11.5px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .lt-pos-last-trade .lbl { color: var(--text-faint); text-transform: uppercase; font-size: 10px; letter-spacing: .04em; }
+  .lt-pos-last-trade .amt { font-family: var(--mono); }
+  .lt-pos-last-trade .amt.up { color: var(--green); font-weight: 700; }
+  .lt-pos-last-trade .amt.down { color: var(--red); font-weight: 700; }
+
+  .lt-pos-feed-note { margin-top: 8px; font-size: 10.5px; color: var(--text-faint); display: flex; align-items: center; gap: 6px; }
+  .lt-pos-feed-note .warn-txt { color: var(--red); }
+  .lt-feed-global { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; }
+  .lt-feed-global .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .lt-feed-global.ok .dot { background: var(--green); box-shadow: 0 0 0 2px var(--green-soft); animation: pulseDot 2.2s ease-in-out infinite; }
+  .lt-feed-global.bad .dot { background: var(--red); box-shadow: 0 0 0 2px var(--red-soft); animation: pulseDot 0.9s ease-in-out infinite; }
   .lt-events { margin-top: 10px; font-family: var(--mono); font-size: 11.5px; color: var(--text-dim);
     max-height: 220px; overflow-y: auto; background: var(--panel-2); border-radius: 6px; padding: 10px 12px; }
   .lt-events div { padding: 2px 0; }
@@ -486,7 +549,7 @@
     <div class="card" style="margin-top: 18px;">
       <div class="panel-box-head">
         <div class="title" style="display:flex; align-items:center; gap:8px;">
-          <span class="lt-live-dot" title="Auto-refreshing every 5s"></span>
+          <span class="lt-live-dot" title="Auto-refreshing every 2s"></span>
           Runs
         </div>
         <button class="link" id="lt-refresh-btn">Refresh now</button>
