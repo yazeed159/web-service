@@ -627,6 +627,11 @@
     // if filled in, on top of either path above (matches its label/
     // placeholder: "uses the strategy's own setting" when left blank).
     if (maxTradesRaw) body.params.max_trades_per_day = parseInt(maxTradesRaw, 10);
+    // Same idea for bar source -- "" (Auto) means don't send the key at
+    // all, so live_engine.py's _resolve_bar_provider picks by time of
+    // day instead of being forced one way (see its docstring).
+    const barProvider = document.getElementById("lt-bar-provider").value;
+    if (barProvider) body.params.bar_provider = barProvider;
 
     apiCall("/api/live/start", { method: "POST", body: JSON.stringify(body) })
       .then(refreshStatus)
@@ -736,9 +741,18 @@
       ? `<span class="pill" title="No recent trade print -- tracking the bid/ask midpoint instead">quote</span>`
       : p.last_price_source === "trade"
       ? `<span class="pill" title="Last actual trade execution">trade</span>`
+      : p.last_price_source === "finnhub"
+      ? `<span class="pill" title="Alpaca's feed had nothing more recent -- tracking Finnhub's trade tape instead">finnhub tick</span>`
+      : "";
+    // Which OHLCV bar source is actually driving this symbol's signals
+    // -- see live_engine.py's _resolve_bar_provider. Only called out
+    // when it's Finnhub, since Alpaca bars are the normal/default case
+    // and don't need a badge.
+    const barProviderTag = p.bar_provider === "finnhub"
+      ? `<span class="pill" title="Synthetic bars built from raw Finnhub trade ticks -- see finnhub_bars.py's accuracy caveat">bars: finnhub</span>`
       : "";
     const priceHtml = p.last_price != null
-      ? `<span class="lt-pos-freshdot ${fresh}"></span><span class="lt-pos-price">$${Number(p.last_price).toFixed(2)} <span class="age">(${fmtAgeS(p.last_price_age_s)})</span></span>${sourceTag}`
+      ? `<span class="lt-pos-freshdot ${fresh}"></span><span class="lt-pos-price">$${Number(p.last_price).toFixed(2)} <span class="age">(${fmtAgeS(p.last_price_age_s)})</span></span>${sourceTag}${barProviderTag}`
       : `<span class="lt-pos-freshdot stale"></span><span class="lt-pos-price age">no price yet</span>`;
 
     const pnlHtml = p.unrealized_pnl != null

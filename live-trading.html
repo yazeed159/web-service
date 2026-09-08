@@ -498,6 +498,15 @@
           <label for="lt-max-trades">Max trades/day per symbol (override)</label>
           <input id="lt-max-trades" type="number" step="1" placeholder="uses the strategy's own setting">
         </div>
+        <div class="lt-field">
+          <label for="lt-bar-provider">Bar data source</label>
+          <select id="lt-bar-provider" class="select-clean">
+            <option value="" selected>Auto — Alpaca in-hours, Finnhub outside 9:30–4:00 ET</option>
+            <option value="alpaca">Alpaca only (real bars, but dead outside 9:30–4:00 ET)</option>
+            <option value="finnhub">Finnhub only (any hours, but synthetic bars from raw ticks)</option>
+          </select>
+          <div class="lt-symbol-note">Neither free source is SIP-grade consolidated-tape data — see the run card's per-symbol "bars: …" tag once it's live.</div>
+        </div>
       </div>
 
       <details id="lt-advanced" style="margin-top: 18px;">
