@@ -112,15 +112,32 @@
     );
   }
 
-  // Renders as a small round avatar icon (initial letter) rather than
-  // the full email address -- the email/join-date/logout/settings all
-  // live in the dropdown panel instead of sitting in the topbar as
-  // permanent text.
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // Renders as a round gradient avatar (initials) with a chevron, rather
+  // than the full email address -- name/email/join-date/settings/logout
+  // all live in the dropdown panel instead of sitting in the topbar as
+  // permanent text. Styling lives in common.css (.account-*) so this
+  // widget matches the rest of the app's glass/gradient theme instead of
+  // carrying its own hardcoded look.
+  //
+  // The account-settings link below used to point at a settings.html
+  // that had no actual account section -- just capital ledger and
+  // integrations -- so "Account settings" was a dead promise. It now
+  // deep-links to settings.html#account-section, which has a real
+  // profile/security panel (see settings.html).
   function addAccountWidget(session) {
     if (document.getElementById("auth-account-widget")) return;
     var user = session.user || {};
+    var meta = user.user_metadata || {};
     var email = user.email || "Account";
-    var initial = email.charAt(0).toUpperCase() || "?";
+    var displayName = (meta.full_name || "").trim();
+    var initialsSource = displayName || email;
+    var initial = initialsSource.charAt(0).toUpperCase() || "?";
 
     // Was position:fixed at a hardcoded viewport corner (top:12px;
     // right:12px), completely outside the topbar's own layout -- that's
@@ -130,74 +147,96 @@
     // never overlap a neighboring icon again.
     var wrap = document.createElement("div");
     wrap.id = "auth-account-widget";
-    wrap.style.cssText = "position:relative;flex:none;font:12.5px var(--sans, system-ui, sans-serif);";
+    wrap.className = "account-widget";
 
     var btn = document.createElement("button");
     btn.id = "auth-account-btn";
     btn.type = "button";
-    btn.title = email;
-    btn.setAttribute("aria-label", "Account menu (" + email + ")");
-    btn.textContent = initial;
-    btn.style.cssText =
-      "width:32px;height:32px;border-radius:50%;padding:0;" +
-      "display:flex;align-items:center;justify-content:center;" +
-      "border:1px solid var(--glass-border-hi, rgba(255,255,255,.18));" +
-      "background:var(--glass-hi, rgba(20,20,28,.85));color:var(--text, #eee);font:600 13px inherit;" +
-      "cursor:pointer;backdrop-filter:blur(4px);";
+    btn.className = "account-trigger";
+    btn.title = displayName ? displayName + " (" + email + ")" : email;
+    btn.setAttribute("aria-label", "Account menu");
+    btn.innerHTML =
+      '<span class="account-avatar" id="auth-account-avatar">' + escapeHtml(initial) + "</span>" +
+      '<svg class="account-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
 
     var panel = document.createElement("div");
-    panel.style.cssText =
-      "display:none;position:absolute;top:40px;right:0;min-width:220px;z-index:100;" +
-      "padding:14px;border-radius:var(--radius, 10px);border:1px solid var(--glass-border-hi, rgba(255,255,255,.18));" +
-      "background:var(--glass-hi, rgba(20,20,28,.97));color:var(--text, #eee);backdrop-filter:blur(6px);" +
-      "box-shadow:0 8px 24px rgba(0,0,0,.4);";
+    panel.id = "auth-account-panel";
+    panel.className = "account-panel";
 
-    var emailRow = document.createElement("div");
-    emailRow.textContent = "Signed in as " + email;
-    emailRow.style.cssText = "margin-bottom:6px;word-break:break-all;";
-    panel.appendChild(emailRow);
+    var head = document.createElement("div");
+    head.className = "account-panel-head";
+    head.innerHTML =
+      '<span class="account-panel-avatar" id="auth-account-panel-avatar">' + escapeHtml(initial) + "</span>" +
+      '<span class="account-panel-id">' +
+        '<span class="account-panel-name" id="auth-account-panel-name">' + escapeHtml(displayName || "Trader") + "</span>" +
+        '<span class="account-panel-email" id="auth-account-panel-email">' + escapeHtml(email) + "</span>" +
+      "</span>";
+    panel.appendChild(head);
 
-    if (user.created_at) {
-      var sinceRow = document.createElement("div");
-      var created = new Date(user.created_at);
-      sinceRow.textContent = "Member since " + created.toLocaleDateString();
-      sinceRow.style.cssText = "color:var(--text-dim, #999);font-size:11.5px;margin-bottom:12px;";
-      panel.appendChild(sinceRow);
-    }
+    var menu = document.createElement("div");
+    menu.className = "account-menu";
 
     var settingsLink = document.createElement("a");
-    settingsLink.href = "settings.html";
-    settingsLink.textContent = "Account settings";
-    settingsLink.style.cssText =
-      "display:block;margin-bottom:10px;color:var(--primary, #8b7cf6);text-decoration:none;font-size:12.5px;";
-    panel.appendChild(settingsLink);
+    settingsLink.href = "settings.html#account-section";
+    settingsLink.className = "account-menu-item";
+    settingsLink.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>' +
+      "Account settings";
+    menu.appendChild(settingsLink);
+
+    var divider = document.createElement("div");
+    divider.className = "account-menu-divider";
+    menu.appendChild(divider);
 
     var logoutBtn = document.createElement("button");
     logoutBtn.id = "auth-logout-btn";
     logoutBtn.type = "button";
-    logoutBtn.textContent = "Log out";
-    logoutBtn.style.cssText =
-      "width:100%;padding:8px 0;border:none;border-radius:var(--radius-sm, 8px);" +
-      "background:var(--grad-signature, linear-gradient(90deg,#8457ff,#22d3ee));color:var(--bg, #0b0b12);" +
-      "font-weight:600;font:inherit;cursor:pointer;";
+    logoutBtn.className = "account-menu-item danger";
+    logoutBtn.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>' +
+      "Log out";
     logoutBtn.addEventListener("click", function () {
       window.sb.auth.signOut().then(function () {
         window.location.href = "login";
       });
     });
-    panel.appendChild(logoutBtn);
+    menu.appendChild(logoutBtn);
 
+    panel.appendChild(menu);
+
+    function closePanel() {
+      panel.classList.remove("open");
+      btn.classList.remove("open");
+    }
     btn.addEventListener("click", function (e) {
       e.stopPropagation();
-      panel.style.display = panel.style.display === "none" ? "block" : "none";
+      var isOpen = panel.classList.toggle("open");
+      btn.classList.toggle("open", isOpen);
     });
-    document.addEventListener("click", function () {
-      panel.style.display = "none";
+    document.addEventListener("click", closePanel);
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closePanel();
     });
 
     wrap.appendChild(btn);
     wrap.appendChild(panel);
     insertIntoTopbar(wrap);
+
+    // settings.html's Account section dispatches this after a successful
+    // display-name save, so the topbar avatar/panel update immediately
+    // without needing a full page reload (they're both on the same page).
+    window.addEventListener("account:profile-updated", function (ev) {
+      var name = ((ev.detail && ev.detail.fullName) || "").trim();
+      var src = name || email;
+      var ch = src.charAt(0).toUpperCase() || "?";
+      var avatarEl = document.getElementById("auth-account-avatar");
+      var panelAvatarEl = document.getElementById("auth-account-panel-avatar");
+      var nameEl = document.getElementById("auth-account-panel-name");
+      if (avatarEl) avatarEl.textContent = ch;
+      if (panelAvatarEl) panelAvatarEl.textContent = ch;
+      if (nameEl) nameEl.textContent = name || "Trader";
+      btn.title = name ? name + " (" + email + ")" : email;
+    });
   }
 
   // Every protected page awaits this before it's allowed to query data.

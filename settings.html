@@ -155,6 +155,58 @@
 
     <div class="content">
 
+      <div class="panel-box" id="account-section" style="margin-bottom:16px;">
+        <div class="panel-box-head">
+          <span class="title">Account</span>
+        </div>
+
+        <div class="account-hero" id="acct-hero">
+          <span class="account-hero-avatar" id="acct-hero-avatar">—</span>
+          <div class="account-hero-id">
+            <div class="account-hero-name" id="acct-hero-name">—</div>
+            <div class="account-hero-email" id="acct-hero-email">—</div>
+            <div class="account-hero-since" id="acct-hero-since"></div>
+          </div>
+        </div>
+
+        <div class="account-form-grid" style="margin-bottom:22px;">
+          <div class="account-field">
+            <label for="acct-name-input">Display name</label>
+            <input type="text" class="filter-input" id="acct-name-input" placeholder="e.g. Alex Rivera" style="width:100%;">
+          </div>
+          <div class="account-field">
+            <label for="acct-email-input">Email</label>
+            <input type="email" class="filter-input" id="acct-email-input" placeholder="you@example.com" style="width:100%;">
+          </div>
+        </div>
+        <div class="int-actions" style="margin-top:0; margin-bottom:24px;">
+          <button type="button" class="btn-confirm" id="acct-profile-save-btn">Save profile</button>
+          <span class="int-saved-note" id="acct-profile-saved-note">Saved</span>
+        </div>
+        <p class="account-field-note" id="acct-email-note" style="display:none; margin-top:-16px; margin-bottom:24px;">
+          Check your inbox to confirm the new email address — it won't take effect until you click the link.
+        </p>
+
+        <div class="panel-box-head" style="padding-top:0; border-top:1px solid var(--border-soft); margin-top:0; padding-top:18px;">
+          <span class="title" style="font-size:13px;">Password</span>
+        </div>
+        <div class="account-form-grid">
+          <div class="account-field">
+            <label for="acct-pw-input">New password</label>
+            <input type="password" class="filter-input" id="acct-pw-input" placeholder="At least 8 characters" autocomplete="new-password" style="width:100%;">
+          </div>
+          <div class="account-field">
+            <label for="acct-pw-confirm-input">Confirm new password</label>
+            <input type="password" class="filter-input" id="acct-pw-confirm-input" placeholder="Repeat password" autocomplete="new-password" style="width:100%;">
+          </div>
+        </div>
+        <div class="int-actions" style="margin-top:14px;">
+          <button type="button" class="btn-confirm" id="acct-pw-save-btn">Update password</button>
+          <span class="int-saved-note" id="acct-pw-saved-note">Saved</span>
+        </div>
+        <p class="account-field-note" id="acct-pw-error" style="display:none; color:var(--red);"></p>
+      </div>
+
       <div class="panel-box" style="margin-bottom:16px;">
         <div class="panel-box-head">
           <span class="title">Account Capital</span>
@@ -224,6 +276,121 @@
     </div>
   </div>
 </div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Real account settings -- profile (display name / email) and password.
+  // Previously the topbar's account dropdown promised "Account settings"
+  // but this page only had capital ledger + integrations, nothing about
+  // the account itself. Both fields below are backed directly by
+  // Supabase Auth's own user record via supabase-js's updateUser() --
+  // no extra table needed. Display name lives in user_metadata.full_name.
+  const heroAvatarEl = document.getElementById("acct-hero-avatar");
+  const heroNameEl = document.getElementById("acct-hero-name");
+  const heroEmailEl = document.getElementById("acct-hero-email");
+  const heroSinceEl = document.getElementById("acct-hero-since");
+  const nameInputEl = document.getElementById("acct-name-input");
+  const emailInputEl = document.getElementById("acct-email-input");
+  const profileSaveBtn = document.getElementById("acct-profile-save-btn");
+  const profileSavedNote = document.getElementById("acct-profile-saved-note");
+  const emailNoteEl = document.getElementById("acct-email-note");
+  const pwInputEl = document.getElementById("acct-pw-input");
+  const pwConfirmEl = document.getElementById("acct-pw-confirm-input");
+  const pwSaveBtn = document.getElementById("acct-pw-save-btn");
+  const pwSavedNote = document.getElementById("acct-pw-saved-note");
+  const pwErrorEl = document.getElementById("acct-pw-error");
+
+  let currentEmail = "";
+
+  function flashSaved(el) {
+    el.classList.add("show");
+    setTimeout(() => el.classList.remove("show"), 1600);
+  }
+
+  window.AUTH_READY.then((session) => {
+    if (!session) {
+      [nameInputEl, emailInputEl, profileSaveBtn, pwInputEl, pwConfirmEl, pwSaveBtn].forEach((el) => (el.disabled = true));
+      heroNameEl.textContent = "Signed out";
+      heroEmailEl.textContent = "Sign in to manage your account.";
+      return;
+    }
+    const user = session.user;
+    const meta = user.user_metadata || {};
+    const displayName = (meta.full_name || "").trim();
+    currentEmail = user.email || "";
+
+    heroAvatarEl.textContent = (displayName || currentEmail || "?").charAt(0).toUpperCase();
+    heroNameEl.textContent = displayName || "Trader";
+    heroEmailEl.textContent = currentEmail;
+    if (user.created_at) {
+      heroSinceEl.textContent = "Member since " + new Date(user.created_at).toLocaleDateString();
+    }
+    nameInputEl.value = displayName;
+    emailInputEl.value = currentEmail;
+  });
+
+  profileSaveBtn.addEventListener("click", async () => {
+    const nextName = nameInputEl.value.trim();
+    const nextEmail = emailInputEl.value.trim();
+    if (!nextEmail) {
+      emailInputEl.focus();
+      return;
+    }
+    profileSaveBtn.disabled = true;
+    emailNoteEl.style.display = "none";
+    const updates = { data: { full_name: nextName } };
+    const emailChanged = nextEmail !== currentEmail;
+    if (emailChanged) updates.email = nextEmail;
+
+    const { error } = await window.sb.auth.updateUser(updates);
+    profileSaveBtn.disabled = false;
+    if (error) {
+      pwErrorEl.textContent = "";
+      await UIModal.alert(error.message || "Couldn't save your profile.", { title: "Save failed", tone: "danger" });
+      return;
+    }
+    flashSaved(profileSavedNote);
+    heroAvatarEl.textContent = (nextName || nextEmail || "?").charAt(0).toUpperCase();
+    heroNameEl.textContent = nextName || "Trader";
+    window.dispatchEvent(new CustomEvent("account:profile-updated", { detail: { fullName: nextName } }));
+    if (emailChanged) {
+      emailNoteEl.style.display = "block";
+      // Supabase doesn't apply the new email until the confirmation link
+      // is clicked -- keep showing the still-current one until then.
+      emailInputEl.value = currentEmail;
+    }
+  });
+
+  pwSaveBtn.addEventListener("click", async () => {
+    pwErrorEl.style.display = "none";
+    const pw = pwInputEl.value;
+    const confirm = pwConfirmEl.value;
+    if (pw.length < 8) {
+      pwErrorEl.textContent = "Password must be at least 8 characters.";
+      pwErrorEl.style.display = "block";
+      return;
+    }
+    if (pw !== confirm) {
+      pwErrorEl.textContent = "Passwords don't match.";
+      pwErrorEl.style.display = "block";
+      return;
+    }
+    pwSaveBtn.disabled = true;
+    const { error } = await window.sb.auth.updateUser({ password: pw });
+    pwSaveBtn.disabled = false;
+    if (error) {
+      pwErrorEl.textContent = error.message || "Couldn't update your password.";
+      pwErrorEl.style.display = "block";
+      return;
+    }
+    pwInputEl.value = "";
+    pwConfirmEl.value = "";
+    flashSaved(pwSavedNote);
+  });
+})();
+</script>
 
 <script>
 (function () {

@@ -55,6 +55,19 @@
   #sc-table tbody tr.stale { opacity: .45; }
   #sc-table tbody tr { animation: scRowIn .25s ease; }
   @keyframes scRowIn { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Badge cell -- small wrapped row of pills (Low Float / Above VWAP /
+     Extended From EMA9 / High RVol), reusing common.css's .pill look so
+     these read as the same visual language as the journal's float/rvol
+     tags on trade.html, just computed live instead of per-trade. */
+  .sc-badges { display: flex; flex-wrap: wrap; gap: 4px; max-width: 260px; }
+  .pill.amberbadge { background: var(--amber-soft); color: var(--amber); border-color: rgba(232,169,76,0.3); }
+
+  /* Enrichment-scope note under the toolbar -- explains why only the top
+     rows show float/VWAP/EMA/badges (see scanner_enrich.py's docstring:
+     Polygon's free-tier 5-calls/min limit means enriching every row would
+     make the page uselessly stale). */
+  .sc-enrich-note { font-size: 11.5px; color: var(--text-faint); margin: -6px 0 14px; }
 </style>
 </head>
 <body>
@@ -191,6 +204,7 @@
     </div>
 
     <div id="sc-banner" class="sc-banner idle">Loading…</div>
+    <div class="sc-enrich-note" id="sc-enrich-note"></div>
 
     <div class="stat-grid sc-stats" id="sc-stats" style="display:none;">
       <div class="stat">
@@ -228,6 +242,12 @@
               <th><span class="headcell" data-sort="price">Price</span></th>
               <th><span class="headcell sorted" data-sort="gap_pct">Gap %</span></th>
               <th><span class="headcell" data-sort="premkt_volume">Premkt Vol</span></th>
+              <th><span class="headcell" data-sort="day_high">Day High</span></th>
+              <th><span class="headcell" data-sort="vwap">VWAP</span></th>
+              <th><span class="headcell" data-sort="ema9">EMA9</span></th>
+              <th><span class="headcell" data-sort="float_shares">Float</span></th>
+              <th><span class="headcell" data-sort="relative_volume">RVol</span></th>
+              <th><span class="headcell no-sort">Badges</span></th>
               <th><span class="headcell no-sort">Updated</span></th>
             </tr>
           </thead>

@@ -38,6 +38,41 @@
     return String(v);
   }
 
+  // Same compact share-count formatting as trade.js's fmtShares -- kept
+  // as a local copy since this page doesn't otherwise load trade.js.
+  function fmtShares(n) {
+    if (n === null || n === undefined) return null;
+    const v = Number(n);
+    if (!Number.isFinite(v)) return null;
+    if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
+    if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
+    if (v >= 1e3) return (v / 1e3).toFixed(0) + "K";
+    return String(v);
+  }
+
+  function fmtPrice(n) {
+    return (n === null || n === undefined) ? "—" : "$" + Number(n).toFixed(2);
+  }
+
+  // Badge -> which .pill-ish class it gets, so "Above VWAP" reads green
+  // and "Below VWAP" / "Extended From EMA9" read amber -- same intent
+  // language as trade.js's win/loss pills, just for scanner context tags
+  // instead of P&L.
+  const BADGE_CLASS = {
+    "Low Float": "floattag",
+    "Above VWAP": "win",
+    "Below VWAP": "loss",
+    "Extended From EMA9": "amberbadge",
+    "High RVol": "rvol",
+  };
+
+  function renderBadges(badges) {
+    if (!badges || !badges.length) return "";
+    return `<div class="sc-badges">` + badges.map((b) =>
+      `<span class="pill ${BADGE_CLASS[b] || "tagpill"}">${escapeHtml(b)}</span>`
+    ).join("") + `</div>`;
+  }
+
   // --- Sort state -- click a numeric column header to sort by it; click
   // again to flip direction. Symbol/gap_pct/price/premkt_volume only --
   // "Updated" isn't sortable (see data-sort/no-sort on the <th>s), it's
@@ -49,7 +84,16 @@
 
   function applySort(rows) {
     return rows.slice().sort((a, b) => {
-      const av = a[sortKey], bv = b[sortKey];
+      let av = a[sortKey], bv = b[sortKey];
+      // Un-enriched rows (past the top N, or not landed yet) carry
+      // null/undefined for the enrichment columns -- always sort those
+      // after real values regardless of direction, instead of NaN
+      // scattering them randomly.
+      const aMissing = av === null || av === undefined;
+      const bMissing = bv === null || bv === undefined;
+      if (aMissing && bMissing) return 0;
+      if (aMissing) return 1;
+      if (bMissing) return -1;
       if (typeof av === "string") return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
       return sortAsc ? av - bv : bv - av;
     });
@@ -113,11 +157,18 @@
     const rows = applySort(filtered);
     tbody.innerHTML = rows.map((r) => {
       const stale = (Date.now() - new Date(r.updated_at).getTime()) > 5 * 60 * 1000;
+      const enriched = r.vwap !== undefined && r.vwap !== null; // absent entirely if never enriched (past top N) or not landed yet
       return `<tr${stale ? ' class="stale"' : ""}>
         <td class="sym">${escapeHtml(r.symbol)}</td>
         <td class="mono-num">$${Number(r.price).toFixed(2)}</td>
         <td><span class="pill ${r.gap_pct >= 0 ? "win" : "loss"} mono-num">${r.gap_pct >= 0 ? "+" : ""}${Number(r.gap_pct).toFixed(1)}%</span></td>
         <td class="mono-num">${fmtVol(r.premkt_volume)}</td>
+        <td class="mono-num">${enriched ? fmtPrice(r.day_high) : "—"}</td>
+        <td class="mono-num">${enriched ? fmtPrice(r.vwap) : "—"}</td>
+        <td class="mono-num">${enriched ? fmtPrice(r.ema9) : "—"}</td>
+        <td class="mono-num">${(r.float_shares !== undefined && r.float_shares !== null) ? fmtShares(r.float_shares) : "—"}</td>
+        <td class="mono-num">${(r.relative_volume !== undefined && r.relative_volume !== null) ? Number(r.relative_volume).toFixed(1) + "x" : "—"}</td>
+        <td>${renderBadges(r.badges)}</td>
         <td class="mono-num" style="color:var(--text-faint)">${fmtAgo(r.updated_at)}${stale ? " (stale)" : ""}</td>
       </tr>`;
     }).join("");
@@ -142,6 +193,11 @@
       renderStats(lastRows);
       renderRows();
       document.getElementById("sc-refresh-note").textContent = "Updated just now";
+      const enrichNote = document.getElementById("sc-enrich-note");
+      if (enrichNote && data.enrich_max_rows) {
+        enrichNote.textContent =
+          `Float / VWAP / EMA9 / RVol / badges are live for the top ${data.enrich_max_rows} gappers by gap % (Polygon's free tier caps how many symbols can be refreshed at once) — other rows show "—" until they rank into the top ${data.enrich_max_rows}.`;
+      }
     } catch (e) {
       const empty = document.getElementById("sc-empty");
       document.getElementById("sc-tbody").innerHTML = "";
