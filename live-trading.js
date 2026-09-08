@@ -727,8 +727,18 @@
       : `<span class="lt-pos-state flat">Flat</span>`;
 
     const fresh = priceFreshness(p.last_price_age_s);
+    // Source tag ("trade"/"quote"/"bar") -- mostly useful on a thin name
+    // where the trade tape has gone quiet and the price is tracking off
+    // the bid/ask midpoint instead (see live_engine.py's
+    // _on_quote_tick). Not shown for "bar" since that's just the normal
+    // once-a-minute case and doesn't need calling out.
+    const sourceTag = p.last_price_source === "quote"
+      ? `<span class="pill" title="No recent trade print -- tracking the bid/ask midpoint instead">quote</span>`
+      : p.last_price_source === "trade"
+      ? `<span class="pill" title="Last actual trade execution">trade</span>`
+      : "";
     const priceHtml = p.last_price != null
-      ? `<span class="lt-pos-freshdot ${fresh}"></span><span class="lt-pos-price">$${Number(p.last_price).toFixed(2)} <span class="age">(${fmtAgeS(p.last_price_age_s)})</span></span>`
+      ? `<span class="lt-pos-freshdot ${fresh}"></span><span class="lt-pos-price">$${Number(p.last_price).toFixed(2)} <span class="age">(${fmtAgeS(p.last_price_age_s)})</span></span>${sourceTag}`
       : `<span class="lt-pos-freshdot stale"></span><span class="lt-pos-price age">no price yet</span>`;
 
     const pnlHtml = p.unrealized_pnl != null
