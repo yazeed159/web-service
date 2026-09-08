@@ -718,7 +718,11 @@
       return `<span class="${cls}">${escapeHtml(label)}</span> <span class="${feedCls}" title="Live IBKR bar feed status for ${escapeHtml(sym)}">${escapeHtml(feedLabel)}</span>`;
     }).join(" ");
     const events = (r.recent_events || []).slice().reverse().map((e) =>
-      `<div>[${escapeHtml(e.ts.split("T")[1].split(".")[0])}] ${escapeHtml(e.symbol)} ${escapeHtml(e.type)} — ${escapeHtml(e.detail)}</div>`
+      // ib_error events are IBKR's own raw error/permission messages
+      // (see live_engine.py's _on_ib_error) -- these explain exactly why
+      // a symbol's feed pill above is red, so give them a distinct color
+      // instead of blending into routine signal/order-placed lines.
+      `<div${e.type === "ib_error" ? ' class="lt-event-error"' : ""}>[${escapeHtml(e.ts.split("T")[1].split(".")[0])}] ${escapeHtml(e.symbol)} ${escapeHtml(e.type)} — ${escapeHtml(e.detail)}</div>`
     ).join("");
     const isStopped = r.status === "stopped";
     const stopDisabled = isStopped ? "disabled" : "";
