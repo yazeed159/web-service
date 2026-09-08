@@ -317,7 +317,12 @@
     };
   }
 
-  function applyPayload(p) {
+  // Writes whatever `p` specifies into the form. Fields `p` doesn't
+  // mention are left exactly as they already are -- this is the raw
+  // "patch" primitive. applyPayload() below (the one everything else
+  // calls) always resets to DEFAULT_PAYLOAD first, so a caller only ever
+  // sees this partial-patch behavior indirectly, via a full reset+patch.
+  function patchPayload(p) {
     if (!p) return;
     const set = (el, v) => { if (el && v !== undefined && v !== null) el.value = v; };
     const setChk = (el, v) => { if (el && v !== undefined && v !== null) el.checked = !!v; };
@@ -385,6 +390,30 @@
     // both fire in the same tick made the page jump to two different
     // targets and land on whichever won the race, which looked like the
     // just-filled form had vanished.
+  }
+
+  // Snapshot of every field's HTML-authored default, taken once at load --
+  // before any strategy, preset, or chat draft has touched the form. This
+  // is the "nothing" side of "the strat matches the form, nothing more,
+  // nothing less": applying a strategy always resets to this baseline
+  // first (see applyPayload below), so a toggle a *previous* strategy
+  // turned on (scale-in, trail-protect, a time stop...) can never bleed
+  // into the next one just because the new strategy's config didn't
+  // mention it. Needs `els` populated and seedDates() already run, both
+  // of which have happened by this point in the file.
+  const DEFAULT_PAYLOAD = buildPayload();
+
+  // The real entry point everything on this page (and backtester-ai.js,
+  // via window.BacktesterForm.apply) uses to put a strategy into the
+  // form. Always resets to DEFAULT_PAYLOAD first, then patches in `p` --
+  // so the visible form is an exact mirror of `p`: fields `p` sets show
+  // p's values, and every other field (including ones a *different*
+  // previously-loaded strategy left on) lands back at its off/default
+  // state instead of lingering. `patchPayload` above is the raw partial
+  // write if some future caller genuinely wants that instead.
+  function applyPayload(p) {
+    patchPayload(DEFAULT_PAYLOAD);
+    patchPayload(p);
   }
 
   // Exposed so backtester-ai.js (the "Configure with AI" panel) can read
@@ -666,6 +695,138 @@
     if (saveBtn) saveBtn.addEventListener("click", () => saveAsStrategy(lastJobId, lastLabel, saveBtn));
   }
 
+  // --- Strategies section: built-in presets + whatever's actually saved
+  // (chart_service.py's /strategies, backed by strategy_store.py -- the
+  // same store the Live Trading page's picker reads). Unlike the old
+  // "chat chip" presets (which were just prefilled text that still had to
+  // round-trip through the AI), clicking a card here loads the strategy
+  // straight into the form below via applyPayload() -- no network call,
+  // instant, and exact. This is the one list of "strategies you can pick"
+  // on the page; saving a run here (saveAsStrategy(), below) adds to it
+  // immediately, and the same saved row is what shows up in Live
+  // Trading's strategy picker.
+  function defaultDateRange(days) {
+    const end = new Date();
+    end.setDate(end.getDate() - 1);
+    const start = new Date(end);
+    start.setDate(start.getDate() - days);
+    const fmt = (d) => d.toISOString().slice(0, 10);
+    return { start: fmt(start), end: fmt(end) };
+  }
+
+  function humanizeMode(m) {
+    return String(m || "").replace(/_/g, " ");
+  }
+
+  // Saved strategy rows (chart_service.py's strategy_store.py) split a
+  // strategy into entry_mode + params (the trade rule) + symbol_rule (the
+  // scan), with backtest-only settings like starting_capital/date range
+  // stripped out (see chart_service.py's _BACKTEST_ONLY_KEYS) since Live
+  // Trading has no use for them. Recombine into a flat payload the form
+  // understands; whatever's missing (date range, starting capital, ...)
+  // just falls back to DEFAULT_PAYLOAD via applyPayload()'s reset.
+  function strategyRowToPayload(row) {
+    const rule = row.symbol_rule || {};
+    const scan = rule.mode === "top_gappers"
+      ? {
+          top_n: rule.top_n, min_price: rule.min_price, max_price: rule.max_price,
+          min_dollar_volume: rule.min_dollar_volume, min_gap_pct: rule.min_gap_pct,
+        }
+      : {};
+    return Object.assign({ label: row.name, entry_mode: row.entry_mode }, scan, row.params || {});
+  }
+
+  function loadStrategyIntoForm(row) {
+    let payload = row.isPreset
+      ? Object.assign({ label: row.name }, row.config)
+      : strategyRowToPayload(row);
+    if (!payload.start || !payload.end) {
+      payload = Object.assign({}, payload, defaultDateRange(60));
+    }
+    applyPayload(payload);
+    const details = document.getElementById("bt-manual-details");
+    if (details) {
+      details.open = true; // fires "toggle" -> the listener in backtester.html scrolls to it
+      details.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    document.querySelectorAll(".bt-section:not(.ai-cfg-panel), .bt-run-row").forEach((el) => {
+      el.classList.remove("just-applied");
+      void el.offsetWidth; // restart animation
+      el.classList.add("just-applied");
+    });
+  }
+
+  function strategyCard(s) {
+    const stats = s.source_summary_stats || {};
+    const hasStats = typeof stats.num_trades === "number" && stats.num_trades > 0;
+    const pnlClass = (stats.net_pnl_dollars || 0) >= 0 ? "up" : "down";
+    return `
+      <div class="run-card" id="bt-strat-${escapeHtml(s.id)}" title="Click to load this strategy into the form below">
+        <div class="run-card-head">
+          <span class="run-card-title">${escapeHtml(s.name)}</span>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="pill tagpill">${s.isPreset ? "Preset" : "Saved"}</span>
+            ${s.isPreset ? "" : `<button class="run-card-delete strat-card-delete" title="Delete this strategy" aria-label="Delete this strategy">&times;</button>`}
+          </div>
+        </div>
+        <div class="run-card-date">${escapeHtml(humanizeMode(s.entry_mode))}</div>
+        ${hasStats
+          ? `<div class="run-card-stats" style="margin-top:10px;">
+              <div><div class="pb-label">Net P&amp;L</div><div class="pb-value" style="color:${pnlClass === "up" ? "var(--green)" : "var(--red)"}">${fmtMoney(stats.net_pnl_dollars)}</div></div>
+              <div><div class="pb-label">Win Rate</div><div class="pb-value">${fmtPct(stats.win_rate)}</div></div>
+            </div>`
+          : `<div class="empty-state small" style="margin-top:8px;">${s.isPreset ? "Starter preset — no backtest attached." : "No backtest stats on record."}</div>`}
+      </div>`;
+  }
+
+  function wireStrategyCards(list) {
+    list.forEach((s) => {
+      const card = document.getElementById(`bt-strat-${s.id}`);
+      if (!card) return;
+      card.addEventListener("click", (e) => {
+        if (e.target.closest(".strat-card-delete")) return;
+        loadStrategyIntoForm(s);
+      });
+      const delBtn = card.querySelector(".strat-card-delete");
+      if (delBtn) {
+        delBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (!window.confirm(`Delete "${s.name}"? This can't be undone, and it'll disappear from the Live Trading picker too.`)) return;
+          authedHeaders()
+            .then((headers) => fetch(`${API()}/strategies/${encodeURIComponent(s.id)}`, { method: "DELETE", headers }))
+            .then(() => loadStrategiesSection())
+            .catch((err) => alert("Couldn't delete: " + err.message));
+        });
+      }
+    });
+  }
+
+  function loadStrategiesSection() {
+    const el = document.getElementById("bt-strategies");
+    if (!el) return;
+    const presets = (window.STRATEGY_PRESETS || []).map((p, i) => ({
+      id: "preset-" + i, name: p.name, entry_mode: p.config.entry_mode, config: p.config, isPreset: true,
+    }));
+    const render = (saved) => {
+      const all = presets.concat(saved);
+      el.innerHTML = all.length
+        ? `<div class="playbook-grid">${all.map(strategyCard).join("")}</div>`
+        : `<div class="empty-state small">No strategies yet.</div>`;
+      wireStrategyCards(all);
+    };
+    if (placeholderNotSet()) { render([]); return; }
+    authedHeaders()
+      .then((headers) => fetch(`${API()}/strategies`, { headers }))
+      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then((rows) => render((rows || []).map((r) => Object.assign({}, r, { isPreset: false }))))
+      .catch((err) => {
+        // Built-in presets don't need the API -- still show those even if
+        // the saved-strategies fetch failed (e.g. not logged in yet).
+        render([]);
+        el.insertAdjacentHTML("beforeend", `<div class="empty-state small" style="margin-top:10px;">Couldn't load your saved strategies (${escapeHtml(err.message)}).</div>`);
+      });
+  }
+
   function loadHistory() {
     if (placeholderNotSet()) {
       els.history.innerHTML = `<div class="empty-state small">Set window.CHART_SERVICE_URL in config.js to see past runs.</div>`;
@@ -754,7 +915,8 @@
         return body;
       }))
       .then(() => {
-        alert(`Saved "${trimmed}". It'll show up in the strategy picker on the Live Trading page.`);
+        loadStrategiesSection();
+        alert(`Saved "${trimmed}" to your Strategies, above -- it'll also show up in the strategy picker on the Live Trading page.`);
       })
       .catch((err) => alert("Couldn't save strategy: " + err.message))
       .finally(() => { if (btn) { btn.disabled = false; btn.textContent = originalLabel; } });
@@ -767,5 +929,6 @@
       .catch((err) => { els.runStatus.textContent = "Couldn't delete run: " + err.message; });
   }
 
+  loadStrategiesSection();
   loadHistory();
 })();

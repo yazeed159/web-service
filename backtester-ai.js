@@ -64,29 +64,13 @@
     "VWAP reclaim with an ATR-based stop",
   ];
 
-  // Ready-to-run configs for well-known small-cap momentum setups. Unlike
-  // STARTER_PROMPTS (which just seed a message and still go through the AI
-  // round-trip), clicking one of these fills `draft` and shows the summary
-  // card directly, no network call -- instant and deterministic, which
-  // matters for named strategies people already know the parameters of.
-  //
-  // Sourced from window.STRATEGY_PRESETS (strategy-presets.js, loaded
-  // before this file -- see backtester.html) instead of a local array,
-  // so this list and the Live Trading page's dropdown can never drift
-  // apart: edit strategy-presets.js, and both pick it up on next deploy.
-  const POPULAR_PRESETS = window.STRATEGY_PRESETS || [];
-
-  // Trailing window ending yesterday (avoids asking Polygon for a
-  // still-forming session) -- computed fresh on every click so presets
-  // never go stale.
-  function defaultDateRange(days) {
-    const end = new Date();
-    end.setDate(end.getDate() - 1);
-    const start = new Date(end);
-    start.setDate(start.getDate() - days);
-    const fmt = (d) => d.toISOString().slice(0, 10);
-    return { start: fmt(start), end: fmt(end) };
-  }
+  // Named, ready-to-run presets (Ross Cameron style gap-and-go, etc.) used
+  // to live here as chat chips -- but a saved strategy is an important,
+  // reusable thing, not a throwaway chat suggestion, so they now have
+  // their own "Strategies" section on the page (backtester.js's
+  // loadStrategiesSection(), fed by window.STRATEGY_PRESETS + whatever's
+  // actually saved). This panel only offers loose starter prompts now;
+  // pick a real strategy from the section above the chat instead.
 
   // Keep this in sync with buildPayload()/applyPayload() in backtester.js.
   const FIELD_SCHEMA = {
@@ -235,24 +219,16 @@
   function renderChips() {
     if (history.length) { chipsEl.innerHTML = ""; return; }
 
-    const presetsHtml = POPULAR_PRESETS.map(
-      (preset, i) => `<button type="button" class="chat-chip chat-chip-preset" data-preset-index="${i}" title="${escapeHtml(preset.blurb)}">${CHIP_ICON}${escapeHtml(preset.name)}</button>`
-    ).join("");
     const promptsHtml = STARTER_PROMPTS.map(
       (p) => `<button type="button" class="chat-chip">${CHIP_ICON}${escapeHtml(p)}</button>`
     ).join("");
 
     chipsEl.innerHTML = `
-      <div class="chat-chip-group-label">Popular strategies -- loads instantly, no chatting required</div>
-      <div class="chat-chip-row">${presetsHtml}</div>
       <div class="chat-chip-group-label">Or describe your own</div>
       <div class="chat-chip-row">${promptsHtml}</div>
     `;
 
-    chipsEl.querySelectorAll(".chat-chip-preset").forEach((btn) => {
-      btn.addEventListener("click", () => applyPreset(POPULAR_PRESETS[Number(btn.dataset.presetIndex)]));
-    });
-    chipsEl.querySelectorAll(".chat-chip:not(.chat-chip-preset)").forEach((btn) => {
+    chipsEl.querySelectorAll(".chat-chip").forEach((btn) => {
       btn.addEventListener("click", () => {
         inputEl.value = btn.textContent.trim();
         formEl.requestSubmit();
@@ -260,33 +236,11 @@
     });
   }
 
-  // Loads a known-good preset straight into `draft` and shows the summary
-  // card immediately -- no LLM round-trip, so it's instant and never
-  // misreads a number. The trader can still type a follow-up afterward to
-  // tweak anything; that message goes through the normal AI flow against
-  // whatever's now sitting in `draft`.
-  function applyPreset(preset) {
-    if (!preset || requestInFlight) return;
-    const { start, end } = defaultDateRange(60);
-    draft = Object.assign({ label: preset.name, start, end }, preset.config);
-    chipsEl.innerHTML = "";
-    addBubble("user", escapeHtml(preset.name));
-    addBubble(
-      "ai",
-      formatReply(
-        `${preset.blurb}\n\nLoaded the last 60 days (${start} → ${end}) as a starting range -- change anything below, or just run it.`
-      )
-    );
-    syncFormFromDraft();
-    awaitingConfirmation = true;
-    renderSummaryCard();
-  }
-
   function greet() {
     addBubble(
       "ai",
       formatReply(
-        "Tell me what you want to test — an entry style, symbols/price range, stop, target, whatever you've got. I'll ask about anything important you leave out, then show you a summary right here to confirm before running it."
+        "Tell me what you want to test — an entry style, symbols/price range, stop, target, whatever you've got. I'll ask about anything important you leave out, then show you a summary right here to confirm before running it. Or pick an already-built strategy from the **Strategies** section above instead of chatting one up."
       )
     );
     renderChips();
@@ -564,6 +518,16 @@
   }
 
   function flashFormSections() {
+    // The field-by-field form lives inside a collapsed <details> ("rarely
+    // needed" manual override) unless something has actually loaded a
+    // strategy into it. Chat resolving even one field counts -- open it
+    // so what the conversation has settled on so far is actually visible
+    // and fine-tunable, not hidden behind an extra click. Setting .open
+    // on a closed <details> fires "toggle", which backtester.html's own
+    // listener uses to scroll it into view -- no need to duplicate that here.
+    const details = document.getElementById("bt-manual-details");
+    if (details && !details.open) details.open = true;
+
     const targets = document.querySelectorAll(".bt-section:not(.ai-cfg-panel), .bt-run-row");
     targets.forEach((el) => {
       el.classList.remove("just-applied");
