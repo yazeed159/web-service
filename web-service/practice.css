@@ -1,0 +1,357 @@
+/* ===================================================================
+   Practice tab — free-form paper trading against a real logged
+   trade's own chart window. Loaded only by practice.html, same
+   pattern as quiz.css/quiz.html.
+=================================================================== */
+
+.pr-empty { color: var(--text-faint); font-size: 13px; padding: 10px 0; }
+
+/* ---------- setup screen: account summary ---------- */
+.pr-account-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; margin-bottom: 18px; }
+@media (max-width: 900px) { .pr-account-grid { grid-template-columns: 1fr; } }
+
+.pr-stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 4px; }
+@media (max-width: 560px) { .pr-stat-row { grid-template-columns: repeat(2, 1fr); } }
+.pr-stat-cell { display: flex; flex-direction: column; gap: 4px; }
+.pr-stat-cell .label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); font-weight: 600; }
+.pr-stat-cell .value { font-size: 18px; font-weight: 700; font-family: var(--mono); }
+
+.pr-reset-row { margin-top: 14px; display: flex; justify-content: flex-end; }
+
+.pr-equity-wrap { position: relative; height: 140px; margin-top: 14px; }
+.pr-equity-wrap svg { width: 100%; height: 100%; display: block; }
+.equity-zero { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 3; }
+.pr-equity-empty { color: var(--text-faint); font-size: 12.5px; text-align: center; padding-top: 54px; }
+
+.pr-fill-row {
+  display: flex; align-items: center; gap: 10px; font-size: 12.5px; padding: 7px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.pr-fill-row:last-child { border-bottom: none; }
+.pr-fill-row .fr-sym { font-weight: 700; width: 52px; flex: none; }
+.pr-fill-row .fr-time { color: var(--text-faint); width: 78px; flex: none; }
+.pr-fill-row .fr-detail { color: var(--text-dim); flex: 1; }
+.pr-fill-row .fr-comm { color: var(--text-faint); width: 64px; flex: none; text-align: right; }
+.pr-fill-row .fr-pnl { width: 90px; flex: none; text-align: right; font-family: var(--mono); font-weight: 700; }
+
+.pr-resume-box {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  background: var(--primary-soft); border: 1px solid rgba(139,124,246,.35); border-radius: var(--radius-sm);
+  padding: 12px 14px; margin-bottom: 18px;
+}
+.pr-resume-box .rb-text { font-size: 13px; color: var(--text); }
+.pr-resume-box .rb-text b { color: var(--primary); }
+
+/* ---------- setup screen: hero CTA ---------- */
+.pr-hero {
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(139,124,246,0.22), transparent 55%),
+    linear-gradient(135deg, var(--panel), var(--panel-2, var(--panel)));
+  border: 1px solid rgba(139,124,246,0.3);
+  border-radius: var(--radius-lg);
+  padding: 26px 28px;
+  margin-bottom: 18px;
+}
+.pr-hero-text { max-width: 480px; }
+.pr-hero-eyebrow {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;
+  color: var(--primary); margin-bottom: 8px;
+}
+.pr-hero-text h2 { margin: 0 0 8px; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+.pr-hero-text p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text-dim); }
+
+.pr-hero-action { display: flex; flex-direction: column; align-items: center; gap: 10px; flex-shrink: 0; }
+
+.btn-hero {
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  color: #fff; border: none; border-radius: var(--radius); cursor: pointer;
+  font-family: var(--sans); font-size: 16px; font-weight: 700;
+  padding: 16px 34px; white-space: nowrap;
+  box-shadow: 0 0 0 1px rgba(139,124,246,0.3), 0 8px 24px rgba(139,124,246,0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.btn-hero:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 0 0 1px rgba(139,124,246,0.4), 0 12px 30px rgba(139,124,246,0.5); }
+.btn-hero:active:not(:disabled) { transform: translateY(0); }
+.btn-hero:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.pr-hero-action .pr-candidate-count { margin-bottom: 0; }
+
+@media (max-width: 760px) {
+  .pr-hero { padding: 22px; }
+  .pr-hero-action { width: 100%; }
+  .btn-hero { width: 100%; }
+}
+
+.pr-candidate-count { font-size: 12px; color: var(--text-faint); margin-bottom: 10px; }
+.pr-candidate-count b { color: var(--text-dim); font-family: var(--mono); }
+
+/* ---------- play screen ---------- */
+.pp-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+.pp-head-left { display: flex; flex-direction: column; gap: 2px; }
+.pp-symbol-row { display: flex; align-items: center; }
+#pp-symbol-line { font-size: 17px; font-weight: 800; }
+#pp-date-line { font-size: 12px; color: var(--text-faint); }
+
+.pp-body-grid { display: grid; grid-template-columns: 1fr 300px; gap: 18px; align-items: start; }
+@media (max-width: 980px) { .pp-body-grid { grid-template-columns: 1fr; } }
+
+.pp-chart-wrap { border: 1px solid var(--border-soft); border-radius: var(--radius-sm); margin-bottom: 12px; }
+#pp-candle-chart { width: 100%; }
+
+.pp-transport {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;
+  padding: 10px; background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+}
+/* Base look for every transport control -- a step up from the generic flat
+   .btn-advanced used elsewhere in the app, with a real hover/press feel
+   to match the buy/sell buttons instead of looking bolted on. */
+.pp-transport .btn-advanced {
+  font-size: 12.5px; font-weight: 700; padding: 8px 12px; border-radius: 8px;
+  background: var(--panel-3); border: 1px solid var(--border); color: var(--text-dim);
+  transition: transform .12s cubic-bezier(.2,.9,.3,1.2), border-color .12s ease, color .12s ease, background .12s ease;
+}
+.pp-transport .btn-advanced:hover:not(:disabled) { color: var(--text); border-color: var(--text-dim); transform: translateY(-1px); }
+.pp-transport .btn-advanced:active:not(:disabled) { transform: translateY(0) scale(.96); }
+.pp-transport .btn-advanced:disabled { opacity: .45; cursor: default; transform: none; }
+/* Play/Pause is the primary action on this row -- give it the accent
+   treatment so it reads as the one button to reach for first. */
+#pp-playpause-btn {
+  min-width: 92px; font-weight: 800; color: #fff; border: none;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  box-shadow: 0 4px 14px rgba(139,124,246,.28);
+}
+#pp-playpause-btn:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 6px 18px rgba(139,124,246,.4); }
+#pp-playpause-btn:disabled { opacity: .5; box-shadow: none; filter: none; }
+.pp-transport-divider { width: 1px; align-self: stretch; background: var(--border-soft); margin: 2px 2px; }
+
+.pp-progress-block { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 220px; }
+#pp-progress-label { font-size: 12px; color: var(--text-dim); font-family: var(--mono); white-space: nowrap; }
+.pp-progress-track { flex: 1; height: 6px; border-radius: 3px; background: var(--panel-3); overflow: hidden; position: relative; }
+.pp-progress-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width .1s linear; }
+#pp-progress-slider {
+  position: absolute; inset: -6px 0; width: 100%; height: 18px; margin: 0; opacity: 0; cursor: pointer;
+}
+
+.pp-live-block {
+  display: flex; align-items: baseline; gap: 10px; margin: 10px 0 12px;
+  padding: 12px 14px; background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+}
+#pp-live-price { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pp-live-change { font-size: 13px; font-weight: 700; font-family: var(--mono); }
+.pp-live-change.up { color: var(--green); }
+.pp-live-change.down { color: var(--red); }
+
+.pp-order-panel {
+  background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-radius: var(--radius); padding: 16px;
+}
+.pp-order-panel .title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); font-weight: 600; margin-bottom: 12px; }
+
+.pp-size-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.pp-size-row input[type="number"] {
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--radius-sm); padding: 9px 11px; font-size: 14px; font-family: var(--mono); width: 100px;
+}
+.pp-size-row .unit { font-size: 12.5px; color: var(--text-faint); }
+
+#pp-size-preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+
+.pp-size-mode-row { display: flex; gap: 6px; margin-bottom: 10px; }
+.pp-size-mode-btn {
+  flex: 1; background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim);
+  border-radius: var(--radius-sm); padding: 7px 10px; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .12s ease;
+}
+.pp-size-mode-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.pp-size-mode-btn.active { background: var(--primary-soft); color: var(--primary); border-color: rgba(139,124,246,.4); }
+
+.pp-size-preview { min-height: 15px; font-size: 11.5px; color: var(--text-faint); margin: -6px 0 12px; font-family: var(--mono); }
+
+.pp-order-btn-row { display: flex; gap: 10px; margin-bottom: 8px; }
+.pp-order-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 13px 10px; border-radius: 9px; cursor: pointer;
+  font-size: 14px; font-weight: 800; border: 1px solid transparent; color: #fff;
+  transition: transform .12s cubic-bezier(.2,.9,.3,1.2), box-shadow .15s ease, filter .15s ease;
+}
+.pp-order-btn svg { width: 15px; height: 15px; }
+.pp-order-btn:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.pp-order-btn:active { transform: translateY(0) scale(.97); }
+.pp-order-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; filter: none; box-shadow: none; }
+.pp-order-btn:disabled:hover { transform: none; filter: none; box-shadow: none; }
+.pp-order-btn.buy {
+  background: linear-gradient(135deg, #2fd08a, #1fa46c);
+  box-shadow: 0 4px 16px rgba(47,208,138,.28);
+}
+.pp-order-btn.sell {
+  background: linear-gradient(135deg, #f2555a, #d43e46);
+  box-shadow: 0 4px 16px rgba(242,85,90,.28);
+}
+.pp-order-btn.buy:hover { box-shadow: 0 6px 20px rgba(47,208,138,.4); }
+.pp-order-btn.sell:hover { box-shadow: 0 6px 20px rgba(242,85,90,.4); }
+
+.pp-order-msg { min-height: 16px; font-size: 11.5px; color: var(--text-dim); margin-bottom: 12px; }
+.pp-order-msg.err { color: var(--red); }
+
+.pp-position-block { padding-top: 12px; border-top: 1px solid var(--border-soft); font-size: 12.5px; }
+#pp-pos-summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; min-height: 22px; }
+.pp-acct-line { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; color: var(--text-dim); }
+.pp-acct-line b { color: var(--text); font-family: var(--mono); font-weight: 700; }
+
+.pp-fill-log-block { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-soft); }
+.pp-fill-log-block .title { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); font-weight: 600; margin-bottom: 10px; }
+#pp-fill-log { display: flex; flex-direction: column; gap: 0; max-height: 260px; overflow-y: auto; }
+
+.pr-recap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+@media (max-width: 780px) { .pr-recap-grid { grid-template-columns: 1fr; } }
+.pr-recap-col {
+  background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm); padding: 13px 15px;
+}
+.pr-recap-col .rb-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); font-weight: 700; margin-bottom: 8px; }
+.pr-recap-col .rb-line { font-size: 13px; color: var(--text-dim); margin-bottom: 5px; line-height: 1.5; }
+.pr-recap-col .rb-line b { color: var(--text); }
+
+/* ---------- long-only toggle (setup screen filter row) ---------- */
+.pf-long-only-toggle {
+  display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-dim);
+  cursor: pointer; user-select: none; white-space: nowrap;
+}
+.pf-long-only-toggle input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--primary); cursor: pointer; }
+
+/* ---------- play-screen header: mode badge + extra action ---------- */
+.pp-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#pp-mode-badge:empty { display: none; }
+.pp-head-actions .btn-advanced {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700;
+  padding: 8px 13px; border-radius: 8px; background: var(--panel-3); border: 1px solid var(--border);
+  color: var(--text-dim); transition: all .12s ease;
+}
+.pp-head-actions .btn-advanced:hover { color: var(--text); border-color: var(--text-dim); transform: translateY(-1px); }
+.pp-head-actions .btn-advanced:active { transform: translateY(0) scale(.96); }
+/* Replay chart is the one you'll reach for most on this row -- give it a
+   touch of accent color so it doesn't blend into Change chart next to it. */
+#pp-replay-btn { color: var(--primary); background: var(--primary-soft); border-color: rgba(139,124,246,.35); }
+#pp-replay-btn:hover { box-shadow: 0 0 14px var(--glow-violet); border-color: rgba(139,124,246,.5); }
+.pill.mode-longonly {
+  margin-left: 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em;
+  padding: 2px 8px; font-weight: 700; background: var(--primary-soft); color: var(--primary);
+  border-color: rgba(139,124,246,.35);
+}
+
+/* ---------- panel-head "Order shortcuts" entry point (setup screen) ---------- */
+.panel-head { display: flex; align-items: flex-start; justify-content: flex-end; gap: 14px; flex-wrap: wrap; }
+.pp-head-shortcuts-btn { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; flex: none; }
+.pp-head-shortcuts-btn svg { width: 15px; height: 15px; }
+
+/* ---------- Practice / Analytics tab switcher ---------- */
+.pr-view-tabs {
+  display: inline-flex; align-items: center; gap: 2px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 3px; margin-right: auto; flex: none;
+}
+.pr-view-tab {
+  appearance: none; border: none; background: transparent; color: var(--text-dim);
+  font-size: 12.5px; font-weight: 600; padding: 6px 14px; border-radius: 6px; cursor: pointer;
+}
+.pr-view-tab:hover { color: var(--text); }
+.pr-view-tab.active { background: var(--primary-soft); color: var(--primary); }
+
+/* ---------- quote strip: bid/ask/spread/range/volume, broker Level-1 style ---------- */
+.pp-quote-strip {
+  display: flex; align-items: center; gap: 0; flex-wrap: wrap;
+  margin: 10px 0 12px; padding: 12px 16px;
+  background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+}
+.qs-price-block { display: flex; align-items: baseline; gap: 10px; padding-right: 18px; margin-right: 18px; border-right: 1px solid var(--border-soft); }
+#pp-live-price { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pp-live-change { font-size: 13px; font-weight: 700; font-family: var(--mono); }
+.pp-live-change.up { color: var(--green); }
+.pp-live-change.down { color: var(--red); }
+.qs-cell { display: flex; flex-direction: column; gap: 2px; padding: 0 16px; border-right: 1px solid var(--border-soft); }
+.qs-cell:last-child { border-right: none; }
+.qs-label { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); font-weight: 600; }
+.qs-val { font-size: 13.5px; font-weight: 700; font-family: var(--mono); color: var(--text); white-space: nowrap; }
+.qs-val.up { color: var(--green); }
+.qs-val.down { color: var(--red); }
+@media (max-width: 640px) {
+  .pp-quote-strip { gap: 10px; }
+  .qs-price-block { border-right: none; padding-right: 0; margin-right: 0; }
+  .qs-cell { padding: 0 10px; }
+}
+
+/* ---------- order ticket header (title + TIF tag + shortcuts gear) ---------- */
+.pp-ticket-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.pp-ticket-head .title { margin-bottom: 0; }
+.pp-tif-tag {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .03em; color: var(--text-faint);
+  background: var(--panel-3); border: 1px solid var(--border); border-radius: 20px; padding: 3px 9px;
+}
+/* .icon-btn is display:none by default outside the mobile topbar
+   (see core.css) -- this one lives in the order ticket and needs to
+   always be visible. */
+.pp-shortcuts-gear { margin-left: auto; display: flex !important; width: 30px; height: 30px; }
+
+/* ---------- quantity stepper ---------- */
+.pp-size-row { align-items: stretch; }
+.pp-stepper-btn {
+  width: 32px; flex: none; background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim);
+  border-radius: var(--radius-sm); font-size: 16px; font-weight: 700; cursor: pointer; line-height: 1;
+  transition: all .12s ease;
+}
+.pp-stepper-btn:hover { color: var(--text); border-color: var(--text-dim); background: var(--panel-3); }
+.pp-stepper-btn:active { transform: scale(.94); }
+.pp-size-row input[type="number"] { flex: 1; width: auto; text-align: center; }
+
+/* ---------- order shortcuts (customizable one-click buy/sell buttons) ---------- */
+.pp-shortcuts-block { margin: 4px 0 14px; padding-top: 12px; border-top: 1px solid var(--border-soft); }
+.pp-shortcuts-block:empty { display: none; }
+.pp-shortcuts-label { font-size: 11px; color: var(--text-faint); font-weight: 600; margin-bottom: 8px; }
+.pp-shortcuts-label .dim { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-faint); }
+.pp-shortcuts-row { display: flex; flex-wrap: wrap; gap: 7px; }
+.pp-shortcuts-row:empty::after { content: "No shortcuts yet — set some up with the gear icon above."; font-size: 12px; color: var(--text-faint); }
+.pp-shortcut-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 8px;
+  font-size: 12.5px; font-weight: 700; cursor: pointer; border: 1px solid transparent; color: #fff;
+  transition: transform .12s cubic-bezier(.2,.9,.3,1.2), filter .15s ease;
+}
+.pp-shortcut-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.1); }
+.pp-shortcut-btn:active:not(:disabled) { transform: translateY(0) scale(.96); }
+.pp-shortcut-btn:disabled { opacity: .4; cursor: not-allowed; }
+.pp-shortcut-btn.buy { background: rgba(47,208,138,.16); color: var(--green); border-color: rgba(47,208,138,.35); }
+.pp-shortcut-btn.sell { background: rgba(242,85,90,.16); color: var(--red); border-color: rgba(242,85,90,.35); }
+.pp-shortcut-key {
+  font-family: var(--mono); font-size: 10px; font-weight: 800; background: rgba(0,0,0,.28);
+  border-radius: 4px; padding: 1px 5px; letter-spacing: .02em;
+}
+
+/* ---------- shortcuts settings modal ---------- */
+.pp-shortcuts-modal .ui-modal-box { max-width: 640px; text-align: left; }
+.pp-shortcuts-modal .ui-modal-title { margin-bottom: 14px; }
+.pp-sc-table { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow-y: auto; margin-bottom: 4px; }
+.pp-sc-row {
+  display: grid; grid-template-columns: 1fr 84px 1fr 84px 52px 30px; gap: 7px; align-items: center;
+  background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm); padding: 8px;
+}
+@media (max-width: 620px) { .pp-sc-row { grid-template-columns: 1fr 1fr; grid-template-areas: "label label" "side size" "sizeval key" "del del"; } }
+.pp-sc-row input[type="text"], .pp-sc-row input[type="number"], .pp-sc-row select {
+  width: 100%; background: var(--panel-3); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: 7px 8px; font-size: 12.5px; font-family: var(--sans); box-sizing: border-box;
+}
+.pp-sc-row input[type="number"] { font-family: var(--mono); }
+.pp-sc-row .pp-sc-key { text-align: center; font-family: var(--mono); text-transform: uppercase; }
+.pp-sc-row .pp-sc-del {
+  width: 30px; height: 30px; border-radius: 6px; background: var(--red-soft); color: var(--red);
+  border: 1px solid rgba(242,85,90,.3); cursor: pointer; font-size: 15px; line-height: 1;
+}
+.pp-sc-row .pp-sc-del:hover { filter: brightness(1.15); }
+.pp-sc-empty { font-size: 12.5px; color: var(--text-faint); padding: 10px 2px; }
+.pp-sc-addrow { margin-top: 6px; }
+.pp-sc-addrow .btn-advanced { width: 100%; }
+
+/* ---------- partial-exit quick buttons ---------- */
+#pp-partial-exit-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+#pp-partial-exit-row:empty { display: none; margin: 0; }
+.pp-partial-label { font-size: 11px; color: var(--text-faint); margin-right: 2px; }
+.pp-partial-btn { display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.15; padding: 6px 10px; }
+.pp-partial-btn .dim { font-size: 10px; }

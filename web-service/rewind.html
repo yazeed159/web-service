@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="auth.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rewind — trade.log</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="quiz-shared.css">
+<link rel="stylesheet" href="rewind.css">
+<link rel="stylesheet" href="ui-modal.css">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js" defer></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="modernEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <a href="index.html" class="brand">
+        <span class="mark">T</span>
+        <span class="name">trade<span class="muted">.log</span></span>
+      </a>
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Journal</div>
+
+      <a class="nav-item" href="index.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
+        <span class="nav-label">Dashboard</span>
+      </a>
+
+      <a class="nav-item" href="index.html#dayview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line></svg>
+        <span class="nav-label">Day View</span>
+      </a>
+
+      <a class="nav-item" href="index.html#reports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line></svg>
+        <span class="nav-label">Reports</span>
+      </a>
+
+      <a class="nav-item" href="journal.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        <span class="nav-label">Journal</span>
+      </a>
+
+
+      <div class="nav-section-label">More</div>
+
+      <a class="nav-item" id="import-trades-link" href="#" title="Upload a CSV of past trades to import">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+        <span class="nav-label">Import Trades</span>
+      </a>
+      <a class="nav-item" href="stats.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.4 8.6 12 15l-3-3-4 4"></path></svg>
+        <span class="nav-label">Performance</span>
+      </a>
+
+      <a class="nav-item" href="edge-analysis.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7-4 11L21 3 10 14l11 7-7-4"></path><circle cx="3" cy="3" r="1.4" fill="currentColor" stroke="none"></circle></svg>
+        <span class="nav-label">Edge Analysis</span>
+      </a>
+
+      <a class="nav-item" href="patterns.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
+        <span class="nav-label">Patterns</span>
+      </a>
+      <a class="nav-item" href="calculator.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="12" x2="8.01" y2="12"></line><line x1="12" y1="12" x2="12.01" y2="12"></line><line x1="16" y1="12" x2="16.01" y2="12"></line><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg>
+        <span class="nav-label">Calculator</span>
+      </a>
+
+      <a class="nav-item" href="backtester.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 6"></polyline><polyline points="15 6 21 6 21 12"></polyline></svg>
+        <span class="nav-label">Backtester</span>
+      </a>
+
+      <a class="nav-item" href="live-trading.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"></circle></svg>
+        <span class="nav-label">Live Trading</span>
+      </a>
+
+      <a class="nav-item" href="scanner.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-8 18-2-8-8-2z"></path></svg>
+        <span class="nav-label">Scanner</span>
+      </a>
+
+
+      <a class="nav-item active" href="rewind.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
+        <span class="nav-label">Rewind</span>
+      </a>
+
+      <a class="nav-item" href="practice.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+        <span class="nav-label">Practice</span>
+      </a>
+
+
+      <a class="nav-item" href="settings.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <span class="nav-label">Settings</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="pipeline-status"><span class="dot"></span><span>Rewind</span></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 id="page-title">Rewind</h1>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ============ SETUP SCREEN ============ -->
+      <div id="quiz-setup-screen">
+
+        <div class="rw-hero">
+          <div class="rw-hero-text">
+            <div class="rw-hero-eyebrow">Rewind</div>
+            <h2>Read the chart before you know the ending</h2>
+            <p>Step into your own logged trades from the first candle — call the entry, place your stop, and decide when to get out, blind to what actually happened until the reveal.</p>
+          </div>
+          <div class="rw-hero-stat" id="rw-hero-stat" style="display:none;"></div>
+        </div>
+
+        <div class="quiz-setup-grid">
+          <div class="panel-box">
+            <div class="panel-box-head"><span class="title">Set up a rewind</span></div>
+
+            <div class="rw-field-group">
+              <div class="rw-field-group-label">Source</div>
+
+              <div class="quiz-filter-row" style="margin-bottom:0;">
+                <label>Where setups come from</label>
+                <div class="quiz-mode-row" id="qf-source-row">
+                  <button class="quiz-mode-btn active" data-source="log">My logged trades</button>
+                  <button class="quiz-mode-btn" data-source="backtest">Blind backtester</button>
+                </div>
+                <div class="quiz-tickmode-hint" id="qf-source-hint" style="display:none;">
+                  Generates practice setups from a saved strategy run instead of your own history — random real historical
+                  entries that matched a strategy you backtested, so this is practice generation, not replay of trades
+                  you actually took.
+                </div>
+              </div>
+            </div>
+
+            <div class="rw-field-group" id="qf-log-fields">
+              <div class="rw-field-group-label">What to review</div>
+
+              <div class="quiz-filter-row">
+                <label>Setup type</label>
+                <select id="qf-setup"><option value="">All setups</option></select>
+              </div>
+            </div>
+
+            <div class="rw-field-group" id="qf-bt-fields" style="display:none;">
+              <div class="rw-field-group-label">Strategy to practice</div>
+
+              <div class="quiz-filter-row">
+                <label>Saved backtest run</label>
+                <select id="qf-bt-run"><option value="">Loading runs…</option></select>
+              </div>
+
+              <div class="quiz-tickmode-hint" id="qf-bt-hint" style="display:none;"></div>
+            </div>
+
+            <div class="rw-field-group">
+              <div class="rw-field-group-label">Which trades</div>
+
+              <div class="quiz-filter-row" id="qf-result-row">
+                <label>Outcome</label>
+                <select id="qf-result">
+                  <option value="">Any outcome (most realistic)</option>
+                  <option value="win">Winners only</option>
+                  <option value="loss">Losers only</option>
+                  <option value="flagged">Only ones with a flagged better entry/exit</option>
+                </select>
+              </div>
+
+              <div class="quiz-filter-row" style="margin-bottom:0;">
+                <label>Length</label>
+                <div class="quiz-mode-row" id="qf-count-row">
+                  <button class="quiz-mode-btn" data-count="5">5 setups</button>
+                  <button class="quiz-mode-btn active" data-count="10">10 setups</button>
+                  <button class="quiz-mode-btn" data-count="20">20 setups</button>
+                  <button class="quiz-mode-btn" data-count="0">All matching</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="rw-field-group">
+              <div class="rw-field-group-label">How to play it</div>
+
+              <div class="quiz-filter-row">
+                <label>Mode</label>
+                <div class="quiz-check-row">
+                  <input type="checkbox" id="qf-blind" checked>
+                  <label for="qf-blind" style="text-transform:none; font-size:13px; color:var(--text-dim); font-weight:400;">
+                    Blind mode — hide symbol &amp; date until reveal
+                  </label>
+                </div>
+              </div>
+
+              <div class="quiz-filter-row" id="qf-include-reviewed-row">
+                <div class="quiz-check-row">
+                  <input type="checkbox" id="qf-include-reviewed">
+                  <label for="qf-include-reviewed" style="text-transform:none; font-size:13px; color:var(--text-dim); font-weight:400;">
+                    Include trades you've already rewinded
+                  </label>
+                </div>
+              </div>
+
+              <div class="quiz-filter-row" style="margin-bottom:0;">
+                <label>Tick playback</label>
+                <div class="quiz-mode-row" id="qf-tickmode-row">
+                  <button class="quiz-mode-btn active" data-tickmode="sim">Simulated (offline)</button>
+                  <button class="quiz-mode-btn" data-tickmode="real">Real ticks (from server)</button>
+                </div>
+                <div class="quiz-tickmode-hint" id="qf-tickmode-hint" style="display:none;">
+                  Pulls real prints from <code>chart_service.py</code> instead of a simulated path.
+                  Falls back to simulated if unavailable.
+                </div>
+              </div>
+            </div>
+
+            <div class="quiz-candidate-count" id="qf-candidate-count"></div>
+
+            <button class="btn-confirm quiz-start-btn" id="qf-start-btn">▶ Start rewind</button>
+          </div>
+
+          <div class="panel-box">
+            <div class="panel-box-head"><span class="title">Past sessions</span></div>
+            <div id="quiz-history-box"><div class="quiz-history-empty">No sessions yet — they'll show up here once you run one.</div></div>
+
+            <div id="quiz-focus-box" style="margin-top:18px;"></div>
+          </div>
+        </div>
+
+        <div class="panel-box" id="rw-progress-box" style="margin-top:18px;">
+          <div class="panel-box-head">
+            <span class="title">Rewind progress</span>
+            <button type="button" class="link" id="rw-reset-all-btn" style="display:none;">Reset all</button>
+          </div>
+          <div id="rw-progress-list"></div>
+        </div>
+      </div>
+
+      <!-- ============ PLAY SCREEN ============ -->
+      <div id="quiz-play-screen" style="display:none;">
+        <div class="quiz-play-head">
+          <div class="qp-left">
+            <span class="quiz-progress-label" id="qp-progress-label">Trade 1 / 10</span>
+            <div class="quiz-progress-track"><div class="quiz-progress-fill" id="qp-progress-fill" style="width:0%"></div></div>
+          </div>
+          <button class="btn-advanced quiz-quit-btn" id="qp-quit-btn">End session</button>
+        </div>
+
+        <div class="quiz-card" id="quiz-card">
+          <div class="loading-line">Loading…</div>
+        </div>
+      </div>
+
+      <!-- ============ SUMMARY SCREEN ============ -->
+      <div id="quiz-summary-screen" style="display:none;">
+        <div class="panel-box">
+          <div class="panel-box-head"><span class="title">Session recap</span></div>
+          <div id="qs-recap"></div>
+        </div>
+
+        <div class="panel-box" style="margin-top:18px;">
+          <div class="panel-box-head"><span class="title">How your calls read</span></div>
+          <div id="qs-breakdown"></div>
+        </div>
+
+        <div class="panel-box" style="margin-top:18px;">
+          <div class="panel-box-head"><span class="title">Trade by trade</span></div>
+          <div id="qs-review"></div>
+        </div>
+
+        <div class="quiz-summary-actions">
+          <button class="btn-confirm" id="qs-again-btn">Rewind again</button>
+          <button class="btn-advanced" id="qs-review-missed-btn">Review the shaky calls</button>
+          <button class="btn-advanced" id="qs-setup-btn">Change filters</button>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="footer">trade.log</div>
+  </div>
+</div>
+
+<script src="ui-modal.js"></script>
+<script src="chart-indicators.js"></script>
+<script src="rewind.js"></script>
+<script src="common.js"></script>
+<script src="global-search.js"></script>
+</body>
+</html>

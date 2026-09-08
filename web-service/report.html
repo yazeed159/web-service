@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="auth.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Report — trade.log</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="polish.css">
+<link rel="stylesheet" href="report.css">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="modernEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <a href="index.html" class="brand">
+        <span class="mark">T</span>
+        <span class="name">trade<span class="muted">.log</span></span>
+      </a>
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Journal</div>
+
+      <a class="nav-item" href="index.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
+        <span class="nav-label">Dashboard</span>
+      </a>
+
+      <a class="nav-item" href="index.html#dayview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line></svg>
+        <span class="nav-label">Day View</span>
+      </a>
+
+      <a class="nav-item" href="index.html#reports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line></svg>
+        <span class="nav-label">Reports</span>
+      </a>
+
+      <a class="nav-item" href="journal.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        <span class="nav-label">Journal</span>
+      </a>
+
+
+      <div class="nav-section-label">More</div>
+
+      <a class="nav-item" id="import-trades-link" href="#" title="Upload a CSV of past trades to import into your real journal">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+        <span class="nav-label">Import Trades</span>
+      </a>
+      <a class="nav-item" href="stats.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.4 8.6 12 15l-3-3-4 4"></path></svg>
+        <span class="nav-label">Performance</span>
+      </a>
+
+      <a class="nav-item" href="edge-analysis.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7-4 11L21 3 10 14l11 7-7-4"></path><circle cx="3" cy="3" r="1.4" fill="currentColor" stroke="none"></circle></svg>
+        <span class="nav-label">Edge Analysis</span>
+      </a>
+
+      <a class="nav-item" href="patterns.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
+        <span class="nav-label">Patterns</span>
+      </a>
+      <a class="nav-item" href="calculator.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="12" x2="8.01" y2="12"></line><line x1="12" y1="12" x2="12.01" y2="12"></line><line x1="16" y1="12" x2="16.01" y2="12"></line><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg>
+        <span class="nav-label">Calculator</span>
+      </a>
+
+      <a class="nav-item active" href="backtester.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 6"></polyline><polyline points="15 6 21 6 21 12"></polyline></svg>
+        <span class="nav-label">Backtester</span>
+      </a>
+
+      <a class="nav-item" href="live-trading.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"></circle></svg>
+        <span class="nav-label">Live Trading</span>
+      </a>
+
+      <a class="nav-item" href="scanner.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-8 18-2-8-8-2z"></path></svg>
+        <span class="nav-label">Scanner</span>
+      </a>
+
+      <a class="nav-item" href="rewind.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
+        <span class="nav-label">Rewind</span>
+      </a>
+
+      <a class="nav-item" href="practice.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+        <span class="nav-label">Practice</span>
+      </a>
+
+
+      <a class="nav-item" href="settings.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <span class="nav-label">Settings</span>
+      </a>
+</nav>
+
+    <div class="sidebar-bottom">
+      <div class="pipeline-status"><span class="dot"></span><span>Backtester</span></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <a href="backtester.html" class="rpt-back" title="Back to Backtester">&larr;</a>
+        <h1 id="page-title">Report</h1>
+        <span class="date-range-pill" id="rpt-range-pill" style="display:none;"></span>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ============== EMPTY / IMPORT STATE (no report loaded yet) ============== -->
+      <div id="rpt-import-state">
+        <div class="panel-head">
+          <div class="sub">Open a saved backtest run from the Backtester's Past Runs list, or drop in any CSV of trades below to build a one-off dashboard, trade table, and journal for it — right here, no backend required.</div>
+        </div>
+
+        <div class="panel-box" id="rpt-drop-zone">
+          <div class="panel-box-head"><span class="title">Import a CSV of trades</span></div>
+          <label class="rpt-dropzone-inner" for="rpt-csv-file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+            <div><b>Click to choose a CSV</b>, or drag one here</div>
+            <div class="hint-text">Any column names work — you'll map them in the next step. Nothing is uploaded anywhere; it's parsed right in your browser.</div>
+          </label>
+          <input type="file" id="rpt-csv-file" accept=".csv" style="display:none;">
+        </div>
+
+        <div class="section-label" id="rpt-local-label" style="display:none;">Your CSV Reports</div>
+        <div id="rpt-local-list"></div>
+      </div>
+
+      <!-- ============== COLUMN MAPPING STEP ============== -->
+      <div id="rpt-map-state" style="display:none;">
+        <div class="panel-box">
+          <div class="panel-box-head">
+            <span class="title">Match your columns</span>
+            <button type="button" class="link" id="rpt-map-cancel">Cancel</button>
+          </div>
+          <p class="hint-text">We guessed a few of these from your header row — double check them, fill in the rest, and hit Build Report. Fields marked * are required.</p>
+          <div class="bt-field-grid wide" id="rpt-map-fields"></div>
+          <div class="bt-run-row">
+            <button class="btn-confirm" id="rpt-map-build">Build Report</button>
+            <span id="rpt-map-status"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============== LOADED REPORT ============== -->
+      <div id="rpt-loaded-state" style="display:none;">
+        <div class="panel-head">
+          <div class="sub" id="rpt-subtitle"></div>
+        </div>
+
+        <div class="rpt-toolbar">
+          <button class="filter-btn" id="rpt-export-csv">Export CSV</button>
+          <button class="filter-btn" id="rpt-export-json">Export JSON</button>
+          <button class="filter-btn" id="rpt-send-journal" style="display:none;" title="Generate entry/exit trade charts for this run (no AI verdict) -- charts for new runs now start automatically as soon as the backtest finishes; use this to retry or backfill an older run">Generate Trade Charts</button>
+          <button class="filter-btn" id="rpt-replace-csv" style="display:none;" title="Load a different CSV into this same report page">Replace with new CSV</button>
+          <button class="filter-btn danger" id="rpt-delete">Delete this report</button>
+          <span id="rpt-toolbar-status" class="hint-text"></span>
+        </div>
+
+        <div class="report-toptabs" id="rpt-toptabs">
+          <button class="toptab-btn active" data-toptab="overview">Overview</button>
+          <button class="toptab-btn" data-toptab="trades">Trades</button>
+        </div>
+
+        <div class="toptab-panel active" data-toptab-panel="overview">
+          <div class="stat-grid" id="rpt-stat-grid" style="margin-bottom:18px;"></div>
+          <div class="panel-box" id="rpt-detail-box"></div>
+
+          <div class="panel-box" id="rpt-equity-box" style="margin-top:16px;">
+            <div class="panel-box-head"><span class="title">Equity Curve</span></div>
+            <div id="rpt-equity-chart" style="height:220px;"></div>
+          </div>
+
+          <div class="panel-box" id="rpt-rmult-box" style="margin-top:16px;"></div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px;">
+            <div class="panel-box" id="rpt-symbol-box"></div>
+            <div class="panel-box" id="rpt-dow-box"></div>
+          </div>
+        </div>
+
+        <div class="toptab-panel" data-toptab-panel="trades">
+          <div class="panel-box">
+            <div class="panel-box-head">
+              <span class="title">Trades</span>
+              <span class="hint-text" id="rpt-trades-count"></span>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table" id="rpt-trades-table">
+                <thead><tr id="rpt-trades-head"></tr></thead>
+                <tbody id="rpt-trades-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div id="rpt-error-state" style="display:none;">
+        <div class="empty-state" id="rpt-error-text"></div>
+      </div>
+
+    </div>
+
+    <div class="footer">trade.log — report view</div>
+  </div>
+</div>
+
+<!-- ============== INTERACTIVE TRADE CHART MODAL ============== -->
+<div id="rpt-chart-modal" class="rpt-chart-modal" style="display:none;" aria-hidden="true">
+  <div class="rpt-chart-modal-backdrop" id="rpt-chart-modal-backdrop"></div>
+  <div class="rpt-chart-modal-box" role="dialog" aria-modal="true" aria-labelledby="rpt-chart-modal-title">
+    <div class="rpt-chart-modal-head">
+      <div>
+        <span id="rpt-chart-modal-title">Trade chart</span>
+        <span class="hint-text" id="rpt-chart-modal-sub"></span>
+      </div>
+      <div id="rpt-chart-controls" style="display:flex; align-items:center; gap:8px; flex-shrink:0;"></div>
+      <a class="btn-advanced rpt-chart-practice-btn" id="rpt-chart-practice-btn" href="practice.html" target="_blank" rel="noopener" title="Paper-trade this symbol's chart from the start, bar by bar">Practice this trade</a>
+      <a class="btn-advanced rpt-chart-rewind-btn" id="rpt-chart-rewind-btn" href="rewind.html" target="_blank" rel="noopener" title="Rewind through this symbol's chart bar by bar and guess what happens next">Rewind this trade</a>
+      <button class="icon-btn icon-btn-visible" id="rpt-chart-modal-close" title="Close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="rpt-chart-legend">
+      <span><i style="background:#2fd08a"></i>Entry</span>
+      <span><i style="background:#f2555a"></i>Exit</span>
+      <span><i style="background:#e8a94c"></i>VWAP</span>
+      <span><i style="background:#9aa8a1"></i>EMA9</span>
+      <span><i style="background:#5b93f0"></i>EMA20</span>
+      <span id="rpt-chart-legend-better-entry" style="display:none;"><i style="background:#8b7cf6"></i>Better entry</span>
+      <span id="rpt-chart-legend-better-exit" style="display:none;"><i style="background:#ec6cad"></i>Better exit</span>
+    </div>
+    <div id="rpt-candle-chart"></div>
+    <div id="rpt-macd-chart"></div>
+    <div id="rpt-chart-verdict" class="rpt-chart-verdict" style="display:none;"></div>
+  </div>
+</div>
+
+<script src="chart-indicators.js"></script>
+<script src="report.js"></script>
+<script src="common.js"></script>
+<script src="global-search.js"></script>
+</body>
+</html>

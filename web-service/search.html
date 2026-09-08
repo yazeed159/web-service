@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="auth.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Search — trade.log</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="search.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="modernEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <a href="index.html" class="brand">
+        <span class="mark">T</span>
+        <span class="name">trade<span class="muted">.log</span></span>
+      </a>
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Journal</div>
+
+      <a class="nav-item" href="index.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
+        <span class="nav-label">Dashboard</span>
+      </a>
+
+      <a class="nav-item" href="index.html#dayview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line></svg>
+        <span class="nav-label">Day View</span>
+      </a>
+
+      <a class="nav-item" href="index.html#reports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line></svg>
+        <span class="nav-label">Reports</span>
+      </a>
+
+      <a class="nav-item" href="journal.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        <span class="nav-label">Journal</span>
+      </a>
+
+
+      <div class="nav-section-label">More</div>
+
+      <a class="nav-item" id="import-trades-link" href="#" title="Upload a CSV of past trades to import">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
+        <span class="nav-label">Import Trades</span>
+      </a>
+      <a class="nav-item" href="stats.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.4 8.6 12 15l-3-3-4 4"></path></svg>
+        <span class="nav-label">Performance</span>
+      </a>
+
+      <a class="nav-item" href="edge-analysis.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7-4 11L21 3 10 14l11 7-7-4"></path><circle cx="3" cy="3" r="1.4" fill="currentColor" stroke="none"></circle></svg>
+        <span class="nav-label">Edge Analysis</span>
+      </a>
+
+      <a class="nav-item" href="patterns.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
+        <span class="nav-label">Patterns</span>
+      </a>
+      <a class="nav-item" href="calculator.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="12" x2="8.01" y2="12"></line><line x1="12" y1="12" x2="12.01" y2="12"></line><line x1="16" y1="12" x2="16.01" y2="12"></line><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="12" y1="16" x2="12.01" y2="16"></line><line x1="16" y1="16" x2="16.01" y2="16"></line></svg>
+        <span class="nav-label">Calculator</span>
+      </a>
+
+      <a class="nav-item" href="backtester.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 6"></polyline><polyline points="15 6 21 6 21 12"></polyline></svg>
+        <span class="nav-label">Backtester</span>
+      </a>
+
+      <a class="nav-item" href="live-trading.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"></circle></svg>
+        <span class="nav-label">Live Trading</span>
+      </a>
+
+      <a class="nav-item" href="scanner.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-8 18-2-8-8-2z"></path></svg>
+        <span class="nav-label">Scanner</span>
+      </a>
+
+
+      <a class="nav-item" href="rewind.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon></svg>
+        <span class="nav-label">Rewind</span>
+      </a>
+
+      <a class="nav-item" href="practice.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+        <span class="nav-label">Practice</span>
+      </a>
+
+
+      <a class="nav-item" href="settings.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <span class="nav-label">Settings</span>
+      </a>
+</nav>
+
+    <div class="sidebar-bottom">
+      <div class="pipeline-status"><span class="dot"></span><span>Search</span></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 id="page-title">Search</h1>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="panel-head">
+        <div class="sub" id="sr-summary">Loading&hellip;</div>
+      </div>
+
+      <div class="sr-controls-row">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"></circle><line x1="20" y1="20" x2="15.3" y2="15.3"></line></svg>
+          <input type="text" id="sr-refine" placeholder="Refine your search&hellip;" aria-label="Refine your search">
+        </div>
+        <button type="button" class="filter-btn" id="sr-notes-toggle" aria-pressed="false" title="Also search verdict, lessons, walk-away rule, and better-entry/exit notes">Also search notes</button>
+        <div class="sr-sort-group" role="group" aria-label="Sort results">
+          <button type="button" class="filter-btn active" id="sr-sort-recent">Most recent</button>
+          <button type="button" class="filter-btn" id="sr-sort-pnl">Biggest P&amp;L</button>
+        </div>
+      </div>
+
+      <div class="panel-box">
+        <div class="sr-list" id="sr-list">
+          <div class="loading-line">Loading&hellip;</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">trade.log</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const summaryEl = document.getElementById("sr-summary");
+  const listEl = document.getElementById("sr-list");
+  const refineEl = document.getElementById("sr-refine");
+  const notesToggle = document.getElementById("sr-notes-toggle");
+  const sortRecentBtn = document.getElementById("sr-sort-recent");
+  const sortPnlBtn = document.getElementById("sr-sort-pnl");
+  const pageTitle = document.getElementById("page-title");
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function escapeRegex(s) {
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  function fmtMoney(v) {
+    if (v == null || !isFinite(v)) return "";
+    return (v >= 0 ? "+$" : "-$") + Math.abs(v).toFixed(2);
+  }
+  function highlight(text, query) {
+    const escaped = escapeHtml(text || "");
+    const escapedQuery = escapeHtml(query || "");
+    if (!escapedQuery) return escaped;
+    const re = new RegExp(escapeRegex(escapedQuery), "ig");
+    return escaped.replace(re, (m) => `<mark>${m}</mark>`);
+  }
+  function snippetFor(query, text) {
+    if (!text) return null;
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return null;
+    const start = Math.max(0, idx - 40);
+    const end = Math.min(text.length, idx + query.length + 60);
+    return (start > 0 ? "\u2026" : "") + text.slice(start, end) + (end < text.length ? "\u2026" : "");
+  }
+
+  // ---- state, mirrored into the URL so Back/refresh/sharing the link
+  // all land on the same search. Read directly off location.search (not
+  // NavState.get) for this first read -- common.js, which defines
+  // window.NavState, is a later <script> tag that hasn't run yet at this
+  // point in the page's initial synchronous pass; NavState.set below is
+  // only ever called from click/input handlers, which fire long after
+  // the whole page (including common.js) has loaded, so that part's fine.
+  const initialParams = new URLSearchParams(window.location.search);
+  let query = (initialParams.get("q") || "").trim();
+  let searchNotes = initialParams.get("notes") === "1";
+  let sortMode = initialParams.get("sort") === "pnl" ? "pnl" : "recent";
+
+  refineEl.value = query;
+  notesToggle.setAttribute("aria-pressed", String(searchNotes));
+  notesToggle.textContent = searchNotes ? "Searching notes too" : "Also search notes";
+  sortRecentBtn.classList.toggle("active", sortMode === "recent");
+  sortPnlBtn.classList.toggle("active", sortMode === "pnl");
+
+  // ---- data --------------------------------------------------------
+  let trades = null;
+  let notesById = null; // Map<trade_id, {verdict,lessons,walkaway,better,symbol}> | null, lazy
+
+  function extractFields(row) {
+    return {
+      verdict: row.verdict || "",
+      lessons: Array.isArray(row.lessons) ? row.lessons.join(" \n ") : "",
+      walkaway: row.walk_away_rule || "",
+      better: [row.better_entry && row.better_entry.reason, row.better_exit && row.better_exit.reason].filter(Boolean).join(" \n "),
+      symbol: (row.symbol_info && row.symbol_info.description) || "",
+    };
+  }
+  const FIELD_LABELS = { verdict: "Verdict", lessons: "Lessons", walkaway: "Walk-away rule", better: "Better entry/exit", symbol: "Symbol info" };
+  const FIELD_ORDER = ["verdict", "lessons", "walkaway", "better", "symbol"];
+
+  function loadNotes() {
+    if (notesById) return Promise.resolve(notesById);
+    summaryEl.textContent = "Indexing trade notes\u2026";
+    return window.AUTH_READY.then((session) => {
+      if (!session || !window.sb) { notesById = new Map(); return notesById; }
+      return window.sb
+        .from("trade_details")
+        .select("trade_id,verdict,lessons,walk_away_rule,better_entry,better_exit,symbol_info")
+        .then((res) => {
+          notesById = new Map();
+          (res.data || []).forEach((row) => notesById.set(row.trade_id, extractFields(row)));
+          return notesById;
+        });
+    });
+  }
+
+  function matchTrade(t, q, notes) {
+    const ql = q.toLowerCase();
+    if ((t.symbol || "").toLowerCase().includes(ql)) {
+      return { field: null, snippet: "" };
+    }
+    if (!searchNotes || !notes) return null;
+    for (const field of FIELD_ORDER) {
+      const text = notes[field];
+      if (text && text.toLowerCase().includes(ql)) {
+        return { field, snippet: snippetFor(q, text) };
+      }
+    }
+    return null;
+  }
+
+  function sortMatches(matches) {
+    const sorted = matches.slice();
+    if (sortMode === "pnl") sorted.sort((a, b) => (b.trade.pnl_after_comm || 0) - (a.trade.pnl_after_comm || 0));
+    else sorted.sort((a, b) => (b.trade.trade_date + (b.trade.entry_time || "")).localeCompare(a.trade.trade_date + (a.trade.entry_time || "")));
+    return sorted;
+  }
+
+  function render() {
+    pageTitle.textContent = query ? `Search: \u201c${query}\u201d` : "Search";
+    if (!query) {
+      summaryEl.textContent = "Type something in the box below to search your trades.";
+      listEl.innerHTML = "";
+      return;
+    }
+    if (!trades) { summaryEl.textContent = "Loading your trades\u2026"; return; }
+
+    const notesReady = searchNotes ? loadNotes() : Promise.resolve(notesById);
+    Promise.resolve(notesReady).then((notes) => {
+      const matches = [];
+      for (const t of trades) {
+        const hit = matchTrade(t, query, notes ? notes.get(t.id) : null);
+        if (hit) matches.push({ trade: t, ...hit });
+      }
+      const sorted = sortMatches(matches);
+
+      if (!sorted.length) {
+        summaryEl.innerHTML = `No trades match <span class="sr-query">\u201c${escapeHtml(query)}\u201d</span>${searchNotes ? "" : " &mdash; try \u201cAlso search notes\u201d"}.`;
+        listEl.innerHTML = `<div class="empty-state">No results.</div>`;
+        return;
+      }
+      summaryEl.innerHTML = `${sorted.length} trade${sorted.length === 1 ? "" : "s"} match <span class="sr-query">\u201c${escapeHtml(query)}\u201d</span>.`;
+      listEl.innerHTML = sorted.map(({ trade: t, field, snippet }) => {
+        const snippetHtml = field
+          ? `<span class="pill sr-field-tag">${escapeHtml(FIELD_LABELS[field])}</span><span class="sr-snip">${highlight(snippet || "", query)}</span>`
+          : `<span class="sr-snip dim">${escapeHtml(t.side || "")}</span>`;
+        return `
+          <a class="sr-row" href="trade.html?id=${encodeURIComponent(t.id)}">
+            <span class="sr-sym">${highlight(t.symbol || "", query)}</span>
+            <span class="sr-date">${escapeHtml(t.trade_date || "")}</span>
+            <span class="pill ${t.win ? "win" : "loss"}">${t.win ? "WIN" : "LOSS"}</span>
+            ${snippetHtml}
+            <span class="sr-pnl ${(t.pnl_after_comm || 0) >= 0 ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span>
+          </a>`;
+      }).join("");
+    }).catch((err) => {
+      summaryEl.textContent = "Couldn't search your trades (" + String((err && err.message) || err) + ").";
+      listEl.innerHTML = "";
+    });
+  }
+
+  window.fetchTradesIndex()
+    .then((rows) => { trades = Array.isArray(rows) ? rows : []; render(); })
+    .catch((err) => {
+      summaryEl.textContent = "Couldn't load your trades (" + String((err && err.message) || err) + ").";
+      listEl.innerHTML = "";
+    });
+
+  // ---- controls ------------------------------------------------------
+  let debounceTimer = null;
+  refineEl.addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      query = refineEl.value.trim();
+      NavState.set({ q: query || null });
+      render();
+    }, 200);
+  });
+
+  notesToggle.addEventListener("click", () => {
+    searchNotes = !searchNotes;
+    notesToggle.setAttribute("aria-pressed", String(searchNotes));
+    notesToggle.textContent = searchNotes ? "Searching notes too" : "Also search notes";
+    NavState.set({ notes: searchNotes ? "1" : null });
+    render();
+  });
+
+  sortRecentBtn.addEventListener("click", () => {
+    sortMode = "recent";
+    sortRecentBtn.classList.add("active");
+    sortPnlBtn.classList.remove("active");
+    NavState.set({ sort: null });
+    render();
+  });
+  sortPnlBtn.addEventListener("click", () => {
+    sortMode = "pnl";
+    sortPnlBtn.classList.add("active");
+    sortRecentBtn.classList.remove("active");
+    NavState.set({ sort: "pnl" });
+    render();
+  });
+})();
+</script>
+<script src="common.js"></script>
+<script src="global-search.js"></script>
+</body>
+</html>

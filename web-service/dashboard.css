@@ -1,0 +1,140 @@
+/* dashboard.css — Dashboard-tab-only additions, loaded by index.html
+ * after core.css. Everything here is scoped to new classes (dash-hero,
+ * kpi-*, eq-range-toggle, sym-avatar, setup-pill) or combined selectors
+ * like `.kpi-grid.stat-grid` that are more specific than core.css's
+ * plain `.stat-grid` -- so nothing here changes journal/stats/patterns/
+ * playbooks/etc., which all share core.css's generic .stat-grid/.stat
+ * and .trade-table rules untouched.
+ */
+
+/* =====================================================
+   HERO — the one number that leads the page
+===================================================== */
+.dash-hero {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 26px 30px;
+  border-radius: var(--radius-lg);
+}
+.dash-hero::before {
+  content: "";
+  position: absolute;
+  top: -60%; left: -10%;
+  width: 60%; height: 220%;
+  background: radial-gradient(closest-side, var(--glow-violet), transparent 70%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.dash-hero::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: var(--grad-signature);
+  opacity: 0.8;
+}
+
+.hero-main { flex: 1 1 auto; min-width: 0; position: relative; z-index: 1; }
+.hero-label {
+  font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-faint); font-weight: 700; margin-bottom: 8px;
+}
+.hero-value {
+  font-family: var(--mono); font-weight: 800; letter-spacing: -0.02em;
+  font-size: clamp(32px, 4.6vw, 46px); line-height: 1.02; margin-bottom: 12px;
+}
+.hero-value.up { color: var(--green); }
+.hero-value.down { color: var(--red); }
+.hero-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; min-height: 22px; }
+.hero-sub { font-size: 12px; color: var(--text-faint); font-family: var(--mono); }
+
+.hero-streak {
+  display: inline-flex; align-items: center; font-family: var(--sans);
+  font-weight: 600; font-size: 11.5px; padding: 3px 10px; border-radius: 20px; border: 1px solid;
+}
+.hero-streak.up { color: var(--green); border-color: rgba(47,208,138,0.35); background: var(--green-soft); }
+.hero-streak.down { color: var(--red); border-color: rgba(242,85,90,0.35); background: var(--red-soft); }
+
+.hero-spark {
+  flex: none; width: min(240px, 38%);
+  display: flex; flex-direction: column; gap: 8px; justify-content: center;
+  position: relative; z-index: 1;
+}
+.hero-spark-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-faint); font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .dash-hero { flex-direction: column; align-items: stretch; gap: 18px; }
+  .hero-spark { width: 100%; }
+}
+
+/* =====================================================
+   KPI cards — replaces the flat divided stat-grid with
+   individually elevated cards carrying an icon + delta
+===================================================== */
+.kpi-grid.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 14px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+  margin-top: 16px;
+}
+.kpi-card { border-radius: var(--radius); }
+.kpi-icon {
+  flex: none; width: 24px; height: 24px; border-radius: 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--panel-3); border: 1px solid var(--border); color: var(--primary);
+}
+.kpi-icon svg { width: 13px; height: 13px; }
+.kpi-card .label-row { gap: 8px; }
+.kpi-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.kpi-foot .sub-value { margin-top: 0; }
+
+.kpi-delta {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-family: var(--mono); font-weight: 700; font-size: 11px;
+  padding: 2px 7px; border-radius: 20px; white-space: nowrap;
+}
+.kpi-delta.up { color: var(--green); background: var(--green-soft); }
+.kpi-delta.down { color: var(--red); background: var(--red-soft); }
+.kpi-delta.flat { color: var(--text-faint); background: var(--panel-3); }
+
+/* =====================================================
+   Equity range toggle
+===================================================== */
+.eq-range-toggle { display: flex; gap: 6px; margin: 10px 0 2px; }
+.eq-range-toggle button {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.02em;
+  padding: 5px 11px; border-radius: 20px; border: 1px solid var(--border);
+  background: var(--panel-2); color: var(--text-dim); cursor: pointer;
+}
+.eq-range-toggle button:hover { color: var(--text); border-color: var(--text-dim); }
+.eq-range-toggle button.active {
+  background: var(--primary-soft); color: var(--primary); border-color: rgba(139,124,246,0.4);
+}
+
+/* =====================================================
+   Recent trades — symbol avatar + setup pill
+===================================================== */
+.trade-table td.sym { display: flex; align-items: center; gap: 8px; }
+.sym-avatar {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 7px;
+  font-size: 10px; font-weight: 700; font-family: var(--mono);
+}
+.setup-pill {
+  font-size: 10px; text-transform: capitalize; font-weight: 500;
+  color: var(--text-dim); background: var(--panel-3); border: 1px solid var(--border-soft);
+  padding: 2px 8px; border-radius: 20px;
+}
+
+@media (max-width: 560px) {
+  .setup-pill { display: none; }
+}

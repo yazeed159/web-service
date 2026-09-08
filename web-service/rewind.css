@@ -1,0 +1,256 @@
+/* ===================================================================
+   Rewind tab — chart-reading practice on the trader's own past trades.
+   Loaded only by rewind.html, same pattern as report.css/report.html.
+   This is a practice tool, not a graded test: there's no score,
+   accuracy percentage, or streak anywhere in here — just qualitative
+   good/off/bad chips.
+   Shared setup/play/reveal control styles now live in quiz-shared.css
+   (loaded alongside this file) — only rewind-only rules remain here.
+=================================================================== */
+
+/* ===================================================================
+   Setup screen ("landing page") redesign — hero banner + grouped
+   fields + a heavier CTA. Scoped under #quiz-setup-screen so quiz.html
+   (which shares quiz-shared.css but not this file) is untouched.
+=================================================================== */
+.rw-hero {
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(139,124,246,0.22), transparent 55%),
+    linear-gradient(135deg, var(--panel), var(--panel));
+  border: 1px solid rgba(139,124,246,0.3);
+  border-radius: var(--radius-lg);
+  padding: 26px 28px;
+  margin-bottom: 18px;
+}
+.rw-hero-text { max-width: 560px; }
+.rw-hero-eyebrow {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;
+  color: var(--primary); margin-bottom: 8px;
+}
+.rw-hero-text h2 { margin: 0 0 8px; font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+.rw-hero-text p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text-dim); }
+.rw-hero-stat { text-align: center; flex-shrink: 0; }
+.rw-hero-stat .rs-num { font-family: var(--mono); font-size: 30px; font-weight: 700; color: var(--text); line-height: 1; }
+.rw-hero-stat .rs-lbl { margin-top: 4px; font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; }
+@media (max-width: 760px) { .rw-hero { padding: 22px; } }
+
+.rw-field-group { padding: 14px 0; border-top: 1px solid var(--border-soft); }
+.rw-field-group:first-of-type { padding-top: 0; border-top: none; }
+.rw-field-group-label {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+  color: var(--text-faint); margin-bottom: 14px;
+}
+
+/* Heavier, glowing CTA -- the settings above it are the only thing
+   standing between you and starting, so it should read as the button
+   on the page, not just another form control. */
+#quiz-setup-screen .quiz-start-btn {
+  font-size: 15px; font-weight: 700; padding: 14px 20px; margin-top: 18px;
+  box-shadow: 0 0 0 1px rgba(139,124,246,0.3), 0 8px 22px rgba(139,124,246,0.4);
+}
+#quiz-setup-screen .quiz-start-btn:hover:not(:disabled) {
+  box-shadow: 0 0 0 1px rgba(139,124,246,0.4), 0 10px 26px rgba(139,124,246,0.5);
+}
+
+.quiz-history-row .hr-count { flex: 1; color: var(--text-dim); }
+.quiz-history-row .hr-chips { display: flex; gap: 4px; flex: none; }
+
+
+/* ---------- session summary ---------- */
+.rewind-recap-stats { display: flex; gap: 28px; flex-wrap: wrap; }
+.rewind-stat { display: flex; flex-direction: column; gap: 2px; }
+.rewind-stat .rs-num { font-family: var(--mono); font-size: 26px; font-weight: 700; color: var(--text); line-height: 1; }
+.rewind-stat .rs-lbl { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+
+.quiz-breakdown-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; margin-bottom: 10px; }
+.quiz-breakdown-row:last-child { margin-bottom: 0; }
+.quiz-breakdown-row .br-k { width: 120px; flex: none; color: var(--text-dim); }
+.quiz-breakdown-row .br-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+#qs-review { overflow-x: auto; }
+.quiz-review-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 8px; }
+.quiz-review-table th {
+  text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-faint); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--border-soft);
+  white-space: nowrap;
+}
+.quiz-review-table td { padding: 8px 10px; border-bottom: 1px solid var(--border-soft); color: var(--text-dim); white-space: nowrap; }
+.quiz-review-table tr:last-child td { border-bottom: none; }
+.quiz-review-table a { color: var(--primary); text-decoration: none; }
+.quiz-review-table a:hover { text-decoration: underline; }
+
+.quiz-summary-actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+
+/* ---------- stop-loss + size stage: compact two-column layout ----------
+   Overrides quiz-shared.css's stacked version (same selectors, later in
+   the cascade) so quiz.js's own play screen is untouched -- only rewind
+   loads this file. Putting stop and size side by side, with shorter
+   preset labels and tighter spacing, is what actually removes the
+   scroll to reach "Lock in": the old stacked layout plus two full
+   sentence-length prompts pushed the confirm button well below the
+   fold on a normal viewport. */
+.quiz-stop-panel { margin-top: 10px; padding-top: 10px; }
+.quiz-stop-panel > .quiz-prompt { margin: 0 0 10px; }
+.quiz-stop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; align-items: start; }
+.qsg-col { min-width: 0; }
+.qsg-label { font-size: 11.5px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.quiz-stop-grid .quiz-preset-row { margin: 0 0 8px; }
+.quiz-stop-grid .quiz-stop-row, .quiz-stop-grid .quiz-size-row { margin-bottom: 4px; }
+.quiz-stop-grid .quiz-stop-row input[type="number"],
+.quiz-stop-grid .quiz-size-row input[type="number"] { flex: 1 1 auto; width: auto; }
+@media (max-width: 720px) {
+  .quiz-stop-grid { grid-template-columns: 1fr; gap: 14px 0; }
+}
+
+/* ---------- watch stage: live position management row ----------
+   Stop display + "Move stop" (click-to-relocate on the chart) and the
+   Add-to-position input, sitting persistently above the scale-out row so
+   neither rebuilds (and loses focus/typed values) on every bar tick. */
+.qz-manage-row {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  margin: 0 0 10px; padding: 10px 12px;
+  background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+}
+.qz-manage-group { display: flex; align-items: center; gap: 8px; }
+.qz-manage-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-faint); font-weight: 600; }
+.qz-manage-group b { font-family: var(--mono); font-size: 13.5px; color: var(--text); }
+.qz-manage-row input[type="number"] {
+  background: var(--panel); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--radius-sm); padding: 7px 9px; font-size: 13px; font-family: var(--mono);
+  width: 76px;
+}
+.qz-move-stop-btn { padding: 7px 12px; font-size: 12.5px; color: var(--blue); }
+.qz-move-stop-btn.active {
+  color: var(--amber); border-color: rgba(232,169,76,.5); background: var(--amber-soft);
+  animation: qzMoveStopPulse 1.4s ease-in-out infinite;
+}
+@keyframes qzMoveStopPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(232,169,76,.35); } 50% { box-shadow: 0 0 0 4px rgba(232,169,76,0); } }
+.quiz-answer-btn.add { padding: 7px 14px; font-size: 12.5px; border-color: rgba(47,208,138,.35); color: var(--green); }
+.quiz-answer-btn.add:hover { background: var(--green-soft); }
+#qz-manage-error:empty { display: none; }
+#qz-manage-error { font-size: 11.5px; color: var(--amber); flex-basis: 100%; }
+
+@media (max-width: 560px) {
+  .qz-manage-row { gap: 10px 16px; }
+}
+
+/* ===================================================================
+   Button polish — scoped to rewind.html + practice.html (the only
+   pages that load this stylesheet), so the rest of the app's buttons
+   are untouched. Adds a bit more depth/press-feedback on top of the
+   base .btn-advanced/.btn-confirm rules in style.css/modern.css, and
+   brings the quiz/practice-only button variants (answer buttons, mode
+   pills, speed chips, preset chips) up to the same standard.
+=================================================================== */
+.btn-advanced, .btn-confirm, .btn-danger,
+.quiz-mode-btn, .quiz-answer-btn, .quiz-preset-btn,
+.qz-speed-btn, .quiz-speed-btn {
+  border-radius: 8px;
+  transition: transform .12s cubic-bezier(.2,.9,.3,1.2), box-shadow .15s ease, border-color .15s ease, background .15s ease, color .15s ease;
+}
+.btn-advanced {
+  background: linear-gradient(180deg, #1d2331, #171c28);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.3);
+  font-weight: 600;
+}
+.btn-advanced:hover { border-color: var(--text-dim); box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 6px 16px -8px rgba(0,0,0,0.55); }
+.btn-advanced:active, .btn-confirm:active, .btn-danger:active { transform: translateY(0) scale(.97); }
+.btn-advanced:disabled { opacity: .5; cursor: default; transform: none !important; box-shadow: none; }
+
+/* subtle sheen sweep on the primary gradient CTA — reinforces it as
+   the one "confirm" action per screen without adding new chrome */
+.btn-confirm { position: relative; overflow: hidden; }
+.btn-confirm::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.16) 48%, transparent 66%);
+  background-size: 220% 100%; background-position: 120% 0;
+  transition: background-position .5s ease; pointer-events: none;
+}
+.btn-confirm:hover::before { background-position: -20% 0; }
+
+.quiz-mode-btn:active, .quiz-preset-btn:active, .qz-speed-btn:active, .quiz-speed-btn:active {
+  transform: scale(.95);
+}
+.quiz-answer-btn:active { transform: translateY(0) scale(.98); }
+
+button:focus-visible, .quiz-mode-btn:focus-visible, .quiz-answer-btn:focus-visible,
+.pp-order-btn:focus-visible, .pr-candidate-row:focus-visible {
+  outline: 1.5px solid var(--primary); outline-offset: 2px;
+}
+
+/* ===================================================================
+   Mobile — overrides (same selectors, later in the cascade than
+   quiz-shared.css, and only loaded on rewind.html) for the handful of
+   rows that assumed enough horizontal room to fit everything on one
+   line. The rest of the page already adapts via the app-shell's own
+   mobile layout in core.css plus the setup/reveal grid breakpoints
+   already in quiz-shared.css.
+=================================================================== */
+
+/* Safety nets: let a header line wrap instead of overflowing the card
+   sideways if a long symbol/setup name or a bar-count warning doesn't
+   fit next to everything else on a narrow screen. No effect once
+   there's enough room, so desktop is unchanged. */
+.quiz-symbol-line, .quiz-clock { flex-wrap: wrap; row-gap: 4px; }
+
+@media (max-width: 480px) {
+  .quiz-card { padding: 14px 14px 16px; }
+
+  /* Replay transport: pause + speed chips share a line, the tag (just
+     "simulated seconds" / "live ticks") drops to its own line under
+     them instead of forcing the row wider than the screen. */
+  .quiz-replay-top { flex-wrap: wrap; row-gap: 8px; }
+  .quiz-replay-top .quiz-pause-btn { order: 1; }
+  .quiz-replay-top .quiz-speed-row { order: 2; }
+  .quiz-replay-top .quiz-replay-tag { order: 3; flex: 1 1 100%; }
+
+  /* Bigger tap targets for the small pill buttons -- 11px/4px padding
+     reads fine on desktop with a mouse but is easy to mis-tap with a
+     thumb. */
+  .qz-speed-btn, .quiz-speed-btn, .quiz-pause-btn {
+    padding: 7px 11px; font-size: 12px;
+  }
+  .quiz-preset-btn { padding: 10px 13px; font-size: 13px; }
+  .quiz-answer-btn.partial { padding: 9px 15px; font-size: 13px; }
+
+  /* Reveal screen's three actions (Retry / Open full trade page / Next)
+     stack full-width instead of squeezing onto one line. */
+  .quiz-next-row { flex-wrap: wrap; }
+  .quiz-next-row > * { flex: 1 1 100%; text-align: center; }
+}
+
+/* ---------- setup screen: rewind progress panel ----------
+   Per-setup "X of Y reviewed" rows, mirrored against the
+   `rewind:reviewed` Supabase-backed set (see rewind.js) so a trade
+   already stepped through to the reveal doesn't come back up as a
+   candidate. Each row (except the "All setups" summary) gets its own
+   reset button; the panel header has one more to clear everything. */
+.rw-progress-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 0; border-bottom: 1px solid var(--border-soft);
+}
+.rw-progress-row:last-child { border-bottom: none; }
+.rw-progress-row.rw-progress-overall { font-weight: 600; }
+.rw-progress-name {
+  flex: 0 0 160px; font-size: 13px; color: var(--text); text-transform: capitalize;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rw-progress-bar {
+  flex: 1; height: 6px; border-radius: 3px; background: var(--panel-3); overflow: hidden;
+}
+.rw-progress-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width .25s ease; }
+.rw-progress-count {
+  flex: 0 0 auto; font-size: 12.5px; font-family: var(--mono); color: var(--text-dim); white-space: nowrap;
+}
+.rw-progress-reset {
+  flex: 0 0 auto; background: none; border: none; color: var(--primary); cursor: pointer;
+  font-size: 12px; font-family: var(--sans); padding: 0;
+}
+.rw-progress-reset:hover { text-decoration: underline; }
+.rw-progress-reset-spacer { flex: 0 0 auto; width: 36px; }
+@media (max-width: 480px) {
+  .rw-progress-name { flex-basis: 90px; }
+  .rw-progress-reset-spacer { width: 0; }
+}
