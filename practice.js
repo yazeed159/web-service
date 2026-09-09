@@ -868,37 +868,21 @@
   // reaction lag -- computeScannerPopIndex() finds the bar a scanner
   // would actually flag, but dropping the trader straight into that
   // bar means "getting in" at the very first tick of the move, which
-  // nobody manages in practice: an alert still has to be noticed,
-  // the chart pulled up, the setup sized up, and the buy button
-  // clicked. All of that takes real time, and price is normally
-  // already running by the time it's done. We model that as "keep
-  // walking bars forward past the alert until price is up at least
-  // REACTION_MIN_MOVE_PCT from where the alert fired" -- a proxy for
-  // the lag, since we don't have sub-minute alert-to-click timing to
-  // work with. Capped at REACTION_MAX_DELAY_BARS so a stock that
-  // pops once and immediately stalls doesn't push the entry out
-  // indefinitely chasing a move that already ended; floored at
-  // REACTION_MIN_DELAY_BARS so even a runaway first bar still costs
-  // at least one bar of reaction time.
+  // nobody manages in practice: an alert still has to be noticed, the
+  // chart pulled up, the setup sized up, and the buy button clicked.
+  // We simply skip that bar entirely and start the session on the
+  // next one, so the move that triggered the alert has already fully
+  // printed before play begins -- no chasing forward looking for a
+  // confirmed move first, which was landing on the very next bar so
+  // often (a "hot" pop bar's own follow-through usually clears the
+  // move threshold immediately) that it barely differed from starting
+  // right on the alert bar itself.
   // ---------------------------------------------------------------
-  const REACTION_MIN_DELAY_BARS = 1;   // at least this much lag, even if price rips instantly
-  const REACTION_MAX_DELAY_BARS = 4;   // ...but never wait longer than this chasing a stalled move
-  const REACTION_MIN_MOVE_PCT = 0.02;  // "noticeably already moving" by the time you'd realistically click buy
-
   function computeEntryIndex(trade) {
     const bars = trade.bars;
     const popIdx = computeScannerPopIndex(trade);
     if (!Array.isArray(bars) || !bars.length) return popIdx;
-    const alertPrice = Number(bars[popIdx].o ?? bars[popIdx].c) || 0;
-    const floorIdx = Math.min(popIdx + REACTION_MIN_DELAY_BARS, bars.length - 1);
-    const ceilIdx = Math.min(popIdx + REACTION_MAX_DELAY_BARS, bars.length - 1);
-    let entryIdx = floorIdx;
-    for (let i = floorIdx; i <= ceilIdx; i++) {
-      entryIdx = i;
-      const price = Number(bars[i].c) || 0;
-      if (alertPrice > 0 && (price - alertPrice) / alertPrice >= REACTION_MIN_MOVE_PCT) break;
-    }
-    return entryIdx;
+    return Math.min(popIdx + 1, bars.length - 1);
   }
 
   function loadChart(id, resumeFrom) {

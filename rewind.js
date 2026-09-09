@@ -536,22 +536,29 @@
     return Math.max(1, Math.round(frac * REPLAY_SECONDS));
   }
 
-  // Ticks for the "watch it print in" replay on the entry stage — only
-  // the window from the bar's open up to the actual fill instant, so
-  // real mode never leaks anything past the moment you're deciding at
-  // (and sim mode is truncated + pinned to the real fill for the same
-  // reason — see buildFormingBar above).
+  // Extra ticks of tape kept running past the real fill instant. Without
+  // this the entry tape stopped dead exactly on your real entry price
+  // every single time, so there was never a chance to see whether you'd
+  // still want in a little later than you actually got in -- only
+  // "enter right here" or "pass". Capped by REPLAY_SECONDS below.
+  const ENTRY_EXTRA_SECONDS = 15;
+
+  // Ticks for the "watch it print in" replay on the entry stage -- the
+  // window from the bar's open up to a bit past the actual fill instant
+  // (ENTRY_EXTRA_SECONDS), so you can still choose to enter on a later
+  // tick than your real fill to see if you'd have taken it anyway.
   function getEntryWatchTicks(trade, bar, prevClose, secondsIntoBar, avgVolume) {
+    const cut = entryTickCount(secondsIntoBar);
+    const revealCount = Math.min(REPLAY_SECONDS, cut + ENTRY_EXTRA_SECONDS);
     const simPrices = () => {
       const full = simEntryBarTicks(trade, bar, prevClose, avgVolume);
-      const cut = entryTickCount(secondsIntoBar);
-      const t = full.slice(0, cut);
-      t[t.length - 1] = trade.entry_price;
+      const t = full.slice(0, revealCount);
+      t[cut - 1] = trade.entry_price; // anchor the real-fill tick, not just the tape's end
       return t;
     };
     if (state.tickMode !== "real") return Promise.resolve({ prices: simPrices(), real: false, fellBack: false });
     const start = toUnix(bar.t);
-    const end = Math.max(start + 1, start + Math.round(secondsIntoBar));
+    const end = Math.min(start + BAR_SECONDS, Math.max(start + 1, start + revealCount));
     return fetchRealTicks(trade.symbol, start, end).then((real) => (
       real ? { prices: real.map((t) => t.price), real: true, fellBack: false }
            : { prices: simPrices(), real: false, fellBack: true }
@@ -565,11 +572,13 @@
   // to play. entryTickIdx is 0-based into the REPLAY_SECONDS space (the
   // same index space getEntryWatchTicks/onAct use), so slicing the same
   // deterministic path one tick past it picks up exactly where your
-  // fill happened, with no jump.
-  function getEntryBarRemainderTicks(trade, bar, prevClose, entryTickIdx, avgVolume) {
+  // fill happened, with no jump. anchorPrice is whatever price you
+  // actually entered at -- since the entry tape now keeps running past
+  // the real fill instant, that might not be trade.entry_price anymore.
+  function getEntryBarRemainderTicks(trade, bar, prevClose, entryTickIdx, avgVolume, anchorPrice) {
     const simPrices = () => {
       const full = simEntryBarTicks(trade, bar, prevClose, avgVolume);
-      full[entryTickIdx] = trade.entry_price; // anchor to your actual fill so there's no seam
+      full[entryTickIdx] = Number.isFinite(anchorPrice) ? anchorPrice : trade.entry_price; // anchor to your actual fill so there's no seam
       return full.slice(entryTickIdx + 1);
     };
     if (state.tickMode !== "real") return Promise.resolve({ prices: simPrices(), real: false, fellBack: false });
@@ -722,15 +731,12 @@
     }
 
     let i = 0, done = false, timer = null;
-    // Some real fills happen just a couple seconds into a bar -- with a
-    // straight 1 tick = 1 real second pace that's barely any time to
-    // decide. minTotalMs (when given) stretches the per-tick delay so the
-    // whole tape takes at least that long at 1x, without changing what's
-    // shown -- it's the same ticks, just paced slower when there are few
-    // of them. The speed picker still multiplies on top of this floor.
-    const minTotalMs = opts.minTotalMs || 0;
-    const effectiveBaseTickMs = minTotalMs > 0 ? Math.max(baseTickMs, minTotalMs / ticks.length) : baseTickMs;
-    function currentTickMs() { return Math.max(20, Math.round(effectiveBaseTickMs / (state.playbackSpeed || 1))); }
+    // Each tick is a real second (divided by the speed picker) -- no
+    // stretching. A previous version inflated the per-tick delay when
+    // there were only a few ticks left (so a short tape would still take
+    // some minimum total time), but that made "1 second" actually take
+    // several real seconds, which is the opposite of real-time.
+    function currentTickMs() { return Math.max(20, Math.round(baseTickMs / (state.playbackSpeed || 1))); }
     function paint() {
       if (unitLabel === "second") {
         // Real-time framing: how far into the candle we are and how much
@@ -1179,11 +1185,11 @@
     const series = chart.addCandlestickSeries({
       upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
       wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
-      // See trade.js buildCharts() -- disable the library's built-in
-      // dashed "last value" price line so it doesn't show up as a stray
-      // green/red line at the last close price alongside the price lines
-      // we draw ourselves via opts.priceLines.
-      priceLineVisible: false,
+      // Keep the library's built-in dashed "last value" price line on --
+      // it's what tracks the moving price live as ticks print (matching
+      // practice.js), turning amber while a bar is forming since that's
+      // the bar's own borderColor at that moment. opts.priceLines (entry/
+      // stop/etc.) are separate, fixed-price lines and don't conflict.
     });
     series.setData(candleData);
     chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.12, bottom: 0.2 } });
@@ -1689,7 +1695,6 @@
           { id: "pass", label: "Pass", kbd: "N", cls: "pass" },
         ],
         defaultActionId: "pass", // running out the clock without deciding = you didn't take it
-        minTotalMs: 20000, // at least 20 real seconds to decide, even on a fast fill
         chartHandle: c.chartHandle,
         bar: entryBar,
         onAct: (actionId, tickIdx, price) => handleEntryChoice(actionId === "enter", price, tickIdx),
@@ -2066,8 +2071,8 @@
     // second instead of showing up as an already-closed candle.
     const historyBars = c.bars.slice(0, c.watchIdx);
     const watchPriceLines = [
-      { key: "entry", price: entryPrice, color: COLOR_YOUR_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lineVisible: false, axisLabelVisible: true, title: "your entry" },
-      { key: "stop", price: c.stopPrice, color: COLOR_YOUR_STOP, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: false, axisLabelVisible: true, title: "your stop" },
+      { key: "entry", price: entryPrice, color: COLOR_YOUR_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lineVisible: true, axisLabelVisible: true, title: "your entry" },
+      { key: "stop", price: c.stopPrice, color: COLOR_YOUR_STOP, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: true, axisLabelVisible: true, title: "your stop" },
     ];
     // Deliberately no "real entry"/"real exit" lines or pointers here --
     // the trade is still live at this stage, and showing where the real
@@ -2251,7 +2256,7 @@
 
     const watchIdxAtFetch = c.watchIdx;
     const ticksPromise = isEntryRemainder
-      ? getEntryBarRemainderTicks(trade, bar, tickPrevClose, c.entryTickIdx, c.avgVolume)
+      ? getEntryBarRemainderTicks(trade, bar, tickPrevClose, c.entryTickIdx, c.avgVolume, c.userEntryPrice)
       : getCheckpointTicks(trade, bar, tickPrevClose, c.avgVolume);
     ticksPromise.then(({ prices, real, fellBack }) => {
       if (state.current !== c || c.stage !== "watch" || c.watchIdx !== watchIdxAtFetch) return; // moved on while this was in flight
@@ -2519,10 +2524,10 @@
       { price: trade.exit_price, color: COLOR_REAL_EXIT, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lineVisible: false, axisLabelVisible: true, title: "real exit" },
     ];
     if (c.entered && c.userEntryPrice != null) {
-      priceLines.push({ price: c.userEntryPrice, color: COLOR_YOUR_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: false, axisLabelVisible: true, title: "test entry" });
+      priceLines.push({ price: c.userEntryPrice, color: COLOR_YOUR_ENTRY, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: true, axisLabelVisible: true, title: "test entry" });
     }
     if (c.entered && c.stopPrice != null) {
-      priceLines.push({ price: c.stopPrice, color: COLOR_YOUR_STOP, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: false, axisLabelVisible: true, title: "your stop" });
+      priceLines.push({ price: c.stopPrice, color: COLOR_YOUR_STOP, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: true, axisLabelVisible: true, title: "your stop" });
     }
     // Each closed tranche's price gets its own line too, not just a
     // pointer -- same treatment "your stop" already got -- so every fill
@@ -2531,7 +2536,7 @@
     // "your stop".
     manualTranches.filter((e) => e.tag !== "stop").forEach((e) => {
       priceLines.push({
-        price: e.price, color: COLOR_YOUR_EXIT, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: false, axisLabelVisible: true,
+        price: e.price, color: COLOR_YOUR_EXIT, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: true, axisLabelVisible: true,
         title: manualTranches.length > 1 ? `exit ${e.shares} sh` : "test exit",
       });
     });

@@ -1059,6 +1059,11 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .chat-messages {
   flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
   padding: 4px 2px 8px;
+  /* Without this, scrolling past the top/bottom edge of this inner list
+     lets the gesture "chain" into the popup panel and the page behind
+     it -- that's the jitter/bounce look on overscroll. Containing it
+     here keeps the rubber-banding local to this list. */
+  overscroll-behavior: contain;
 }
 .chat-msg { display: flex; }
 .chat-msg-user { justify-content: flex-end; }
@@ -1424,7 +1429,7 @@ body::before {
 .chatw-icon-action svg { width: 15px; height: 15px; }
 .chatw-icon-action.active { color: var(--primary); background: var(--primary-soft); border-color: var(--primary); }
 
-.chatw-body { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; padding: 12px 14px; overflow: hidden; }
+.chatw-body { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; padding: 12px 14px; overflow: hidden; overscroll-behavior: contain; }
 .chatw-body .chat-shell { flex: 1 1 auto; min-height: 0; height: 100%; padding: 0; border: none; background: transparent; }
 .chatw-body .chat-messages { flex: 1 1 auto; }
 
