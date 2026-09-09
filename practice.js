@@ -637,12 +637,12 @@
       <path d="${pathD}" class="equity-path ${finalPositive ? "" : "neg"}" />
       <defs>
         <linearGradient id="prGGreen" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#35d39a" stop-opacity="0.22" />
-          <stop offset="100%" stop-color="#35d39a" stop-opacity="0" />
+          <stop offset="0%" stop-color="#4cbf88" stop-opacity="0.22" />
+          <stop offset="100%" stop-color="#4cbf88" stop-opacity="0" />
         </linearGradient>
         <linearGradient id="prGRed" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#ff6871" stop-opacity="0.2" />
-          <stop offset="100%" stop-color="#ff6871" stop-opacity="0" />
+          <stop offset="0%" stop-color="#e2584f" stop-opacity="0.2" />
+          <stop offset="100%" stop-color="#e2584f" stop-opacity="0" />
         </linearGradient>
       </defs>
     `;
@@ -978,7 +978,7 @@
     return {
       time: toUnix(f.time),
       position: f.side === "buy" ? "belowBar" : "aboveBar",
-      color: f.side === "buy" ? "#35d39a" : "#ff6871",
+      color: f.side === "buy" ? "#4cbf88" : "#e2584f",
       shape: f.side === "buy" ? "arrowUp" : "arrowDown",
       text: `${f.side.toUpperCase()} ${f.shares}@${fmtPrice(f.price)}`,
     };
@@ -1143,7 +1143,7 @@
     resistance.forEach((lv) => {
       const tag = srChartTag(lv);
       srPriceLines.push(state.chartHandle.series.createPriceLine({
-        price: Number(lv.price), color: "#ff6871", lineWidth: 1,
+        price: Number(lv.price), color: "#e2584f", lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true, lineVisible: false,
         title: tag ? `resistance (${tag})` : "resistance",
       }));
@@ -1151,7 +1151,7 @@
     support.forEach((lv) => {
       const tag = srChartTag(lv);
       srPriceLines.push(state.chartHandle.series.createPriceLine({
-        price: Number(lv.price), color: "#35d39a", lineWidth: 1,
+        price: Number(lv.price), color: "#4cbf88", lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true, lineVisible: false,
         title: tag ? `support (${tag})` : "support",
       }));
@@ -1169,24 +1169,24 @@
     const el = els.chartEl;
     el.innerHTML = "";
     const commonOpts = {
-      layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
-      grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
-      rightPriceScale: { borderColor: "#232830", minimumWidth: 88 },
-      timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
+      layout: { background: { color: "transparent" }, textColor: "#a89b86" },
+      grid: { vertLines: { color: "#241e15" }, horzLines: { color: "#241e15" } },
+      rightPriceScale: { borderColor: "#33291d", minimumWidth: 88 },
+      timeScale: { borderColor: "#33291d", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     };
     const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: 420 });
     const series = chart.addCandlestickSeries({
-      upColor: "#35d39a", downColor: "#ff6871", borderVisible: false,
-      wickUpColor: "#35d39a", wickDownColor: "#ff6871",
+      upColor: "#4cbf88", downColor: "#e2584f", borderVisible: false,
+      wickUpColor: "#4cbf88", wickDownColor: "#e2584f",
     });
     chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.12, bottom: 0.2 } });
     const volSeries = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol" });
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
-    const vwapSeries = chart.addLineSeries({ color: "#f2ba62", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const ema9Series = chart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const ema20Series = chart.addLineSeries({ color: "#6ea7ff", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const ema200Series = chart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const vwapSeries = chart.addLineSeries({ color: "#d97b3f", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ema9Series = chart.addLineSeries({ color: "#a3a68a", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ema20Series = chart.addLineSeries({ color: "#6fa3c9", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ema200Series = chart.addLineSeries({ color: "#a884b0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
 
     // Top-left info overlay: float (static, from state.trade.indicators --
     // same field the "About" card's volumeFloatPills reads) plus a live
@@ -1215,7 +1215,7 @@
       const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
       const ema200Bar = param.seriesData && param.seriesData.get(ema200Series);
       if (bar) {
-        const upDown = bar.color && bar.color.indexOf("53,211,154") !== -1 ? "up" : bar.color && bar.color.indexOf("242,186,98") !== -1 ? "" : "down";
+        const upDown = bar.color && bar.color.indexOf("76,191,136") !== -1 ? "up" : bar.color && bar.color.indexOf("217,123,63") !== -1 ? "" : "down";
         renderOverlay(
           bar.value, upDown,
           vwapBar ? vwapBar.value : (h ? h.lastVwap : null),
@@ -1284,7 +1284,7 @@
   function seedSeries(bars) {
     const h = state.chartHandle;
     h.series.setData(bars.map((b) => ({ time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c })));
-    h.volSeries.setData(bars.map((b) => ({ time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(53,211,154,0.4)" : "rgba(255,104,113,0.4)" })));
+    h.volSeries.setData(bars.map((b) => ({ time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(76,191,136,0.4)" : "rgba(226,88,79,0.4)" })));
     h.vwapSeries.setData(bars.filter((b) => b.vwap != null).map((b) => ({ time: toUnix(b.t), value: b.vwap })));
     h.ema9Series.setData(bars.filter((b) => b.ema9 != null).map((b) => ({ time: toUnix(b.t), value: b.ema9 })));
     h.ema20Series.setData(bars.filter((b) => b.ema20 != null).map((b) => ({ time: toUnix(b.t), value: b.ema20 })));
@@ -1310,11 +1310,11 @@
     const h = state.chartHandle;
     h.series.update({
       time: toUnix(bar.t), open: bar.o, high: runningHigh, low: runningLow, close: price,
-      color: "rgba(242,186,98,0.55)", borderColor: "#f2ba62", wickColor: "#f2ba62",
+      color: "rgba(217,123,63,0.55)", borderColor: "#d97b3f", wickColor: "#d97b3f",
     });
     const frac = (state.tickIndex + 1) / state.ticks.length;
     const formingVol = Math.round((bar.v || 0) * frac);
-    h.volSeries.update({ time: toUnix(bar.t), value: formingVol, color: "rgba(242,186,98,0.4)" });
+    h.volSeries.update({ time: toUnix(bar.t), value: formingVol, color: "rgba(217,123,63,0.4)" });
     h.lastVol = formingVol;
     if (bar.vwap != null) { h.vwapSeries.update({ time: toUnix(bar.t), value: bar.vwap }); h.lastVwap = bar.vwap; }
     if (bar.ema9 != null) { h.ema9Series.update({ time: toUnix(bar.t), value: bar.ema9 }); h.lastEma9 = bar.ema9; }
@@ -1326,7 +1326,7 @@
     const bar = state.bars[state.barIndex];
     const h = state.chartHandle;
     h.series.update({ time: toUnix(bar.t), open: bar.o, high: bar.h, low: bar.l, close: bar.c });
-    h.volSeries.update({ time: toUnix(bar.t), value: bar.v, color: bar.c >= bar.o ? "rgba(53,211,154,0.4)" : "rgba(255,104,113,0.4)" });
+    h.volSeries.update({ time: toUnix(bar.t), value: bar.v, color: bar.c >= bar.o ? "rgba(76,191,136,0.4)" : "rgba(226,88,79,0.4)" });
     h.lastVol = bar.v;
     h.lastVwap = bar.vwap;
     h.lastEma9 = bar.ema9;

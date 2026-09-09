@@ -18,14 +18,14 @@
   .edge-intro {
     display: flex; gap: 16px; align-items: flex-start;
     padding: 18px 20px; margin-bottom: 16px;
-    background: var(--glass, rgba(22,24,33,0.58));
+    background: var(--glass, rgba(30,25,19,0.58));
     border: 1px solid var(--glass-border, var(--border-soft));
     border-radius: var(--radius-lg, 14px);
   }
   .edge-intro-icon {
     flex-shrink: 0; width: 38px; height: 38px; border-radius: 10px;
     display: flex; align-items: center; justify-content: center;
-    background: var(--grad-signature, linear-gradient(120deg, #8457ff, #22d3ee));
+    background: var(--grad-signature, linear-gradient(120deg, #cf9a52, #6fae87));
     color: #fff;
   }
   .edge-intro-icon svg { width: 20px; height: 20px; }
@@ -42,7 +42,7 @@
     position: sticky; top: var(--topbar-h); z-index: 9;
     display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
     padding: 10px 12px; margin: 0 0 18px;
-    background: var(--glass, rgba(22,24,33,0.82));
+    background: var(--glass, rgba(30,25,19,0.82));
     backdrop-filter: blur(10px);
     border: 1px solid var(--glass-border, var(--border-soft));
     border-radius: var(--radius, 10px);
@@ -50,10 +50,10 @@
   .edge-jumpnav .pill { cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 6px; }
   .edge-jumpnav .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.5; }
   .edge-jumpnav .pill.active {
-    background: var(--primary-soft, rgba(143,156,255,0.15));
-    color: var(--primary, #8f9cff);
-    border-color: rgba(143,156,255,0.45);
-    box-shadow: 0 0 0 1px rgba(143,156,255,0.25), 0 0 14px rgba(132,87,255,0.25);
+    background: var(--primary-soft, rgba(201,154,76,0.15));
+    color: var(--primary, #c99a4c);
+    border-color: rgba(201,154,76,0.45);
+    box-shadow: 0 0 0 1px rgba(201,154,76,0.25), 0 0 14px rgba(207,154,82,0.25);
   }
 
   /* ---- section head with icon ---- */
@@ -144,12 +144,12 @@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#8457ff"/>
-      <stop offset="100%" stop-color="#22d3ee"/>
+      <stop offset="0%" stop-color="#cf9a52"/>
+      <stop offset="100%" stop-color="#6fae87"/>
     </linearGradient>
     <linearGradient id="modernEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#8457ff"/>
-      <stop offset="100%" stop-color="#22d3ee"/>
+      <stop offset="0%" stop-color="#cf9a52"/>
+      <stop offset="100%" stop-color="#6fae87"/>
     </linearGradient>
   </defs>
 </svg>
@@ -449,10 +449,10 @@
     const chart = LightweightCharts.createChart(el, Object.assign({
       width: el.clientWidth,
       height,
-      layout: { background: { color: "transparent" }, textColor: "#9ba7ba" },
-      grid: { vertLines: { color: "#1b2331" }, horzLines: { color: "#1b2331" } },
-      rightPriceScale: { borderColor: "#273143" },
-      timeScale: { borderColor: "#273143" },
+      layout: { background: { color: "transparent" }, textColor: "#a89b86" },
+      grid: { vertLines: { color: "#251f16" }, horzLines: { color: "#251f16" } },
+      rightPriceScale: { borderColor: "#3a3021" },
+      timeScale: { borderColor: "#3a3021" },
     }, extraOpts || {}));
     window.addEventListener("resize", () => chart.applyOptions({ width: el.clientWidth }));
     return chart;
@@ -787,8 +787,8 @@
     const el = document.getElementById("decay-chart");
     el.innerHTML = "";
     if (trades.length < 2) { el.innerHTML = `<div class="empty-state small">Not enough trades yet to plot a trend.</div>`; return; }
-    const chart = makeChart(el, 220, { timeScale: { borderColor: "#273143", tickMarkFormatter: (t) => "#" + t }, localization: { timeFormatter: (t) => "Trade #" + t } });
-    const series = chart.addLineSeries({ color: "#8f9cff", lineWidth: 2 });
+    const chart = makeChart(el, 220, { timeScale: { borderColor: "#3a3021", tickMarkFormatter: (t) => "#" + t }, localization: { timeFormatter: (t) => "Trade #" + t } });
+    const series = chart.addLineSeries({ color: "#c99a4c", lineWidth: 2 });
     let wins = 0;
     const data = trades.map((t, i) => {
       if (t.win) wins++;
@@ -1012,7 +1012,7 @@
     el.innerHTML = "";
     const { row, computed } = entry;
     const chart = makeChart(el, 240);
-    const series = chart.addLineSeries({ color: "#6ea7ff", lineWidth: 2 });
+    const series = chart.addLineSeries({ color: "#6fa3c9", lineWidth: 2 });
     const shares = row.shares || 1;
     const toTime = (t) => Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000);
     const data = computed.path.map((p) => ({ time: toTime(p.t), value: Math.round(p.pnl * shares * 100) / 100 }));
@@ -1020,9 +1020,9 @@
 
     const markers = [];
     const bestPoint = computed.path.find((p) => p.i === computed.bestIdx);
-    if (bestPoint) markers.push({ time: toTime(bestPoint.t), position: "aboveBar", color: "#f2ba62", shape: "circle", text: "Best bar" });
+    if (bestPoint) markers.push({ time: toTime(bestPoint.t), position: "aboveBar", color: "#d97b3f", shape: "circle", text: "Best bar" });
     const exitPoint = computed.path.find((p) => p.i >= computed.exitIdx) || computed.path[computed.path.length - 1];
-    if (exitPoint) markers.push({ time: toTime(exitPoint.t), position: "belowBar", color: row.win ? "#35d39a" : "#ff6871", shape: "arrowDown", text: "Actual exit" });
+    if (exitPoint) markers.push({ time: toTime(exitPoint.t), position: "belowBar", color: row.win ? "#4cbf88" : "#e2584f", shape: "arrowDown", text: "Actual exit" });
     markers.sort((a, b) => a.time - b.time);
     series.setMarkers(markers);
     chart.timeScale().fitContent();
@@ -1113,9 +1113,9 @@
   function renderSizingChart(chrono) {
     const el = document.getElementById("sizing-chart");
     el.innerHTML = "";
-    const chart = makeChart(el, 220, { timeScale: { borderColor: "#273143", tickMarkFormatter: (t) => "#" + t }, localization: { timeFormatter: (t) => "Trade #" + t } });
+    const chart = makeChart(el, 220, { timeScale: { borderColor: "#3a3021", tickMarkFormatter: (t) => "#" + t }, localization: { timeFormatter: (t) => "Trade #" + t } });
     const series = chart.addHistogramSeries({ priceFormat: { type: "volume" } });
-    series.setData(chrono.map((r, i) => ({ time: i + 1, value: r.shares, color: r.win ? "rgba(53,211,154,0.75)" : "rgba(255,104,113,0.75)" })));
+    series.setData(chrono.map((r, i) => ({ time: i + 1, value: r.shares, color: r.win ? "rgba(76,191,136,0.75)" : "rgba(226,88,79,0.75)" })));
     chart.timeScale().fitContent();
   }
 

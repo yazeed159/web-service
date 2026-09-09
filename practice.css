@@ -36,7 +36,7 @@
 
 .pr-resume-box {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-  background: var(--primary-soft); border: 1px solid rgba(143,156,255,.35); border-radius: var(--radius-sm);
+  background: var(--primary-soft); border: 1px solid rgba(201,154,76,.35); border-radius: var(--radius-sm);
   padding: 12px 14px; margin-bottom: 18px;
 }
 .pr-resume-box .rb-text { font-size: 13px; color: var(--text); }
@@ -47,9 +47,9 @@
   position: relative; overflow: hidden;
   display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
   background:
-    radial-gradient(circle at 100% 0%, rgba(143,156,255,0.22), transparent 55%),
+    radial-gradient(circle at 100% 0%, rgba(201,154,76,0.22), transparent 55%),
     linear-gradient(135deg, var(--panel), var(--panel-2, var(--panel)));
-  border: 1px solid rgba(143,156,255,0.3);
+  border: 1px solid rgba(201,154,76,0.3);
   border-radius: var(--radius-lg);
   padding: 26px 28px;
   margin-bottom: 18px;
@@ -69,10 +69,10 @@
   color: #fff; border: none; border-radius: var(--radius); cursor: pointer;
   font-family: var(--sans); font-size: 16px; font-weight: 700;
   padding: 16px 34px; white-space: nowrap;
-  box-shadow: 0 0 0 1px rgba(143,156,255,0.3), 0 8px 24px rgba(143,156,255,0.4);
+  box-shadow: 0 0 0 1px rgba(201,154,76,0.3), 0 8px 24px rgba(201,154,76,0.4);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.btn-hero:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 0 0 1px rgba(143,156,255,0.4), 0 12px 30px rgba(143,156,255,0.5); }
+.btn-hero:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 0 0 1px rgba(201,154,76,0.4), 0 12px 30px rgba(201,154,76,0.5); }
 .btn-hero:active:not(:disabled) { transform: translateY(0); }
 .btn-hero:disabled { opacity: 0.55; cursor: not-allowed; }
 
@@ -120,9 +120,9 @@
 #pp-playpause-btn {
   min-width: 92px; font-weight: 800; color: #fff; border: none;
   background: linear-gradient(135deg, var(--primary), var(--primary-2));
-  box-shadow: 0 4px 14px rgba(143,156,255,.28);
+  box-shadow: 0 4px 14px rgba(201,154,76,.28);
 }
-#pp-playpause-btn:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 6px 18px rgba(143,156,255,.4); }
+#pp-playpause-btn:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 6px 18px rgba(201,154,76,.4); }
 #pp-playpause-btn:disabled { opacity: .5; box-shadow: none; filter: none; }
 .pp-transport-divider { width: 1px; align-self: stretch; background: var(--border-soft); margin: 2px 2px; }
 
@@ -164,7 +164,7 @@
   cursor: pointer; transition: all .12s ease;
 }
 .pp-size-mode-btn:hover { color: var(--text); border-color: var(--text-dim); }
-.pp-size-mode-btn.active { background: var(--primary-soft); color: var(--primary); border-color: rgba(143,156,255,.4); }
+.pp-size-mode-btn.active { background: var(--primary-soft); color: var(--primary); border-color: rgba(201,154,76,.4); }
 
 .pp-size-preview { min-height: 15px; font-size: 11.5px; color: var(--text-faint); margin: -6px 0 12px; font-family: var(--mono); }
 
@@ -181,15 +181,15 @@
 .pp-order-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; filter: none; box-shadow: none; }
 .pp-order-btn:disabled:hover { transform: none; filter: none; box-shadow: none; }
 .pp-order-btn.buy {
-  background: linear-gradient(135deg, #35d39a, #1fa46c);
-  box-shadow: 0 4px 16px rgba(53,211,154,.28);
+  background: linear-gradient(135deg, #4cbf88, #3a9c6d);
+  box-shadow: 0 4px 16px rgba(76,191,136,.28);
 }
 .pp-order-btn.sell {
-  background: linear-gradient(135deg, #ff6871, #d43e46);
-  box-shadow: 0 4px 16px rgba(255,104,113,.28);
+  background: linear-gradient(135deg, #e2584f, #b8382f);
+  box-shadow: 0 4px 16px rgba(226,88,79,.28);
 }
-.pp-order-btn.buy:hover { box-shadow: 0 6px 20px rgba(53,211,154,.4); }
-.pp-order-btn.sell:hover { box-shadow: 0 6px 20px rgba(255,104,113,.4); }
+.pp-order-btn.buy:hover { box-shadow: 0 6px 20px rgba(76,191,136,.4); }
+.pp-order-btn.sell:hover { box-shadow: 0 6px 20px rgba(226,88,79,.4); }
 
 .pp-order-msg { min-height: 16px; font-size: 11.5px; color: var(--text-dim); margin-bottom: 12px; }
 .pp-order-msg.err { color: var(--red); }
@@ -231,12 +231,12 @@
 .pp-head-actions .btn-advanced:active { transform: translateY(0) scale(.96); }
 /* Replay chart is the one you'll reach for most on this row -- give it a
    touch of accent color so it doesn't blend into Change chart next to it. */
-#pp-replay-btn { color: var(--primary); background: var(--primary-soft); border-color: rgba(143,156,255,.35); }
-#pp-replay-btn:hover { box-shadow: 0 0 14px var(--glow-violet); border-color: rgba(143,156,255,.5); }
+#pp-replay-btn { color: var(--primary); background: var(--primary-soft); border-color: rgba(201,154,76,.35); }
+#pp-replay-btn:hover { box-shadow: 0 0 14px var(--glow-violet); border-color: rgba(201,154,76,.5); }
 .pill.mode-longonly {
   margin-left: 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em;
   padding: 2px 8px; font-weight: 700; background: var(--primary-soft); color: var(--primary);
-  border-color: rgba(143,156,255,.35);
+  border-color: rgba(201,154,76,.35);
 }
 
 /* ---------- panel-head "Order shortcuts" entry point (setup screen) ---------- */
@@ -318,8 +318,8 @@
 .pp-shortcut-btn:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.1); }
 .pp-shortcut-btn:active:not(:disabled) { transform: translateY(0) scale(.96); }
 .pp-shortcut-btn:disabled { opacity: .4; cursor: not-allowed; }
-.pp-shortcut-btn.buy { background: rgba(53,211,154,.16); color: var(--green); border-color: rgba(53,211,154,.35); }
-.pp-shortcut-btn.sell { background: rgba(255,104,113,.16); color: var(--red); border-color: rgba(255,104,113,.35); }
+.pp-shortcut-btn.buy { background: rgba(76,191,136,.16); color: var(--green); border-color: rgba(76,191,136,.35); }
+.pp-shortcut-btn.sell { background: rgba(226,88,79,.16); color: var(--red); border-color: rgba(226,88,79,.35); }
 .pp-shortcut-key {
   font-family: var(--mono); font-size: 10px; font-weight: 800; background: rgba(0,0,0,.28);
   border-radius: 4px; padding: 1px 5px; letter-spacing: .02em;
@@ -342,7 +342,7 @@
 .pp-sc-row .pp-sc-key { text-align: center; font-family: var(--mono); text-transform: uppercase; }
 .pp-sc-row .pp-sc-del {
   width: 30px; height: 30px; border-radius: 6px; background: var(--red-soft); color: var(--red);
-  border: 1px solid rgba(255,104,113,.3); cursor: pointer; font-size: 15px; line-height: 1;
+  border: 1px solid rgba(226,88,79,.3); cursor: pointer; font-size: 15px; line-height: 1;
 }
 .pp-sc-row .pp-sc-del:hover { filter: brightness(1.15); }
 .pp-sc-empty { font-size: 12.5px; color: var(--text-faint); padding: 10px 2px; }

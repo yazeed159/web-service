@@ -112,10 +112,10 @@
   // the three never drift from each other.
   function indicatorRowsHtml(vwap, ema9, ema20, ema200) {
     return (
-      `<div class="row"><span class="k">VWAP</span><span class="v" style="color:#f2ba62">${fmtPrice(vwap)}</span></div>` +
-      `<div class="row"><span class="k">EMA9</span><span class="v" style="color:#9aa8a1">${fmtPrice(ema9)}</span></div>` +
-      `<div class="row"><span class="k">EMA20</span><span class="v" style="color:#6ea7ff">${fmtPrice(ema20)}</span></div>` +
-      `<div class="row"><span class="k">EMA200</span><span class="v" style="color:#b57bee">${fmtPrice(ema200)}</span></div>`
+      `<div class="row"><span class="k">VWAP</span><span class="v" style="color:#d97b3f">${fmtPrice(vwap)}</span></div>` +
+      `<div class="row"><span class="k">EMA9</span><span class="v" style="color:#a3a68a">${fmtPrice(ema9)}</span></div>` +
+      `<div class="row"><span class="k">EMA20</span><span class="v" style="color:#6fa3c9">${fmtPrice(ema20)}</span></div>` +
+      `<div class="row"><span class="k">EMA200</span><span class="v" style="color:#a884b0">${fmtPrice(ema200)}</span></div>`
     );
   }
 

@@ -83,12 +83,12 @@
   // your own decisions (stop, chosen exit) live in a distinct blue/purple
   // family, and a genuine stop-out event gets its own amber so it doesn't
   // get mistaken for either group.
-  const COLOR_REAL_ENTRY = "#35d39a";
-  const COLOR_REAL_EXIT = "#ff6871";
-  const COLOR_YOUR_ENTRY = "#34c3d6";
-  const COLOR_YOUR_STOP = "#6ea7ff";
-  const COLOR_YOUR_EXIT = "#b98cf2";
-  const COLOR_STOP_EVENT = "#f2ba62";
+  const COLOR_REAL_ENTRY = "#4cbf88";
+  const COLOR_REAL_EXIT = "#e2584f";
+  const COLOR_YOUR_ENTRY = "#6fae87";
+  const COLOR_YOUR_STOP = "#6fa3c9";
+  const COLOR_YOUR_EXIT = "#c9946e";
+  const COLOR_STOP_EVENT = "#d97b3f";
 
   // IBKR's "Tiered" US stock commission schedule: $0.0035/share, with a
   // $0.35 floor and a 1%-of-trade-value ceiling per order. Applied once
@@ -371,12 +371,12 @@
       if (price < runningLow) runningLow = price;
       liveChart.series.update({
         time: barTime, open: opts.bar.o, high: runningHigh, low: runningLow, close: price,
-        color: "rgba(242,186,98,0.55)", borderColor: "#f2ba62", wickColor: "#f2ba62",
+        color: "rgba(217,123,63,0.55)", borderColor: "#d97b3f", wickColor: "#d97b3f",
       });
       if (liveChart.volSeries) {
         const frac = (idx + 1) / ticks.length;
         const formingVol = Math.round((opts.bar.v || 0) * frac);
-        liveChart.volSeries.update({ time: barTime, value: formingVol, color: "rgba(242,186,98,0.4)" });
+        liveChart.volSeries.update({ time: barTime, value: formingVol, color: "rgba(217,123,63,0.4)" });
         if (liveChart.handleState) {
           liveChart.handleState.lastVol = formingVol;
           liveChart.handleState.lastVwap = opts.bar.vwap;
@@ -610,12 +610,12 @@
     el.innerHTML = "";
     const candleData = bars.map((b) => {
       const point = { time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c };
-      if (b._forming) { point.color = "rgba(242,186,98,0.55)"; point.borderColor = "#f2ba62"; point.wickColor = "#f2ba62"; }
+      if (b._forming) { point.color = "rgba(217,123,63,0.55)"; point.borderColor = "#d97b3f"; point.wickColor = "#d97b3f"; }
       return point;
     });
     const volData = bars.map((b) => ({
       time: toUnix(b.t), value: b.v,
-      color: b._forming ? "rgba(242,186,98,0.4)" : (b.c >= b.o ? "rgba(53,211,154,0.4)" : "rgba(255,104,113,0.4)"),
+      color: b._forming ? "rgba(217,123,63,0.4)" : (b.c >= b.o ? "rgba(76,191,136,0.4)" : "rgba(226,88,79,0.4)"),
     }));
     const vwapData = bars.filter((b) => b.vwap != null).map((b) => ({ time: toUnix(b.t), value: b.vwap }));
     const ema9Data = bars.filter((b) => b.ema9 != null).map((b) => ({ time: toUnix(b.t), value: b.ema9 }));
@@ -623,16 +623,16 @@
     const ema200Data = bars.filter((b) => b.ema200 != null).map((b) => ({ time: toUnix(b.t), value: b.ema200 }));
 
     const commonOpts = {
-      layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
-      grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
-      rightPriceScale: { borderColor: "#232830", minimumWidth: 88 },
-      timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
+      layout: { background: { color: "transparent" }, textColor: "#a89b86" },
+      grid: { vertLines: { color: "#241e15" }, horzLines: { color: "#241e15" } },
+      rightPriceScale: { borderColor: "#33291d", minimumWidth: 88 },
+      timeScale: { borderColor: "#33291d", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     };
     const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: opts.height || 380 });
     const series = chart.addCandlestickSeries({
-      upColor: "#35d39a", downColor: "#ff6871", borderVisible: false,
-      wickUpColor: "#35d39a", wickDownColor: "#ff6871",
+      upColor: "#4cbf88", downColor: "#e2584f", borderVisible: false,
+      wickUpColor: "#4cbf88", wickDownColor: "#e2584f",
     });
     series.setData(candleData);
     chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.12, bottom: 0.2 } });
@@ -641,13 +641,13 @@
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
     volSeries.setData(volData);
 
-    const vwapSeries = chart.addLineSeries({ color: "#f2ba62", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const vwapSeries = chart.addLineSeries({ color: "#d97b3f", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     vwapSeries.setData(vwapData);
-    const ema9Series = chart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ema9Series = chart.addLineSeries({ color: "#a3a68a", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema9Series.setData(ema9Data);
-    const ema20Series = chart.addLineSeries({ color: "#6ea7ff", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ema20Series = chart.addLineSeries({ color: "#6fa3c9", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema20Series.setData(ema20Data);
-    const ema200Series = chart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ema200Series = chart.addLineSeries({ color: "#a884b0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema200Series.setData(ema200Data);
 
     // Top-left info overlay: live volume/VWAP/EMA9/EMA20/EMA200 readout that
@@ -679,7 +679,7 @@
       const ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
       const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
       const ema200Bar = param.seriesData && param.seriesData.get(ema200Series);
-      const upDown = volBar ? (volBar.color && volBar.color.indexOf("53,211,154") !== -1 ? "up" : volBar.color && volBar.color.indexOf("242,186,98") !== -1 ? "" : "down") : "";
+      const upDown = volBar ? (volBar.color && volBar.color.indexOf("76,191,136") !== -1 ? "up" : volBar.color && volBar.color.indexOf("217,123,63") !== -1 ? "" : "down") : "";
       renderOverlay(
         volBar ? volBar.value : handleState.lastVol, upDown,
         vwapBar ? vwapBar.value : handleState.lastVwap,
@@ -722,7 +722,7 @@
     try {
       chartHandle.series.update({ time: t, open: bar.o, high: bar.h, low: bar.l, close: bar.c });
       if (chartHandle.volSeries) {
-        chartHandle.volSeries.update({ time: t, value: bar.v, color: bar.c >= bar.o ? "rgba(53,211,154,0.4)" : "rgba(255,104,113,0.4)" });
+        chartHandle.volSeries.update({ time: t, value: bar.v, color: bar.c >= bar.o ? "rgba(76,191,136,0.4)" : "rgba(226,88,79,0.4)" });
       }
       if (bar.vwap != null && chartHandle.vwapSeries) chartHandle.vwapSeries.update({ time: t, value: bar.vwap });
       if (bar.ema9 != null && chartHandle.ema9Series) chartHandle.ema9Series.update({ time: t, value: bar.ema9 });
@@ -791,7 +791,7 @@
       el.style.cssText = `
         position:absolute; width:0; height:0; pointer-events:auto;
         border-left:6px solid transparent; border-right:6px solid transparent;
-        filter: drop-shadow(0 0 1.5px #0b0d10) drop-shadow(0 0 1.5px #0b0d10);
+        filter: drop-shadow(0 0 1.5px #100e0b) drop-shadow(0 0 1.5px #100e0b);
         border-top:${p.above ? `${POINTER_H}px solid ${p.color}` : "0"};
         border-bottom:${p.above ? "0" : `${POINTER_H}px solid ${p.color}`};
       `;
@@ -804,8 +804,8 @@
         tooltip.dataset.open = "0";
         tooltip.style.cssText = `
           position:absolute; display:none; width:180px; max-width:60vw;
-          background:#181b22; border:1px solid ${p.color}; border-radius:8px;
-          padding:8px 10px; font-size:12px; line-height:1.5; color:#f1f5fb;
+          background:#1f1a13; border:1px solid ${p.color}; border-radius:8px;
+          padding:8px 10px; font-size:12px; line-height:1.5; color:#f4ede0;
           box-shadow:0 6px 20px rgba(0,0,0,.45); z-index:5; pointer-events:none;
         `;
         tooltip.textContent = p.tooltip;
