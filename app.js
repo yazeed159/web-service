@@ -311,7 +311,7 @@
     const fillD = pathD + ` L${coords[coords.length - 1][0].toFixed(1)},${zeroY.toFixed(1)} L0,${zeroY.toFixed(1)} Z`;
     const finalPositive = values[values.length - 1] >= 0;
     const gradId = "mlcGrad" + (mlcSeq++);
-    const swatch = finalPositive ? "#2fd08a" : "#f2555a";
+    const swatch = finalPositive ? "#35d39a" : "#ff6871";
 
     container.innerHTML = `
       <div class="equity-chart-wrap mini-line-wrap">
@@ -1008,12 +1008,12 @@
       <circle id="equity-hover-dot" r="4" fill="var(--panel)" stroke="${finalPositive ? "var(--green)" : "var(--red)"}" stroke-width="2" style="display:none;" />
       <defs>
         <linearGradient id="gGreen" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#2fd08a" stop-opacity="0.22" />
-          <stop offset="100%" stop-color="#2fd08a" stop-opacity="0" />
+          <stop offset="0%" stop-color="#35d39a" stop-opacity="0.22" />
+          <stop offset="100%" stop-color="#35d39a" stop-opacity="0" />
         </linearGradient>
         <linearGradient id="gRed" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#f2555a" stop-opacity="0.2" />
-          <stop offset="100%" stop-color="#f2555a" stop-opacity="0" />
+          <stop offset="0%" stop-color="#ff6871" stop-opacity="0.2" />
+          <stop offset="100%" stop-color="#ff6871" stop-opacity="0" />
         </linearGradient>
       </defs>
     `;

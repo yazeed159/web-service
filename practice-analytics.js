@@ -185,12 +185,12 @@
       <path d="${pathD}" class="equity-path ${finalPositive ? "" : "neg"}" />
       <defs>
         <linearGradient id="paGGreen" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#2fd08a" stop-opacity="0.22" />
-          <stop offset="100%" stop-color="#2fd08a" stop-opacity="0" />
+          <stop offset="0%" stop-color="#35d39a" stop-opacity="0.22" />
+          <stop offset="100%" stop-color="#35d39a" stop-opacity="0" />
         </linearGradient>
         <linearGradient id="paGRed" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#f2555a" stop-opacity="0.2" />
-          <stop offset="100%" stop-color="#f2555a" stop-opacity="0" />
+          <stop offset="0%" stop-color="#ff6871" stop-opacity="0.2" />
+          <stop offset="100%" stop-color="#ff6871" stop-opacity="0" />
         </linearGradient>
       </defs>
     `;

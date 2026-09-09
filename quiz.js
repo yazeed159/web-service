@@ -83,12 +83,12 @@
   // your own decisions (stop, chosen exit) live in a distinct blue/purple
   // family, and a genuine stop-out event gets its own amber so it doesn't
   // get mistaken for either group.
-  const COLOR_REAL_ENTRY = "#2fd08a";
-  const COLOR_REAL_EXIT = "#f2555a";
+  const COLOR_REAL_ENTRY = "#35d39a";
+  const COLOR_REAL_EXIT = "#ff6871";
   const COLOR_YOUR_ENTRY = "#34c3d6";
-  const COLOR_YOUR_STOP = "#5b93f0";
+  const COLOR_YOUR_STOP = "#6ea7ff";
   const COLOR_YOUR_EXIT = "#b98cf2";
-  const COLOR_STOP_EVENT = "#e8a94c";
+  const COLOR_STOP_EVENT = "#f2ba62";
 
   // IBKR's "Tiered" US stock commission schedule: $0.0035/share, with a
   // $0.35 floor and a 1%-of-trade-value ceiling per order. Applied once
@@ -371,12 +371,12 @@
       if (price < runningLow) runningLow = price;
       liveChart.series.update({
         time: barTime, open: opts.bar.o, high: runningHigh, low: runningLow, close: price,
-        color: "rgba(232,169,76,0.55)", borderColor: "#e8a94c", wickColor: "#e8a94c",
+        color: "rgba(242,186,98,0.55)", borderColor: "#f2ba62", wickColor: "#f2ba62",
       });
       if (liveChart.volSeries) {
         const frac = (idx + 1) / ticks.length;
         const formingVol = Math.round((opts.bar.v || 0) * frac);
-        liveChart.volSeries.update({ time: barTime, value: formingVol, color: "rgba(232,169,76,0.4)" });
+        liveChart.volSeries.update({ time: barTime, value: formingVol, color: "rgba(242,186,98,0.4)" });
         if (liveChart.handleState) {
           liveChart.handleState.lastVol = formingVol;
           liveChart.handleState.lastVwap = opts.bar.vwap;
@@ -610,12 +610,12 @@
     el.innerHTML = "";
     const candleData = bars.map((b) => {
       const point = { time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c };
-      if (b._forming) { point.color = "rgba(232,169,76,0.55)"; point.borderColor = "#e8a94c"; point.wickColor = "#e8a94c"; }
+      if (b._forming) { point.color = "rgba(242,186,98,0.55)"; point.borderColor = "#f2ba62"; point.wickColor = "#f2ba62"; }
       return point;
     });
     const volData = bars.map((b) => ({
       time: toUnix(b.t), value: b.v,
-      color: b._forming ? "rgba(232,169,76,0.4)" : (b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)"),
+      color: b._forming ? "rgba(242,186,98,0.4)" : (b.c >= b.o ? "rgba(53,211,154,0.4)" : "rgba(255,104,113,0.4)"),
     }));
     const vwapData = bars.filter((b) => b.vwap != null).map((b) => ({ time: toUnix(b.t), value: b.vwap }));
     const ema9Data = bars.filter((b) => b.ema9 != null).map((b) => ({ time: toUnix(b.t), value: b.ema9 }));
@@ -631,8 +631,8 @@
     };
     const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: opts.height || 380 });
     const series = chart.addCandlestickSeries({
-      upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
-      wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
+      upColor: "#35d39a", downColor: "#ff6871", borderVisible: false,
+      wickUpColor: "#35d39a", wickDownColor: "#ff6871",
     });
     series.setData(candleData);
     chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.12, bottom: 0.2 } });
@@ -641,11 +641,11 @@
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
     volSeries.setData(volData);
 
-    const vwapSeries = chart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const vwapSeries = chart.addLineSeries({ color: "#f2ba62", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     vwapSeries.setData(vwapData);
     const ema9Series = chart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema9Series.setData(ema9Data);
-    const ema20Series = chart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ema20Series = chart.addLineSeries({ color: "#6ea7ff", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema20Series.setData(ema20Data);
     const ema200Series = chart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema200Series.setData(ema200Data);
@@ -679,7 +679,7 @@
       const ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
       const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
       const ema200Bar = param.seriesData && param.seriesData.get(ema200Series);
-      const upDown = volBar ? (volBar.color && volBar.color.indexOf("47,208,138") !== -1 ? "up" : volBar.color && volBar.color.indexOf("232,169,76") !== -1 ? "" : "down") : "";
+      const upDown = volBar ? (volBar.color && volBar.color.indexOf("53,211,154") !== -1 ? "up" : volBar.color && volBar.color.indexOf("242,186,98") !== -1 ? "" : "down") : "";
       renderOverlay(
         volBar ? volBar.value : handleState.lastVol, upDown,
         vwapBar ? vwapBar.value : handleState.lastVwap,
@@ -722,7 +722,7 @@
     try {
       chartHandle.series.update({ time: t, open: bar.o, high: bar.h, low: bar.l, close: bar.c });
       if (chartHandle.volSeries) {
-        chartHandle.volSeries.update({ time: t, value: bar.v, color: bar.c >= bar.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" });
+        chartHandle.volSeries.update({ time: t, value: bar.v, color: bar.c >= bar.o ? "rgba(53,211,154,0.4)" : "rgba(255,104,113,0.4)" });
       }
       if (bar.vwap != null && chartHandle.vwapSeries) chartHandle.vwapSeries.update({ time: t, value: bar.vwap });
       if (bar.ema9 != null && chartHandle.ema9Series) chartHandle.ema9Series.update({ time: t, value: bar.ema9 });
@@ -805,7 +805,7 @@
         tooltip.style.cssText = `
           position:absolute; display:none; width:180px; max-width:60vw;
           background:#181b22; border:1px solid ${p.color}; border-radius:8px;
-          padding:8px 10px; font-size:12px; line-height:1.5; color:#eceef2;
+          padding:8px 10px; font-size:12px; line-height:1.5; color:#f1f5fb;
           box-shadow:0 6px 20px rgba(0,0,0,.45); z-index:5; pointer-events:none;
         `;
         tooltip.textContent = p.tooltip;

@@ -30,8 +30,8 @@
     display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 6px;
     font-size: 12.5px; font-weight: 600; margin-bottom: 16px; border: 1px solid;
   }
-  .lt-mode-banner.paper { background: var(--blue-soft); color: var(--blue); border-color: rgba(91,147,240,0.3); }
-  .lt-mode-banner.live { background: var(--red-soft); color: var(--red); border-color: rgba(242,85,90,0.3); }
+  .lt-mode-banner.paper { background: var(--blue-soft); color: var(--blue); border-color: rgba(110,167,255,0.3); }
+  .lt-mode-banner.live { background: var(--red-soft); color: var(--red); border-color: rgba(255,104,113,0.3); }
   .lt-actions { display: flex; gap: 10px; margin-top: 18px; }
 
   /* --- Run cards -------------------------------------------------- */
@@ -61,8 +61,8 @@
   .lt-status.running .dot { background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); animation: pulseDot 2.2s ease-in-out infinite; }
   .lt-status.starting { color: var(--blue); }
   .lt-status.starting .dot { background: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); animation: pulseDot 1.1s ease-in-out infinite; }
-  .lt-status.stopping { color: var(--amber, #e8a94c); }
-  .lt-status.stopping .dot { background: var(--amber, #e8a94c); box-shadow: 0 0 0 3px var(--amber-soft, rgba(232,169,76,0.2)); animation: pulseDot 0.9s ease-in-out infinite; }
+  .lt-status.stopping { color: var(--amber, #f2ba62); }
+  .lt-status.stopping .dot { background: var(--amber, #f2ba62); box-shadow: 0 0 0 3px var(--amber-soft, rgba(242,186,98,0.2)); animation: pulseDot 0.9s ease-in-out infinite; }
   .lt-status.stopped { color: var(--text-faint); }
   .lt-status.stopped .dot { background: var(--text-faint); }
 
@@ -70,7 +70,7 @@
      as every other secondary button on the page, which is exactly why it
      was easy to miss / didn't read as a "stop live trading" action. */
   .btn-danger {
-    background: var(--red-soft); border: 1px solid rgba(242,85,90,0.4); color: var(--red);
+    background: var(--red-soft); border: 1px solid rgba(255,104,113,0.4); color: var(--red);
     border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
     transition: background .15s ease, color .15s ease, transform .15s ease;
   }
@@ -82,8 +82,8 @@
 
   /* --- Per-symbol position card: order lifecycle + live price/PnL --- */
   .lt-pos-card { border: 1px solid var(--border-soft); border-radius: 8px; background: var(--panel-2); padding: 10px 12px 12px; }
-  .lt-pos-card.state-in-position { border-color: rgba(47,208,138,0.3); }
-  .lt-pos-card.state-pending { border-color: rgba(232,169,76,0.35); }
+  .lt-pos-card.state-in-position { border-color: rgba(53,211,154,0.3); }
+  .lt-pos-card.state-pending { border-color: rgba(242,186,98,0.35); }
   .lt-pos-top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
   .lt-pos-sym { font-family: var(--mono); font-size: 13.5px; font-weight: 700; }
   .lt-pos-state { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
@@ -168,7 +168,7 @@
   .lt-params-title { font-size: 13px; font-weight: 600; }
   .lt-params-title .hint-text { font-weight: 400; display: block; margin-top: 2px; }
   .lt-params-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-  .lt-params-dirty-note { font-size: 11.5px; color: var(--amber, #e8a94c); font-weight: 600; white-space: nowrap; }
+  .lt-params-dirty-note { font-size: 11.5px; color: var(--amber, #f2ba62); font-weight: 600; white-space: nowrap; }
   .lt-params-group { margin-top: 14px; border-top: 1px solid var(--border-soft); padding-top: 12px; }
   .lt-params-group:first-of-type { margin-top: 14px; }
   .lt-params-group-title { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); font-weight: 600; margin-bottom: 10px; }

@@ -50,10 +50,10 @@
   .edge-jumpnav .pill { cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 6px; }
   .edge-jumpnav .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.5; }
   .edge-jumpnav .pill.active {
-    background: var(--primary-soft, rgba(139,124,246,0.15));
-    color: var(--primary, #8b7cf6);
-    border-color: rgba(139,124,246,0.45);
-    box-shadow: 0 0 0 1px rgba(139,124,246,0.25), 0 0 14px rgba(132,87,255,0.25);
+    background: var(--primary-soft, rgba(143,156,255,0.15));
+    color: var(--primary, #8f9cff);
+    border-color: rgba(143,156,255,0.45);
+    box-shadow: 0 0 0 1px rgba(143,156,255,0.25), 0 0 14px rgba(132,87,255,0.25);
   }
 
   /* ---- section head with icon ---- */
@@ -449,10 +449,10 @@
     const chart = LightweightCharts.createChart(el, Object.assign({
       width: el.clientWidth,
       height,
-      layout: { background: { color: "transparent" }, textColor: "#8b8fa3" },
-      grid: { vertLines: { color: "#1b1e26" }, horzLines: { color: "#1b1e26" } },
-      rightPriceScale: { borderColor: "#262a34" },
-      timeScale: { borderColor: "#262a34" },
+      layout: { background: { color: "transparent" }, textColor: "#9ba7ba" },
+      grid: { vertLines: { color: "#1b2331" }, horzLines: { color: "#1b2331" } },
+      rightPriceScale: { borderColor: "#273143" },
+      timeScale: { borderColor: "#273143" },
     }, extraOpts || {}));
     window.addEventListener("resize", () => chart.applyOptions({ width: el.clientWidth }));
     return chart;
@@ -787,8 +787,8 @@
     const el = document.getElementById("decay-chart");
     el.innerHTML = "";
     if (trades.length < 2) { el.innerHTML = `<div class="empty-state small">Not enough trades yet to plot a trend.</div>`; return; }
-    const chart = makeChart(el, 220, { timeScale: { borderColor: "#262a34", tickMarkFormatter: (t) => "#" + t }, localization: { timeFormatter: (t) => "Trade #" + t } });
-    const series = chart.addLineSeries({ color: "#8b7cf6", lineWidth: 2 });
+    const chart = makeChart(el, 220, { timeScale: { borderColor: "#273143", tickMarkFormatter: (t) => "#" + t }, localization: { timeFormatter: (t) => "Trade #" + t } });
+    const series = chart.addLineSeries({ color: "#8f9cff", lineWidth: 2 });
     let wins = 0;
     const data = trades.map((t, i) => {
       if (t.win) wins++;
@@ -1012,7 +1012,7 @@
     el.innerHTML = "";
     const { row, computed } = entry;
     const chart = makeChart(el, 240);
-    const series = chart.addLineSeries({ color: "#5b93f0", lineWidth: 2 });
+    const series = chart.addLineSeries({ color: "#6ea7ff", lineWidth: 2 });
     const shares = row.shares || 1;
     const toTime = (t) => Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000);
     const data = computed.path.map((p) => ({ time: toTime(p.t), value: Math.round(p.pnl * shares * 100) / 100 }));
@@ -1020,9 +1020,9 @@
 
     const markers = [];
     const bestPoint = computed.path.find((p) => p.i === computed.bestIdx);
-    if (bestPoint) markers.push({ time: toTime(bestPoint.t), position: "aboveBar", color: "#e8a94c", shape: "circle", text: "Best bar" });
+    if (bestPoint) markers.push({ time: toTime(bestPoint.t), position: "aboveBar", color: "#f2ba62", shape: "circle", text: "Best bar" });
     const exitPoint = computed.path.find((p) => p.i >= computed.exitIdx) || computed.path[computed.path.length - 1];
-    if (exitPoint) markers.push({ time: toTime(exitPoint.t), position: "belowBar", color: row.win ? "#2fd08a" : "#f2555a", shape: "arrowDown", text: "Actual exit" });
+    if (exitPoint) markers.push({ time: toTime(exitPoint.t), position: "belowBar", color: row.win ? "#35d39a" : "#ff6871", shape: "arrowDown", text: "Actual exit" });
     markers.sort((a, b) => a.time - b.time);
     series.setMarkers(markers);
     chart.timeScale().fitContent();
@@ -1113,9 +1113,9 @@
   function renderSizingChart(chrono) {
     const el = document.getElementById("sizing-chart");
     el.innerHTML = "";
-    const chart = makeChart(el, 220, { timeScale: { borderColor: "#262a34", tickMarkFormatter: (t) => "#" + t }, localization: { timeFormatter: (t) => "Trade #" + t } });
+    const chart = makeChart(el, 220, { timeScale: { borderColor: "#273143", tickMarkFormatter: (t) => "#" + t }, localization: { timeFormatter: (t) => "Trade #" + t } });
     const series = chart.addHistogramSeries({ priceFormat: { type: "volume" } });
-    series.setData(chrono.map((r, i) => ({ time: i + 1, value: r.shares, color: r.win ? "rgba(47,208,138,0.75)" : "rgba(242,85,90,0.75)" })));
+    series.setData(chrono.map((r, i) => ({ time: i + 1, value: r.shares, color: r.win ? "rgba(53,211,154,0.75)" : "rgba(255,104,113,0.75)" })));
     chart.timeScale().fitContent();
   }
 

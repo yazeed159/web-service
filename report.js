@@ -217,10 +217,10 @@
       rptEquityChart = LightweightCharts.createChart(els.equityChart, {
         width: els.equityChart.clientWidth,
         height: els.equityChart.clientHeight || 220,
-        layout: { background: { color: "transparent" }, textColor: "#8b8fa3" },
-        grid: { vertLines: { color: "#1b1e26" }, horzLines: { color: "#1b1e26" } },
-        rightPriceScale: { borderColor: "#262a34" },
-        timeScale: { borderColor: "#262a34" },
+        layout: { background: { color: "transparent" }, textColor: "#9ba7ba" },
+        grid: { vertLines: { color: "#1b2331" }, horzLines: { color: "#1b2331" } },
+        rightPriceScale: { borderColor: "#273143" },
+        timeScale: { borderColor: "#273143" },
       });
       window.addEventListener("resize", () => rptEquityChart && rptEquityChart.applyOptions({ width: els.equityChart.clientWidth }));
     }
@@ -235,8 +235,8 @@
     const net = points.length ? points[points.length - 1].value : 0;
     if (rptEquitySeries) rptEquityChart.removeSeries(rptEquitySeries);
     rptEquitySeries = rptEquityChart.addAreaSeries({
-      lineColor: net >= 0 ? "#2fd08a" : "#f2555a",
-      topColor: net >= 0 ? "rgba(47,208,138,0.28)" : "rgba(242,85,90,0.28)",
+      lineColor: net >= 0 ? "#35d39a" : "#ff6871",
+      topColor: net >= 0 ? "rgba(53,211,154,0.28)" : "rgba(255,104,113,0.28)",
       bottomColor: "rgba(0,0,0,0)",
       lineWidth: 2,
     });
@@ -1050,14 +1050,14 @@
     function seriesDataFor(displayBars) {
       return {
         candleData: displayBars.map((b) => ({ time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c })),
-        volData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" })),
+        volData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(53,211,154,0.4)" : "rgba(255,104,113,0.4)" })),
         vwapData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.vwap })),
         ema9Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema9 })),
         ema20Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema20 })),
         ema200Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema200 })),
         macdData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd })),
         signalData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd_signal })),
-        histData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd_hist, color: (b.macd_hist || 0) >= 0 ? "#2fd08a" : "#f2555a" })),
+        histData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd_hist, color: (b.macd_hist || 0) >= 0 ? "#35d39a" : "#ff6871" })),
       };
     }
     const initialDisplayBars = rptCurrentInterval === 1 ? bars : window.ChartIndicators.resampleBars(bars, rptCurrentInterval);
@@ -1076,8 +1076,8 @@
 
     rptCandleChart = LightweightCharts.createChart(candleEl, { ...commonOpts, width: candleEl.clientWidth, height: candleEl.clientHeight || 380 });
     const candleSeries = rptCandleChart.addCandlestickSeries({
-      upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
-      wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
+      upColor: "#35d39a", downColor: "#ff6871", borderVisible: false,
+      wickUpColor: "#35d39a", wickDownColor: "#ff6871",
       // See trade.js buildCharts() -- disable the library's built-in
       // dashed "last value" price line so it doesn't show up as a stray
       // green/red line at the last close price alongside our own
@@ -1091,11 +1091,11 @@
     rptCandleChart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     volSeries.setData(volData);
 
-    const vwapSeries = rptCandleChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const vwapSeries = rptCandleChart.addLineSeries({ color: "#f2ba62", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     vwapSeries.setData(vwapData);
     const ema9Series = rptCandleChart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema9Series.setData(ema9Data);
-    const ema20Series = rptCandleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ema20Series = rptCandleChart.addLineSeries({ color: "#6ea7ff", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema20Series.setData(ema20Data);
     const ema200Series = rptCandleChart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema200Series.setData(ema200Data);
@@ -1120,7 +1120,7 @@
     rptCandleChart.subscribeCrosshairMove((param) => {
       const volBar = param.seriesData && param.seriesData.get(volSeries);
       const vol = volBar ? volBar.value : lastOf(currentSeriesData.volData);
-      const upDown = volBar ? (volBar.color && volBar.color.indexOf("47,208,138") !== -1 ? "up" : "down") : "";
+      const upDown = volBar ? (volBar.color && volBar.color.indexOf("53,211,154") !== -1 ? "up" : "down") : "";
       const vwapBar = param.seriesData && param.seriesData.get(vwapSeries);
       const ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
       const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
@@ -1140,8 +1140,8 @@
     // permanent label competing with the axis. lineVisible: false so only
     // the axis tag shows, matching trade.js -- without it these drew as
     // full-width dashed lines straight across the chart.
-    candleSeries.createPriceLine({ price: trade.entry_price, color: "#2fd08a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lineVisible: false, axisLabelVisible: true, title: "" });
-    candleSeries.createPriceLine({ price: trade.exit_price, color: "#f2555a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lineVisible: false, axisLabelVisible: true, title: "" });
+    candleSeries.createPriceLine({ price: trade.entry_price, color: "#35d39a", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lineVisible: false, axisLabelVisible: true, title: "" });
+    candleSeries.createPriceLine({ price: trade.exit_price, color: "#ff6871", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, lineVisible: false, axisLabelVisible: true, title: "" });
 
     // The LLM verdict step (see chart_service.py's /enrich contract) only
     // ever gives a better_entry/exit PRICE for backtest trades, no time --
@@ -1149,7 +1149,7 @@
     // dotted price lines, not time-anchored pointer markers.
     if (trade.better_entry_price) {
       candleSeries.createPriceLine({
-        price: Number(trade.better_entry_price), color: "#8b7cf6", lineWidth: 1,
+        price: Number(trade.better_entry_price), color: "#8f9cff", lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.Dotted, lineVisible: false, axisLabelVisible: true, title: "better entry",
       });
     }
@@ -1216,7 +1216,7 @@
         tooltip.style.cssText = `
           position:absolute; display:none; width:180px; max-width:60vw;
           background:#181b22; border:1px solid ${color}; border-radius:8px;
-          padding:10px 12px; font-size:12px; line-height:1.5; color:#eceef2;
+          padding:10px 12px; font-size:12px; line-height:1.5; color:#f1f5fb;
           box-shadow:0 6px 20px rgba(0,0,0,.45); z-index:5; pointer-events:none;
         `;
         tooltip.innerHTML = tooltipHtmlText;
@@ -1247,9 +1247,9 @@
 
     const pointers = [
       // Entry: triangle sits just above the fill, tip pointing down onto it.
-      mkPointer(toUnix(entryBar.t), trade.entry_price, "#2fd08a", true, tooltipHtml(`ENTRY $${Number(trade.entry_price).toFixed(2)}`)),
+      mkPointer(toUnix(entryBar.t), trade.entry_price, "#35d39a", true, tooltipHtml(`ENTRY $${Number(trade.entry_price).toFixed(2)}`)),
       // Exit: triangle sits just below the fill, tip pointing up onto it.
-      mkPointer(toUnix(exitBar.t), trade.exit_price, "#f2555a", false, tooltipHtml(`EXIT $${Number(trade.exit_price).toFixed(2)}`)),
+      mkPointer(toUnix(exitBar.t), trade.exit_price, "#ff6871", false, tooltipHtml(`EXIT $${Number(trade.exit_price).toFixed(2)}`)),
     ];
 
     // A zero-size div with only border-bottom set renders a triangle whose
@@ -1295,9 +1295,9 @@
     rptMacdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: macdEl.clientHeight || 100 });
     const macdHistSeries = rptMacdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } });
     macdHistSeries.setData(histData);
-    const macdLineSeries = rptMacdChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const macdLineSeries = rptMacdChart.addLineSeries({ color: "#6ea7ff", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     macdLineSeries.setData(macdData);
-    const macdSignalLineSeries = rptMacdChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const macdSignalLineSeries = rptMacdChart.addLineSeries({ color: "#f2ba62", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     macdSignalLineSeries.setData(signalData);
 
     rptCandleChart.timeScale().subscribeVisibleLogicalRangeChange((range) => { if (range && rptMacdChart) rptMacdChart.timeScale().setVisibleLogicalRange(range); });
