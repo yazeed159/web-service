@@ -1281,10 +1281,10 @@
         <td class="mono ${t.pnl_before_comm >= 0 ? "up" : "down"}">${fmtMoney(t.pnl_before_comm)}</td>
         <td class="mono dim">$${(t.commission || 0).toFixed(2)}</td>
         <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
-        <td>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(t), { size: 12 }) : "—"}</td>
+        <td class="mono dim">${t.entry_time} → ${t.exit_time}</td>
       </tr>`).join("");
     const body = document.getElementById("day-detail-body");
-    body.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Price</th><th>C/Share</th><th>Shares</th><th>Hold</th><th>Gross</th><th>Comm</th><th>Net P&amp;L</th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    body.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Price</th><th>C/Share</th><th>Shares</th><th>Hold</th><th>Gross</th><th>Comm</th><th>Net P&amp;L</th><th>Entry/Exit</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     bindTradeRows(body);
     panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
