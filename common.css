@@ -20,7 +20,7 @@
   --border-soft: #1b1e26;
   --text: #eceef2;
   --text-dim: #8b8fa3;
-  --text-faint: var(--text-faint);
+  --text-faint: #565a6b;
   --green: #2fd08a;
   --green-soft: rgba(47, 208, 138, 0.12);
   --red: #f2555a;
@@ -1177,6 +1177,31 @@ body::before {
 .score-gauge .num, .cal-month-label, .card h2 { font-family: var(--display); }
 .brand .name { letter-spacing: -0.01em; }
 .topbar-left h1, .panel-head h1 { letter-spacing: -0.02em; }
+
+/* ---------- Shared page-hero banner ----------
+   One visual family for every top-of-page hero/CTA banner (dashboard's
+   KPI hero, rewind/practice's setup-screen CTA banners): panel card,
+   violet-tinted border, radial glow, signature-gradient accent. Each
+   page's own stylesheet only adds its content layout on top. */
+.dash-hero, .rw-hero, .pr-hero {
+  background: var(--panel);
+  border: 1px solid rgba(139,124,246,0.3);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 40px -28px rgba(0,0,0,0.6);
+}
+.dash-hero::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: var(--grad-signature);
+  opacity: 0.8;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.rw-hero, .pr-hero {
+  background:
+    radial-gradient(circle at 100% 0%, var(--glow-violet), transparent 55%),
+    var(--panel);
+}
 
 /* ---------- Brand mark: animated gradient ---------- */
 .brand .mark {

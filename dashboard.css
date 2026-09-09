@@ -10,6 +10,10 @@
 /* =====================================================
    HERO — the one number that leads the page
 ===================================================== */
+/* Card treatment (background/border/radius/gradient top-edge) now lives
+   in common.css's shared .dash-hero, .rw-hero, .pr-hero rule, so every
+   page-hero banner reads as one family. Only this page's own content
+   layout stays here. */
 .dash-hero {
   position: relative;
   overflow: hidden;
@@ -17,7 +21,6 @@
   align-items: center;
   gap: 32px;
   padding: 26px 30px;
-  border-radius: var(--radius-lg);
 }
 .dash-hero::before {
   content: "";
@@ -27,13 +30,6 @@
   background: radial-gradient(closest-side, var(--glow-violet), transparent 70%);
   opacity: 0.5;
   pointer-events: none;
-}
-.dash-hero::after {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0; height: 2px;
-  background: var(--grad-signature);
-  opacity: 0.8;
 }
 
 .hero-main { flex: 1 1 auto; min-width: 0; position: relative; z-index: 1; }

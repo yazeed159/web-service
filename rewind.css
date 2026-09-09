@@ -13,14 +13,12 @@
    fields + a heavier CTA. Scoped under #quiz-setup-screen so quiz.html
    (which shares quiz-shared.css but not this file) is untouched.
 =================================================================== */
+/* Card treatment (background/border/radius/glow) now lives in
+   common.css's shared .dash-hero, .rw-hero, .pr-hero rule -- only this
+   page's own content layout stays here. */
 .rw-hero {
   position: relative; overflow: hidden;
   display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
-  background:
-    radial-gradient(circle at 100% 0%, rgba(139,124,246,0.22), transparent 55%),
-    linear-gradient(135deg, var(--panel), var(--panel));
-  border: 1px solid rgba(139,124,246,0.3);
-  border-radius: var(--radius-lg);
   padding: 26px 28px;
   margin-bottom: 18px;
 }

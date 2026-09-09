@@ -43,14 +43,12 @@
 .pr-resume-box .rb-text b { color: var(--primary); }
 
 /* ---------- setup screen: hero CTA ---------- */
+/* Card treatment (background/border/radius/glow) now lives in
+   common.css's shared .dash-hero, .rw-hero, .pr-hero rule -- only this
+   page's own content layout stays here. */
 .pr-hero {
   position: relative; overflow: hidden;
   display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
-  background:
-    radial-gradient(circle at 100% 0%, rgba(139,124,246,0.22), transparent 55%),
-    linear-gradient(135deg, var(--panel), var(--panel-2, var(--panel)));
-  border: 1px solid rgba(139,124,246,0.3);
-  border-radius: var(--radius-lg);
   padding: 26px 28px;
   margin-bottom: 18px;
 }
@@ -64,24 +62,24 @@
 
 .pr-hero-action { display: flex; flex-direction: column; align-items: center; gap: 10px; flex-shrink: 0; }
 
-.btn-hero {
-  background: linear-gradient(135deg, var(--primary), var(--primary-2));
-  color: #fff; border: none; border-radius: var(--radius); cursor: pointer;
-  font-family: var(--sans); font-size: 16px; font-weight: 700;
-  padding: 16px 34px; white-space: nowrap;
+/* Base gradient/glow CTA now comes from the shared .btn-confirm in
+   common.css (the same button quiz.html and rewind.html use for their
+   "Start" action) -- this just matches the heavier setup-screen
+   emphasis rewind.css gives its start button, so all three "start"
+   CTAs read as one family. */
+.pr-start-btn {
+  font-size: 16px; font-weight: 700;
+  padding: 16px 34px; white-space: nowrap; border-radius: var(--radius);
   box-shadow: 0 0 0 1px rgba(139,124,246,0.3), 0 8px 24px rgba(139,124,246,0.4);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.btn-hero:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 0 0 1px rgba(139,124,246,0.4), 0 12px 30px rgba(139,124,246,0.5); }
-.btn-hero:active:not(:disabled) { transform: translateY(0); }
-.btn-hero:disabled { opacity: 0.55; cursor: not-allowed; }
+.pr-start-btn:hover:not(:disabled) { box-shadow: 0 0 0 1px rgba(139,124,246,0.4), 0 12px 30px rgba(139,124,246,0.5); }
 
 .pr-hero-action .pr-candidate-count { margin-bottom: 0; }
 
 @media (max-width: 760px) {
   .pr-hero { padding: 22px; }
   .pr-hero-action { width: 100%; }
-  .btn-hero { width: 100%; }
+  .pr-start-btn { width: 100%; }
 }
 
 .pr-candidate-count { font-size: 12px; color: var(--text-faint); margin-bottom: 10px; }
