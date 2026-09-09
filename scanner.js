@@ -166,6 +166,7 @@
         <td class="mono-num">${enriched ? fmtPrice(r.day_high) : "—"}</td>
         <td class="mono-num">${enriched ? fmtPrice(r.vwap) : "—"}</td>
         <td class="mono-num">${enriched ? fmtPrice(r.ema9) : "—"}</td>
+        <td class="mono-num">${enriched ? fmtPrice(r.ema200) : "—"}</td>
         <td class="mono-num">${(r.float_shares !== undefined && r.float_shares !== null) ? fmtShares(r.float_shares) : "—"}</td>
         <td class="mono-num">${(r.relative_volume !== undefined && r.relative_volume !== null) ? Number(r.relative_volume).toFixed(1) + "x" : "—"}</td>
         <td>${renderBadges(r.badges)}</td>
@@ -196,7 +197,7 @@
       const enrichNote = document.getElementById("sc-enrich-note");
       if (enrichNote && data.enrich_max_rows) {
         enrichNote.textContent =
-          `Float / VWAP / EMA9 / RVol / badges are live for the top ${data.enrich_max_rows} gappers by gap % (Polygon's free tier caps how many symbols can be refreshed at once) — other rows show "—" until they rank into the top ${data.enrich_max_rows}.`;
+          `Float / VWAP / EMA9 / EMA200 / RVol / badges are live for the top ${data.enrich_max_rows} gappers by gap % (Polygon's free tier caps how many symbols can be refreshed at once) — other rows show "—" until they rank into the top ${data.enrich_max_rows}.`;
       }
     } catch (e) {
       const empty = document.getElementById("sc-empty");

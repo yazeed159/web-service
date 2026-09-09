@@ -382,7 +382,8 @@
           liveChart.handleState.lastVwap = opts.bar.vwap;
           liveChart.handleState.lastEma9 = opts.bar.ema9;
           liveChart.handleState.lastEma20 = opts.bar.ema20;
-          if (liveChart.renderOverlay) liveChart.renderOverlay(formingVol, "", opts.bar.vwap, opts.bar.ema9, opts.bar.ema20);
+          liveChart.handleState.lastEma200 = opts.bar.ema200;
+          if (liveChart.renderOverlay) liveChart.renderOverlay(formingVol, "", opts.bar.vwap, opts.bar.ema9, opts.bar.ema20, opts.bar.ema200);
         }
       }
     }
@@ -619,6 +620,7 @@
     const vwapData = bars.filter((b) => b.vwap != null).map((b) => ({ time: toUnix(b.t), value: b.vwap }));
     const ema9Data = bars.filter((b) => b.ema9 != null).map((b) => ({ time: toUnix(b.t), value: b.ema9 }));
     const ema20Data = bars.filter((b) => b.ema20 != null).map((b) => ({ time: toUnix(b.t), value: b.ema20 }));
+    const ema200Data = bars.filter((b) => b.ema200 != null).map((b) => ({ time: toUnix(b.t), value: b.ema200 }));
 
     const commonOpts = {
       layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
@@ -645,8 +647,10 @@
     ema9Series.setData(ema9Data);
     const ema20Series = chart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema20Series.setData(ema20Data);
+    const ema200Series = chart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    ema200Series.setData(ema200Data);
 
-    // Top-left info overlay: live volume/VWAP/EMA9/EMA20 readout that
+    // Top-left info overlay: live volume/VWAP/EMA9/EMA20/EMA200 readout that
     // tracks the crosshair the same way trade.html's does, falling back
     // to the most recent bar's values whenever nothing is hovered --
     // including mid-playback, since paintCandle/finalizeBarOnChart below
@@ -657,8 +661,8 @@
     el.appendChild(infoOverlay);
     const volRowHtml = (vol, color) =>
       `<div class="row"><span class="k">Vol</span><span class="v${color ? ` ${color}` : ""}">${vol == null ? "—" : Number(vol).toLocaleString()}</span></div>`;
-    function renderOverlay(vol, upDown, vwapVal, ema9Val, ema20Val) {
-      infoOverlay.innerHTML = volRowHtml(vol, upDown) + window.ChartIndicators.indicatorRowsHtml(vwapVal, ema9Val, ema20Val);
+    function renderOverlay(vol, upDown, vwapVal, ema9Val, ema20Val, ema200Val) {
+      infoOverlay.innerHTML = volRowHtml(vol, upDown) + window.ChartIndicators.indicatorRowsHtml(vwapVal, ema9Val, ema20Val, ema200Val);
     }
     const lastBar = bars.length ? bars[bars.length - 1] : null;
     const handleState = {
@@ -666,19 +670,22 @@
       lastVwap: lastBar ? lastBar.vwap : null,
       lastEma9: lastBar ? lastBar.ema9 : null,
       lastEma20: lastBar ? lastBar.ema20 : null,
+      lastEma200: lastBar ? lastBar.ema200 : null,
     };
-    renderOverlay(handleState.lastVol, "", handleState.lastVwap, handleState.lastEma9, handleState.lastEma20);
+    renderOverlay(handleState.lastVol, "", handleState.lastVwap, handleState.lastEma9, handleState.lastEma20, handleState.lastEma200);
     chart.subscribeCrosshairMove((param) => {
       const volBar = param.seriesData && param.seriesData.get(volSeries);
       const vwapBar = param.seriesData && param.seriesData.get(vwapSeries);
       const ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
       const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
+      const ema200Bar = param.seriesData && param.seriesData.get(ema200Series);
       const upDown = volBar ? (volBar.color && volBar.color.indexOf("47,208,138") !== -1 ? "up" : volBar.color && volBar.color.indexOf("232,169,76") !== -1 ? "" : "down") : "";
       renderOverlay(
         volBar ? volBar.value : handleState.lastVol, upDown,
         vwapBar ? vwapBar.value : handleState.lastVwap,
         ema9Bar ? ema9Bar.value : handleState.lastEma9,
-        ema20Bar ? ema20Bar.value : handleState.lastEma20
+        ema20Bar ? ema20Bar.value : handleState.lastEma20,
+        ema200Bar ? ema200Bar.value : handleState.lastEma200
       );
     });
 
@@ -694,7 +701,7 @@
       ro = new ResizeObserver(() => { try { chart.applyOptions({ width: el.clientWidth }); } catch (e) {} });
       ro.observe(el);
     }
-    return { chart, series, volSeries, vwapSeries, ema9Series, ema20Series, priceLineRefs, resizeObserver: ro, renderOverlay, handleState };
+    return { chart, series, volSeries, vwapSeries, ema9Series, ema20Series, ema200Series, priceLineRefs, resizeObserver: ro, renderOverlay, handleState };
   }
   function teardownChart(handle) {
     if (!handle) return;
@@ -720,12 +727,14 @@
       if (bar.vwap != null && chartHandle.vwapSeries) chartHandle.vwapSeries.update({ time: t, value: bar.vwap });
       if (bar.ema9 != null && chartHandle.ema9Series) chartHandle.ema9Series.update({ time: t, value: bar.ema9 });
       if (bar.ema20 != null && chartHandle.ema20Series) chartHandle.ema20Series.update({ time: t, value: bar.ema20 });
+      if (bar.ema200 != null && chartHandle.ema200Series) chartHandle.ema200Series.update({ time: t, value: bar.ema200 });
       if (chartHandle.handleState) {
         chartHandle.handleState.lastVol = bar.v;
         chartHandle.handleState.lastVwap = bar.vwap;
         chartHandle.handleState.lastEma9 = bar.ema9;
         chartHandle.handleState.lastEma20 = bar.ema20;
-        if (chartHandle.renderOverlay) chartHandle.renderOverlay(bar.v, bar.c >= bar.o ? "up" : "down", bar.vwap, bar.ema9, bar.ema20);
+        chartHandle.handleState.lastEma200 = bar.ema200;
+        if (chartHandle.renderOverlay) chartHandle.renderOverlay(bar.v, bar.c >= bar.o ? "up" : "down", bar.vwap, bar.ema9, bar.ema20, bar.ema200);
       }
     } catch (e) { /* chart already torn down */ }
   }
@@ -999,7 +1008,7 @@
       l: Math.min(fullBar.o, fillPrice),
       c: fillPrice,
       v: Math.round((fullBar.v || 0) * frac),
-      vwap: fullBar.vwap, ema9: fullBar.ema9, ema20: fullBar.ema20,
+      vwap: fullBar.vwap, ema9: fullBar.ema9, ema20: fullBar.ema20, ema200: fullBar.ema200,
       _forming: true,
     };
   }

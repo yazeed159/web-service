@@ -1054,6 +1054,7 @@
         vwapData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.vwap })),
         ema9Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema9 })),
         ema20Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema20 })),
+        ema200Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema200 })),
         macdData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd })),
         signalData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd_signal })),
         histData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd_hist, color: (b.macd_hist || 0) >= 0 ? "#2fd08a" : "#f2555a" })),
@@ -1061,7 +1062,7 @@
     }
     const initialDisplayBars = rptCurrentInterval === 1 ? bars : window.ChartIndicators.resampleBars(bars, rptCurrentInterval);
     let currentSeriesData = seriesDataFor(initialDisplayBars);
-    const { candleData, volData, vwapData, ema9Data, ema20Data, macdData, signalData, histData } = currentSeriesData;
+    const { candleData, volData, vwapData, ema9Data, ema20Data, ema200Data, macdData, signalData, histData } = currentSeriesData;
 
     const candleEl = document.getElementById("rpt-candle-chart");
     const macdEl = document.getElementById("rpt-macd-chart");
@@ -1096,6 +1097,8 @@
     ema9Series.setData(ema9Data);
     const ema20Series = rptCandleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema20Series.setData(ema20Data);
+    const ema200Series = rptCandleChart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    ema200Series.setData(ema200Data);
 
     // Top-left info overlay: live volume/VWAP/EMA9/EMA20 readout that
     // tracks the crosshair, same as trade.js's chart. Falls back to the
@@ -1110,10 +1113,10 @@
     const volRowHtml = (vol, color) =>
       `<div class="row"><span class="k">Vol</span><span class="v${color ? ` ${color}` : ""}">${vol == null ? "—" : Number(vol).toLocaleString()}</span></div>`;
     function lastOf(arr) { return arr.length ? arr[arr.length - 1].value : null; }
-    function renderOverlay(vol, upDown, vwapVal, ema9Val, ema20Val) {
-      infoOverlay.innerHTML = volRowHtml(vol, upDown) + window.ChartIndicators.indicatorRowsHtml(vwapVal, ema9Val, ema20Val);
+    function renderOverlay(vol, upDown, vwapVal, ema9Val, ema20Val, ema200Val) {
+      infoOverlay.innerHTML = volRowHtml(vol, upDown) + window.ChartIndicators.indicatorRowsHtml(vwapVal, ema9Val, ema20Val, ema200Val);
     }
-    renderOverlay(lastOf(currentSeriesData.volData), "", lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data));
+    renderOverlay(lastOf(currentSeriesData.volData), "", lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data), lastOf(currentSeriesData.ema200Data));
     rptCandleChart.subscribeCrosshairMove((param) => {
       const volBar = param.seriesData && param.seriesData.get(volSeries);
       const vol = volBar ? volBar.value : lastOf(currentSeriesData.volData);
@@ -1121,11 +1124,13 @@
       const vwapBar = param.seriesData && param.seriesData.get(vwapSeries);
       const ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
       const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
+      const ema200Bar = param.seriesData && param.seriesData.get(ema200Series);
       renderOverlay(
         vol, upDown,
         vwapBar ? vwapBar.value : lastOf(currentSeriesData.vwapData),
         ema9Bar ? ema9Bar.value : lastOf(currentSeriesData.ema9Data),
-        ema20Bar ? ema20Bar.value : lastOf(currentSeriesData.ema20Data)
+        ema20Bar ? ema20Bar.value : lastOf(currentSeriesData.ema20Data),
+        ema200Bar ? ema200Bar.value : lastOf(currentSeriesData.ema200Data)
       );
     });
 
@@ -1313,12 +1318,13 @@
       vwapSeries.setData(currentSeriesData.vwapData);
       ema9Series.setData(currentSeriesData.ema9Data);
       ema20Series.setData(currentSeriesData.ema20Data);
+      ema200Series.setData(currentSeriesData.ema200Data);
       macdHistSeries.setData(currentSeriesData.histData);
       macdLineSeries.setData(currentSeriesData.macdData);
       macdSignalLineSeries.setData(currentSeriesData.signalData);
       renderOverlay(
         lastOf(currentSeriesData.volData), "",
-        lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data)
+        lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data), lastOf(currentSeriesData.ema200Data)
       );
       rptCandleChart.timeScale().fitContent();
       rptMacdChart.timeScale().fitContent();

@@ -152,7 +152,7 @@ ${scriptExtra || ""}
     const bars = Array.isArray(trade.bars) ? trade.bars : [];
     // Trim each bar down to just what the standalone chart needs, so the
     // embedded JSON blob doesn't drag along fields (macd, etc.) unused here.
-    const chartBars = bars.map((b) => ({ t: b.t, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v, vwap: b.vwap, ema9: b.ema9, ema20: b.ema20 }));
+    const chartBars = bars.map((b) => ({ t: b.t, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v, vwap: b.vwap, ema9: b.ema9, ema20: b.ema20, ema200: b.ema200 }));
 
     const bodyHtml = `
       <h1>
@@ -179,6 +179,7 @@ ${scriptExtra || ""}
           <span class="legend-item"><span class="legend-swatch" style="background:#e8a94c"></span>VWAP</span>
           <span class="legend-item"><span class="legend-swatch" style="background:#9aa8a1"></span>EMA9</span>
           <span class="legend-item"><span class="legend-swatch" style="background:#5b93f0"></span>EMA20</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#b57bee"></span>EMA200</span>
           <span class="legend-item"><span class="legend-swatch" style="background:#2fd08a"></span>entry</span>
           <span class="legend-item"><span class="legend-swatch" style="background:#f2555a"></span>exit</span>
           ${trade.better_entry && trade.better_entry.price ? `<span class="legend-item"><span class="legend-swatch" style="background:#8b7cf6"></span>better entry</span>` : ""}
@@ -249,8 +250,10 @@ ${scriptExtra || ""}
   ema9Series.setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.ema9 }; }));
   var ema20Series = chart.addLineSeries({ color:"#5b93f0", lineWidth:1, priceLineVisible:false, lastValueVisible:false });
   ema20Series.setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.ema20 }; }));
+  var ema200Series = chart.addLineSeries({ color:"#b57bee", lineWidth:1, priceLineVisible:false, lastValueVisible:false });
+  ema200Series.setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.ema200 }; }));
 
-  // Top-left info overlay: live volume/VWAP/EMA9/EMA20 readout that
+  // Top-left info overlay: live volume/VWAP/EMA9/EMA20/EMA200 readout that
   // tracks the crosshair, same as the interactive trade.js chart this
   // snapshot was exported from. Falls back to the last bar's values
   // when nothing is hovered.
@@ -259,25 +262,28 @@ ${scriptExtra || ""}
   el.appendChild(infoOverlay);
   function fmtPrice(v){ return (v == null || isNaN(v)) ? "—" : Number(v).toFixed(2); }
   function volRowHtml(vol, color){ return '<div class="row"><span class="k">Vol</span><span class="v' + (color ? (" " + color) : "") + '">' + (vol == null ? "—" : Number(vol).toLocaleString()) + '</span></div>'; }
-  function indicatorRowsHtml(vwap, ema9, ema20){
+  function indicatorRowsHtml(vwap, ema9, ema20, ema200){
     return '<div class="row"><span class="k">VWAP</span><span class="v" style="color:#e8a94c">' + fmtPrice(vwap) + '</span></div>'
       + '<div class="row"><span class="k">EMA9</span><span class="v" style="color:#9aa8a1">' + fmtPrice(ema9) + '</span></div>'
-      + '<div class="row"><span class="k">EMA20</span><span class="v" style="color:#5b93f0">' + fmtPrice(ema20) + '</span></div>';
+      + '<div class="row"><span class="k">EMA20</span><span class="v" style="color:#5b93f0">' + fmtPrice(ema20) + '</span></div>'
+      + '<div class="row"><span class="k">EMA200</span><span class="v" style="color:#b57bee">' + fmtPrice(ema200) + '</span></div>';
   }
   var lastBar = bars.length ? bars[bars.length - 1] : null;
-  function renderOverlay(vol, upDown, vwap, ema9, ema20){ infoOverlay.innerHTML = volRowHtml(vol, upDown) + indicatorRowsHtml(vwap, ema9, ema20); }
-  renderOverlay(lastBar ? lastBar.v : null, "", lastBar ? lastBar.vwap : null, lastBar ? lastBar.ema9 : null, lastBar ? lastBar.ema20 : null);
+  function renderOverlay(vol, upDown, vwap, ema9, ema20, ema200){ infoOverlay.innerHTML = volRowHtml(vol, upDown) + indicatorRowsHtml(vwap, ema9, ema20, ema200); }
+  renderOverlay(lastBar ? lastBar.v : null, "", lastBar ? lastBar.vwap : null, lastBar ? lastBar.ema9 : null, lastBar ? lastBar.ema20 : null, lastBar ? lastBar.ema200 : null);
   chart.subscribeCrosshairMove(function(param){
     var volBar = param.seriesData && param.seriesData.get(volSeries);
     var vwapBar = param.seriesData && param.seriesData.get(vwapSeries);
     var ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
     var ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
+    var ema200Bar = param.seriesData && param.seriesData.get(ema200Series);
     var upDown = volBar ? (volBar.color && volBar.color.indexOf("47,208,138") !== -1 ? "up" : "down") : "";
     renderOverlay(
       volBar ? volBar.value : (lastBar ? lastBar.v : null), upDown,
       vwapBar ? vwapBar.value : (lastBar ? lastBar.vwap : null),
       ema9Bar ? ema9Bar.value : (lastBar ? lastBar.ema9 : null),
-      ema20Bar ? ema20Bar.value : (lastBar ? lastBar.ema20 : null)
+      ema20Bar ? ema20Bar.value : (lastBar ? lastBar.ema20 : null),
+      ema200Bar ? ema200Bar.value : (lastBar ? lastBar.ema200 : null)
     );
   });
 

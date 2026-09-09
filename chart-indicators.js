@@ -75,6 +75,12 @@
     const closes = groups.map((g) => g.c);
     const ema9Arr = computeEma(closes, 9);
     const ema20Arr = computeEma(closes, 20);
+    // Same recursive EMA as EMA9/EMA20 above, just seeded on the resampled
+    // closes rather than carried over from the server's 1m-bar EMA200 --
+    // on wider timeframes (15m/1h) with only a handful of resampled bars
+    // this will read as flatter/less "warmed up" than the 1m chart's
+    // EMA200, same caveat that already applies to EMA9/EMA20 here.
+    const ema200Arr = computeEma(closes, 200);
     const emaFastArr = computeEma(closes, 12);
     const emaSlowArr = computeEma(closes, 26);
     const macdArr = closes.map((_, i) => emaFastArr[i] - emaSlowArr[i]);
@@ -90,6 +96,7 @@
       vwap: g.vwap,
       ema9: ema9Arr[i],
       ema20: ema20Arr[i],
+      ema200: ema200Arr[i],
       macd: macdArr[i],
       macd_signal: signalArr[i],
       macd_hist: macdArr[i] - signalArr[i],
@@ -103,11 +110,12 @@
   // Exact markup/colors trade.js's overlay, report.js's overlay, and the
   // inlined version in share-export.js all use -- kept in one place so
   // the three never drift from each other.
-  function indicatorRowsHtml(vwap, ema9, ema20) {
+  function indicatorRowsHtml(vwap, ema9, ema20, ema200) {
     return (
       `<div class="row"><span class="k">VWAP</span><span class="v" style="color:#e8a94c">${fmtPrice(vwap)}</span></div>` +
       `<div class="row"><span class="k">EMA9</span><span class="v" style="color:#9aa8a1">${fmtPrice(ema9)}</span></div>` +
-      `<div class="row"><span class="k">EMA20</span><span class="v" style="color:#5b93f0">${fmtPrice(ema20)}</span></div>`
+      `<div class="row"><span class="k">EMA20</span><span class="v" style="color:#5b93f0">${fmtPrice(ema20)}</span></div>` +
+      `<div class="row"><span class="k">EMA200</span><span class="v" style="color:#b57bee">${fmtPrice(ema200)}</span></div>`
     );
   }
 

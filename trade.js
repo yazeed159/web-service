@@ -274,6 +274,7 @@
             <span class="legend-item"><span class="legend-swatch" style="background:#e8a94c"></span>VWAP</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#9aa8a1"></span>EMA9</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#5b93f0"></span>EMA20</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#b57bee"></span>EMA200</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#2fd08a"></span>entry</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#f2555a"></span>exit</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#8b7cf6"></span>better entry</span>
@@ -718,6 +719,7 @@
         vwapData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.vwap })),
         ema9Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema9 })),
         ema20Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema20 })),
+        ema200Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema200 })),
         macdData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd })),
         signalData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd_signal })),
         histData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd_hist, color: (b.macd_hist || 0) >= 0 ? "#2fd08a" : "#f2555a" })),
@@ -726,7 +728,7 @@
 
     const initialDisplayBars = currentInterval === 1 ? bars : window.ChartIndicators.resampleBars(bars, currentInterval);
     let currentSeriesData = seriesDataFor(initialDisplayBars);
-    const { candleData, volData, vwapData, ema9Data, ema20Data, macdData, signalData, histData } = currentSeriesData;
+    const { candleData, volData, vwapData, ema9Data, ema20Data, ema200Data, macdData, signalData, histData } = currentSeriesData;
 
     const candleEl = document.getElementById("candle-chart");
     const commonOpts = {
@@ -779,6 +781,8 @@
     ema9Series.setData(ema9Data);
     const ema20Series = candleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema20Series.setData(ema20Data);
+    const ema200Series = candleChart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    ema200Series.setData(ema200Data);
 
     // Top-left info overlay: float (static, from indicators -- same field
     // the "About" card's volumeFloatPills reads) plus a live volume/VWAP/
@@ -799,10 +803,10 @@
     const volRowHtml = (vol, color) =>
       `<div class="row"><span class="k">Vol</span><span class="v${color ? ` ${color}` : ""}">${vol == null ? "—" : Number(vol).toLocaleString()}</span></div>`;
     function lastOf(arr) { return arr.length ? arr[arr.length - 1].value : null; }
-    function renderOverlay(vol, upDown, vwapVal, ema9Val, ema20Val) {
-      infoOverlay.innerHTML = floatRow + volRowHtml(vol, upDown) + window.ChartIndicators.indicatorRowsHtml(vwapVal, ema9Val, ema20Val);
+    function renderOverlay(vol, upDown, vwapVal, ema9Val, ema20Val, ema200Val) {
+      infoOverlay.innerHTML = floatRow + volRowHtml(vol, upDown) + window.ChartIndicators.indicatorRowsHtml(vwapVal, ema9Val, ema20Val, ema200Val);
     }
-    renderOverlay(lastOf(currentSeriesData.volData), "", lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data));
+    renderOverlay(lastOf(currentSeriesData.volData), "", lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data), lastOf(currentSeriesData.ema200Data));
     candleChart.subscribeCrosshairMove((param) => {
       const volBar = param.seriesData && param.seriesData.get(volSeries);
       const vol = volBar ? volBar.value : lastOf(currentSeriesData.volData);
@@ -810,11 +814,13 @@
       const vwapBar = param.seriesData && param.seriesData.get(vwapSeries);
       const ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
       const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
+      const ema200Bar = param.seriesData && param.seriesData.get(ema200Series);
       renderOverlay(
         vol, upDown,
         vwapBar ? vwapBar.value : lastOf(currentSeriesData.vwapData),
         ema9Bar ? ema9Bar.value : lastOf(currentSeriesData.ema9Data),
-        ema20Bar ? ema20Bar.value : lastOf(currentSeriesData.ema20Data)
+        ema20Bar ? ema20Bar.value : lastOf(currentSeriesData.ema20Data),
+        ema200Bar ? ema200Bar.value : lastOf(currentSeriesData.ema200Data)
       );
     });
 
@@ -1204,12 +1210,13 @@
       vwapSeries.setData(currentSeriesData.vwapData);
       ema9Series.setData(currentSeriesData.ema9Data);
       ema20Series.setData(currentSeriesData.ema20Data);
+      ema200Series.setData(currentSeriesData.ema200Data);
       macdHistSeries.setData(currentSeriesData.histData);
       macdLineSeries.setData(currentSeriesData.macdData);
       macdSignalLineSeries.setData(currentSeriesData.signalData);
       renderOverlay(
         lastOf(currentSeriesData.volData), "",
-        lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data)
+        lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data), lastOf(currentSeriesData.ema200Data)
       );
       candleChart.timeScale().fitContent();
       macdChart.timeScale().fitContent();
