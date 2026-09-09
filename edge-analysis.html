@@ -25,7 +25,7 @@
   .edge-intro-icon {
     flex-shrink: 0; width: 38px; height: 38px; border-radius: 10px;
     display: flex; align-items: center; justify-content: center;
-    background: var(--grad-signature, linear-gradient(120deg, #ff8a2a, #32c7b0));
+    background: var(--grad-signature, linear-gradient(120deg, #8457ff, #22d3ee));
     color: #fff;
   }
   .edge-intro-icon svg { width: 20px; height: 20px; }
@@ -51,7 +51,7 @@
   .edge-jumpnav .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.5; }
   .edge-jumpnav .pill.active {
     background: var(--primary-soft, rgba(139,124,246,0.15));
-    color: var(--primary, #ff8a2a);
+    color: var(--primary, #8b7cf6);
     border-color: rgba(139,124,246,0.45);
     box-shadow: 0 0 0 1px rgba(139,124,246,0.25), 0 0 14px rgba(132,87,255,0.25);
   }
@@ -144,12 +144,12 @@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ff8a2a"/>
-      <stop offset="100%" stop-color="#32c7b0"/>
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
     </linearGradient>
     <linearGradient id="modernEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#ff8a2a"/>
-      <stop offset="100%" stop-color="#32c7b0"/>
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
     </linearGradient>
   </defs>
 </svg>
@@ -788,7 +788,7 @@
     el.innerHTML = "";
     if (trades.length < 2) { el.innerHTML = `<div class="empty-state small">Not enough trades yet to plot a trend.</div>`; return; }
     const chart = makeChart(el, 220, { timeScale: { borderColor: "#262a34", tickMarkFormatter: (t) => "#" + t }, localization: { timeFormatter: (t) => "Trade #" + t } });
-    const series = chart.addLineSeries({ color: "#ff8a2a", lineWidth: 2 });
+    const series = chart.addLineSeries({ color: "#8b7cf6", lineWidth: 2 });
     let wins = 0;
     const data = trades.map((t, i) => {
       if (t.win) wins++;

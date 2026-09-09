@@ -48,12 +48,12 @@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ff8a2a"/>
-      <stop offset="100%" stop-color="#32c7b0"/>
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
     </linearGradient>
     <linearGradient id="modernEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#ff8a2a"/>
-      <stop offset="100%" stop-color="#32c7b0"/>
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
     </linearGradient>
   </defs>
 </svg>
@@ -657,7 +657,7 @@
     const chart = makeTrendChart(el, { height: 160 });
     qualityScoreChart = chart;
     const series = chart.addAreaSeries({
-      lineColor: "#ff8a2a", topColor: "rgba(255,138,42,0.28)", bottomColor: "rgba(255,138,42,0.02)", lineWidth: 2,
+      lineColor: "#8457ff", topColor: "rgba(132,87,255,0.28)", bottomColor: "rgba(132,87,255,0.02)", lineWidth: 2,
       priceFormat: { type: "custom", formatter: (v) => v.toFixed(0) },
     });
     series.setData(data);
