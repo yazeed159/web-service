@@ -98,7 +98,7 @@
   // ever removing the last batch -- clicking "Analyze support/resistance"
   // more than once (re-running after the first result, or just curiosity)
   // stacked a fresh set of support/resistance lines on top of the old
-  // ones every time. Support lines are the same green (#4cbf88) as the
+  // ones every time. Support lines are the same green (#2fd08a) as the
   // real entry price line, so a second run could leave what looked like
   // two overlapping green "entry" lines on the chart. Tracked here so
   // drawSrLevelsOnChart can clear its own previous lines first.
@@ -213,8 +213,8 @@
     const next = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
     const link = (row, label, dir) =>
       row
-        ? `<a href="trade.html?id=${encodeURIComponent(row.id)}" class="trade-nav-link" style="color:#a89b86; text-decoration:none; font-size:12.5px; display:flex; align-items:center; gap:4px;">${dir === "prev" ? "←" : ""}${escapeHtml(label)}${dir === "next" ? "→" : ""}</a>`
-        : `<span style="color:#4a4132; font-size:12.5px;">${dir === "prev" ? "←" : ""}${escapeHtml(label)}${dir === "next" ? "→" : ""}</span>`;
+        ? `<a href="trade.html?id=${encodeURIComponent(row.id)}" class="trade-nav-link" style="color:#8b98a5; text-decoration:none; font-size:12.5px; display:flex; align-items:center; gap:4px;">${dir === "prev" ? "←" : ""}${escapeHtml(label)}${dir === "next" ? "→" : ""}</a>`
+        : `<span style="color:#3a4149; font-size:12.5px;">${dir === "prev" ? "←" : ""}${escapeHtml(label)}${dir === "next" ? "→" : ""}</span>`;
     return `<div class="trade-sibling-nav" style="display:flex; justify-content:space-between; margin-bottom:10px;">
       ${link(prev, prev ? `${prev.symbol} · ${prev.trade_date}` : "No earlier trade", "prev")}
       ${link(next, next ? `${next.symbol} · ${next.trade_date}` : "No later trade", "next")}
@@ -271,14 +271,14 @@
       <div class="chart-panel">
         <div class="chart-toolbar">
           <div class="legend">
-            <span class="legend-item"><span class="legend-swatch" style="background:#d97b3f"></span>VWAP</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#a3a68a"></span>EMA9</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#6fa3c9"></span>EMA20</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#a884b0"></span>EMA200</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#4cbf88"></span>entry</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#e2584f"></span>exit</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#c99a4c"></span>better entry</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#c97a63"></span>better exit</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#e8a94c"></span>VWAP</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#9aa8a1"></span>EMA9</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#5b93f0"></span>EMA20</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#b57bee"></span>EMA200</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#2fd08a"></span>entry</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#f2555a"></span>exit</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#8b7cf6"></span>better entry</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:#ec6cad"></span>better exit</span>
           </div>
           <div style="display:flex; align-items:center; gap:12px;" id="chart-controls">
             <span>Scroll to zoom · drag to pan</span>
@@ -578,7 +578,7 @@
     resistance.forEach((lv) => {
       const tag = srChartTag(lv);
       srPriceLines.push(srCandleSeries.createPriceLine({
-        price: Number(lv.price), color: "#e2584f", lineWidth: 1,
+        price: Number(lv.price), color: "#f2555a", lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true, lineVisible: false,
         title: tag ? `resistance (${tag})` : "resistance",
       }));
@@ -586,7 +586,7 @@
     support.forEach((lv) => {
       const tag = srChartTag(lv);
       srPriceLines.push(srCandleSeries.createPriceLine({
-        price: Number(lv.price), color: "#4cbf88", lineWidth: 1,
+        price: Number(lv.price), color: "#2fd08a", lineWidth: 1,
         lineStyle: LightweightCharts.LineStyle.LargeDashed, axisLabelVisible: true, lineVisible: false,
         title: tag ? `support (${tag})` : "support",
       }));
@@ -687,7 +687,7 @@
       ? `<div style="font-size:11px; opacity:.65; margin-top:2px;">How you'd know: ${escapeHtml(l.how_to_know)}</div>`
       : "";
     const tagBadge = l.tag
-      ? `<span class="lesson-tag" style="display:inline-block; font-size:10px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; padding:1px 6px; border-radius:3px; background:rgba(111,163,201,.15); color:#6fa3c9; margin-left:6px; vertical-align:middle;">${escapeHtml(String(l.tag).replace(/_/g, " "))}</span>`
+      ? `<span class="lesson-tag" style="display:inline-block; font-size:10px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; padding:1px 6px; border-radius:3px; background:rgba(91,147,240,.15); color:#5b93f0; margin-left:6px; vertical-align:middle;">${escapeHtml(String(l.tag).replace(/_/g, " "))}</span>`
       : "";
     return `<li style="margin-bottom:8px; font-size:12.5px;">${escapeHtml(l.lesson || l.text || "")}${tagBadge}${how}</li>`;
   }
@@ -715,14 +715,14 @@
     function seriesDataFor(displayBars) {
       return {
         candleData: displayBars.map((b) => ({ time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c })),
-        volData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(76,191,136,0.4)" : "rgba(226,88,79,0.4)" })),
+        volData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" })),
         vwapData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.vwap })),
         ema9Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema9 })),
         ema20Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema20 })),
         ema200Data: displayBars.map((b) => ({ time: toUnix(b.t), value: b.ema200 })),
         macdData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd })),
         signalData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd_signal })),
-        histData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd_hist, color: (b.macd_hist || 0) >= 0 ? "#4cbf88" : "#e2584f" })),
+        histData: displayBars.map((b) => ({ time: toUnix(b.t), value: b.macd_hist, color: (b.macd_hist || 0) >= 0 ? "#2fd08a" : "#f2555a" })),
       };
     }
 
@@ -732,23 +732,23 @@
 
     const candleEl = document.getElementById("candle-chart");
     const commonOpts = {
-      layout: { background: { color: "transparent" }, textColor: "#a89b86" },
-      grid: { vertLines: { color: "#241e15" }, horzLines: { color: "#241e15" } },
+      layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
+      grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
       // minimumWidth guarantees room for the widest axis label we ever put
       // up -- "better entry" / "better exit" plus the price -- so those
       // price-line titles render in full instead of being squeezed by an
       // axis width that would otherwise auto-size to shorter labels like
       // the plain numeric entry/exit prices.
-      rightPriceScale: { borderColor: "#33291d", minimumWidth: 92 },
-      timeScale: { borderColor: "#33291d", timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: "#232830", minimumWidth: 92 },
+      timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     };
     const candleChart = LightweightCharts.createChart(candleEl, { ...commonOpts, width: candleEl.clientWidth, height: 420 });
     currentCandleChart = candleChart;
 
     const candleSeries = candleChart.addCandlestickSeries({
-      upColor: "#4cbf88", downColor: "#e2584f", borderVisible: false,
-      wickUpColor: "#4cbf88", wickDownColor: "#e2584f",
+      upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
+      wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
       // Lightweight Charts draws its own dashed "last value" price line on
       // every series by default, colored to match the most recent
       // candle (green/red). Left on, it shows up as a stray dashed line
@@ -775,13 +775,13 @@
     candleChart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
     volSeries.setData(volData);
 
-    const vwapSeries = candleChart.addLineSeries({ color: "#d97b3f", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const vwapSeries = candleChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     vwapSeries.setData(vwapData);
-    const ema9Series = candleChart.addLineSeries({ color: "#a3a68a", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ema9Series = candleChart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema9Series.setData(ema9Data);
-    const ema20Series = candleChart.addLineSeries({ color: "#6fa3c9", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ema20Series = candleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema20Series.setData(ema20Data);
-    const ema200Series = candleChart.addLineSeries({ color: "#a884b0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ema200Series = candleChart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema200Series.setData(ema200Data);
 
     // Top-left info overlay: float (static, from indicators -- same field
@@ -810,7 +810,7 @@
     candleChart.subscribeCrosshairMove((param) => {
       const volBar = param.seriesData && param.seriesData.get(volSeries);
       const vol = volBar ? volBar.value : lastOf(currentSeriesData.volData);
-      const upDown = volBar ? (volBar.color && volBar.color.indexOf("76,191,136") !== -1 ? "up" : "down") : "";
+      const upDown = volBar ? (volBar.color && volBar.color.indexOf("47,208,138") !== -1 ? "up" : "down") : "";
       const vwapBar = param.seriesData && param.seriesData.get(vwapSeries);
       const ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
       const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
@@ -924,7 +924,7 @@
       el.style.cssText = `
         position:absolute; width:0; height:0; pointer-events:auto;
         border-left:6px solid transparent; border-right:6px solid transparent;
-        filter: drop-shadow(0 0 1.5px #100e0b) drop-shadow(0 0 1.5px #100e0b);
+        filter: drop-shadow(0 0 1.5px #0b0d10) drop-shadow(0 0 1.5px #0b0d10);
       `;
       overlay.appendChild(el);
 
@@ -935,8 +935,8 @@
         tooltip.dataset.open = "0";
         tooltip.style.cssText = `
           position:absolute; display:none; width:220px; max-width:60vw;
-          background:#1f1a13; border:1px solid ${color}; border-radius:8px;
-          padding:10px 12px; font-size:12px; line-height:1.5; color:#f4ede0;
+          background:#181b22; border:1px solid ${color}; border-radius:8px;
+          padding:10px 12px; font-size:12px; line-height:1.5; color:#eceef2;
           box-shadow:0 6px 20px rgba(0,0,0,.45); z-index:5; pointer-events:none;
         `;
         tooltip.innerHTML = tooltipHtml;
@@ -997,8 +997,8 @@
       return tooltipHtml(`${kind.toUpperCase()} $${price.toFixed(2)}`, indicator || "");
     }
 
-    const ACTUAL_ENTRY_COLOR = "#4cbf88"; // green, matches the entry pointer/legend
-    const ACTUAL_EXIT_COLOR = "#e2584f"; // red, matches the exit pointer/legend
+    const ACTUAL_ENTRY_COLOR = "#2fd08a"; // green, matches the entry pointer/legend
+    const ACTUAL_EXIT_COLOR = "#f2555a"; // red, matches the exit pointer/legend
 
     // buildPointer returns { el, tooltip } -- el is the triangle marker,
     // tooltip is its hover/tap popup (null if there's no text to show).
@@ -1026,8 +1026,8 @@
     // at a glance. Each snaps to the bar its own suggested time falls on
     // (falling back to the actual entry/exit bar if no time was given)
     // rather than reusing the actual fill's x-position.
-    const BETTER_ENTRY_COLOR = "#c99a4c"; // purple
-    const BETTER_EXIT_COLOR = "#c97a63"; // pink
+    const BETTER_ENTRY_COLOR = "#8b7cf6"; // purple
+    const BETTER_EXIT_COLOR = "#ec6cad"; // pink
 
     // barForPrice (above) only ever decides which BAR to anchor to in
     // TIME -- it never touches the price itself, which stays whatever the
@@ -1119,7 +1119,7 @@
 
     candleSeries.createPriceLine({
       price: trade.entry_price,
-      color: "#4cbf88",
+      color: "#2fd08a",
       lineWidth: 1,
       lineStyle: LightweightCharts.LineStyle.Dashed,
       lineVisible: false,
@@ -1128,7 +1128,7 @@
     });
     candleSeries.createPriceLine({
       price: trade.exit_price,
-      color: "#e2584f",
+      color: "#f2555a",
       lineWidth: 1,
       lineStyle: LightweightCharts.LineStyle.Dashed,
       lineVisible: false,
@@ -1184,9 +1184,9 @@
     currentMacdChart = macdChart;
     const macdHistSeries = macdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } });
     macdHistSeries.setData(histData);
-    const macdLineSeries = macdChart.addLineSeries({ color: "#6fa3c9", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const macdLineSeries = macdChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     macdLineSeries.setData(macdData);
-    const macdSignalLineSeries = macdChart.addLineSeries({ color: "#d97b3f", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const macdSignalLineSeries = macdChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     macdSignalLineSeries.setData(signalData);
 
     candleChart.timeScale().subscribeVisibleLogicalRangeChange((range) => { if (range) macdChart.timeScale().setVisibleLogicalRange(range); });

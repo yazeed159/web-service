@@ -39,8 +39,8 @@
   flex-wrap: wrap;
   margin-bottom: 16px;
 }
-.filter-btn.danger { border-color: rgba(226,88,79,0.35); color: var(--red); }
-.filter-btn.danger:hover { border-color: var(--red); background: rgba(226,88,79,0.08); }
+.filter-btn.danger { border-color: rgba(242,85,90,0.35); color: var(--red); }
+.filter-btn.danger:hover { border-color: var(--red); background: rgba(242,85,90,0.08); }
 
 .rpt-map-field { display: flex; flex-direction: column; gap: 4px; }
 .rpt-map-field label { font-size: 12px; color: var(--text-dim); }
@@ -109,7 +109,7 @@
 .rpt-view-chart-btn:disabled:hover { color: var(--text-dim); border-color: var(--border); }
 
 .rpt-chart-modal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px; }
-.rpt-chart-modal-backdrop { position: absolute; inset: 0; background: rgba(17,15,12,0.72); }
+.rpt-chart-modal-backdrop { position: absolute; inset: 0; background: rgba(6,8,10,0.72); }
 .rpt-chart-modal-box {
   position: relative; z-index: 1; width: min(920px, 100%); max-height: 92vh; overflow-y: auto;
   background: var(--glass-hi); backdrop-filter: blur(10px); border: 1px solid var(--glass-border-hi); border-radius: var(--radius);

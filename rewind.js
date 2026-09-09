@@ -112,12 +112,12 @@
   // your own decisions (stop, chosen exit) live in a distinct blue/purple
   // family, and a genuine stop-out event gets its own amber so it doesn't
   // get mistaken for either group.
-  const COLOR_REAL_ENTRY = "#4cbf88";
-  const COLOR_REAL_EXIT = "#e2584f";
-  const COLOR_YOUR_ENTRY = "#6fae87";
-  const COLOR_YOUR_STOP = "#6fa3c9";
-  const COLOR_YOUR_EXIT = "#c9946e";
-  const COLOR_STOP_EVENT = "#d97b3f";
+  const COLOR_REAL_ENTRY = "#2fd08a";
+  const COLOR_REAL_EXIT = "#f2555a";
+  const COLOR_YOUR_ENTRY = "#34c3d6";
+  const COLOR_YOUR_STOP = "#5b93f0";
+  const COLOR_YOUR_EXIT = "#b98cf2";
+  const COLOR_STOP_EVENT = "#e8a94c";
 
   // IBKR's "Tiered" US stock commission schedule: $0.0035/share, with a
   // $0.35 floor and a 1%-of-trade-value ceiling per order. Applied once
@@ -701,13 +701,13 @@
       if (price < runningLow) runningLow = price;
       liveChart.series.update({
         time: barTime, open: opts.bar.o, high: runningHigh, low: runningLow, close: price,
-        color: "rgba(217,123,63,0.55)", borderColor: "#d97b3f", wickColor: "#d97b3f",
+        color: "rgba(232,169,76,0.55)", borderColor: "#e8a94c", wickColor: "#e8a94c",
       });
       if (liveChart.volSeries) {
         const localFrac = (idx + 1) / ticks.length;
         const frac = volStartFrac + localFrac * (1 - volStartFrac);
         const formingVol = Math.round((opts.bar.v || 0) * frac);
-        liveChart.volSeries.update({ time: barTime, value: formingVol, color: "rgba(217,123,63,0.4)" });
+        liveChart.volSeries.update({ time: barTime, value: formingVol, color: "rgba(232,169,76,0.4)" });
         if (liveChart.handleState) {
           liveChart.handleState.lastVol = formingVol;
           liveChart.handleState.lastVwap = opts.bar.vwap;
@@ -1164,12 +1164,12 @@
     el.innerHTML = "";
     const candleData = bars.map((b) => {
       const point = { time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c };
-      if (b._forming) { point.color = "rgba(217,123,63,0.55)"; point.borderColor = "#d97b3f"; point.wickColor = "#d97b3f"; }
+      if (b._forming) { point.color = "rgba(232,169,76,0.55)"; point.borderColor = "#e8a94c"; point.wickColor = "#e8a94c"; }
       return point;
     });
     const volData = bars.map((b) => ({
       time: toUnix(b.t), value: b.v,
-      color: b._forming ? "rgba(217,123,63,0.4)" : (b.c >= b.o ? "rgba(76,191,136,0.4)" : "rgba(226,88,79,0.4)"),
+      color: b._forming ? "rgba(232,169,76,0.4)" : (b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)"),
     }));
     const vwapData = bars.filter((b) => b.vwap != null).map((b) => ({ time: toUnix(b.t), value: b.vwap }));
     const ema9Data = bars.filter((b) => b.ema9 != null).map((b) => ({ time: toUnix(b.t), value: b.ema9 }));
@@ -1177,16 +1177,16 @@
     const ema200Data = bars.filter((b) => b.ema200 != null).map((b) => ({ time: toUnix(b.t), value: b.ema200 }));
 
     const commonOpts = {
-      layout: { background: { color: "transparent" }, textColor: "#a89b86" },
-      grid: { vertLines: { color: "#241e15" }, horzLines: { color: "#241e15" } },
-      rightPriceScale: { borderColor: "#33291d", minimumWidth: 88 },
-      timeScale: { borderColor: "#33291d", timeVisible: true, secondsVisible: false },
+      layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
+      grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
+      rightPriceScale: { borderColor: "#232830", minimumWidth: 88 },
+      timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     };
     const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: mobileChartHeight(opts.height || 380) });
     const series = chart.addCandlestickSeries({
-      upColor: "#4cbf88", downColor: "#e2584f", borderVisible: false,
-      wickUpColor: "#4cbf88", wickDownColor: "#e2584f",
+      upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
+      wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
       // Keep the library's built-in dashed "last value" price line on by
       // default -- it's what tracks the moving price live as ticks print
       // (matching practice.js), turning amber while a bar is forming since
@@ -1206,13 +1206,13 @@
     chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
     volSeries.setData(volData);
 
-    const vwapSeries = chart.addLineSeries({ color: "#d97b3f", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const vwapSeries = chart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     vwapSeries.setData(vwapData);
-    const ema9Series = chart.addLineSeries({ color: "#a3a68a", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ema9Series = chart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema9Series.setData(ema9Data);
-    const ema20Series = chart.addLineSeries({ color: "#6fa3c9", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ema20Series = chart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema20Series.setData(ema20Data);
-    const ema200Series = chart.addLineSeries({ color: "#a884b0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    const ema200Series = chart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema200Series.setData(ema200Data);
 
     // Top-left info overlay: live volume/VWAP/EMA9/EMA20/EMA200 readout that
@@ -1245,7 +1245,7 @@
       const ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
       const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
       const ema200Bar = param.seriesData && param.seriesData.get(ema200Series);
-      const upDown = volBar ? (volBar.color && volBar.color.indexOf("76,191,136") !== -1 ? "up" : volBar.color && volBar.color.indexOf("217,123,63") !== -1 ? "" : "down") : "";
+      const upDown = volBar ? (volBar.color && volBar.color.indexOf("47,208,138") !== -1 ? "up" : volBar.color && volBar.color.indexOf("232,169,76") !== -1 ? "" : "down") : "";
       renderOverlay(
         volBar ? volBar.value : handleState.lastVol, upDown,
         vwapBar ? vwapBar.value : handleState.lastVwap,
@@ -1288,7 +1288,7 @@
     try {
       chartHandle.series.update({ time: t, open: bar.o, high: bar.h, low: bar.l, close: bar.c });
       if (chartHandle.volSeries) {
-        chartHandle.volSeries.update({ time: t, value: bar.v, color: bar.c >= bar.o ? "rgba(76,191,136,0.4)" : "rgba(226,88,79,0.4)" });
+        chartHandle.volSeries.update({ time: t, value: bar.v, color: bar.c >= bar.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" });
       }
       if (bar.vwap != null && chartHandle.vwapSeries) chartHandle.vwapSeries.update({ time: t, value: bar.vwap });
       if (bar.ema9 != null && chartHandle.ema9Series) chartHandle.ema9Series.update({ time: t, value: bar.ema9 });
@@ -1357,7 +1357,7 @@
       el.style.cssText = `
         position:absolute; width:0; height:0; pointer-events:auto;
         border-left:6px solid transparent; border-right:6px solid transparent;
-        filter: drop-shadow(0 0 1.5px #100e0b) drop-shadow(0 0 1.5px #100e0b);
+        filter: drop-shadow(0 0 1.5px #0b0d10) drop-shadow(0 0 1.5px #0b0d10);
         border-top:${p.above ? `${POINTER_H}px solid ${p.color}` : "0"};
         border-bottom:${p.above ? "0" : `${POINTER_H}px solid ${p.color}`};
       `;
@@ -1370,8 +1370,8 @@
         tooltip.dataset.open = "0";
         tooltip.style.cssText = `
           position:absolute; display:none; width:180px; max-width:60vw;
-          background:#1f1a13; border:1px solid ${p.color}; border-radius:8px;
-          padding:8px 10px; font-size:12px; line-height:1.5; color:#f4ede0;
+          background:#181b22; border:1px solid ${p.color}; border-radius:8px;
+          padding:8px 10px; font-size:12px; line-height:1.5; color:#eceef2;
           box-shadow:0 6px 20px rgba(0,0,0,.45); z-index:5; pointer-events:none;
         `;
         tooltip.textContent = p.tooltip;
@@ -1620,11 +1620,11 @@
     try {
       chartHandle.series.update({
         time: toUnix(bar.t), open: bar.o, high: Math.max(bar.o, price), low: Math.min(bar.o, price), close: price,
-        color: "rgba(217,123,63,0.55)", borderColor: "#d97b3f", wickColor: "#d97b3f",
+        color: "rgba(232,169,76,0.55)", borderColor: "#e8a94c", wickColor: "#e8a94c",
       });
       if (chartHandle.volSeries) {
         const formingVol = Math.round((bar.v || 0) * frac);
-        chartHandle.volSeries.update({ time: toUnix(bar.t), value: formingVol, color: "rgba(217,123,63,0.4)" });
+        chartHandle.volSeries.update({ time: toUnix(bar.t), value: formingVol, color: "rgba(232,169,76,0.4)" });
         if (chartHandle.handleState) {
           chartHandle.handleState.lastVol = formingVol;
           chartHandle.handleState.lastVwap = bar.vwap;

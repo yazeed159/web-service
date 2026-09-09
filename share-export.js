@@ -33,17 +33,16 @@ window.TradeLogShare = (function () {
   // stylesheets living at some relative path.
   const BASE_CSS = `
     :root{
-      --bg:#100e0b; --panel:#1b1712; --panel-2:#221c15; --border:#3a3021; --border-soft:#251f16;
-      --text:#f4ede0; --text-dim:#a89b86; --text-faint:#6f6353;
-      --green:#4cbf88; --green-soft:rgba(76,191,136,.12);
-      --red:#e2584f; --red-soft:rgba(226,88,79,.12);
-      --blue:#6fa3c9; --amber:#d97b3f;
-      --primary:#c99a4c; --primary-2:#a97a2f;
-      --mono:'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
-      --sans:-apple-system, BlinkMacSystemFont, 'Hanken Grotesk', system-ui, sans-serif;
+      --bg:#0a0b0f; --panel:#14161c; --panel-2:#191c24; --border:#262a34; --border-soft:#1b1e26;
+      --text:#eceef2; --text-dim:#8b8fa3; --text-faint:#565a6b;
+      --green:#2fd08a; --green-soft:rgba(47,208,138,.12);
+      --red:#f2555a; --red-soft:rgba(242,85,90,.12);
+      --blue:#5b93f0; --amber:#e8a94c;
+      --primary:#8b7cf6; --primary-2:#6e5bf0;
+      --mono:'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+      --sans:-apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
       --radius:10px;
     }
-    @import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
     *{box-sizing:border-box;}
     body{margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); font-size:14px; line-height:1.5;}
     .wrap{max-width:900px; margin:0 auto; padding:28px 20px 60px;}
@@ -64,7 +63,7 @@ window.TradeLogShare = (function () {
     .pnl-grid .label{font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.03em; margin-bottom:4px;}
     .pnl-grid .value{font-size:17px; font-weight:700; font-variant-numeric:tabular-nums;}
     .verdict-text{font-size:13px; line-height:1.6; color:var(--text-dim); margin-bottom:10px;}
-    .setup-tag{display:inline-block; font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; background:rgba(201,154,76,.14); color:var(--primary);}
+    .setup-tag{display:inline-block; font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; background:rgba(139,124,246,.14); color:var(--primary);}
     .walk-away{margin-top:12px; font-size:12.5px; padding:10px 12px; background:var(--panel-2); border-radius:8px; border:1px solid var(--border-soft);}
     .better-row{display:flex; gap:10px; align-items:baseline; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.06);}
     .better-row .tag{font-size:10px; font-weight:700; letter-spacing:.03em; opacity:.65; min-width:38px; flex-shrink:0;}
@@ -73,7 +72,7 @@ window.TradeLogShare = (function () {
     .no-better{font-size:12px; opacity:.7;}
     .lessons-list{margin:0; padding-left:18px;}
     .lessons-list li{margin-bottom:8px; font-size:12.5px;}
-    .lesson-tag{display:inline-block; font-size:10px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; padding:1px 6px; border-radius:3px; background:rgba(111,163,201,.15); color:var(--blue); margin-left:6px; vertical-align:middle;}
+    .lesson-tag{display:inline-block; font-size:10px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; padding:1px 6px; border-radius:3px; background:rgba(91,147,240,.15); color:var(--blue); margin-left:6px; vertical-align:middle;}
     .legend{display:flex; flex-wrap:wrap; gap:12px; font-size:11px; color:var(--text-faint); margin-bottom:8px;}
     .legend-item{display:flex; align-items:center; gap:4px;}
     .legend-swatch{width:9px; height:9px; border-radius:2px; display:inline-block;}
@@ -177,14 +176,14 @@ ${scriptExtra || ""}
       ${chartBars.length ? `
       <div class="card">
         <div class="legend">
-          <span class="legend-item"><span class="legend-swatch" style="background:#d97b3f"></span>VWAP</span>
-          <span class="legend-item"><span class="legend-swatch" style="background:#a3a68a"></span>EMA9</span>
-          <span class="legend-item"><span class="legend-swatch" style="background:#6fa3c9"></span>EMA20</span>
-          <span class="legend-item"><span class="legend-swatch" style="background:#a884b0"></span>EMA200</span>
-          <span class="legend-item"><span class="legend-swatch" style="background:#4cbf88"></span>entry</span>
-          <span class="legend-item"><span class="legend-swatch" style="background:#e2584f"></span>exit</span>
-          ${trade.better_entry && trade.better_entry.price ? `<span class="legend-item"><span class="legend-swatch" style="background:#c99a4c"></span>better entry</span>` : ""}
-          ${trade.better_exit && trade.better_exit.price ? `<span class="legend-item"><span class="legend-swatch" style="background:#c97a63"></span>better exit</span>` : ""}
+          <span class="legend-item"><span class="legend-swatch" style="background:#e8a94c"></span>VWAP</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#9aa8a1"></span>EMA9</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#5b93f0"></span>EMA20</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#b57bee"></span>EMA200</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#2fd08a"></span>entry</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#f2555a"></span>exit</span>
+          ${trade.better_entry && trade.better_entry.price ? `<span class="legend-item"><span class="legend-swatch" style="background:#8b7cf6"></span>better entry</span>` : ""}
+          ${trade.better_exit && trade.better_exit.price ? `<span class="legend-item"><span class="legend-swatch" style="background:#ec6cad"></span>better exit</span>` : ""}
         </div>
         <div id="candle-chart"></div>
       </div>` : ""}
@@ -233,25 +232,25 @@ ${scriptExtra || ""}
   var el = document.getElementById("candle-chart");
   var chart = LightweightCharts.createChart(el, {
     width: el.clientWidth, height: 380,
-    layout: { background: { color: "transparent" }, textColor: "#a89b86" },
-    grid: { vertLines: { color: "#241e15" }, horzLines: { color: "#241e15" } },
-    rightPriceScale: { borderColor: "#33291d" },
-    timeScale: { borderColor: "#33291d", timeVisible: true, secondsVisible: false },
+    layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
+    grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
+    rightPriceScale: { borderColor: "#232830" },
+    timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
   });
-  var candleSeries = chart.addCandlestickSeries({ upColor:"#4cbf88", downColor:"#e2584f", borderVisible:false, wickUpColor:"#4cbf88", wickDownColor:"#e2584f" });
+  var candleSeries = chart.addCandlestickSeries({ upColor:"#2fd08a", downColor:"#f2555a", borderVisible:false, wickUpColor:"#2fd08a", wickDownColor:"#f2555a" });
   candleSeries.setData(bars.map(function(b){ return { time: toUnix(b.t), open:b.o, high:b.h, low:b.l, close:b.c }; }));
   chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.14, bottom: 0.18 } });
   var volSeries = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol" });
   chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-  volSeries.setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(76,191,136,0.4)" : "rgba(226,88,79,0.4)" }; }));
-  var vwapSeries = chart.addLineSeries({ color:"#d97b3f", lineWidth:1, priceLineVisible:false, lastValueVisible:false });
+  volSeries.setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.v, color: b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" }; }));
+  var vwapSeries = chart.addLineSeries({ color:"#e8a94c", lineWidth:1, priceLineVisible:false, lastValueVisible:false });
   vwapSeries.setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.vwap }; }));
-  var ema9Series = chart.addLineSeries({ color:"#a3a68a", lineWidth:1, priceLineVisible:false, lastValueVisible:false });
+  var ema9Series = chart.addLineSeries({ color:"#9aa8a1", lineWidth:1, priceLineVisible:false, lastValueVisible:false });
   ema9Series.setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.ema9 }; }));
-  var ema20Series = chart.addLineSeries({ color:"#6fa3c9", lineWidth:1, priceLineVisible:false, lastValueVisible:false });
+  var ema20Series = chart.addLineSeries({ color:"#5b93f0", lineWidth:1, priceLineVisible:false, lastValueVisible:false });
   ema20Series.setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.ema20 }; }));
-  var ema200Series = chart.addLineSeries({ color:"#a884b0", lineWidth:1, priceLineVisible:false, lastValueVisible:false });
+  var ema200Series = chart.addLineSeries({ color:"#b57bee", lineWidth:1, priceLineVisible:false, lastValueVisible:false });
   ema200Series.setData(bars.map(function(b){ return { time: toUnix(b.t), value: b.ema200 }; }));
 
   // Top-left info overlay: live volume/VWAP/EMA9/EMA20/EMA200 readout that
@@ -264,10 +263,10 @@ ${scriptExtra || ""}
   function fmtPrice(v){ return (v == null || isNaN(v)) ? "—" : Number(v).toFixed(2); }
   function volRowHtml(vol, color){ return '<div class="row"><span class="k">Vol</span><span class="v' + (color ? (" " + color) : "") + '">' + (vol == null ? "—" : Number(vol).toLocaleString()) + '</span></div>'; }
   function indicatorRowsHtml(vwap, ema9, ema20, ema200){
-    return '<div class="row"><span class="k">VWAP</span><span class="v" style="color:#d97b3f">' + fmtPrice(vwap) + '</span></div>'
-      + '<div class="row"><span class="k">EMA9</span><span class="v" style="color:#a3a68a">' + fmtPrice(ema9) + '</span></div>'
-      + '<div class="row"><span class="k">EMA20</span><span class="v" style="color:#6fa3c9">' + fmtPrice(ema20) + '</span></div>'
-      + '<div class="row"><span class="k">EMA200</span><span class="v" style="color:#a884b0">' + fmtPrice(ema200) + '</span></div>';
+    return '<div class="row"><span class="k">VWAP</span><span class="v" style="color:#e8a94c">' + fmtPrice(vwap) + '</span></div>'
+      + '<div class="row"><span class="k">EMA9</span><span class="v" style="color:#9aa8a1">' + fmtPrice(ema9) + '</span></div>'
+      + '<div class="row"><span class="k">EMA20</span><span class="v" style="color:#5b93f0">' + fmtPrice(ema20) + '</span></div>'
+      + '<div class="row"><span class="k">EMA200</span><span class="v" style="color:#b57bee">' + fmtPrice(ema200) + '</span></div>';
   }
   var lastBar = bars.length ? bars[bars.length - 1] : null;
   function renderOverlay(vol, upDown, vwap, ema9, ema20, ema200){ infoOverlay.innerHTML = volRowHtml(vol, upDown) + indicatorRowsHtml(vwap, ema9, ema20, ema200); }
@@ -278,7 +277,7 @@ ${scriptExtra || ""}
     var ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
     var ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
     var ema200Bar = param.seriesData && param.seriesData.get(ema200Series);
-    var upDown = volBar ? (volBar.color && volBar.color.indexOf("76,191,136") !== -1 ? "up" : "down") : "";
+    var upDown = volBar ? (volBar.color && volBar.color.indexOf("47,208,138") !== -1 ? "up" : "down") : "";
     renderOverlay(
       volBar ? volBar.value : (lastBar ? lastBar.v : null), upDown,
       vwapBar ? vwapBar.value : (lastBar ? lastBar.vwap : null),
@@ -291,13 +290,13 @@ ${scriptExtra || ""}
   var markers = [];
   var entryUnix = toUnix(barAt(toUnix(trade.trade_date + " " + trade.entry_time)).t);
   var exitUnix = toUnix(barAt(toUnix(trade.trade_date + " " + trade.exit_time)).t);
-  markers.push({ time: entryUnix, position: "belowBar", color: "#4cbf88", shape: "arrowUp", text: "entry $" + Number(trade.entry_price).toFixed(2) });
-  markers.push({ time: exitUnix, position: "aboveBar", color: "#e2584f", shape: "arrowDown", text: "exit $" + Number(trade.exit_price).toFixed(2) });
+  markers.push({ time: entryUnix, position: "belowBar", color: "#2fd08a", shape: "arrowUp", text: "entry $" + Number(trade.entry_price).toFixed(2) });
+  markers.push({ time: exitUnix, position: "aboveBar", color: "#f2555a", shape: "arrowDown", text: "exit $" + Number(trade.exit_price).toFixed(2) });
   if (trade.better_entry && trade.better_entry.price) {
-    markers.push({ time: entryUnix, position: "belowBar", color: "#c99a4c", shape: "circle", text: "better entry $" + Number(trade.better_entry.price).toFixed(2) });
+    markers.push({ time: entryUnix, position: "belowBar", color: "#8b7cf6", shape: "circle", text: "better entry $" + Number(trade.better_entry.price).toFixed(2) });
   }
   if (trade.better_exit && trade.better_exit.price) {
-    markers.push({ time: exitUnix, position: "aboveBar", color: "#c97a63", shape: "circle", text: "better exit $" + Number(trade.better_exit.price).toFixed(2) });
+    markers.push({ time: exitUnix, position: "aboveBar", color: "#ec6cad", shape: "circle", text: "better exit $" + Number(trade.better_exit.price).toFixed(2) });
   }
   markers.sort(function(a,b){ return a.time - b.time; });
   candleSeries.setMarkers(markers);
@@ -327,9 +326,9 @@ ${scriptExtra || ""}
     const zeroY = y(0);
     const path = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.cum).toFixed(1)}`).join(" ");
     const last = points[points.length - 1].cum;
-    const stroke = last >= 0 ? "#4cbf88" : "#e2584f";
+    const stroke = last >= 0 ? "#2fd08a" : "#f2555a";
     return `<svg class="equity-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
-      <line x1="0" y1="${zeroY.toFixed(1)}" x2="${w}" y2="${zeroY.toFixed(1)}" stroke="#3a3021" stroke-width="1"/>
+      <line x1="0" y1="${zeroY.toFixed(1)}" x2="${w}" y2="${zeroY.toFixed(1)}" stroke="#262a34" stroke-width="1"/>
       <path d="${path}" fill="none" stroke="${stroke}" stroke-width="2"/>
     </svg>`;
   }

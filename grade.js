@@ -23,8 +23,8 @@
 (function () {
   "use strict";
   const STORAGE_KEY = "trade.log:grades"; // { [tradeId]: 1-5 }
-  const STAR_COLOR = "#d97b3f";
-  const EMPTY_COLOR = "var(--border, #2a2318)";
+  const STAR_COLOR = "#e8a94c";
+  const EMPTY_COLOR = "var(--border, #2a2f38)";
   const LABELS = { 1: "Poor execution", 2: "Below plan", 3: "On plan", 4: "Clean", 5: "Flawless" };
 
   function clamp(g) {

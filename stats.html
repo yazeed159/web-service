@@ -48,12 +48,12 @@
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#cf9a52"/>
-      <stop offset="100%" stop-color="#6fae87"/>
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
     </linearGradient>
     <linearGradient id="modernEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#cf9a52"/>
-      <stop offset="100%" stop-color="#6fae87"/>
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
     </linearGradient>
   </defs>
 </svg>
@@ -559,16 +559,16 @@
     const chart = LightweightCharts.createChart(el, Object.assign({
       width: el.clientWidth,
       height: 200,
-      layout: { background: { color: "transparent" }, textColor: "#a89b86" },
-      grid: { vertLines: { color: "#251f16" }, horzLines: { color: "#251f16" } },
-      rightPriceScale: { borderColor: "#3a3021" },
+      layout: { background: { color: "transparent" }, textColor: "#8b8fa3" },
+      grid: { vertLines: { color: "#1b1e26" }, horzLines: { color: "#1b1e26" } },
+      rightPriceScale: { borderColor: "#262a34" },
       // time here is a trade sequence number (1, 2, 3, ...), not a real
       // calendar date -- tickMarkFormatter covers the fixed axis ticks,
       // but the crosshair's own floating label has to be told the same
       // thing separately (localization.timeFormatter), or it falls back
       // to formatting the raw index as if it were a UTC timestamp, which
       // lands on some garbage date in 1970.
-      timeScale: { borderColor: "#3a3021", tickMarkFormatter: (t) => "#" + t },
+      timeScale: { borderColor: "#262a34", tickMarkFormatter: (t) => "#" + t },
       localization: { timeFormatter: (t) => "Trade #" + t },
     }, opts || {}));
     const onResize = () => chart.applyOptions({ width: el.clientWidth });
@@ -607,11 +607,11 @@
     const chart = makeTrendChart(el, { height: 130 });
     qualityWinRateChart = chart;
     const series = chart.addAreaSeries({
-      lineColor: "#6fa3c9", topColor: "rgba(111,163,201,0.28)", bottomColor: "rgba(111,163,201,0.02)", lineWidth: 2,
+      lineColor: "#5b93f0", topColor: "rgba(91,147,240,0.28)", bottomColor: "rgba(91,147,240,0.02)", lineWidth: 2,
       priceFormat: { type: "custom", formatter: (v) => v.toFixed(0) + "%" },
     });
     series.setData(data);
-    series.createPriceLine({ price: 50, color: "rgba(163,148,124,0.4)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false, title: "breakeven" });
+    series.createPriceLine({ price: 50, color: "rgba(139,143,163,0.4)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false, title: "breakeven" });
     chart.timeScale().fitContent();
   }
 
@@ -632,11 +632,11 @@
     const chart = makeTrendChart(el, { height: 130 });
     qualityPfChart = chart;
     const series = chart.addAreaSeries({
-      lineColor: "#d97b3f", topColor: "rgba(217,123,63,0.28)", bottomColor: "rgba(217,123,63,0.02)", lineWidth: 2,
+      lineColor: "#e8a94c", topColor: "rgba(232,169,76,0.28)", bottomColor: "rgba(232,169,76,0.02)", lineWidth: 2,
       priceFormat: { type: "custom", formatter: (v) => v.toFixed(2) + "x" },
     });
     series.setData(data);
-    series.createPriceLine({ price: 1, color: "rgba(163,148,124,0.4)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false, title: "breakeven" });
+    series.createPriceLine({ price: 1, color: "rgba(139,143,163,0.4)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false, title: "breakeven" });
     chart.timeScale().fitContent();
   }
 
@@ -657,7 +657,7 @@
     const chart = makeTrendChart(el, { height: 160 });
     qualityScoreChart = chart;
     const series = chart.addAreaSeries({
-      lineColor: "#cf9a52", topColor: "rgba(207,154,82,0.28)", bottomColor: "rgba(207,154,82,0.02)", lineWidth: 2,
+      lineColor: "#8457ff", topColor: "rgba(132,87,255,0.28)", bottomColor: "rgba(132,87,255,0.02)", lineWidth: 2,
       priceFormat: { type: "custom", formatter: (v) => v.toFixed(0) },
     });
     series.setData(data);
@@ -665,8 +665,8 @@
     // gauge red/amber/green -- drawn here as reference lines rather than
     // recoloring the line itself, so one glance shows which band a given
     // stretch of trading sat in.
-    series.createPriceLine({ price: 70, color: "rgba(76,191,136,0.45)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "good" });
-    series.createPriceLine({ price: 40, color: "rgba(226,88,79,0.45)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "caution" });
+    series.createPriceLine({ price: 70, color: "rgba(47,208,138,0.45)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "good" });
+    series.createPriceLine({ price: 40, color: "rgba(242,85,90,0.45)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true, title: "caution" });
     chart.timeScale().fitContent();
   }
 
@@ -696,11 +696,11 @@
     const chart = makeTrendChart(el, { height: 180 });
     perShareChart = chart;
     const series = chart.addAreaSeries({
-      lineColor: "#b98a95", topColor: "rgba(185,138,149,0.25)", bottomColor: "rgba(185,138,149,0.02)", lineWidth: 2,
+      lineColor: "#c084fc", topColor: "rgba(192,132,252,0.25)", bottomColor: "rgba(192,132,252,0.02)", lineWidth: 2,
       priceFormat: { type: "custom", formatter: (v) => "$" + v.toFixed(3) },
     });
     series.setData(data);
-    series.createPriceLine({ price: 0, color: "rgba(163,148,124,0.4)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false, title: "breakeven" });
+    series.createPriceLine({ price: 0, color: "rgba(139,143,163,0.4)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false, title: "breakeven" });
     chart.timeScale().fitContent();
     el.insertAdjacentHTML("beforeend", `
       <div style="font-size:11px; color:var(--text-faint); margin-top:6px;">${avgWindow}-trade rolling average</div>`);
@@ -1006,13 +1006,13 @@
     const chart = LightweightCharts.createChart(el, {
       width: el.clientWidth,
       height: 220,
-      layout: { background: { color: "transparent" }, textColor: "#a89b86" },
-      grid: { vertLines: { color: "#251f16" }, horzLines: { color: "#251f16" } },
-      rightPriceScale: { borderColor: "#3a3021" },
-      timeScale: { borderColor: "#3a3021" },
+      layout: { background: { color: "transparent" }, textColor: "#8b8fa3" },
+      grid: { vertLines: { color: "#1b1e26" }, horzLines: { color: "#1b1e26" } },
+      rightPriceScale: { borderColor: "#262a34" },
+      timeScale: { borderColor: "#262a34" },
     });
     const series = chart.addAreaSeries({
-      lineColor: "#d97b3f", topColor: "rgba(217,123,63,0.25)", bottomColor: "rgba(217,123,63,0.02)", lineWidth: 2,
+      lineColor: "#e8a94c", topColor: "rgba(232,169,76,0.25)", bottomColor: "rgba(232,169,76,0.02)", lineWidth: 2,
     });
     // Same day-collapsing approach as the equity curve: lightweight-charts
     // needs one strictly-increasing time key, and several trades can share
