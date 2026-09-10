@@ -11,7 +11,6 @@
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="common.css">
 <link rel="stylesheet" href="dashboard.css">
-<link rel="stylesheet" href="chat-widget.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -270,9 +269,9 @@
           <div class="filter-field date-range">
             <label>Date range</label>
             <div class="range-inputs">
-              <input type="date" class="filter-input" id="report-filter-date-from" />
+              <input type="date" class="filter-input" id="report-filter-date-from" aria-label="Date range start" />
               <span class="range-sep">–</span>
-              <input type="date" class="filter-input" id="report-filter-date-to" />
+              <input type="date" class="filter-input" id="report-filter-date-to" aria-label="Date range end" />
             </div>
           </div>
           <button class="btn-advanced">Advanced</button>
@@ -572,15 +571,15 @@
           <div class="compare-controls" id="compare-controls">
             <div class="compare-period">
               <div class="compare-period-title">Period A</div>
-              <input type="date" class="filter-input" id="cmp-a-start" />
+              <input type="date" class="filter-input" id="cmp-a-start" aria-label="Period A start date" />
               <span class="compare-to">to</span>
-              <input type="date" class="filter-input" id="cmp-a-end" />
+              <input type="date" class="filter-input" id="cmp-a-end" aria-label="Period A end date" />
             </div>
             <div class="compare-period">
               <div class="compare-period-title">Period B</div>
-              <input type="date" class="filter-input" id="cmp-b-start" />
+              <input type="date" class="filter-input" id="cmp-b-start" aria-label="Period B start date" />
               <span class="compare-to">to</span>
-              <input type="date" class="filter-input" id="cmp-b-end" />
+              <input type="date" class="filter-input" id="cmp-b-end" aria-label="Period B end date" />
             </div>
             <button class="btn-advanced" id="cmp-apply">Compare</button>
           </div>

@@ -10,8 +10,6 @@
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="common.css">
 <style>
-  .it-card { max-width: 720px; margin: 0 auto; padding: 32px; }
-  .it-card .panel-head { margin-bottom: 24px; }
   .it-card .panel-head .sub code {
     font-family: var(--mono); background: var(--panel-3); padding: 1px 5px;
     border-radius: 4px; font-size: 12.5px;
@@ -23,12 +21,7 @@
     justify-content: space-between; gap: 12px;
   }
   input[type="file"] { color: var(--text-dim); font-size: 13px; max-width: 100%; }
-  button.primary {
-    margin-top: 20px; padding: 11px 22px; border: none; border-radius: var(--radius-sm);
-    background: linear-gradient(90deg, var(--primary), var(--blue)); color: #0a0b0f;
-    font-weight: 700; font-size: 14px; cursor: pointer;
-  }
-  button.primary:disabled { opacity: .45; cursor: default; }
+  #run-btn { margin-top: 20px; padding: 11px 22px; }
   #status { margin-top: 16px; font-size: 13px; font-family: var(--mono); }
   #status.ok { color: var(--green); }
   #status.err { color: var(--red); }
@@ -190,7 +183,6 @@
     <div class="content">
       <div class="card it-card">
         <div class="panel-head">
-          <h1>Import trades from CSV</h1>
           <p class="sub">
             Upload a CSV of raw trade executions to backfill past days into the trade log. Any reasonable column
             names work — <code>Symbol</code>/<code>Ticker</code>, <code>DateTime</code>/<code>Date</code>,
@@ -203,7 +195,7 @@
         <label for="csv-file">Trade CSV</label>
         <div class="drop">
           <input type="file" id="csv-file" accept=".csv">
-          <button class="primary" id="run-btn" disabled>Import</button>
+          <button class="btn-confirm" id="run-btn" disabled>Import</button>
         </div>
 
         <div id="status"></div>

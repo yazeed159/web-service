@@ -385,3 +385,32 @@ window.NavState = (function () {
     setTimeout(boot, 250);
   });
 })();
+
+// ---------------------------------------------------------------------
+// Hover-prefetch for sidebar navigation. Every nav-item is a real
+// full-page link (journal.html, stats.html, etc.), so the biggest part
+// of the "loading" feeling on navigation is just network wait for the
+// next document. Warming the browser's cache for a link as soon as the
+// pointer lands on it (people reliably pause on a link for a beat
+// before clicking) means that by the time the click actually happens,
+// the page is often already cached -- so the view-transition in
+// common.css has nothing left to wait on and the switch reads as
+// instant, without changing how any page loads or is built.
+(function () {
+  "use strict";
+  var done = Object.create(null);
+  function prefetch(url) {
+    if (!url || done[url]) return;
+    done[url] = true;
+    var link = document.createElement("link");
+    link.rel = "prefetch";
+    link.href = url;
+    document.head.appendChild(link);
+  }
+  document.addEventListener("pointerenter", function (e) {
+    var a = e.target.closest && e.target.closest(".nav-item[href], .sidebar a[href]");
+    if (!a) return;
+    var href = a.getAttribute("href");
+    if (href && !/^(https?:)?\/\//.test(href) && href.indexOf("#") !== 0) prefetch(href);
+  }, true);
+})();

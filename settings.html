@@ -235,22 +235,22 @@
 
         <form id="cap-form" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:18px;">
           <div>
-            <label style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Date</label>
+            <label for="cap-date" style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Date</label>
             <input type="date" class="filter-input" id="cap-date" required>
           </div>
           <div>
-            <label style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Type</label>
+            <label for="cap-type" style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Type</label>
             <select class="filter-input" id="cap-type">
               <option value="deposit">Deposit</option>
               <option value="withdrawal">Withdrawal</option>
             </select>
           </div>
           <div>
-            <label style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Amount</label>
+            <label for="cap-amount" style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Amount</label>
             <input type="text" inputmode="decimal" class="filter-input" id="cap-amount" placeholder="$0.00" required style="max-width:140px;">
           </div>
           <div style="flex:1; min-width:160px;">
-            <label style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Note (optional)</label>
+            <label for="cap-note" style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Note (optional)</label>
             <input type="text" class="filter-input" id="cap-note" placeholder="e.g. initial funding" style="width:100%;">
           </div>
           <button type="submit" class="btn-confirm" id="cap-add-btn">Add</button>

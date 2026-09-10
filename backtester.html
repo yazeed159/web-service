@@ -201,7 +201,7 @@
               placeholder="Describe the strategy you want to test…"
               autocomplete="off"
             >
-            <button type="submit" class="chat-send-btn" id="ai-cfg-send-btn">
+            <button type="submit" class="chat-send-btn" id="ai-cfg-send-btn" aria-label="Send message" title="Send">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
             </button>
           </form>
@@ -416,8 +416,7 @@
 <script src="strategy-presets.js"></script>
 <script src="backtester-ai.js"></script>
 <script src="global-search.js"></script>
-<script src="chat-widget.js"></script>
-<script src="nav.js"></script>
+<script src="common.js"></script>
 <script>
 
   (function () {
@@ -428,6 +427,5 @@
     });
   })();
 </script>
-<script src="modern.js"></script>
 </body>
 </html>

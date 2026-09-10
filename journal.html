@@ -157,8 +157,8 @@
 
       <div class="filters">
         <input type="text" id="f-symbol" placeholder="Symbol…" style="width:110px;">
-        <input type="date" id="f-from" title="From date">
-        <input type="date" id="f-to" title="To date">
+        <input type="date" id="f-from" title="From date" aria-label="From date">
+        <input type="date" id="f-to" title="To date" aria-label="To date">
         <select id="f-setup"><option value="">All setups</option></select>
         <select id="f-result">
           <option value="">Win or loss</option>
@@ -179,7 +179,7 @@
           <option value="none">Ungraded</option>
         </select>
         <label title="Filter by entry time of day">
-          <input type="time" id="f-time-from" style="width:96px;"> – <input type="time" id="f-time-to" style="width:96px;">
+          <input type="time" id="f-time-from" style="width:96px;" aria-label="From time"> – <input type="time" id="f-time-to" style="width:96px;" aria-label="To time">
         </label>
         <label><input type="checkbox" id="f-flagged"> Has better entry/exit flagged</label>
       </div>

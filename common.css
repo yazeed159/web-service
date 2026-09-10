@@ -20,7 +20,7 @@
   --border-soft: #1b1e26;
   --text: #eceef2;
   --text-dim: #8b8fa3;
-  --text-faint: #565a6b;
+  --text-faint: #7c808b;
   --green: #2fd08a;
   --green-soft: rgba(47, 208, 138, 0.12);
   --red: #f2555a;
@@ -44,6 +44,29 @@
 
 * { box-sizing: border-box; }
 html { color-scheme: dark; }
+
+/* ---------- Seamless cross-page navigation ----------
+   Every sidebar link is a normal full-page navigation (journal.html,
+   stats.html, etc. are separate documents, not client-side routes),
+   which is why they used to hard-cut to a blank page and repaint --
+   unlike the dashboard/day-view/reports tabs inside index.html, which
+   are one document and never reload. This opts every same-origin
+   navigation into the browser's native cross-document view transition
+   instead: the outgoing page cross-fades into the incoming one, so
+   switching pages reads as seamless without changing how any page is
+   built or loaded. Unsupported browsers (Safari, older Firefox/Chrome)
+   just get the normal instant navigation they always had -- no worse
+   than before. */
+@view-transition {
+  navigation: auto;
+}
+::view-transition-old(root), ::view-transition-new(root) {
+  animation-duration: 0.15s;
+  animation-timing-function: ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+}
 
 html, body {
   /* Fixes a flicker of the horizontal scrollbar when scrolling past the
@@ -1203,19 +1226,18 @@ body::before {
     var(--panel);
 }
 
-/* ---------- Brand mark: animated gradient ---------- */
+/* ---------- Brand mark ----------
+   Static gradient (no shifting animation) so the badge looks identical
+   on every page load -- previously this animated the background
+   position through violet -> cyan on a loop, and because every page
+   is its own full reload, you'd land on a different, effectively
+   random point in that cycle each time you navigated -- sometimes
+   catching the violet end, sometimes the cyan (blue) end. */
 .brand .mark {
   background: var(--grad-signature);
-  background-size: 220% 220%;
-  animation: markShift 7s ease-in-out infinite;
   box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 6px 20px var(--glow-violet);
   position: relative;
 }
-@keyframes markShift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-@media (prefers-reduced-motion: reduce) { .brand .mark { animation: none; } }
 
 /* ---------- Sidebar & topbar glass ---------- */
 .sidebar {

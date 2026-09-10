@@ -173,7 +173,7 @@
               <button type="button" class="calc-chip" data-balance="100000">$100,000</button>
             </div>
             <div class="calc-input-wrap" id="calc-balance-edit-wrap" style="display:none;">
-              <input type="text" class="filter-input" id="calc-starting-balance" value="$25,000">
+              <input type="text" class="filter-input" id="calc-starting-balance" value="$25,000" aria-label="Account size">
             </div>
           </div>
 
@@ -196,8 +196,8 @@
           <div class="calc-row">
             <div class="calc-row-head"><label><span class="calc-step-num">2</span>Entry price</label></div>
             <div class="calc-input-wrap">
-              <input type="text" class="filter-input" id="calc-entry" value="">
-              <div class="calc-stepper" data-target="calc-entry"><button type="button" data-dir="1">▲</button><button type="button" data-dir="-1">▼</button></div>
+              <input type="text" class="filter-input" id="calc-entry" value="" aria-label="Entry price">
+              <div class="calc-stepper" data-target="calc-entry"><button type="button" data-dir="1" aria-label="Increase entry price">▲</button><button type="button" data-dir="-1" aria-label="Decrease entry price">▼</button></div>
             </div>
           </div>
 
@@ -217,8 +217,8 @@
               <button type="button" class="calc-chip" data-stoppct="5">5%</button>
             </div>
             <div class="calc-input-wrap" id="calc-stop-price-wrap" style="display:none;">
-              <input type="text" class="filter-input" id="calc-stop" value="">
-              <div class="calc-stepper" data-target="calc-stop"><button type="button" data-dir="1">▲</button><button type="button" data-dir="-1">▼</button></div>
+              <input type="text" class="filter-input" id="calc-stop" value="" aria-label="Stop price">
+              <div class="calc-stepper" data-target="calc-stop"><button type="button" data-dir="1" aria-label="Increase stop price">▲</button><button type="button" data-dir="-1" aria-label="Decrease stop price">▼</button></div>
             </div>
             <div class="calc-hint" id="calc-stop-computed"></div>
           </div>
@@ -226,8 +226,8 @@
           <div class="calc-row">
             <div class="calc-row-head"><label><span class="calc-step-num">3</span>Target price</label></div>
             <div class="calc-input-wrap">
-              <input type="text" class="filter-input" id="calc-target" value="">
-              <div class="calc-stepper" data-target="calc-target"><button type="button" data-dir="1">▲</button><button type="button" data-dir="-1">▼</button></div>
+              <input type="text" class="filter-input" id="calc-target" value="" aria-label="Target price">
+              <div class="calc-stepper" data-target="calc-target"><button type="button" data-dir="1" aria-label="Increase target price">▲</button><button type="button" data-dir="-1" aria-label="Decrease target price">▼</button></div>
             </div>
             <div class="calc-hint" id="calc-target-hint">optional — tap an R level on the right to fill this in</div>
           </div>
@@ -298,8 +298,7 @@
 </div>
 
 <script src="global-search.js"></script>
-<script src="chat-widget.js"></script>
-<script src="nav.js"></script>
+<script src="common.js"></script>
 <script>
 
   (function () {
@@ -785,6 +784,5 @@
       .catch(() => { /* journal not reachable -- calculator still works standalone */ });
   })();
 </script>
-<script src="modern.js"></script>
 </body>
 </html>
