@@ -446,6 +446,19 @@
     });
   }
   function makeChart(el, height, extraOpts) {
+    // Every caller (renderDecayChart, renderRegretTradeChart,
+    // renderSizingChart) re-runs against the same container on ordinary
+    // interaction -- switching the "setup" or "trade" dropdown re-renders
+    // its chart every time. Each caller does el.innerHTML = "" first, but
+    // that only clears the DOM; it doesn't dispose the previous
+    // LightweightCharts instance or the window resize listener below, so
+    // without this, every dropdown change orphaned another chart engine
+    // (still running internally, invisible, forever) plus another resize
+    // listener stacked on top of the last. Track both on the container
+    // itself (innerHTML = "" doesn't touch JS properties on the node) and
+    // tear down whatever was there before building the new one.
+    if (el._chart) { try { el._chart.remove(); } catch (e) {} }
+    if (el._chartResizeHandler) { window.removeEventListener("resize", el._chartResizeHandler); }
     const chart = LightweightCharts.createChart(el, Object.assign({
       width: el.clientWidth,
       height,
@@ -454,7 +467,10 @@
       rightPriceScale: { borderColor: "#262a34" },
       timeScale: { borderColor: "#262a34" },
     }, extraOpts || {}));
-    window.addEventListener("resize", () => chart.applyOptions({ width: el.clientWidth }));
+    const onResize = () => chart.applyOptions({ width: el.clientWidth });
+    window.addEventListener("resize", onResize);
+    el._chart = chart;
+    el._chartResizeHandler = onResize;
     return chart;
   }
 

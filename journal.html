@@ -578,7 +578,7 @@
     function tagsPills(r) {
       const tags = (r.lesson_tags || []).filter(Boolean);
       if (!tags.length) return `<span class="dim">—</span>`;
-      return tags.map((t) => `<span class="pill tagpill">${escapeHtml(t.replace(/_/g, " "))}</span>`).join(" ");
+      return tags.map((t) => `<span class="pill tagpill" style="${window.setupTagStyleAttr(t)}">${escapeHtml(t.replace(/_/g, " "))}</span>`).join(" ");
     }
 
     function rowHtml(r) {
@@ -588,7 +588,7 @@
             <a class="row-link" href="trade.html?id=${encodeURIComponent(r.id)}" style="display:grid; grid-template-columns: ${GRID_COLS}; align-items:center; padding:8px 10px; gap:6px;">
               <span>${escapeHtml(r.trade_date)}</span>
               <span>${escapeHtml(r.symbol)}</span>
-              <span>${escapeHtml((r.setup_type || "—").replace(/_/g, " "))}</span>
+              <span>${r.setup_type ? window.setupTagDot(r.setup_type) : ""}${escapeHtml((r.setup_type || "—").replace(/_/g, " "))}</span>
               <span>$${Number(r.entry_price).toFixed(2)}</span>
               <span>$${Number(r.exit_price).toFixed(2)}${r.fill_count > 1 ? `<span class="pill" title="Averaged across ${r.fill_count} fills -- open the trade for the breakdown" style="margin-left:5px; padding:1px 5px; font-size:10px; opacity:.75;">×${r.fill_count}</span>` : ""}</span>
               <span class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</span>

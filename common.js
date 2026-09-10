@@ -414,3 +414,47 @@ window.NavState = (function () {
     if (href && !/^(https?:)?\/\//.test(href) && href.indexOf("#") !== 0) prefetch(href);
   }, true);
 })();
+
+// ================================================================
+// SETUP/TAG COLOR CODING (shared by journal, trade detail, patterns,
+// practice, rewind -- anywhere a setup_type or lesson tag is shown).
+// Hashes the tag's own text to one of 8 accent hues so a given setup
+// always renders in the same color everywhere it appears, instead of
+// every tag looking identical. Purely a rendering rule off the string
+// that's already there -- no new field, nothing to configure per tag.
+// Hues are chosen to stay clear of the green/red bands already used
+// for win/loss coloring throughout the app, so a tag color is never
+// mistaken for a win/loss signal.
+(function () {
+  "use strict";
+  var HUES = [255, 228, 200, 172, 42, 300, 322, 66]; // violet, blue, cyan, teal, amber, magenta, pink, gold
+  function hashStr(s) {
+    var h = 0;
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return h;
+  }
+  window.setupTagStyle = function (name) {
+    var key = String(name || "").trim().toLowerCase();
+    var hue = HUES[hashStr(key) % HUES.length];
+    return {
+      hue: hue,
+      bg: "hsla(" + hue + ", 65%, 55%, 0.16)",
+      border: "hsla(" + hue + ", 65%, 55%, 0.38)",
+      fg: "hsl(" + hue + ", 85%, 74%)",
+    };
+  };
+  // Inline style-attribute shorthand for a colored pill: background +
+  // border + text all in the tag's hue.
+  window.setupTagStyleAttr = function (name) {
+    var c = window.setupTagStyle(name);
+    return "background:" + c.bg + ";border-color:" + c.border + ";color:" + c.fg + ";";
+  };
+  // Just a small dot, for places already showing the label as plain
+  // text (table rows, breakdown lists) where a full recolored pill
+  // would be too heavy -- a leading dot keys it to the pill color used
+  // elsewhere without changing the row's own text styling.
+  window.setupTagDot = function (name) {
+    var c = window.setupTagStyle(name);
+    return '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + c.fg + ';margin-right:6px;vertical-align:middle;"></span>';
+  };
+})();

@@ -349,6 +349,12 @@ button { font-family: var(--sans); }
 .equity-path { fill: none; stroke: var(--green); stroke-width: 1.75; }
 .equity-path.neg { stroke: var(--red); }
 .equity-zero { stroke: var(--border); stroke-width: 1; stroke-dasharray: 3 4; }
+/* Drawdown band: filled between the balance line and its running
+   high-water mark, so "currently underwater" is visible as a shape
+   (widens through a slump, pinches to nothing at each new high)
+   instead of needing a separate max-drawdown number to explain it. */
+.equity-drawdown { fill: rgba(242,85,90,0.16); stroke: none; }
+.equity-ath { stroke: var(--text-faint); stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.6; }
 .equity-chart-wrap { position: relative; cursor: crosshair; }
 .equity-crosshair {
   position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border);

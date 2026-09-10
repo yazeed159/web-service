@@ -1656,7 +1656,7 @@
           <span>${escapeHtml(label.name)}</span>
           ${label.date ? `<span class="dim" style="font-weight:400; font-size:13px;">${escapeHtml(label.date)}</span>` : ""}
           <span class="side-pill ${sidePretty}">${sidePretty}</span>
-          <span class="pill">${escapeHtml((trade.setup_type || "unlabeled setup").replace(/_/g, " "))}</span>
+          <span class="pill" style="${window.setupTagStyleAttr(trade.setup_type || 'unlabeled setup')}">${escapeHtml((trade.setup_type || "unlabeled setup").replace(/_/g, " "))}</span>
         </div>
         <span class="quiz-clock">${escapeHtml(trade.entry_time)}
           <span class="quiz-live-badge"><span class="quiz-live-dot"></span>${fmtClock(secondsRemaining)} left on this candle</span>
@@ -2637,7 +2637,7 @@
           <span>${escapeHtml(label.name)}</span>
           <span class="dim" style="font-weight:400; font-size:13px;">${escapeHtml(label.date)}</span>
           <span class="side-pill ${c.side}">${c.side}</span>
-          <span class="pill">${escapeHtml((trade.setup_type || "unlabeled setup").replace(/_/g, " "))}</span>
+          <span class="pill" style="${window.setupTagStyleAttr(trade.setup_type || 'unlabeled setup')}">${escapeHtml((trade.setup_type || "unlabeled setup").replace(/_/g, " "))}</span>
           ${winPillHtml}
         </div>
       </div>

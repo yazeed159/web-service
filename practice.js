@@ -1240,7 +1240,26 @@
     seedSeries(closed);
     paintFormingBar();
     if (state.markers.length) series.setMarkers(state.markers);
-    chart.timeScale().fitContent();
+    // fitContent() stretches whatever's currently loaded to fill the full
+    // chart width -- fine once a session has a healthy number of bars, but
+    // a round typically starts right as the scanner "pop" happened, i.e.
+    // only a handful of bars in. fitContent() at that point blows those
+    // few candles up to fill the whole pane (the "zoomed in on one candle"
+    // look) instead of leaving room to see the tape develop. Below a
+    // reasonable bar count, use a fixed, comfortable spacing and park the
+    // view with some right-side breathing room for new bars to stream
+    // into, same as a real platform starting mid-session; once there's
+    // enough history to fill the pane at that spacing on its own,
+    // fitContent() behaves the same either way, so it's only a fallback
+    // for the small-bar-count case.
+    const MIN_BARS_FOR_FIT = 30;
+    const loadedCount = closed.length + 1; // + the forming bar just painted
+    if (loadedCount < MIN_BARS_FOR_FIT) {
+      chart.timeScale().applyOptions({ barSpacing: 8, rightOffset: 12 });
+      chart.timeScale().scrollToPosition(12, false);
+    } else {
+      chart.timeScale().fitContent();
+    }
   }
   function teardownChart(handle) {
     if (!handle) return;

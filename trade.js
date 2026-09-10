@@ -26,6 +26,15 @@
   let currentCandleChart = null;
   let currentMacdChart = null;
   let chartResizeListenerAttached = false;
+  let tooltipCloseListenerAttached = false;
+  // repositionPointers is redefined fresh on every buildCharts() call (it
+  // closes over that call's own pointer DOM nodes / candleSeries), so
+  // unlike chartResizeListenerAttached above this can't just be a
+  // set-once flag -- the *old* listener has to actually be removed, or
+  // "Show full day" rebuilding the chart stacks a second window resize
+  // listener still pointing at the previous call's now-stale pointers
+  // and disposed chart, alongside the new one, forever.
+  let pointersResizeHandler = null;
   // Which timeframe the candle chart is currently resampled to (1/5/15/60
   // minutes). Kept at module scope, not inside buildCharts, so it
   // survives a "Show full day" rebuild -- switching to 5m and then
@@ -314,7 +323,7 @@
             </button>
           </div>
           <div class="verdict-text">${escapeHtml(trade.verdict || "No verdict recorded.")}</div>
-          ${trade.setup_type ? `<span class="setup-tag">${escapeHtml(trade.setup_type)}</span>` : ""}
+          ${trade.setup_type ? `<span class="setup-tag" style="${window.setupTagStyleAttr(trade.setup_type)}">${escapeHtml(trade.setup_type)}</span>` : ""}
           ${rrStrip(trade)}
           ${trade.walk_away_rule ? `<div class="walk-away"><b>Walk-away rule:</b> ${escapeHtml(trade.walk_away_rule)}</div>` : ""}
         </div>
@@ -704,6 +713,7 @@
     // canvas inside each div rather than replacing the first.
     if (currentCandleChart) { try { currentCandleChart.remove(); } catch (e) {} currentCandleChart = null; }
     if (currentMacdChart) { try { currentMacdChart.remove(); } catch (e) {} currentMacdChart = null; }
+    pointersResizeHandler = null;
 
     // Builds every series' data array from whichever bar set is currently
     // displayed -- the raw 1-minute bars, or a 5m/15m/1h set resampled
@@ -963,9 +973,18 @@
     // Any click outside a pointer tooltip closes whichever one is pinned
     // open -- otherwise a tapped-open tooltip would just sit there covering
     // the chart. (Hover-opened tooltips already close on mouseleave.)
-    document.addEventListener("click", () => {
-      candleEl.querySelectorAll(".pointer-tooltip").forEach((t) => { t.dataset.open = "0"; t.style.display = "none"; });
-    });
+    // Attached once ever, same as chartResizeListenerAttached above --
+    // otherwise "Show full day" re-running buildCharts() stacks another
+    // copy of this on every rebuild. Reads candleEl fresh off the DOM
+    // rather than closing over this call's binding, so it always finds
+    // whichever tooltips are actually on the page right now.
+    if (!tooltipCloseListenerAttached) {
+      tooltipCloseListenerAttached = true;
+      document.addEventListener("click", () => {
+        const el = document.getElementById("candle-chart");
+        if (el) el.querySelectorAll(".pointer-tooltip").forEach((t) => { t.dataset.open = "0"; t.style.display = "none"; });
+      });
+    }
 
     const POINTER_H = 9; // triangle height in px -- also used to correct the tip offset in repositionPointers()
 
@@ -1109,7 +1128,11 @@
     }
 
     candleChart.timeScale().subscribeVisibleLogicalRangeChange(repositionPointers);
-    window.addEventListener("resize", repositionPointers);
+    // Read via the "attached once ever" resize listener further down
+    // (same one that resizes currentCandleChart/currentMacdChart) instead
+    // of adding a fresh window listener here -- see the note on
+    // pointersResizeHandler above.
+    pointersResizeHandler = repositionPointers;
     // priceToCoordinate depends on the right price scale's own autoscale,
     // which isn't settled until after setData/fitContent run -- a couple
     // of follow-up passes catch that instead of racing it.
@@ -1122,7 +1145,7 @@
       color: "#2fd08a",
       lineWidth: 1,
       lineStyle: LightweightCharts.LineStyle.Dashed,
-      lineVisible: false,
+      lineVisible: true,
       axisLabelVisible: true,
       title: "",
     });
@@ -1131,41 +1154,10 @@
       color: "#f2555a",
       lineWidth: 1,
       lineStyle: LightweightCharts.LineStyle.Dashed,
-      lineVisible: false,
+      lineVisible: true,
       axisLabelVisible: true,
       title: "",
     });
-
-    // Dotted lines for the LLM's suggested better entry/exit, in the same
-    // purple/pink as their pointers above -- distinct from the actual
-    // entry/exit green/red so the two pairs never get confused. The axis
-    // label stays a short, static "better entry"/"better exit" tag,
-    // lowercase to match the legend -- the full how_to_know signal lives on
-    // the pointer's own hover/tap tooltip instead (see betterTooltip
-    // above), and the full reason + how_to_know text also lives in the
-    // "What you should've done" card.
-    if (trade.better_entry && trade.better_entry.price) {
-      candleSeries.createPriceLine({
-        price: Number(trade.better_entry.price),
-        color: BETTER_ENTRY_COLOR,
-        lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.Dotted,
-        lineVisible: false,
-        axisLabelVisible: true,
-        title: "better entry",
-      });
-    }
-    if (trade.better_exit && trade.better_exit.price) {
-      candleSeries.createPriceLine({
-        price: Number(trade.better_exit.price),
-        color: BETTER_EXIT_COLOR,
-        lineWidth: 1,
-        lineStyle: LightweightCharts.LineStyle.Dotted,
-        lineVisible: false,
-        axisLabelVisible: true,
-        title: "better exit",
-      });
-    }
 
     // "Rewind" (renamed from "Replay" to match where it actually goes) sends
     // this trade over to the Rewind page's own replay/practice experience
@@ -1243,6 +1235,7 @@
       window.addEventListener("resize", () => {
         if (currentCandleChart) currentCandleChart.applyOptions({ width: candleEl.clientWidth });
         if (currentMacdChart) currentMacdChart.applyOptions({ width: macdEl.clientWidth });
+        if (pointersResizeHandler) pointersResizeHandler();
       });
     }
 

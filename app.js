@@ -1021,11 +1021,36 @@
     const zeroY = H - PAD - ((startBalance - min) / range) * (H - PAD * 2);
     const fillD = pathD + ` L${coords[coords.length - 1][0].toFixed(1)},${zeroY} L0,${zeroY} Z`;
 
+    // Drawdown shading (Edgewonk-style): a running "peak so far" line
+    // tracks the account's high-water mark, and the band between that
+    // line and the actual curve is shaded whenever the curve sits below
+    // it -- i.e. "currently underwater by this much". The band's height
+    // is literally the live drawdown, so it collapses to nothing at
+    // every new high and widens through a slump, without needing a
+    // separate drawdown stat to explain it. allTimeHighY draws a thin
+    // dashed reference line at the single highest balance ever reached
+    // in this range, so a partial recovery still shows how far there is
+    // left to go back to even.
+    let runningPeak = -Infinity;
+    const peakCoords = coords.map((c, i) => {
+      runningPeak = Math.max(runningPeak, values[i]);
+      const y = H - PAD - ((runningPeak - min) / range) * (H - PAD * 2);
+      return [c[0], y];
+    });
+    const ddPathD =
+      coords.map((c, i) => (i === 0 ? "M" : "L") + c[0].toFixed(1) + "," + c[1].toFixed(1)).join(" ") +
+      " " +
+      peakCoords.slice().reverse().map((p) => "L" + p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ") +
+      " Z";
+    const allTimeHighY = Math.min(...peakCoords.map((c) => c[1]));
+
     const finalPositive = values[values.length - 1] >= startBalance;
     const svg = document.getElementById("equity-svg");
     svg.innerHTML = `
       <line x1="0" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" class="equity-zero" />
+      <line x1="0" y1="${allTimeHighY.toFixed(1)}" x2="${W}" y2="${allTimeHighY.toFixed(1)}" class="equity-ath" />
       <path d="${fillD}" fill="${finalPositive ? "url(#gGreen)" : "url(#gRed)"}" />
+      <path d="${ddPathD}" class="equity-drawdown" />
       <path d="${pathD}" class="equity-path ${finalPositive ? "" : "neg"}" />
       <circle id="equity-hover-dot" r="4" fill="var(--panel)" stroke="${finalPositive ? "var(--green)" : "var(--red)"}" stroke-width="2" style="display:none;" />
       <defs>

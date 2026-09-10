@@ -261,10 +261,11 @@
         <div class="panel-box-head"><span class="title">By frequency</span></div>
         ${entries.map(([tag, trades]) => {
           const uid = "tag-list-" + escapeHtml(tag);
+          const tagColor = window.setupTagStyle(tag);
           return `
           <div class="bar-row" data-tag-toggle="${escapeHtml(tag)}" style="cursor:pointer;">
-            <div class="bar-label">${escapeHtml(tag.replace(/_/g, " "))}</div>
-            <div class="bar-track"><div class="bar-fill" style="width:${Math.round((trades.length / maxCount) * 100)}%;"></div></div>
+            <div class="bar-label">${window.setupTagDot(tag)}${escapeHtml(tag.replace(/_/g, " "))}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${Math.round((trades.length / maxCount) * 100)}%; background:${tagColor.fg};"></div></div>
             <div class="bar-count">${trades.length}x</div>
           </div>
           ${tradeListHtml(trades, uid)}

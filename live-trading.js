@@ -555,6 +555,7 @@
   function startRun() {
     const errEl = document.getElementById("lt-start-error");
     errEl.textContent = "";
+    const startBtn = document.getElementById("lt-start-btn");
 
     const strategyId = document.getElementById("lt-strategy").value || null;
     const advancedEntryMode = document.getElementById("lt-entry-mode").value || null;
@@ -633,9 +634,20 @@
     const barProvider = document.getElementById("lt-bar-provider").value;
     if (barProvider) body.params.bar_provider = barProvider;
 
+    // Same "optimistic feedback while the request is in flight" fix as
+    // stopRun() above, but more important to get right here: this is the
+    // button that places real IBKR orders (see the confirm() dialog just
+    // above for live mode), so leaving it clickable while the request is
+    // still in flight risks a double-click or slow response firing
+    // /api/live/start twice and starting two runs instead of one.
+    const origStartBtnText = startBtn.textContent;
+    startBtn.disabled = true;
+    startBtn.textContent = "Starting…";
+
     apiCall("/api/live/start", { method: "POST", body: JSON.stringify(body) })
       .then(refreshStatus)
-      .catch((err) => { errEl.textContent = err.message; });
+      .catch((err) => { errEl.textContent = err.message; })
+      .finally(() => { startBtn.disabled = false; startBtn.textContent = origStartBtnText; });
   }
 
   function fmtRelativeTime(iso) {
