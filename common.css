@@ -78,7 +78,17 @@ html, body {
      .table-scroll below) -- only the outer page.
      Chrome for Android older than v63 doesn't support overscroll-behavior
      but simply ignores it, so this degrades gracefully there. */
-  overflow-x: hidden;
+  /* overflow-x:hidden (not clip) used to be here, but setting only one
+     axis to a non-"visible" keyword like "hidden" forces the *other*
+     axis's computed value from "visible" to "auto" per spec -- so both
+     html and body silently became independent scroll containers. That
+     broke .sidebar's position:sticky (it stuck to the wrong scrollport,
+     which never actually scrolled), so on any page long enough to
+     scroll, the sidebar just scrolled away with the rest of the page
+     and left blank space once you passed one viewport height. "clip"
+     isn't subject to that visible->auto coercion, so it blocks the
+     horizontal scrollbar without hijacking vertical scrolling. */
+  overflow-x: clip;
   overscroll-behavior-y: contain;
 }
 
@@ -423,6 +433,18 @@ button { font-family: var(--sans); }
 .cal-month-label { font-size: 15px; font-weight: 700; min-width: 150px; text-align: center; }
 .cal-legend { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--text-faint); }
 .cal-legend .sw { width: 9px; height: 9px; border-radius: 3px; display: inline-block; margin-right: 5px; vertical-align: middle; }
+/* Replaces the old flat "Win day / Loss day" swatch pair now that cell
+   color is magnitude-scaled: a strip fading from loss-red through the
+   panel background to win-green, so the "darker = bigger" rule reads at
+   a glance instead of needing two same-looking dots explained in words. */
+.cal-legend-scale { display: flex; align-items: center; gap: 6px; }
+.cal-legend-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.cal-legend-gradient {
+  width: 84px; height: 8px; border-radius: 4px;
+  background: linear-gradient(90deg, rgba(242,85,90,0.85), rgba(242,85,90,0.18) 42%, var(--panel-2) 50%, rgba(47,208,138,0.18) 58%, rgba(47,208,138,0.85));
+  border: 1px solid var(--border-soft);
+}
+.cal-legend-hint { font-style: italic; opacity: 0.85; }
 
 .cal-summary-strip { margin-bottom: 16px; }
 .cal-summary-cells { display: flex; gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); border-radius: var(--radius); overflow: hidden; }
@@ -445,6 +467,11 @@ button { font-family: var(--sans); }
 .cal-week-box .week-empty { font-size: 13px; color: var(--text-faint); }
 .cal-week-box.win .week-pnl { color: var(--green); }
 .cal-week-box.loss .week-pnl { color: var(--red); }
+/* Same heatmap-by-magnitude treatment as .cal-cell, one shade fainter
+   since the week column sits next to five already-tinted day cells and
+   shouldn't compete with them for attention. */
+.cal-week-box.win { background: rgba(47,208,138, calc(0.06 + var(--pnl-i, 0.55) * 0.16)); border-color: rgba(47,208,138, calc(0.14 + var(--pnl-i, 0.55) * 0.22)); }
+.cal-week-box.loss { background: rgba(242,85,90, calc(0.06 + var(--pnl-i, 0.55) * 0.16)); border-color: rgba(242,85,90, calc(0.14 + var(--pnl-i, 0.55) * 0.22)); }
 .cal-cell {
   min-height: 118px; border-radius: var(--radius-sm); background: var(--panel); border: 1px solid var(--border-soft);
   padding: 10px 12px; cursor: default; display: flex; flex-direction: column; transition: border-color 0.15s;
@@ -452,8 +479,13 @@ button { font-family: var(--sans); }
 .cal-cell.empty { background: transparent; border-color: transparent; }
 .cal-cell.has-trades { cursor: pointer; }
 .cal-cell.has-trades:hover { border-color: var(--text-dim); }
-.cal-cell.win { background: var(--green-soft); border-color: rgba(47,208,138,0.28); }
-.cal-cell.loss { background: var(--red-soft); border-color: rgba(242,85,90,0.28); }
+/* Tradervue-style heatmap: --pnl-i (0.22-1, set inline per cell in
+   app.js) scales how saturated the tint is, so a big day reads as a
+   deep green/red block and a small day as a faint one, instead of every
+   winning day looking identical regardless of size. Falls back to the
+   old flat tint if --pnl-i is ever missing so nothing breaks. */
+.cal-cell.win { background: rgba(47,208,138, calc(0.10 + var(--pnl-i, 0.55) * 0.30)); border-color: rgba(47,208,138, calc(0.18 + var(--pnl-i, 0.55) * 0.35)); }
+.cal-cell.loss { background: rgba(242,85,90, calc(0.10 + var(--pnl-i, 0.55) * 0.30)); border-color: rgba(242,85,90, calc(0.18 + var(--pnl-i, 0.55) * 0.35)); }
 /* Leading/trailing days that spill into the adjacent month -- shown so the
    week they belong to totals correctly, but visually muted since they
    aren't part of the month being viewed (and aren't part of its month

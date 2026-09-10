@@ -838,6 +838,23 @@
     const gridStart = new Date(y, m, 1 - leadMonDow);
     const gridEnd = new Date(y, m, daysInMonth + (6 - trailMonDow));
 
+    // Tradervue-style heatmap: cell color intensity scales with how big
+    // that day's P&L was relative to the biggest day *visible in this
+    // grid*, instead of every win/loss day getting the same flat tint.
+    // Scoped to gridStart..gridEnd (not the whole account history) so a
+    // quiet month still shows visible contrast between its own good and
+    // bad days, rather than everything pinning near zero next to one
+    // all-time outlier day. Floors at 0.22 so even a small day is still
+    // visibly colored -- fading to nothing at the low end reads as "no
+    // data", not "small". Weeks get their own scale/floor since week
+    // totals run bigger than single days.
+    let maxAbsDay = 0;
+    for (let cur = new Date(gridStart); cur <= gridEnd; cur.setDate(cur.getDate() + 1)) {
+      const entry = map.get(dateKey(cur.getFullYear(), cur.getMonth(), cur.getDate()));
+      if (entry) maxAbsDay = Math.max(maxAbsDay, Math.abs(entry.net));
+    }
+    const dayIntensity = (net) => (maxAbsDay ? Math.max(0.22, Math.min(1, Math.abs(net) / maxAbsDay)).toFixed(2) : "0.6");
+
     const weeks = [];
     for (let cur = new Date(gridStart); cur <= gridEnd; ) {
       let weekNet = 0, weekGross = 0, weekComm = 0, weekTrades = 0, weekHas = false, weekHasInMonth = false;
@@ -865,7 +882,8 @@
           if (entry) cls += (entry.net >= 0 ? " win" : " loss") + (opts.clickable ? " has-trades" : "");
           if (opts.clickable && key === opts.selectedDay) cls += " selected";
           const dayAttr = opts.clickable && entry ? ` data-day="${key}"` : "";
-          rowHtml += `<div class="${cls}"${dayAttr}>
+          const dayStyle = entry ? ` style="--pnl-i:${dayIntensity(entry.net)}"` : "";
+          rowHtml += `<div class="${cls}"${dayAttr}${dayStyle}>
             <span class="date-num">${cur.getDate()}</span>
             ${entry ? `<span class="cell-pnl">${fmtMoney(entry.net)}</span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span>${opts.compact ? "" : `<span class="cell-subline">Gross <span class="${entry.gross >= 0 ? "up" : "down"}">${fmtMoney(entry.gross)}</span></span><span class="cell-subline">Comm $${entry.comm.toFixed(2)}</span>`}` : ""}
           </div>`;
@@ -885,10 +903,14 @@
     while (weeks.length && !weeks[0].weekHasInMonth) weeks.shift();
     while (weeks.length && !weeks[weeks.length - 1].weekHasInMonth) weeks.pop();
 
+    const maxAbsWeek = weeks.reduce((mx, w) => (w.weekHas ? Math.max(mx, Math.abs(w.weekNet)) : mx), 0);
+    const weekIntensity = (net) => (maxAbsWeek ? Math.max(0.22, Math.min(1, Math.abs(net) / maxAbsWeek)).toFixed(2) : "0.6");
+
     weeks.forEach((week, idx) => {
       const weekIndex = idx + 1;
       const weekBoxCls = "cal-week-box" + (week.weekHas ? (week.weekNet >= 0 ? " win" : " loss") : "");
-      html += week.rowHtml + `<div class="${weekBoxCls}">
+      const weekStyle = week.weekHas ? ` style="--pnl-i:${weekIntensity(week.weekNet)}"` : "";
+      html += week.rowHtml + `<div class="${weekBoxCls}"${weekStyle}>
         <span class="week-label">Week ${weekIndex}</span>
         ${week.weekHas ? `<span class="week-pnl">${fmtMoney(week.weekNet)}</span><span class="week-count">${week.weekTrades} trade${week.weekTrades === 1 ? "" : "s"}</span>${opts.compact ? "" : `<span class="week-subline">Gross <span class="${week.weekGross >= 0 ? "up" : "down"}">${fmtMoney(week.weekGross)}</span></span><span class="week-subline">Comm $${week.weekComm.toFixed(2)}</span>`}` : `<span class="week-empty">—</span>`}
       </div>`;
