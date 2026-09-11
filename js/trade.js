@@ -58,31 +58,8 @@
   // just a second, client-side layer of the same idea -- re-opening the
   // same trade (or a sibling trade sharing the symbol+day) in this tab
   // doesn't even make the network round trip twice.
-  const FULL_DAY_CACHE_PREFIX = "chartSvc:fullDay:";
-  function fetchFullDayBars(symbol, tradeDate) {
-    const cacheKey = FULL_DAY_CACHE_PREFIX + symbol + ":" + tradeDate;
-    try {
-      const cached = sessionStorage.getItem(cacheKey);
-      if (cached) return Promise.resolve(JSON.parse(cached));
-    } catch (e) { /* sessionStorage unavailable/full -- fall through to network */ }
-
-    const base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
-    if (!base) return Promise.reject(new Error("CHART_SERVICE_URL isn't set in config.js"));
-    return fetch(`${base}/full-day-bars`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
-      body: JSON.stringify({ symbol, trade_date: tradeDate }),
-    })
-      .then((r) => r.json().then((data) => {
-        if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
-        return data;
-      }))
-      .then((data) => {
-        const bars = Array.isArray(data.bars) ? data.bars : [];
-        try { sessionStorage.setItem(cacheKey, JSON.stringify(bars)); } catch (e) { /* quota, etc -- fine, just skip caching */ }
-        return bars;
-      });
-  }
+  // FULL_DAY_CACHE_PREFIX/fetchFullDayBars() now in utils.js (loads first
+  // on every page).
 
   // POST helper for chart_service.py routes that need to know who's
   // asking (currently just /fetch-float) -- attaches the logged-in
@@ -193,17 +170,6 @@
 // toUnix() now in utils.js (loads first on every page).
   // Compact share-count formatting for the About card -- 18,500,000 -> "18.5M".
 // fmtShares() now in utils.js (loads first on every page).
-  const TAG_LABELS = {
-    avgvol_under_500k: "Avg vol < 500K", avgvol_500k_1m: "Avg vol 500K–1M",
-    avgvol_1m_5m: "Avg vol 1M–5M", avgvol_5m_20m: "Avg vol 5M–20M", avgvol_20m_plus: "Avg vol 20M+",
-    rvol_under_1x: "RVol < 1x", rvol_1x_2x: "RVol 1x–2x", rvol_2x_5x: "RVol 2x–5x",
-    rvol_5x_10x: "RVol 5x–10x", rvol_10x_plus: "RVol 10x+",
-    float_micro_under_10m: "Float < 10M", float_low_10m_20m: "Float 10M–20M",
-    float_mid_20m_50m: "Float 20M–50M", float_large_50m_200m: "Float 50M–200M", float_mega_200m_plus: "Float 200M+",
-  };
-  function tagLabel(tag) {
-    return TAG_LABELS[tag] || String(tag).replace(/_/g, " ");
-  }
 
   function siblingNav(trade, siblings) {
     if (!Array.isArray(siblings) || !siblings.length) return "";

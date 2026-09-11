@@ -2076,12 +2076,12 @@
   }
   function normalCdf(z) { return 0.5 * (1 + erf(z / Math.SQRT2)); }
 
-  function fmtDuration(mins) {
-    if (mins == null || isNaN(mins)) return "—";
-    const total = Math.round(mins);
-    const h = Math.floor(total / 60), m = total % 60;
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
-  }
+  // fmtDuration() now in utils.js (loads first on every page). NOTE: the
+  // canonical version renders totals under 60 seconds as e.g. "45s" instead
+  // of rounding down to "0m" -- this file's old copy had the "0m" bug that
+  // fmtDurationPrecise below was written to fix for the Day View table;
+  // swapping in the canonical fmtDuration fixes the same bug for every
+  // other caller here (the average-hold-time stats above) too.
 
   // Same idea as fmtDuration, but keeps seconds instead of rounding them
   // away -- used for the Day View trade table, where a lot of these small-

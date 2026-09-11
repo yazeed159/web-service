@@ -81,15 +81,8 @@
     // paper-trading page's worth of DOM listeners) so "max shares" and
     // "risk amount" reflect what a fill would really cost, not a gross
     // number that ignores fees entirely.
-    const IBKR_PER_SHARE = 0.0035;
-    const IBKR_MIN_PER_ORDER = 0.35;
-    const IBKR_MAX_PCT_OF_TRADE_VALUE = 0.01;
-    function ibkrTieredCommission(shares, price) {
-      if (!(shares > 0) || !(price > 0)) return 0;
-      const raw = shares * IBKR_PER_SHARE;
-      const ceiling = shares * price * IBKR_MAX_PCT_OF_TRADE_VALUE;
-      return Math.max(IBKR_MIN_PER_ORDER, Math.min(raw, ceiling));
-    }
+    // ibkrTieredCommission() + IBKR_PER_SHARE/IBKR_MIN_PER_ORDER/
+    // IBKR_MAX_PCT_OF_TRADE_VALUE now in utils.js (loads first on every page).
 
     // These 4 settings used to live only in this browser's localStorage.
     // Every setter below now also mirrors its value to Supabase

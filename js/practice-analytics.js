@@ -25,17 +25,10 @@
 // toUnix() now in utils.js (loads first on every page).
 // fmtUsd() now in utils.js (loads first on every page).
 // fmtMoney() now in utils.js (loads first on every page).
+// fmtDuration() now in utils.js (loads first on every page).
   function fmtClock(t) {
     try { return new Date(String(t).replace(" ", "T")).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); }
     catch (e) { return String(t); }
-  }
-  function fmtDuration(mins) {
-    if (mins === null || mins === undefined || !Number.isFinite(mins)) return "—";
-    const totalSec = Math.round(mins * 60);
-    if (totalSec < 60) return totalSec + "s";
-    const total = Math.round(mins);
-    const h = Math.floor(total / 60), m = total % 60;
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
   }
   function median(arr) {
     if (!arr.length) return null;

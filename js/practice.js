@@ -153,18 +153,9 @@
   function bidPrice(price) { return roundPrice(price - spreadFor(price) / 2); }
   function askPrice(price) { return roundPrice(price + spreadFor(price) / 2); }
 
-  // IBKR's "Tiered" US stock commission schedule -- identical to the
-  // model rewind.js applies when scoring logged trades: $0.0035/share,
-  // with a $0.35 floor and a 1%-of-trade-value ceiling per order.
-  const IBKR_PER_SHARE = 0.0035;
-  const IBKR_MIN_PER_ORDER = 0.35;
-  const IBKR_MAX_PCT_OF_TRADE_VALUE = 0.01;
-  function ibkrTieredCommission(shares, price) {
-    if (!(shares > 0) || !(price > 0)) return 0;
-    const raw = shares * IBKR_PER_SHARE;
-    const ceiling = shares * price * IBKR_MAX_PCT_OF_TRADE_VALUE;
-    return Math.max(IBKR_MIN_PER_ORDER, Math.min(raw, ceiling));
-  }
+  // ibkrTieredCommission() + IBKR_PER_SHARE/IBKR_MIN_PER_ORDER/
+  // IBKR_MAX_PCT_OF_TRADE_VALUE now in utils.js (loads first on every page).
+
   // The dataset's logged trade.commission field (and the pnl_after_comm
   // derived from it) is noisy and doesn't track any consistent fee
   // schedule -- e.g. two 50-share trades in the same price range are
@@ -200,51 +191,8 @@
   // bar always "prints" the same way here as it does on the Rewind
   // tab. Clearly a practice aid, not a real tick feed.
   // ---------------------------------------------------------------
-  function seededRng(seedStr) {
-    let h = 1779033703 ^ seedStr.length;
-    for (let i = 0; i < seedStr.length; i++) {
-      h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353);
-      h = (h << 13) | (h >>> 19);
-    }
-    return function () {
-      h = Math.imul(h ^ (h >>> 16), 2246822507);
-      h = Math.imul(h ^ (h >>> 13), 3266489909);
-      h ^= h >>> 16;
-      return (h >>> 0) / 4294967296;
-    };
-  }
-  const REPLAY_SECONDS = 60; // one sub-tick per real second of the 1-min bar
-  function genSecondTicks(bar, prevClose, seed) {
-    const n = REPLAY_SECONDS;
-    const rng = seededRng(seed);
-    const o = bar.o, h = bar.h, l = bar.l, c = bar.c;
-    const start = Number.isFinite(prevClose) ? prevClose : o;
-    const highFirst = rng() < 0.5;
-    const waypoints = [
-      { t: 0, p: start },
-      { t: Math.round(n * 0.1), p: o },
-      { t: Math.round(n * 0.42), p: highFirst ? h : l },
-      { t: Math.round(n * 0.74), p: highFirst ? l : h },
-      { t: n - 1, p: c },
-    ];
-    const range = Math.max(h - l, 0.0001);
-    const jitterAmp = range * 0.07;
-    const ticks = [];
-    for (let s = 0; s < n; s++) {
-      let a = waypoints[0], b = waypoints[waypoints.length - 1];
-      for (let i = 0; i < waypoints.length - 1; i++) {
-        if (s >= waypoints[i].t && s <= waypoints[i + 1].t) { a = waypoints[i]; b = waypoints[i + 1]; break; }
-      }
-      const span = Math.max(1, b.t - a.t);
-      const frac = (s - a.t) / span;
-      let price = a.p + (b.p - a.p) * frac;
-      price += (rng() - 0.5) * 2 * jitterAmp;
-      price = Math.min(h, Math.max(l, price));
-      ticks.push(price);
-    }
-    ticks[n - 1] = c; // always land exactly on the bar's real close
-    return ticks;
-  }
+  // seededRng() now in utils.js (loads first on every page).
+  // REPLAY_SECONDS/genSecondTicks() now in utils.js (loads first on every page).
 
   // ---------------------------------------------------------------
   // persistent dummy account -- balance, every fill ever made, and
@@ -1181,9 +1129,7 @@
       chart.timeScale().fitContent();
     }
   }
-  function teardownChart(handle) {
-    return window.ChartIndicators.teardownStandardChart(handle);
-  }
+  // teardownChart() now in utils.js (loads first on every page).
 
   // "Show full day" -- offered only on the post-round recap (see
   // renderRecap below), never during live play. computeEntryIndex()
@@ -1194,30 +1140,8 @@
   // route + (symbol, trade_date) server cache trade.js's and rewind.js's
   // "Show full day" buttons use, plus the same sessionStorage layer so a
   // symbol+day already pulled on another page in this tab is instant here.
-  const FULL_DAY_CACHE_PREFIX = "chartSvc:fullDay:";
-  function fetchFullDayBars(symbol, tradeDate) {
-    const cacheKey = FULL_DAY_CACHE_PREFIX + symbol + ":" + tradeDate;
-    try {
-      const cached = sessionStorage.getItem(cacheKey);
-      if (cached) return Promise.resolve(JSON.parse(cached));
-    } catch (e) { /* sessionStorage unavailable/full -- fall through to network */ }
-    const base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
-    if (!base) return Promise.reject(new Error("CHART_SERVICE_URL isn't set in config.js"));
-    return fetch(`${base}/full-day-bars`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
-      body: JSON.stringify({ symbol, trade_date: tradeDate }),
-    })
-      .then((r) => r.json().then((data) => {
-        if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
-        return data;
-      }))
-      .then((data) => {
-        const bars = Array.isArray(data.bars) ? data.bars : [];
-        try { sessionStorage.setItem(cacheKey, JSON.stringify(bars)); } catch (e) {}
-        return bars;
-      });
-  }
+  // FULL_DAY_CACHE_PREFIX/fetchFullDayBars() now in utils.js (loads first
+  // on every page).
   function seedSeries(bars) {
     const h = state.chartHandle;
     h.series.setData(bars.map((b) => ({ time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c })));

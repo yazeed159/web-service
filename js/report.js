@@ -18,8 +18,14 @@
   // Same per-account scoping as backtester.js -- see that file's
   // authedHeaders for the full rationale. Only used for the backend-run
   // path (?id=<job_id>); local CSV reports never touch the network.
+  // Re-fetches the session via getSession() rather than reusing
+  // window.AUTH_READY directly, same fix as backtester.js/live-trading.js:
+  // the enrichment-status poll() loop below can run for many minutes on a
+  // large trade batch, long enough for AUTH_READY's one-time-resolved
+  // session to go stale after a background token refresh.
   function authedHeaders(extra) {
-    return window.AUTH_READY.then((session) => {
+    return window.AUTH_READY.then(() => window.sb.auth.getSession()).then((res) => {
+      const session = res && res.data && res.data.session;
       if (!session) throw new Error("Please log in first.");
       return Object.assign({}, FETCH_HEADERS, extra || {}, { "Authorization": "Bearer " + session.access_token });
     });
@@ -29,7 +35,7 @@
 // escapeHtml() now in utils.js (loads first on every page).
 // fmtMoney() now in utils.js (loads first on every page).
 // fmtPct() now in utils.js (loads first on every page).
-  function fmtR(v) { return typeof v === "number" && isFinite(v) ? v.toFixed(2) + "R" : "—"; }
+  // fmtR() now in utils.js (loads first on every page).
   function fmtMinutes(v) {
     if (typeof v !== "number" || !isFinite(v)) return "—";
     const h = Math.floor(v / 60), m = Math.round(v % 60);

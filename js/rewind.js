@@ -95,9 +95,7 @@
     const sign = v >= 0 ? "+" : "-";
     return sign + "$" + fmtPrice(Math.abs(v));
   }
-  function pnlPerShare(entry, exit, side) {
-    return side === "short" ? entry - exit : exit - entry;
-  }
+  // pnlPerShare() now in utils.js (loads first on every page).
   // Shared chart palette so "what actually happened" and "what you did"
   // are never the same color family: real fills stay green/red everywhere,
   // your own decisions (stop, chosen exit) live in a distinct blue/purple
@@ -116,15 +114,8 @@
   // replaces naively scaling the logged trade's own commission per share,
   // which ignores the floor/ceiling and so understates small orders and
   // overstates low-priced/large ones.
-  const IBKR_PER_SHARE = 0.0035;
-  const IBKR_MIN_PER_ORDER = 0.35;
-  const IBKR_MAX_PCT_OF_TRADE_VALUE = 0.01;
-  function ibkrTieredCommission(shares, price) {
-    if (!(shares > 0) || !(price > 0)) return 0;
-    const raw = shares * IBKR_PER_SHARE;
-    const ceiling = shares * price * IBKR_MAX_PCT_OF_TRADE_VALUE;
-    return Math.max(IBKR_MIN_PER_ORDER, Math.min(raw, ceiling));
-  }
+  // ibkrTieredCommission() + IBKR_PER_SHARE/IBKR_MIN_PER_ORDER/
+  // IBKR_MAX_PCT_OF_TRADE_VALUE now in utils.js (loads first on every page).
   // Bars are start-labeled minute candles; a floor-match (last bar whose
   // start time is <= the target time) finds the candle a given moment
   // actually falls inside — same rule trade.js uses for its markers.
@@ -186,19 +177,7 @@
   // aid, not real ticks. Used for the checkpoint/exit stage only — the
   // entry stage keeps its forming-candle + live countdown badge look.
   // ---------------------------------------------------------------
-  function seededRng(seedStr) {
-    let h = 1779033703 ^ seedStr.length;
-    for (let i = 0; i < seedStr.length; i++) {
-      h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353);
-      h = (h << 13) | (h >>> 19);
-    }
-    return function () {
-      h = Math.imul(h ^ (h >>> 16), 2246822507);
-      h = Math.imul(h ^ (h >>> 13), 3266489909);
-      h ^= h >>> 16;
-      return (h >>> 0) / 4294967296;
-    };
-  }
+  // seededRng() now in utils.js (loads first on every page).
   const REPLAY_SECONDS = 60; // one sub-tick per real second of the 1-min bar
 
   function genSecondTicks(bar, prevClose, seed, avgVolume) {
@@ -290,41 +269,15 @@
       return Object.assign({}, CHART_SERVICE_FETCH_HEADERS, extra || {}, { "Authorization": "Bearer " + session.access_token });
     });
   }
-  function chartServiceBase() {
-    const base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
-    if (!base || base.includes("YOUR-NGROK-SUBDOMAIN")) return "";
-    return base;
-  }
+  // chartServiceBase() now in utils.js (loads first on every page).
   // "Show full day" on the post-answer reveal chart -- pulls the rest of
   // that symbol's session from chart_service.py's /full-day-bars route,
   // same route/cache trade.js's "Full day" button uses. Only ever fired
   // by that button click (after a question's already been answered), so
   // it never affects the watch-stage playback pacing, which stays on
   // c.bars/c.entryIdx/c.watchIdx exactly as before.
-  const FULL_DAY_CACHE_PREFIX = "chartSvc:fullDay:";
-  function fetchFullDayBars(symbol, tradeDate) {
-    const cacheKey = FULL_DAY_CACHE_PREFIX + symbol + ":" + tradeDate;
-    try {
-      const cached = sessionStorage.getItem(cacheKey);
-      if (cached) return Promise.resolve(JSON.parse(cached));
-    } catch (e) { /* sessionStorage unavailable/full -- fall through to network */ }
-    const base = chartServiceBase();
-    if (!base) return Promise.reject(new Error("CHART_SERVICE_URL isn't set in config.js"));
-    return fetch(`${base}/full-day-bars`, {
-      method: "POST",
-      headers: CHART_SERVICE_FETCH_HEADERS,
-      body: JSON.stringify({ symbol, trade_date: tradeDate }),
-    })
-      .then((r) => r.json().then((data) => {
-        if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
-        return data;
-      }))
-      .then((data) => {
-        const bars = Array.isArray(data.bars) ? data.bars : [];
-        try { sessionStorage.setItem(cacheKey, JSON.stringify(bars)); } catch (e) {}
-        return bars;
-      });
-  }
+  // FULL_DAY_CACHE_PREFIX/fetchFullDayBars() now in utils.js (loads first
+  // on every page).
 
   function fetchRealTicks(symbol, startUnix, endUnix) {
     const base = chartServiceBase();
@@ -1160,9 +1113,7 @@
       height: mobileChartHeight(opts.height || 380),
     });
   }
-  function teardownChart(handle) {
-    return window.ChartIndicators.teardownStandardChart(handle);
-  }
+  // teardownChart() now in utils.js (loads first on every page).
 
   // Pushes a bar's final OHLC/volume/overlay values onto an already-built
   // chart in place -- used when a watch-stage bar finishes playing so the
@@ -2238,31 +2189,9 @@
   }
 
   // ---------- feedback (qualitative — good/off/bad, never a score) ----------
-  function gradeEntry(win, entered) {
-    if (entered && win) return { label: "Good call — this one was a real winner.", tone: "good" };
-    if (entered && !win) return { label: "This one lost in real life too.", tone: "bad" };
-    if (!entered && !win) return { label: "Good discipline — this one was a loser.", tone: "good" };
-    return { label: "This one worked out — you'd have missed it.", tone: "warn" };
-  }
+  // gradeEntry() now in utils.js (loads first on every page).
 
-  function gradeStop(side, entryPrice, stopPrice, suggestedStop) {
-    const riskUser = side === "short" ? stopPrice - entryPrice : entryPrice - stopPrice;
-    if (!(riskUser > 0)) return { label: "Stop was on the wrong side of your entry.", tone: "bad" };
-    const sug = Number(suggestedStop);
-    if (suggestedStop != null && Number.isFinite(sug)) {
-      const riskSuggested = side === "short" ? sug - entryPrice : entryPrice - sug;
-      if (riskSuggested > 0) {
-        const ratio = riskUser / riskSuggested;
-        if (ratio < 0.5) return { label: "Too tight — likely shaken out by normal noise.", tone: "bad" };
-        if (ratio < 0.8) return { label: "A little tight versus the setup's stop.", tone: "warn" };
-        if (ratio <= 1.3) return { label: "Well placed — close to the setup's stop.", tone: "good" };
-        if (ratio <= 2.2) return { label: "A bit wide.", tone: "warn" };
-        return { label: "Too wide — risking more than the setup called for.", tone: "bad" };
-      }
-    }
-    const pct = (riskUser / entryPrice) * 100;
-    return { label: `${pct.toFixed(1)}% risk — no AI stop logged on this trade to compare against.`, tone: "neutral" };
-  }
+  // gradeStop() now in utils.js (loads first on every page).
 
   function computeGrading(c) {
     const trade = c.trade;

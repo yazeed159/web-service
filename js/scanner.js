@@ -11,8 +11,15 @@
   const API = () => (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
   const REFRESH_MS = 5000; // matches scanner.py's own poll cadence -- see its docstring
 
+  // Same auth-refresh fix as backtester.js/live-trading.js's authedHeaders:
+  // re-fetches the session via getSession() instead of reusing
+  // window.AUTH_READY directly, since AUTH_READY resolves once at page
+  // load and this page polls every REFRESH_MS (5s) indefinitely for as
+  // long as the tab stays open -- long enough to outlive an access token
+  // and never see supabase-js's background refresh of it.
   function authedHeaders() {
-    return window.AUTH_READY.then((session) => {
+    return window.AUTH_READY.then(() => window.sb.auth.getSession()).then((res) => {
+      const session = res && res.data && res.data.session;
       if (!session) throw new Error("Please log in first.");
       return {
         "Content-Type": "application/json",

@@ -25,10 +25,18 @@
   // call that starts, polls, lists, loads, or deletes a run needs the
   // logged-in person's Supabase access token attached; /backtest/defaults
   // is the one exception (no user data involved, so it's left plain).
-  // window.AUTH_READY (see auth.js) resolves once per page load and is
-  // safe to .then() repeatedly -- it doesn't re-fetch the session each time.
+  // Re-fetches the session on every call via getSession() instead of
+  // reusing window.AUTH_READY directly -- AUTH_READY resolves ONCE at page
+  // load, and a long-running backtest's own pollJob() can call this every
+  // few seconds for as long as the run takes, which scales with trade
+  // count and can run well past an access token's lifetime. supabase-js
+  // auto-refreshes the token in the background, but that refreshed token
+  // never flows back into an already-resolved Promise -- getSession()
+  // always returns the current one. Same fix as live-trading.js's
+  // authedHeaders, which has the same long-lived-polling shape.
   function authedHeaders(extra) {
-    return window.AUTH_READY.then((session) => {
+    return window.AUTH_READY.then(() => window.sb.auth.getSession()).then((res) => {
+      const session = res && res.data && res.data.session;
       if (!session) throw new Error("Please log in first.");
       return Object.assign({}, FETCH_HEADERS, extra || {}, { "Authorization": "Bearer " + session.access_token });
     });
@@ -90,9 +98,7 @@
 
 // fmtMoney() now in utils.js (loads first on every page).
 // fmtPct() now in utils.js (loads first on every page).
-  function fmtR(v) {
-    return typeof v === "number" ? v.toFixed(2) + "R" : "—";
-  }
+// fmtR() now in utils.js (loads first on every page).
   function placeholderNotSet() {
     return !API() || API().includes("YOUR-NGROK-SUBDOMAIN");
   }

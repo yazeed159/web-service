@@ -117,6 +117,201 @@ window.fmtUsd = function fmtUsd(v) {
   return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+// IBKR's "Tiered" US stock commission schedule: $0.0035/share, with a
+// $0.35 floor and a 1%-of-trade-value ceiling per order. Byte-identical
+// across all 4 duplicate copies (practice.js, rewind.js, calculator.js,
+// quiz.js) -- no behavioral drift, just quadruplicated, including the
+// 3 constants it reads.
+window.IBKR_PER_SHARE = 0.0035;
+window.IBKR_MIN_PER_ORDER = 0.35;
+window.IBKR_MAX_PCT_OF_TRADE_VALUE = 0.01;
+window.ibkrTieredCommission = function ibkrTieredCommission(shares, price) {
+  if (!(shares > 0) || !(price > 0)) return 0;
+  const raw = shares * window.IBKR_PER_SHARE;
+  const ceiling = shares * price * window.IBKR_MAX_PCT_OF_TRADE_VALUE;
+  return Math.max(window.IBKR_MIN_PER_ORDER, Math.min(raw, ceiling));
+};
+
+// Canonical form: typeof v === "number" && isFinite(v) guard (report.js's
+// copy had it; backtester.js's copy checked typeof only, so a NaN R-multiple
+// would have rendered "NaNR" -- same drift class as fmtPct above). "—" for
+// invalid input.
+window.fmtR = function fmtR(v) {
+  return typeof v === "number" && isFinite(v) ? v.toFixed(2) + "R" : "—";
+};
+
+// Canonical form: practice-analytics.js's copy special-cases sub-60-second
+// durations as e.g. "45s"; app.js's copy had no such case and floored
+// straight to "0m" for anything under a minute, silently discarding the
+// value. Went with practice-analytics.js's version since it's strictly
+// more informative and every existing caller passes a duration where "0m"
+// vs "45s" is a real difference the reader would notice (session/trade
+// durations, not always >= 1 minute).
+window.fmtDuration = function fmtDuration(mins) {
+  if (mins === null || mins === undefined || !Number.isFinite(mins)) return "—";
+  const totalSec = Math.round(mins * 60);
+  if (totalSec < 60) return totalSec + "s";
+  const total = Math.round(mins);
+  const h = Math.floor(total / 60), m = total % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+};
+
+// Deterministic string-seeded PRNG (mulberry32-style). Byte-identical
+// across all 3 duplicate copies (practice.js, rewind.js, quiz.js) -- no
+// drift, just triplicated. Used to generate reproducible within-bar
+// "second ticks" for replay/practice playback, so the same trade_date +
+// symbol always replays identically.
+window.seededRng = function seededRng(seedStr) {
+  let h = 1779033703 ^ seedStr.length;
+  for (let i = 0; i < seedStr.length; i++) {
+    h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return function () {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  };
+};
+
+// One-line delegate to window.ChartIndicators.teardownStandardChart,
+// identical across all 3 duplicate copies (practice.js, rewind.js,
+// quiz.js) -- kept as its own named function (rather than inlining the
+// call at each site) since callers read more clearly as teardownChart(h).
+window.teardownChart = function teardownChart(handle) {
+  return window.ChartIndicators.teardownStandardChart(handle);
+};
+
+// Generates REPLAY_SECONDS deterministic within-bar "second ticks" for
+// replay/practice playback, walking a handful of OHLC waypoints with
+// small random jitter so a 1-minute bar has something to animate through
+// second-by-second. Byte-identical between practice.js and quiz.js -- no
+// drift, just duplicated. NOT consolidated from rewind.js's copy: that
+// one is a deliberately different/upgraded algorithm (extra randomized
+// midpoint waypoints, volume-relative jitter scaled by an avgVolume
+// param, exponentially-smoothed noise instead of independent per-tick
+// jitter) written specifically for rewind.js's playback feel -- merging
+// it in would silently change practice.js/quiz.js's replay behavior, so
+// it stays a 3rd, separate implementation in rewind.js itself.
+window.REPLAY_SECONDS = 60; // one sub-tick per real second of the 1-min bar
+window.genSecondTicks = function genSecondTicks(bar, prevClose, seed) {
+  const n = window.REPLAY_SECONDS;
+  const rng = window.seededRng(seed);
+  const o = bar.o, h = bar.h, l = bar.l, c = bar.c;
+  const start = Number.isFinite(prevClose) ? prevClose : o;
+  const highFirst = rng() < 0.5;
+  const waypoints = [
+    { t: 0, p: start },
+    { t: Math.round(n * 0.1), p: o },
+    { t: Math.round(n * 0.42), p: highFirst ? h : l },
+    { t: Math.round(n * 0.74), p: highFirst ? l : h },
+    { t: n - 1, p: c },
+  ];
+  const range = Math.max(h - l, 0.0001);
+  const jitterAmp = range * 0.07;
+  const ticks = [];
+  for (let s = 0; s < n; s++) {
+    let a = waypoints[0], b = waypoints[waypoints.length - 1];
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      if (s >= waypoints[i].t && s <= waypoints[i + 1].t) { a = waypoints[i]; b = waypoints[i + 1]; break; }
+    }
+    const span = Math.max(1, b.t - a.t);
+    const frac = (s - a.t) / span;
+    let price = a.p + (b.p - a.p) * frac;
+    price += (rng() - 0.5) * 2 * jitterAmp;
+    price = Math.min(h, Math.max(l, price));
+    ticks.push(price);
+  }
+  ticks[n - 1] = c; // always land exactly on the bar's real close
+  return ticks;
+};
+
+// Fetches (and sessionStorage-caches) a symbol's full trading-day bars
+// from chart_service.py's /full-day-bars route. Byte-identical logic
+// across all 3 duplicate copies (practice.js, trade.js, rewind.js) with
+// one real difference: practice.js/trade.js built their own base URL
+// inline from window.CHART_SERVICE_URL with no placeholder check, while
+// rewind.js's copy went through its own local chartServiceBase() helper,
+// which also rejects the literal unconfigured "YOUR-NGROK-SUBDOMAIN"
+// placeholder (still a live path for anyone self-hosting chart_service.py
+// behind a tunnel, per the start-tunnel scripts in this repo -- see
+// backtester.js/report.js's own placeholder checks). practice.js/trade.js
+// would instead let a placeholder URL reach fetch() and surface a raw
+// network-error message instead of the friendly "CHART_SERVICE_URL isn't
+// set in config.js yet." Canonical form below carries that guard for all
+// 3 callers.
+window.FULL_DAY_CACHE_PREFIX = "chartSvc:fullDay:";
+window.chartServiceBase = function chartServiceBase() {
+  const base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
+  if (!base || base.includes("YOUR-NGROK-SUBDOMAIN")) return "";
+  return base;
+};
+window.fetchFullDayBars = function fetchFullDayBars(symbol, tradeDate) {
+  const cacheKey = window.FULL_DAY_CACHE_PREFIX + symbol + ":" + tradeDate;
+  try {
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) return Promise.resolve(JSON.parse(cached));
+  } catch (e) { /* sessionStorage unavailable/full -- fall through to network */ }
+  const base = window.chartServiceBase();
+  if (!base) return Promise.reject(new Error("CHART_SERVICE_URL isn't set in config.js"));
+  return fetch(`${base}/full-day-bars`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+    body: JSON.stringify({ symbol, trade_date: tradeDate }),
+  })
+    .then((r) => r.json().then((data) => {
+      if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+      return data;
+    }))
+    .then((data) => {
+      const bars = Array.isArray(data.bars) ? data.bars : [];
+      try { sessionStorage.setItem(cacheKey, JSON.stringify(bars)); } catch (e) { /* quota, etc -- fine, just skip caching */ }
+      return bars;
+    });
+};
+
+// Signed per-share P&L for a long or short. Identical between rewind.js
+// and quiz.js -- no drift.
+window.pnlPerShare = function pnlPerShare(entry, exit, side) {
+  return side === "short" ? entry - exit : exit - entry;
+};
+
+// Grades whether entering (or skipping) a trade was the right call given
+// how it actually played out. Canonical form includes quiz.js's `correct`
+// boolean on each result (used for that page's scoring); rewind.js's copy
+// lacked it, but rewind.js only ever reads `.label`/`.tone` off the
+// result, never enumerates or serializes the whole object, so the extra
+// field is inert there -- confirmed no drift beyond that one added field.
+window.gradeEntry = function gradeEntry(win, entered) {
+  if (entered && win) return { label: "Good call — this one was a real winner.", tone: "good", correct: true };
+  if (entered && !win) return { label: "This one lost in real life too.", tone: "bad", correct: false };
+  if (!entered && !win) return { label: "Good discipline — this one was a loser.", tone: "good", correct: true };
+  return { label: "This one worked out — you'd have missed it.", tone: "warn", correct: false };
+};
+
+// Grades stop placement against the setup's own suggested stop (or, if
+// none was logged, just reports the raw risk %). Identical between
+// rewind.js and quiz.js -- no drift.
+window.gradeStop = function gradeStop(side, entryPrice, stopPrice, suggestedStop) {
+  const riskUser = side === "short" ? stopPrice - entryPrice : entryPrice - stopPrice;
+  if (!(riskUser > 0)) return { label: "Stop was on the wrong side of your entry.", tone: "bad" };
+  const sug = Number(suggestedStop);
+  if (suggestedStop != null && Number.isFinite(sug)) {
+    const riskSuggested = side === "short" ? sug - entryPrice : entryPrice - sug;
+    if (riskSuggested > 0) {
+      const ratio = riskUser / riskSuggested;
+      if (ratio < 0.5) return { label: "Too tight — likely shaken out by normal noise.", tone: "bad" };
+      if (ratio < 0.8) return { label: "A little tight versus the setup's stop.", tone: "warn" };
+      if (ratio <= 1.3) return { label: "Well placed — close to the setup's stop.", tone: "good" };
+      if (ratio <= 2.2) return { label: "A bit wide.", tone: "warn" };
+      return { label: "Too wide — risking more than the setup called for.", tone: "bad" };
+    }
+  }
+  const pct = (riskUser / entryPrice) * 100;
+  return { label: `${pct.toFixed(1)}% risk — no AI stop logged on this trade to compare against.`, tone: "neutral" };
+};
+
 // Identical across all 3 duplicate copies (practice.js, scanner.js,
 // trade.js) -- no behavioral drift here, just triplicated.
 window.fmtShares = function fmtShares(n) {
