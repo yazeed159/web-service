@@ -1154,127 +1154,23 @@
   }
   function buildChart(el, bars, opts) {
     opts = opts || {};
-    if (typeof LightweightCharts === "undefined") {
-      // The charting library loads from an external CDN with `defer`, so on
-      // a slow connection it's possible to reach this before it's finished.
-      // Fail with a clear, actionable message instead of a bare
-      // "LightweightCharts is not defined" crash that leaves the card stuck.
-      throw new Error("Chart library hasn't finished loading yet — wait a moment and try again.");
-    }
-    el.innerHTML = "";
-    const candleData = bars.map((b) => {
-      const point = { time: toUnix(b.t), open: b.o, high: b.h, low: b.l, close: b.c };
-      if (b._forming) { point.color = "rgba(232,169,76,0.55)"; point.borderColor = "#e8a94c"; point.wickColor = "#e8a94c"; }
-      return point;
+    // Keep the library's built-in dashed "last value" price line on by
+    // default -- it's what tracks the moving price live as ticks print
+    // (matching practice.js), turning amber while a bar is forming since
+    // that's the bar's own borderColor at that moment. opts.priceLines
+    // (entry/stop/etc.) are separate, fixed-price lines and don't
+    // conflict. The post-round recap chart passes showLastValueLine:
+    // false, though -- there are no more forming ticks by then, so this
+    // would just be a stray, unlabeled line sitting on the last bar's
+    // close with no explanation, on top of the real entry/exit/stop
+    // lines that already say what matters.
+    return window.ChartIndicators.buildStandardChart(el, bars, {
+      ...opts,
+      height: mobileChartHeight(opts.height || 380),
     });
-    const volData = bars.map((b) => ({
-      time: toUnix(b.t), value: b.v,
-      color: b._forming ? "rgba(232,169,76,0.4)" : (b.c >= b.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)"),
-    }));
-    const vwapData = bars.filter((b) => b.vwap != null).map((b) => ({ time: toUnix(b.t), value: b.vwap }));
-    const ema9Data = bars.filter((b) => b.ema9 != null).map((b) => ({ time: toUnix(b.t), value: b.ema9 }));
-    const ema20Data = bars.filter((b) => b.ema20 != null).map((b) => ({ time: toUnix(b.t), value: b.ema20 }));
-    const ema200Data = bars.filter((b) => b.ema200 != null).map((b) => ({ time: toUnix(b.t), value: b.ema200 }));
-
-    const commonOpts = {
-      layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
-      grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
-      rightPriceScale: { borderColor: "#232830", minimumWidth: 88 },
-      timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
-      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-    };
-    const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: mobileChartHeight(opts.height || 380) });
-    const series = chart.addCandlestickSeries({
-      upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
-      wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
-      // Keep the library's built-in dashed "last value" price line on by
-      // default -- it's what tracks the moving price live as ticks print
-      // (matching practice.js), turning amber while a bar is forming since
-      // that's the bar's own borderColor at that moment. opts.priceLines
-      // (entry/stop/etc.) are separate, fixed-price lines and don't
-      // conflict. The post-round recap chart passes showLastValueLine:
-      // false, though -- there are no more forming ticks by then, so this
-      // would just be a stray, unlabeled line sitting on the last bar's
-      // close with no explanation, on top of the real entry/exit/stop
-      // lines that already say what matters.
-      priceLineVisible: opts.showLastValueLine !== false,
-    });
-    series.setData(candleData);
-    chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.12, bottom: 0.2 } });
-
-    const volSeries = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol" });
-    chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
-    volSeries.setData(volData);
-
-    const vwapSeries = chart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    vwapSeries.setData(vwapData);
-    const ema9Series = chart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    ema9Series.setData(ema9Data);
-    const ema20Series = chart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    ema20Series.setData(ema20Data);
-    const ema200Series = chart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    ema200Series.setData(ema200Data);
-
-    // Top-left info overlay: live volume/VWAP/EMA9/EMA20/EMA200 readout that
-    // tracks the crosshair the same way trade.html's does, falling back
-    // to the most recent bar's values whenever nothing is hovered --
-    // including mid-playback, since the various forming-bar update paths
-    // below (paintCandle, pushFormingBarPrice, finalizeBarOnChart) all
-    // keep those fallback values current as the tape plays.
-    el.style.position = "relative";
-    const infoOverlay = document.createElement("div");
-    infoOverlay.className = "chart-info-overlay";
-    el.appendChild(infoOverlay);
-    const volRowHtml = (vol, color) =>
-      `<div class="row"><span class="k">Vol</span><span class="v${color ? ` ${color}` : ""}">${vol == null ? "—" : Number(vol).toLocaleString()}</span></div>`;
-    function renderOverlay(vol, upDown, vwapVal, ema9Val, ema20Val, ema200Val) {
-      infoOverlay.innerHTML = volRowHtml(vol, upDown) + window.ChartIndicators.indicatorRowsHtml(vwapVal, ema9Val, ema20Val, ema200Val);
-    }
-    const lastBar = bars.length ? bars[bars.length - 1] : null;
-    const handleState = {
-      lastVol: lastBar ? lastBar.v : null,
-      lastVwap: lastBar ? lastBar.vwap : null,
-      lastEma9: lastBar ? lastBar.ema9 : null,
-      lastEma20: lastBar ? lastBar.ema20 : null,
-      lastEma200: lastBar ? lastBar.ema200 : null,
-    };
-    renderOverlay(handleState.lastVol, "", handleState.lastVwap, handleState.lastEma9, handleState.lastEma20, handleState.lastEma200);
-    chart.subscribeCrosshairMove((param) => {
-      const volBar = param.seriesData && param.seriesData.get(volSeries);
-      const vwapBar = param.seriesData && param.seriesData.get(vwapSeries);
-      const ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
-      const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
-      const ema200Bar = param.seriesData && param.seriesData.get(ema200Series);
-      const upDown = volBar ? (volBar.color && volBar.color.indexOf("47,208,138") !== -1 ? "up" : volBar.color && volBar.color.indexOf("232,169,76") !== -1 ? "" : "down") : "";
-      renderOverlay(
-        volBar ? volBar.value : handleState.lastVol, upDown,
-        vwapBar ? vwapBar.value : handleState.lastVwap,
-        ema9Bar ? ema9Bar.value : handleState.lastEma9,
-        ema20Bar ? ema20Bar.value : handleState.lastEma20,
-        ema200Bar ? ema200Bar.value : handleState.lastEma200
-      );
-    });
-
-    if (opts.markers && opts.markers.length) series.setMarkers(opts.markers);
-    const priceLineRefs = {};
-    (opts.priceLines || []).forEach((pl, i) => {
-      priceLineRefs[pl.key || i] = series.createPriceLine(pl);
-    });
-
-    chart.timeScale().fitContent();
-    let ro = null;
-    if (window.ResizeObserver) {
-      ro = new ResizeObserver(() => { try { chart.applyOptions({ width: el.clientWidth }); } catch (e) {} });
-      ro.observe(el);
-    }
-    return { chart, series, volSeries, vwapSeries, ema9Series, ema20Series, ema200Series, priceLineRefs, resizeObserver: ro, renderOverlay, handleState };
   }
   function teardownChart(handle) {
-    if (!handle) return;
-    try { if (handle.resizeObserver) handle.resizeObserver.disconnect(); } catch (e) {}
-    try { if (handle.pointerRo) handle.pointerRo.disconnect(); } catch (e) {}
-    try { if (handle.eodRo) handle.eodRo.disconnect(); } catch (e) {}
-    try { handle.chart.remove(); } catch (e) {}
+    return window.ChartIndicators.teardownStandardChart(handle);
   }
 
   // Pushes a bar's final OHLC/volume/overlay values onto an already-built

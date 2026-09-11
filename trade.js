@@ -25,15 +25,21 @@
   // actually live instead of one that's already been torn down.
   let currentCandleChart = null;
   let currentMacdChart = null;
-  let chartResizeListenerAttached = false;
+  // Handle returned by ChartIndicators.buildStandardChart() for whichever
+  // candle chart is currently live -- torn down (which also disconnects
+  // its ResizeObserver) at the top of buildCharts() before a "Show full
+  // day" rebuild creates the next one, instead of the old approach of a
+  // single window "resize" listener attached once and left running
+  // forever, reading module state to find whatever chart was current.
+  let currentChartHandle = null;
   let tooltipCloseListenerAttached = false;
   // repositionPointers is redefined fresh on every buildCharts() call (it
   // closes over that call's own pointer DOM nodes / candleSeries), so
-  // unlike chartResizeListenerAttached above this can't just be a
-  // set-once flag -- the *old* listener has to actually be removed, or
-  // "Show full day" rebuilding the chart stacks a second window resize
-  // listener still pointing at the previous call's now-stale pointers
-  // and disposed chart, alongside the new one, forever.
+  // unlike tooltipCloseListenerAttached above this can't just be a
+  // set-once flag -- the *old* handler has to actually be replaced, or
+  // "Show full day" rebuilding the chart would keep calling a stale
+  // repositionPointers pointing at the previous call's now-disposed chart
+  // whenever buildStandardChart's onResize fires, alongside the new one.
   let pointersResizeHandler = null;
   // Which timeframe the candle chart is currently resampled to (1/5/15/60
   // minutes). Kept at module scope, not inside buildCharts, so it
@@ -238,7 +244,7 @@
       ${siblingNav(trade, siblings || [])}
       <div class="trade-head">
         <h1>
-          ${trade.symbol}
+          ${escapeHtml(trade.symbol)}
           <span class="verdict-badge ${win ? "up" : "down"}">${win ? "WIN" : "LOSS"} · ${fmtMoney(trade.pnl_after_comm)}</span>
         </h1>
         <div class="trade-meta">
@@ -711,7 +717,8 @@
     // containers before creating a new one -- otherwise a second
     // buildCharts() call (the full-day rebuild) would stack a second
     // canvas inside each div rather than replacing the first.
-    if (currentCandleChart) { try { currentCandleChart.remove(); } catch (e) {} currentCandleChart = null; }
+    if (currentChartHandle) { window.ChartIndicators.teardownStandardChart(currentChartHandle); currentChartHandle = null; }
+    currentCandleChart = null;
     if (currentMacdChart) { try { currentMacdChart.remove(); } catch (e) {} currentMacdChart = null; }
     pointersResizeHandler = null;
 
@@ -741,98 +748,32 @@
     const { candleData, volData, vwapData, ema9Data, ema20Data, ema200Data, macdData, signalData, histData } = currentSeriesData;
 
     const candleEl = document.getElementById("candle-chart");
-    const commonOpts = {
-      layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
-      grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
-      // minimumWidth guarantees room for the widest axis label we ever put
-      // up -- "better entry" / "better exit" plus the price -- so those
-      // price-line titles render in full instead of being squeezed by an
-      // axis width that would otherwise auto-size to shorter labels like
-      // the plain numeric entry/exit prices.
-      rightPriceScale: { borderColor: "#232830", minimumWidth: 92 },
-      timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
-      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-    };
-    const candleChart = LightweightCharts.createChart(candleEl, { ...commonOpts, width: candleEl.clientWidth, height: 420 });
-    currentCandleChart = candleChart;
-
-    const candleSeries = candleChart.addCandlestickSeries({
-      upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
-      wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
-      // Lightweight Charts draws its own dashed "last value" price line on
-      // every series by default, colored to match the most recent
-      // candle (green/red). Left on, it shows up as a stray dashed line
-      // at whatever price the last bar happened to close at -- easy to
-      // mistake for one of our own entry/exit/S-R lines. We draw all of
-      // those explicitly (see createPriceLine calls below), so the
-      // built-in one is redundant and just noise; turn it off.
-      priceLineVisible: false,
-    });
-    candleSeries.setData(candleData);
-    srCandleSeries = candleSeries;
-
-    // The right price scale autoscales to candle highs/lows only. As you
-    // zoom in, the visible range tightens around just the candles in view,
-    // and the entry/exit pointer markers (drawn a fixed pixel offset off
-    // their exact fill price) can end up right at the pane edge. Reserving
-    // extra top/bottom margin gives them permanent headroom so they're
-    // never fighting the autoscale for room, at any zoom level.
-    candleChart.priceScale("right").applyOptions({
-      scaleMargins: { top: 0.14, bottom: 0.18 },
-    });
-
-    const volSeries = candleChart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol" });
-    candleChart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-    volSeries.setData(volData);
-
-    const vwapSeries = candleChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    vwapSeries.setData(vwapData);
-    const ema9Series = candleChart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    ema9Series.setData(ema9Data);
-    const ema20Series = candleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    ema20Series.setData(ema20Data);
-    const ema200Series = candleChart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    ema200Series.setData(ema200Data);
-
-    // Top-left info overlay: float (static, from indicators -- same field
-    // the "About" card's volumeFloatPills reads) plus a live volume/VWAP/
-    // EMA9/EMA20 readout that tracks the crosshair the way a broker
-    // platform's OHLCV legend does. Falls back to the last bar's values
-    // when nothing is hovered, so the readout is never blank.
-    candleEl.style.position = "relative";
-    let infoOverlay = candleEl.querySelector(".chart-info-overlay");
-    if (!infoOverlay) {
-      infoOverlay = document.createElement("div");
-      infoOverlay.className = "chart-info-overlay";
-      candleEl.appendChild(infoOverlay);
-    }
     const floatShares = (trade.indicators || {}).float_shares;
-    const floatRow = floatShares
-      ? `<div class="row"><span class="k">Float</span><span class="v">${fmtShares(floatShares)}</span></div>`
-      : "";
-    const volRowHtml = (vol, color) =>
-      `<div class="row"><span class="k">Vol</span><span class="v${color ? ` ${color}` : ""}">${vol == null ? "—" : Number(vol).toLocaleString()}</span></div>`;
     function lastOf(arr) { return arr.length ? arr[arr.length - 1].value : null; }
-    function renderOverlay(vol, upDown, vwapVal, ema9Val, ema20Val, ema200Val) {
-      infoOverlay.innerHTML = floatRow + volRowHtml(vol, upDown) + window.ChartIndicators.indicatorRowsHtml(vwapVal, ema9Val, ema20Val, ema200Val);
-    }
-    renderOverlay(lastOf(currentSeriesData.volData), "", lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data), lastOf(currentSeriesData.ema200Data));
-    candleChart.subscribeCrosshairMove((param) => {
-      const volBar = param.seriesData && param.seriesData.get(volSeries);
-      const vol = volBar ? volBar.value : lastOf(currentSeriesData.volData);
-      const upDown = volBar ? (volBar.color && volBar.color.indexOf("47,208,138") !== -1 ? "up" : "down") : "";
-      const vwapBar = param.seriesData && param.seriesData.get(vwapSeries);
-      const ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
-      const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
-      const ema200Bar = param.seriesData && param.seriesData.get(ema200Series);
-      renderOverlay(
-        vol, upDown,
-        vwapBar ? vwapBar.value : lastOf(currentSeriesData.vwapData),
-        ema9Bar ? ema9Bar.value : lastOf(currentSeriesData.ema9Data),
-        ema20Bar ? ema20Bar.value : lastOf(currentSeriesData.ema20Data),
-        ema200Bar ? ema200Bar.value : lastOf(currentSeriesData.ema200Data)
-      );
+    // onResize reads currentMacdChart/pointersResizeHandler live off
+    // module state (rather than closing over this call's own macdChart/
+    // repositionPointers bindings) -- both are only assigned further down
+    // in this same buildCharts() call, so by the time a real resize event
+    // fires they're populated; same "read live" approach the old
+    // window-level listener used, just now driven by buildStandardChart's
+    // per-instance ResizeObserver instead of a hand-rolled attach-once one.
+    const handle = window.ChartIndicators.buildStandardChart(candleEl, initialDisplayBars, {
+      height: 420,
+      minimumWidth: 92, // room for "better entry" / "better exit" price-line titles
+      priceScaleMargins: { top: 0.14, bottom: 0.18 }, // headroom for pointer markers at any zoom level
+      volScaleMargins: { top: 0.82, bottom: 0 },
+      showLastValueLine: false, // entry/exit/S-R lines are all drawn explicitly below; the built-in one is redundant noise
+      floatLabel: floatShares ? fmtShares(floatShares) : null,
+      onResize: () => {
+        const macdElNow = document.getElementById("macd-chart");
+        if (currentMacdChart && macdElNow) currentMacdChart.applyOptions({ width: macdElNow.clientWidth });
+        if (pointersResizeHandler) pointersResizeHandler();
+      },
     });
+    currentChartHandle = handle;
+    const { chart: candleChart, series: candleSeries, volSeries, vwapSeries, ema9Series, ema20Series, ema200Series, renderOverlay, handleState } = handle;
+    currentCandleChart = candleChart;
+    srCandleSeries = candleSeries;
 
     // Find the candle a marker's timestamp falls ON, so we can compare the
     // fill price against THAT candle's actual high/low instead of guessing
@@ -973,11 +914,11 @@
     // Any click outside a pointer tooltip closes whichever one is pinned
     // open -- otherwise a tapped-open tooltip would just sit there covering
     // the chart. (Hover-opened tooltips already close on mouseleave.)
-    // Attached once ever, same as chartResizeListenerAttached above --
-    // otherwise "Show full day" re-running buildCharts() stacks another
-    // copy of this on every rebuild. Reads candleEl fresh off the DOM
-    // rather than closing over this call's binding, so it always finds
-    // whichever tooltips are actually on the page right now.
+    // Attached once ever -- otherwise "Show full day" re-running
+    // buildCharts() stacks another copy of this on every rebuild. Reads
+    // candleEl fresh off the DOM rather than closing over this call's
+    // binding, so it always finds whichever tooltips are actually on the
+    // page right now.
     if (!tooltipCloseListenerAttached) {
       tooltipCloseListenerAttached = true;
       document.addEventListener("click", () => {
@@ -1172,7 +1113,19 @@
     if (practiceBtn) practiceBtn.href = `practice.html?trade=${encodeURIComponent(trade.id)}`;
 
     const macdEl = document.getElementById("macd-chart");
-    const macdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: 110 });
+    // Same layout/grid/axis theme buildStandardChart uses for the candle
+    // chart above -- kept as a small local literal rather than exported
+    // from chart-indicators.js, since the MACD pane's own series
+    // (histogram + 2 plain lines, no candles/volume/VWAP/EMA) aren't part
+    // of the standard-chart shape that helper builds.
+    const macdCommonOpts = {
+      layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
+      grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
+      rightPriceScale: { borderColor: "#232830", minimumWidth: 92 },
+      timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    };
+    const macdChart = LightweightCharts.createChart(macdEl, { ...macdCommonOpts, width: macdEl.clientWidth, height: 110 });
     currentMacdChart = macdChart;
     const macdHistSeries = macdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } });
     macdHistSeries.setData(histData);
@@ -1206,9 +1159,18 @@
       macdHistSeries.setData(currentSeriesData.histData);
       macdLineSeries.setData(currentSeriesData.macdData);
       macdSignalLineSeries.setData(currentSeriesData.signalData);
+      // buildStandardChart's own crosshair handler falls back to
+      // handleState whenever nothing's hovered -- keep it in sync with
+      // whichever timeframe is now showing, or leaving the crosshair
+      // after a switch would fall back to stale 1-minute values.
+      handleState.lastVol = lastOf(currentSeriesData.volData);
+      handleState.lastVwap = lastOf(currentSeriesData.vwapData);
+      handleState.lastEma9 = lastOf(currentSeriesData.ema9Data);
+      handleState.lastEma20 = lastOf(currentSeriesData.ema20Data);
+      handleState.lastEma200 = lastOf(currentSeriesData.ema200Data);
       renderOverlay(
-        lastOf(currentSeriesData.volData), "",
-        lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data), lastOf(currentSeriesData.ema200Data)
+        handleState.lastVol, "",
+        handleState.lastVwap, handleState.lastEma9, handleState.lastEma20, handleState.lastEma200
       );
       candleChart.timeScale().fitContent();
       macdChart.timeScale().fitContent();
@@ -1224,19 +1186,6 @@
         onSelect: applyInterval,
       });
       chartControls.insertBefore(switcher, chartControls.firstChild);
-    }
-
-    // Attached once ever (buildCharts can now re-run for the full-day
-    // rebuild) -- reads currentCandleChart/currentMacdChart live rather
-    // than closing over this call's candleChart/macdChart, so it always
-    // resizes whichever chart instance is actually on screen.
-    if (!chartResizeListenerAttached) {
-      chartResizeListenerAttached = true;
-      window.addEventListener("resize", () => {
-        if (currentCandleChart) currentCandleChart.applyOptions({ width: candleEl.clientWidth });
-        if (currentMacdChart) currentMacdChart.applyOptions({ width: macdEl.clientWidth });
-        if (pointersResizeHandler) pointersResizeHandler();
-      });
     }
 
     const exportBtn = document.getElementById("export-chart-btn");

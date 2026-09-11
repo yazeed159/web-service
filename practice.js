@@ -1167,73 +1167,17 @@
     if (state.chartHandle) teardownChart(state.chartHandle);
     srPriceLines = [];
     const el = els.chartEl;
-    el.innerHTML = "";
-    const commonOpts = {
-      layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
-      grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
-      rightPriceScale: { borderColor: "#232830", minimumWidth: 88 },
-      timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
-      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-    };
-    const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: 420 });
-    const series = chart.addCandlestickSeries({
-      upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
-      wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
-    });
-    chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.12, bottom: 0.2 } });
-    const volSeries = chart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol" });
-    chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
-    const vwapSeries = chart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const ema9Series = chart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const ema20Series = chart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    const ema200Series = chart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-
-    // Top-left info overlay: float (static, from state.trade.indicators --
-    // same field the "About" card's volumeFloatPills reads) plus a live
-    // volume/VWAP/EMA9/EMA20/EMA200 readout that tracks the crosshair the way
-    // a broker platform's OHLCV legend does, falling back to the most
-    // recent bar's values whenever nothing is hovered (including
-    // mid-playback, so it keeps ticking up as the forming bar fills in).
-    el.style.position = "relative";
-    const infoOverlay = document.createElement("div");
-    infoOverlay.className = "chart-info-overlay";
-    el.appendChild(infoOverlay);
     const floatShares = ((state.trade && state.trade.indicators) || {}).float_shares;
-    const floatRow = floatShares
-      ? `<div class="row"><span class="k">Float</span><span class="v">${fmtShares(floatShares)}</span></div>`
-      : "";
-    const volRowHtml = (vol, color) =>
-      `<div class="row"><span class="k">Vol</span><span class="v${color ? ` ${color}` : ""}">${vol == null ? "—" : Number(vol).toLocaleString()}</span></div>`;
-    function renderOverlay(vol, upDown, vwapVal, ema9Val, ema20Val, ema200Val) {
-      infoOverlay.innerHTML = floatRow + volRowHtml(vol, upDown) + window.ChartIndicators.indicatorRowsHtml(vwapVal, ema9Val, ema20Val, ema200Val);
-    }
-    chart.subscribeCrosshairMove((param) => {
-      const h = state.chartHandle;
-      const bar = param.seriesData && param.seriesData.get(volSeries);
-      const vwapBar = param.seriesData && param.seriesData.get(vwapSeries);
-      const ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
-      const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
-      const ema200Bar = param.seriesData && param.seriesData.get(ema200Series);
-      if (bar) {
-        const upDown = bar.color && bar.color.indexOf("47,208,138") !== -1 ? "up" : bar.color && bar.color.indexOf("232,169,76") !== -1 ? "" : "down";
-        renderOverlay(
-          bar.value, upDown,
-          vwapBar ? vwapBar.value : (h ? h.lastVwap : null),
-          ema9Bar ? ema9Bar.value : (h ? h.lastEma9 : null),
-          ema20Bar ? ema20Bar.value : (h ? h.lastEma20 : null),
-          ema200Bar ? ema200Bar.value : (h ? h.lastEma200 : null)
-        );
-      } else {
-        renderOverlay(h ? h.lastVol : null, "", h ? h.lastVwap : null, h ? h.lastEma9 : null, h ? h.lastEma20 : null, h ? h.lastEma200 : null);
-      }
+    // buildStandardChart seeds its overlay/handleState from whatever bars
+    // we pass it; we build the chart before we have any bars loaded (they
+    // get seeded via seedSeries() right after), so start it off empty --
+    // same shape seedSeries()/paintFormingBar() below already expect to
+    // feed into via handle.series/.volSeries/etc.
+    const handle = window.ChartIndicators.buildStandardChart(el, [], {
+      floatLabel: floatShares ? fmtShares(floatShares) : null,
     });
-
-    let ro = null;
-    if (window.ResizeObserver) {
-      ro = new ResizeObserver(() => { try { chart.applyOptions({ width: el.clientWidth }); } catch (e) {} });
-      ro.observe(el);
-    }
-    state.chartHandle = { chart, series, volSeries, vwapSeries, ema9Series, ema20Series, ema200Series, resizeObserver: ro, renderOverlay, lastVol: null, lastVwap: null, lastEma9: null, lastEma20: null, lastEma200: null };
+    state.chartHandle = handle;
+    const { chart, series, volSeries } = handle;
 
     // seed with every bar fully closed up to (not including) barIndex
     const closed = state.bars.slice(0, state.barIndex);
@@ -1262,9 +1206,7 @@
     }
   }
   function teardownChart(handle) {
-    if (!handle) return;
-    try { if (handle.resizeObserver) handle.resizeObserver.disconnect(); } catch (e) {}
-    try { handle.chart.remove(); } catch (e) {}
+    return window.ChartIndicators.teardownStandardChart(handle);
   }
 
   // "Show full day" -- offered only on the post-round recap (see
@@ -1310,11 +1252,11 @@
     h.ema200Series.setData(bars.filter((b) => b.ema200 != null).map((b) => ({ time: toUnix(b.t), value: b.ema200 })));
     if (bars.length) {
       const last = bars[bars.length - 1];
-      h.lastVol = last.v;
-      h.lastVwap = last.vwap;
-      h.lastEma9 = last.ema9;
-      h.lastEma20 = last.ema20;
-      h.lastEma200 = last.ema200;
+      h.handleState.lastVol = last.v;
+      h.handleState.lastVwap = last.vwap;
+      h.handleState.lastEma9 = last.ema9;
+      h.handleState.lastEma20 = last.ema20;
+      h.handleState.lastEma200 = last.ema200;
       h.renderOverlay(last.v, last.c >= last.o ? "up" : "down", last.vwap, last.ema9, last.ema20, last.ema200);
     }
   }
@@ -1334,23 +1276,23 @@
     const frac = (state.tickIndex + 1) / state.ticks.length;
     const formingVol = Math.round((bar.v || 0) * frac);
     h.volSeries.update({ time: toUnix(bar.t), value: formingVol, color: "rgba(232,169,76,0.4)" });
-    h.lastVol = formingVol;
-    if (bar.vwap != null) { h.vwapSeries.update({ time: toUnix(bar.t), value: bar.vwap }); h.lastVwap = bar.vwap; }
-    if (bar.ema9 != null) { h.ema9Series.update({ time: toUnix(bar.t), value: bar.ema9 }); h.lastEma9 = bar.ema9; }
-    if (bar.ema20 != null) { h.ema20Series.update({ time: toUnix(bar.t), value: bar.ema20 }); h.lastEma20 = bar.ema20; }
-    if (bar.ema200 != null) { h.ema200Series.update({ time: toUnix(bar.t), value: bar.ema200 }); h.lastEma200 = bar.ema200; }
-    h.renderOverlay(formingVol, "", h.lastVwap, h.lastEma9, h.lastEma20, h.lastEma200);
+    h.handleState.lastVol = formingVol;
+    if (bar.vwap != null) { h.vwapSeries.update({ time: toUnix(bar.t), value: bar.vwap }); h.handleState.lastVwap = bar.vwap; }
+    if (bar.ema9 != null) { h.ema9Series.update({ time: toUnix(bar.t), value: bar.ema9 }); h.handleState.lastEma9 = bar.ema9; }
+    if (bar.ema20 != null) { h.ema20Series.update({ time: toUnix(bar.t), value: bar.ema20 }); h.handleState.lastEma20 = bar.ema20; }
+    if (bar.ema200 != null) { h.ema200Series.update({ time: toUnix(bar.t), value: bar.ema200 }); h.handleState.lastEma200 = bar.ema200; }
+    h.renderOverlay(formingVol, "", h.handleState.lastVwap, h.handleState.lastEma9, h.handleState.lastEma20, h.handleState.lastEma200);
   }
   function lockInBar() {
     const bar = state.bars[state.barIndex];
     const h = state.chartHandle;
     h.series.update({ time: toUnix(bar.t), open: bar.o, high: bar.h, low: bar.l, close: bar.c });
     h.volSeries.update({ time: toUnix(bar.t), value: bar.v, color: bar.c >= bar.o ? "rgba(47,208,138,0.4)" : "rgba(242,85,90,0.4)" });
-    h.lastVol = bar.v;
-    h.lastVwap = bar.vwap;
-    h.lastEma9 = bar.ema9;
-    h.lastEma20 = bar.ema20;
-    h.lastEma200 = bar.ema200;
+    h.handleState.lastVol = bar.v;
+    h.handleState.lastVwap = bar.vwap;
+    h.handleState.lastEma9 = bar.ema9;
+    h.handleState.lastEma20 = bar.ema20;
+    h.handleState.lastEma200 = bar.ema200;
     h.renderOverlay(bar.v, bar.c >= bar.o ? "up" : "down", bar.vwap, bar.ema9, bar.ema20, bar.ema200);
   }
 

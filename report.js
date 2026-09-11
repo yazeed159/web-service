@@ -939,6 +939,10 @@
   // callback has run. No image is generated or shown; everything is
   // drawn client-side from the raw bar data.
   let rptCandleChart = null, rptMacdChart = null, rptRepositionPointers = null;
+  // Handle returned by ChartIndicators.buildStandardChart() -- torn down
+  // (disconnecting its ResizeObserver along with it) in closeTradeChart()
+  // before the next trade's chart is built.
+  let rptChartHandle = null;
   // Persists across chart opens, same reasoning as trade.js's
   // currentInterval -- if someone switches to 5m, the next trade they
   // open stays on 5m instead of silently resetting to 1m.
@@ -949,7 +953,8 @@
   function closeTradeChart() {
     els.chartModal.style.display = "none";
     els.chartModal.setAttribute("aria-hidden", "true");
-    if (rptCandleChart) { rptCandleChart.remove(); rptCandleChart = null; }
+    if (rptChartHandle) { window.ChartIndicators.teardownStandardChart(rptChartHandle); rptChartHandle = null; }
+    rptCandleChart = null;
     if (rptMacdChart) { rptMacdChart.remove(); rptMacdChart = null; }
     rptRepositionPointers = null;
     document.getElementById("rpt-candle-chart").innerHTML = "";
@@ -1066,7 +1071,11 @@
 
     const candleEl = document.getElementById("rpt-candle-chart");
     const macdEl = document.getElementById("rpt-macd-chart");
-    const commonOpts = {
+    // Same layout/grid/axis theme buildStandardChart uses for the candle
+    // chart below -- kept as a small local literal for the MACD pane's
+    // own series (histogram + 2 plain lines), which aren't part of the
+    // standard-chart shape that helper builds.
+    const macdCommonOpts = {
       layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
       grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
       rightPriceScale: { borderColor: "#232830", minimumWidth: 92 },
@@ -1074,65 +1083,22 @@
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     };
 
-    rptCandleChart = LightweightCharts.createChart(candleEl, { ...commonOpts, width: candleEl.clientWidth, height: candleEl.clientHeight || 380 });
-    const candleSeries = rptCandleChart.addCandlestickSeries({
-      upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
-      wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
+    const rptChartHandleLocal = window.ChartIndicators.buildStandardChart(candleEl, initialDisplayBars, {
+      height: candleEl.clientHeight || 380,
+      minimumWidth: 92,
+      priceScaleMargins: { top: 0.14, bottom: 0.18 },
+      volScaleMargins: { top: 0.82, bottom: 0 },
       // See trade.js buildCharts() -- disable the library's built-in
       // dashed "last value" price line so it doesn't show up as a stray
       // green/red line at the last close price alongside our own
       // entry/exit/S-R lines.
-      priceLineVisible: false,
+      showLastValueLine: false,
     });
-    candleSeries.setData(candleData);
-    rptCandleChart.priceScale("right").applyOptions({ scaleMargins: { top: 0.14, bottom: 0.18 } });
+    rptChartHandle = rptChartHandleLocal;
+    const { chart: candleChartHandle, series: candleSeries, volSeries, vwapSeries, ema9Series, ema20Series, ema200Series, renderOverlay, handleState } = rptChartHandleLocal;
+    rptCandleChart = candleChartHandle;
 
-    const volSeries = rptCandleChart.addHistogramSeries({ priceFormat: { type: "volume" }, priceScaleId: "vol" });
-    rptCandleChart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-    volSeries.setData(volData);
-
-    const vwapSeries = rptCandleChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    vwapSeries.setData(vwapData);
-    const ema9Series = rptCandleChart.addLineSeries({ color: "#9aa8a1", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    ema9Series.setData(ema9Data);
-    const ema20Series = rptCandleChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    ema20Series.setData(ema20Data);
-    const ema200Series = rptCandleChart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    ema200Series.setData(ema200Data);
-
-    // Top-left info overlay: live volume/VWAP/EMA9/EMA20 readout that
-    // tracks the crosshair, same as trade.js's chart. Falls back to the
-    // last bar's values when nothing is hovered.
-    candleEl.style.position = "relative";
-    let infoOverlay = candleEl.querySelector(".chart-info-overlay");
-    if (!infoOverlay) {
-      infoOverlay = document.createElement("div");
-      infoOverlay.className = "chart-info-overlay";
-      candleEl.appendChild(infoOverlay);
-    }
-    const volRowHtml = (vol, color) =>
-      `<div class="row"><span class="k">Vol</span><span class="v${color ? ` ${color}` : ""}">${vol == null ? "—" : Number(vol).toLocaleString()}</span></div>`;
     function lastOf(arr) { return arr.length ? arr[arr.length - 1].value : null; }
-    function renderOverlay(vol, upDown, vwapVal, ema9Val, ema20Val, ema200Val) {
-      infoOverlay.innerHTML = volRowHtml(vol, upDown) + window.ChartIndicators.indicatorRowsHtml(vwapVal, ema9Val, ema20Val, ema200Val);
-    }
-    renderOverlay(lastOf(currentSeriesData.volData), "", lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data), lastOf(currentSeriesData.ema200Data));
-    rptCandleChart.subscribeCrosshairMove((param) => {
-      const volBar = param.seriesData && param.seriesData.get(volSeries);
-      const vol = volBar ? volBar.value : lastOf(currentSeriesData.volData);
-      const upDown = volBar ? (volBar.color && volBar.color.indexOf("47,208,138") !== -1 ? "up" : "down") : "";
-      const vwapBar = param.seriesData && param.seriesData.get(vwapSeries);
-      const ema9Bar = param.seriesData && param.seriesData.get(ema9Series);
-      const ema20Bar = param.seriesData && param.seriesData.get(ema20Series);
-      const ema200Bar = param.seriesData && param.seriesData.get(ema200Series);
-      renderOverlay(
-        vol, upDown,
-        vwapBar ? vwapBar.value : lastOf(currentSeriesData.vwapData),
-        ema9Bar ? ema9Bar.value : lastOf(currentSeriesData.ema9Data),
-        ema20Bar ? ema20Bar.value : lastOf(currentSeriesData.ema20Data),
-        ema200Bar ? ema200Bar.value : lastOf(currentSeriesData.ema200Data)
-      );
-    });
 
     // Entry/exit price lines -- solid, actual fills. No axis title: the
     // pointer triangles below (same visual language as trade.js's
@@ -1292,7 +1258,7 @@
     requestAnimationFrame(repositionPointers);
     setTimeout(repositionPointers, 0);
 
-    rptMacdChart = LightweightCharts.createChart(macdEl, { ...commonOpts, width: macdEl.clientWidth, height: macdEl.clientHeight || 100 });
+    rptMacdChart = LightweightCharts.createChart(macdEl, { ...macdCommonOpts, width: macdEl.clientWidth, height: macdEl.clientHeight || 100 });
     const macdHistSeries = rptMacdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } });
     macdHistSeries.setData(histData);
     const macdLineSeries = rptMacdChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
@@ -1322,9 +1288,18 @@
       macdHistSeries.setData(currentSeriesData.histData);
       macdLineSeries.setData(currentSeriesData.macdData);
       macdSignalLineSeries.setData(currentSeriesData.signalData);
+      // buildStandardChart's own crosshair handler falls back to
+      // handleState whenever nothing's hovered -- keep it in sync with
+      // whichever timeframe is now showing, or leaving the crosshair
+      // after a switch would fall back to stale 1-minute values.
+      handleState.lastVol = lastOf(currentSeriesData.volData);
+      handleState.lastVwap = lastOf(currentSeriesData.vwapData);
+      handleState.lastEma9 = lastOf(currentSeriesData.ema9Data);
+      handleState.lastEma20 = lastOf(currentSeriesData.ema20Data);
+      handleState.lastEma200 = lastOf(currentSeriesData.ema200Data);
       renderOverlay(
-        lastOf(currentSeriesData.volData), "",
-        lastOf(currentSeriesData.vwapData), lastOf(currentSeriesData.ema9Data), lastOf(currentSeriesData.ema20Data), lastOf(currentSeriesData.ema200Data)
+        handleState.lastVol, "",
+        handleState.lastVwap, handleState.lastEma9, handleState.lastEma20, handleState.lastEma200
       );
       rptCandleChart.timeScale().fitContent();
       rptMacdChart.timeScale().fitContent();
@@ -1410,9 +1385,12 @@
   });
   window.addEventListener("resize", () => {
     if (!rptCandleChart) return;
-    const candleEl = document.getElementById("rpt-candle-chart");
+    // rptCandleChart's own width is already kept in sync by
+    // buildStandardChart's ResizeObserver (tied to #rpt-candle-chart) --
+    // this listener only needs to resize the MACD companion pane and
+    // reposition the entry/exit pointer triangles, which fall outside
+    // what that helper owns.
     const macdEl = document.getElementById("rpt-macd-chart");
-    rptCandleChart.applyOptions({ width: candleEl.clientWidth });
     if (rptMacdChart) rptMacdChart.applyOptions({ width: macdEl.clientWidth });
     if (rptRepositionPointers) rptRepositionPointers();
   });

@@ -1218,7 +1218,7 @@
     const setupLabel = t.setup_type ? String(t.setup_type).replace(/_/g, " ") : "";
     return `
     <tr data-id="${t.id}">
-      <td class="sym">${symbolAvatarHtml(t.symbol)}<span>${t.symbol}</span>${setupLabel ? `<span class="setup-pill">${escapeHtml(setupLabel)}</span>` : ""}</td>
+      <td class="sym">${symbolAvatarHtml(t.symbol)}<span>${escapeHtml(t.symbol)}</span>${setupLabel ? `<span class="setup-pill">${escapeHtml(setupLabel)}</span>` : ""}</td>
       <td class="mono dim">${t.trade_date}</td>
       <td class="mono dim">${t.entry_time}</td>
       <td class="mono">$${t.entry_price.toFixed(2)} → $${t.exit_price.toFixed(2)}</td>
@@ -1320,7 +1320,7 @@
     const sorted = entry.trades.slice().sort((a, b) => a.entry_time.localeCompare(b.entry_time));
     const rows = sorted.map((t) => `
       <tr data-id="${t.id}">
-        <td class="sym"><span class="side-dot" style="background:${t.win ? "var(--green)" : "var(--red)"}"></span>${t.symbol}</td>
+        <td class="sym"><span class="side-dot" style="background:${t.win ? "var(--green)" : "var(--red)"}"></span>${escapeHtml(t.symbol)}</td>
         <td class="mono">$${t.entry_price.toFixed(2)} → $${t.exit_price.toFixed(2)}</td>
         <td class="mono">${pricePerShareMove(t.entry_price, t.exit_price, t.side)}</td>
         <td class="mono dim">${t.shares}</td>

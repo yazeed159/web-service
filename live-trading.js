@@ -113,8 +113,16 @@
   }
 
   function fmtMoney(n) {
-    const v = Number(n || 0);
-    return (v < 0 ? "-$" : "$") + Math.abs(v).toFixed(2);
+    // Matches the canonical form in common.js's window.fmtMoney (not
+    // called directly -- see the load-order note there): "+$"/"-$"
+    // prefix and "—" for non-finite input, instead of this file's old
+    // behavior of a bare "$" (no "+") on positive amounts and a silent
+    // $0.00 for anything that wasn't a number. Every other page in the
+    // app already showed the "+" on a winning P&L; this was the one
+    // that didn't.
+    const v = Number(n);
+    if (!Number.isFinite(v)) return "—";
+    return (v >= 0 ? "+$" : "-$") + Math.abs(v).toFixed(2);
   }
   function fmtPct(v) {
     return typeof v === "number" ? v.toFixed(1) + "%" : "—";
