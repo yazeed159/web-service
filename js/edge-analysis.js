@@ -42,14 +42,8 @@
   }
 
   // ---------- shared helpers (same conventions as stats.html / journal.html) ----------
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-  function fmtMoney(v) {
-    if (typeof v !== "number" || !isFinite(v)) return "—";
-    const sign = v >= 0 ? "+" : "-";
-    return sign + "$" + Math.abs(v).toFixed(2);
-  }
+// escapeHtml() now in utils.js (loads first on every page).
+// fmtMoney() now in utils.js (loads first on every page).
   function avg(arr) {
     if (!arr.length) return 0;
     return arr.reduce((s, v) => s + v, 0) / arr.length;
@@ -66,52 +60,17 @@
   // Rendered TRADE_LIST_PAGE_SIZE at a time with a "Load more" button --
   // see the identical comment in app.js -- rather than dumping every
   // trade behind a breakdown row into the DOM at once.
-  const TRADE_LIST_PAGE_SIZE = 25;
-  const tradeListState = new Map(); // uid -> { rows, shown }
-
-  function tradeListItemHtml(r) {
-    return `<li><a href="trade.html?id=${encodeURIComponent(r.id)}">${escapeHtml(r.symbol)} — ${escapeHtml(r.trade_date)} <span class="${r.win ? "up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></a></li>`;
-  }
-  function tradeListMoreHtml(uid, remaining) {
-    return `<li class="tag-trade-list-more"><button type="button" class="btn-load-more" data-load-more="${uid}">Load more (${remaining} left)</button></li>`;
-  }
-  function tradeListHtml(rowsList, uid) {
-    const sorted = rowsList.slice().sort((a, b) => (b.trade_date || "").localeCompare(a.trade_date || ""));
-    const shown = Math.min(TRADE_LIST_PAGE_SIZE, sorted.length);
-    tradeListState.set(uid, { rows: sorted, shown });
-    const items = sorted.slice(0, shown).map(tradeListItemHtml).join("");
-    const more = shown < sorted.length ? tradeListMoreHtml(uid, sorted.length - shown) : "";
-    return `<ul class="tag-trade-list" id="${uid}">${items}${more}</ul>`;
-  }
+  // tradeListItemHtml/tradeListMoreHtml/tradeListHtml/
+  // TRADE_LIST_PAGE_SIZE/tradeListState now in utils.js. The
+  // toggle/load-more behavior itself is also shared via
+  // window.bindTradeToggles -- this file's own copy just needed to
+  // additionally track openUids + call syncUrlState, so that's passed
+  // through as the onChange(uid, isOpen) callback instead.
   function bindTradeToggles(container) {
-    container.querySelectorAll("[data-trade-toggle]").forEach((row) => {
-      row.addEventListener("click", () => {
-        const uid = row.getAttribute("data-trade-toggle");
-        const list = document.getElementById(uid);
-        if (!list) return;
-        const nowOpen = list.classList.toggle("open");
-        if (nowOpen) openUids.add(uid); else openUids.delete(uid);
-        syncUrlState();
-      });
-    });
-    container.querySelectorAll("[data-load-more]").forEach((btn) => {
-      btn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        const uid = btn.getAttribute("data-load-more");
-        const state = tradeListState.get(uid);
-        if (!state) return;
-        const nextShown = Math.min(state.shown + TRADE_LIST_PAGE_SIZE, state.rows.length);
-        const newItemsHtml = state.rows.slice(state.shown, nextShown).map(tradeListItemHtml).join("");
-        state.shown = nextShown;
-        const moreLi = btn.closest("li");
-        moreLi.insertAdjacentHTML("beforebegin", newItemsHtml);
-        if (state.shown < state.rows.length) {
-          btn.textContent = `Load more (${state.rows.length - state.shown} left)`;
-        } else {
-          moreLi.remove();
-        }
-        syncUrlState();
-      });
+    window.bindTradeToggles(container, (uid, isOpen) => {
+      if (isOpen === true) openUids.add(uid);
+      else if (isOpen === false) openUids.delete(uid);
+      syncUrlState();
     });
   }
 

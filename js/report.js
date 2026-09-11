@@ -26,14 +26,8 @@
   }
   const LOCAL_INDEX_KEY = "bt_local_reports";
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-  function fmtMoney(v) {
-    if (typeof v !== "number" || !isFinite(v)) return "—";
-    const sign = v >= 0 ? "+" : "-";
-    return sign + "$" + Math.abs(v).toFixed(2);
-  }
+// escapeHtml() now in utils.js (loads first on every page).
+// fmtMoney() now in utils.js (loads first on every page).
   function fmtPct(v) { return typeof v === "number" && isFinite(v) ? v.toFixed(1) + "%" : "—"; }
   function fmtR(v) { return typeof v === "number" && isFinite(v) ? v.toFixed(2) + "R" : "—"; }
   function fmtMinutes(v) {
@@ -948,7 +942,7 @@
   // open stays on 5m instead of silently resetting to 1m.
   let rptCurrentInterval = 1;
 
-  function toUnix(t) { return Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000); }
+// toUnix() now in utils.js (loads first on every page).
 
   function closeTradeChart() {
     els.chartModal.style.display = "none";

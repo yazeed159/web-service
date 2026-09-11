@@ -88,12 +88,8 @@
   // ---------------------------------------------------------------
   // small shared helpers (same conventions as trade.js)
   // ---------------------------------------------------------------
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-  function toUnix(t) {
-    return Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000);
-  }
+// escapeHtml() now in utils.js (loads first on every page).
+// toUnix() now in utils.js (loads first on every page).
   function fmtPrice(v) {
     if (v === null || v === undefined || !Number.isFinite(Number(v))) return "—";
     const n = Number(v);

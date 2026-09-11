@@ -74,9 +74,7 @@
     "Show me my longest losing streak and what caused it",
   ];
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
+// escapeHtml() now in utils.js (loads first on every page).
 
   // Turns plain text (with occasional **bold**) into safe HTML with
   // paragraph/line breaks -- just enough formatting for LLM prose, no

@@ -16,14 +16,17 @@ no build step) deployed on **Cloudflare Pages**, backed by **Supabase**
 
 | Layer | What | Where |
 |---|---|---|
-| Frontend | Static HTML/CSS/JS, one page per section, shared `core.css` + `nav.js` shell | Cloudflare Pages |
+| Frontend | Static HTML/CSS/JS, one page per section, shared `common.css` + `common.js` shell | Cloudflare Pages |
 | Auth + data | Supabase (`trades`, `trade_details`, `broker_accounts`, `backtest_runs` tables, `user_kv` for settings), Row Level Security scopes every query to `auth.uid()` | Supabase |
 | AI / heavy compute | Flask API — chart generation, vision-LLM verdicts, backtesting, support/resistance, chat, CSV import | Render (`chart-service` repo) |
 | Daily sync | Pulls the day's IBKR Flex report, matches fills, generates charts, gets an AI verdict, publishes to Supabase | GitHub Actions cron → `POST /daily-sync` on Render |
 
-Every page loads, in this order: `config.js` (sets `window.SUPABASE_URL` /
+Pages live at the project root; shared JS lives in `js/` and shared CSS in
+`css/` (e.g. `js/config.js`, `css/common.css`).
+
+Every page loads, in this order: `js/config.js` (sets `window.SUPABASE_URL` /
 `SUPABASE_ANON_KEY` and the Render API base URL) → the Supabase JS CDN
-script → `auth.js` (resolves the session, exposes `window.fetchTradesIndex()`
+script → `js/auth.js` (resolves the session, exposes `window.fetchTradesIndex()`
 / `window.fetchTradeDetail()` / etc., and redirects to `login.html` if
 there's no session) → the page's own script.
 
@@ -45,7 +48,6 @@ there's no session) → the page's own script.
 **Per-trade / support:**
 - **`trade.html?id=<trade_id>`** — full trade detail: interactive candlestick chart, AI verdict, Support/Resistance (on-demand), 👍/👎 feedback
 - **`import-trades.html`** — CSV import of new trades
-- **`import-legacy.html`** — **one-time** migration tool that backfills an old `data/trades.json` + `data/trades/*.json` export into Supabase (safe to re-run — it upserts). Not linked from any nav; keep the URL around only until you're sure everyone's data has been migrated, then it can go.
 - **`login.html`** — Supabase email/password sign-in; `auth.js` redirects here on any page when there's no session
 
 **Redirect stubs** (old standalone pages, features moved elsewhere; each just bounces to the new location so old bookmarks/links don't 404):
@@ -56,15 +58,19 @@ there's no session) → the page's own script.
 
 ## Shared assets
 
-- **`core.css`** — design tokens + app-shell/sidebar layout + additive feature styles, loaded by every page. (Consolidation of three older files — see "Known quirks.")
-- Page-specific CSS loaded only where needed: `dashboard.css` (Dashboard tab), `rewind.css`, `practice.css`, `quiz-shared.css`, `report.css`, `polish.css` (backtester + report), `chat-widget.css` / `global-search.css` / `ui-modal.css` (shared widgets, loaded everywhere).
-- **`nav.js`** — shared sidebar/mobile-nav wiring + `NavState` (mirrors in-page UI state into the URL via `history.replaceState` so Back doesn't lose your place — every page here is a real navigation, not an SPA route).
-- **`auth.js`** — session/auth layer + `window.KV` (a small per-user key/value store backed by Supabase, used for things like Settings' capital ledger) + `window.fetchTradesIndex()` / `window.fetchTradeDetail()`. Falls back to rejected-promise stubs instead of throwing if the Supabase CDN script fails to load, so a blocked/slow CDN request degrades to an error message instead of a blank broken page.
-- **`config.js`** — the only file you should need to touch per-deployment: Supabase project URL/anon key, and the Render API base URL used for chart generation, backtesting, AI chat, and Support/Resistance.
+All shared/page JS lives in `js/`, all shared/page CSS lives in `css/`;
+pages themselves (`index.html`, `journal.html`, etc.) stay at the project
+root so existing links between pages don't need `js/`/`css/` prefixes.
+
+- **`css/common.css`** — design tokens + app-shell/sidebar layout + additive feature styles (including the floating AI Chat launcher/panel), loaded by every page. Consolidation of what used to be separate `core.css` / `chat-widget.css` / `global-search.css` files.
+- Page-specific CSS loaded only where needed: `css/dashboard.css` (Dashboard tab), `css/rewind.css`, `css/practice.css`, `css/quiz-shared.css`, `css/report.css`, `css/polish.css` (backtester + report), `css/ui-modal.css` (shared modal widget, loaded everywhere).
+- **`js/common.js`** — shared sidebar (main-nav + "More" section, both generated from a single item list — see `SIDEBAR_MAIN_ITEMS` / `SIDEBAR_MORE_ITEMS`) + mobile-nav wiring + the floating AI Chat widget + `NavState` (mirrors in-page UI state into the URL via `history.replaceState` so Back doesn't lose your place — every page here is a real navigation, not an SPA route). Consolidation of what used to be separate `nav.js` / `chat-widget.js` files.
+- **`js/auth.js`** — session/auth layer + `window.KV` (a small per-user key/value store backed by Supabase, used for things like Settings' capital ledger) + `window.fetchTradesIndex()` / `window.fetchTradeDetail()`. Falls back to rejected-promise stubs instead of throwing if the Supabase CDN script fails to load, so a blocked/slow CDN request degrades to an error message instead of a blank broken page.
+- **`js/config.js`** — the only file you should need to touch per-deployment: Supabase project URL/anon key, and the Render API base URL used for chart generation, backtesting, AI chat, and Support/Resistance.
 
 ## Config
 
-Set in `config.js`:
+Set in `js/config.js`:
 
 ```js
 window.SUPABASE_URL = "https://<project>.supabase.co";
@@ -94,20 +100,6 @@ You'll need a real Supabase project (with the schema the backend expects —
 see the `chart-service` README) and to be logged in via `login.html`
 before any page will show data.
 
-## Known quirks
-
-- **Sidebar isn't templated.** Each page carries its own copy of the sidebar
-  markup rather than generating it from one shared list, so it's possible
-  for pages to drift out of sync with each other. Worth turning into a
-  single source of truth (e.g. injected by `nav.js`) if more pages get added.
-- **`calculator.html` and `edge-analysis.html`** don't have their own
-  `.js` file like the rest of the site — their logic is inline in the
-  page. Every other feature page follows the `page.html` + `page.js`
-  pattern; these two are the exception.
-- **`import-legacy.html`** is a one-time migration tool from the old
-  static-JSON architecture. Once you're confident every account's history
-  has been backfilled into Supabase, it can be deleted.
-
 ## AI features (all now hosted on Render, see `chart-service` repo)
 
 - **Support & Resistance** (on `trade.html`) — off by default, on-demand per click
@@ -122,5 +114,6 @@ hand, and the AI features (Support/Resistance, Chat, Backtest config)
 wired to n8n webhooks calling Gemini, with a local `chart_service.py` run
 via `start_chart_service.ps1` + ngrok for the backtester. That's all been
 replaced by the Supabase + Render setup above — n8n is no longer part of
-this project. `import-legacy.html` exists specifically to move data from
-that era into Supabase.
+this project. (The one-time `import-legacy.html` tool that moved data
+from that era into Supabase has since been removed, now that every
+account's history is confirmed migrated.)

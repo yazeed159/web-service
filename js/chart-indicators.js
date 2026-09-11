@@ -15,18 +15,8 @@
   // same string shape trade.js's own toUnix() parses by appending "Z".
   // We parse/format the same way here so a resampled bar's `t` lines up
   // with how toUnix() will read it back downstream.
-  function toUnix(t) {
-    // String(t) first: 6 of the 8 duplicate copies of this function
-    // across the codebase guard with String(t) before .replace(), so a
-    // non-string `t` (e.g. a bar whose `t` came through as a Date or a
-    // raw number somewhere upstream) degrades to a parseable string
-    // instead of throwing here -- this is now the one copy every
-    // standard chart across the app calls, so it should match the
-    // safer of the two behaviors already in the wild, not the other one
-    // (trade.js's own now-unused local copy, which still lacks the
-    // guard).
-    return Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000);
-  }
+  // toUnix() moved to utils.js (loads first on every page now), so this
+  // file's chart code below calls the global one.
   function fromUnix(ts) {
     const d = new Date(ts * 1000);
     const pad = (n) => String(n).padStart(2, "0");

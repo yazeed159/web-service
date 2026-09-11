@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="auth.js"></script>
+<script src="js/auth.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Calculator — trade.log</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="css/common.css">
 <style>
   .calc-r-row-btn{width:100%;background:none;border:none;border-top:1px solid var(--border);text-align:left;cursor:pointer;font:inherit;color:inherit;}
   .calc-r-row-btn:first-child{border-top:none;}
@@ -47,27 +48,7 @@
     </div>
 
     <nav class="sidebar-nav">
-      <div class="nav-section-label">Journal</div>
-
-      <a class="nav-item" href="index.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
-        <span class="nav-label">Dashboard</span>
-      </a>
-
-      <a class="nav-item" href="index.html#dayview">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line></svg>
-        <span class="nav-label">Day View</span>
-      </a>
-
-      <a class="nav-item" href="index.html#reports">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line></svg>
-        <span class="nav-label">Reports</span>
-      </a>
-
-      <a class="nav-item" href="journal.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-        <span class="nav-label">Journal</span>
-      </a>
+      <div id="sidebar-main-section"></div>
 
 
       <div id="sidebar-more-section"></div>
@@ -133,7 +114,7 @@
             </div>
           </div>
 
-          <div class="calc-row" id="calc-recent-symbols-row" style="display:none;">
+          <div class="calc-row hidden" id="calc-recent-symbols-row">
             <div class="calc-row-head"><label>Recent symbols</label><span class="calc-hint">tap to fill entry</span></div>
             <div class="calc-symbol-list" id="calc-symbol-list"></div>
           </div>
@@ -161,7 +142,7 @@
               <button type="button" class="calc-chip" data-stoppct="3">3%</button>
               <button type="button" class="calc-chip" data-stoppct="5">5%</button>
             </div>
-            <div class="calc-input-wrap" id="calc-stop-price-wrap" style="display:none;">
+            <div class="calc-input-wrap hidden" id="calc-stop-price-wrap">
               <input type="text" class="filter-input" id="calc-stop" value="" aria-label="Stop price">
               <div class="calc-stepper" data-target="calc-stop"><button type="button" data-dir="1" aria-label="Increase stop price">▲</button><button type="button" data-dir="-1" aria-label="Decrease stop price">▼</button></div>
             </div>
@@ -186,7 +167,7 @@
               <button type="button" class="calc-chip" data-winrate="60">60%</button>
               <button type="button" class="calc-chip" data-winrate="70">70%</button>
             </div>
-            <div class="calc-winrate-badge" id="calc-winrate-actual" style="display:none;"></div>
+            <div class="calc-winrate-badge hidden" id="calc-winrate-actual"></div>
           </div>
 
         </div>
@@ -220,14 +201,14 @@
               <button type="button" class="calc-r-row calc-r-row-btn" id="calc-r1-row"><span class="r-label">1R target</span><span class="r-val" id="calc-r1">—</span></button>
               <button type="button" class="calc-r-row calc-r-row-btn" id="calc-r2-row"><span class="r-label">2R target</span><span class="r-val" id="calc-r2">—</span></button>
               <button type="button" class="calc-r-row calc-r-row-btn" id="calc-r3-row"><span class="r-label">3R target</span><span class="r-val" id="calc-r3">—</span></button>
-              <div class="calc-r-row" id="calc-r-target-row" style="display:none;"><span class="r-label">Your target</span><span class="r-val" id="calc-r-target">—</span></div>
+              <div class="calc-r-row hidden" id="calc-r-target-row"><span class="r-label">Your target</span><span class="r-val" id="calc-r-target">—</span></div>
             </div>
           </div>
 
           <div>
             <div class="section-label" style="margin-bottom:8px;">Trade Quality</div>
             <div id="calc-quality-empty" class="calc-hint">enter a target price to see risk/reward and expected value</div>
-            <div class="calc-stat-grid" id="calc-quality-grid" style="display:none;">
+            <div class="calc-stat-grid hidden" id="calc-quality-grid">
               <div class="calc-stat"><div class="lbl">Net reward</div><div class="val" id="calc-net-reward">—</div><div class="sub">after fees, at target</div></div>
               <div class="calc-stat"><div class="lbl">Risk:reward (net)</div><div class="val" id="calc-rr-ratio">—</div></div>
               <div class="calc-stat"><div class="lbl">Breakeven win rate</div><div class="val" id="calc-breakeven">—</div><div class="sub">min win% to profit long-run</div></div>
@@ -242,8 +223,8 @@
   </div>
 </div>
 
-<script src="global-search.js"></script>
-<script src="common.js"></script>
-<script src="calculator.js"></script>
+<script src="js/global-search.js"></script>
+<script src="js/common.js"></script>
+<script src="js/calculator.js"></script>
 </body>
 </html>

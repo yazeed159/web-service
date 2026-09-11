@@ -1,36 +1,7 @@
-// shared-format.js — canonical escapeHtml()/fmtMoney(), exposed on
-// `window`. escapeHtml is duplicated across 17 files and fmtMoney across
-// 10, with real drift between copies -- e.g. live-trading.js's fmtMoney
-// never prefixed a "+" on positive amounts the way every other page's
-// did, and practice.js/practice-analytics.js added comma
-// thousands-separators no other copy used, so the same P&L number
-// rendered as a visibly different string depending which page you were
-// on (both fixed directly in their own files below, rather than pointed
-// at this copy -- see note).
-//
-// NOTE ON WHY THIS ISN'T USED EVERYWHERE YET: common.js loads near the
-// END of the <script> list on every page except calculator.html (it
-// does its sidebar/chat-widget DOM injection last, after the page's own
-// content exists) -- so a page script that calls fmtMoney/escapeHtml
-// from its own synchronous top-level render path, before common.js has
-// run, would hit a ReferenceError. calculator.js is the one page where
-// common.js already loads first, so it's the one page wired to this
-// copy for now. Retiring the rest safely means moving common.js earlier
-// in each of those pages first, which is a separate, riskier change
-// than fixing the two behavioral bugs on their own.
-window.escapeHtml = function escapeHtml(s) {
-  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-};
-
-// Canonical form: "+$1234.56" / "-$1234.56", no thousands separator (7 of
-// the 10 duplicate copies already formatted it this way), "—" for
-// anything that isn't a finite number rather than silently coercing to
-// $0.00 or rendering the literal string "NaN".
-window.fmtMoney = function fmtMoney(v) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return "—";
-  return (n >= 0 ? "+$" : "-$") + Math.abs(n).toFixed(2);
-};
+// escapeHtml()/fmtMoney() moved to utils.js, which now loads first on
+// every page (before config.js) -- that fixes the load-order problem
+// that kept them stuck here as a copy no other page could safely call
+// yet. See utils.js for the canonical forms and what drifted.
 
 // chat-widget.js — floating "AI Chat" launcher, shared by every app-shell
 // page. Used to be its own sidebar tab pointing at chat.html; now it's a
@@ -146,7 +117,7 @@ window.fmtMoney = function fmtMoney(v) {
   // looks them up as soon as it runs, not on DOMContentLoaded), so it's
   // only loaded now that the panel markup above is in the DOM.
   const chatScript = document.createElement("script");
-  chatScript.src = "chat.js";
+  chatScript.src = "js/chat.js";
   document.body.appendChild(chatScript);
 })();
 
@@ -221,6 +192,46 @@ window.NavState = (function () {
 (function () {
   "use strict";
 
+  // Single source of truth for the sidebar's "Journal" section -- the
+  // first four items (Dashboard/Day View/Reports/Journal) used to be
+  // hand-copied into every page's sidebar markup individually (16 files
+  // carried an identical copy), rather than generated like the "More"
+  // section below. Folded into the same mount-point pattern so a future
+  // nav change (add/reorder/tooltip) is one edit here instead of a sweep
+  // across every page.
+  //
+  // index.html is deliberately NOT part of this: its first three items
+  // are <button data-tab> elements wired to in-page tab switching by
+  // app.js (not links to other pages), and app.js's click-binding for
+  // them runs *before* common.js on that page, so templating them here
+  // would leave them unbound. They stay hand-written in index.html.
+  const SIDEBAR_MAIN_ITEMS = [
+    {
+      href: "index.html", title: "Dashboard",
+      icon: '<rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect>',
+      label: "Dashboard",
+    },
+    {
+      href: "index.html#dayview", title: "Day View",
+      icon: '<rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line>',
+      label: "Day View",
+    },
+    {
+      href: "index.html#reports", title: "Reports",
+      icon: '<line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line>',
+      label: "Reports",
+    },
+    {
+      href: "journal.html", title: "Journal",
+      icon: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>',
+      label: "Journal",
+      // trade.html (a single trade's detail view) is conceptually part
+      // of the Journal section, so it lights this up too even though
+      // its own filename doesn't match "journal.html".
+      extraActiveFiles: ["trade.html"],
+    },
+  ];
+
   // Single source of truth for the sidebar's "More" section -- every
   // page used to carry its own copy of this exact list (label, href,
   // and icon), hand-copied page to page. In practice that's already
@@ -294,27 +305,62 @@ window.NavState = (function () {
     },
   ];
 
-  const mount = document.getElementById("sidebar-more-section");
-  if (!mount) return; // page has no app-shell sidebar, or hasn't adopted the mount point yet
+  const mainMount = document.getElementById("sidebar-main-section");
+  const moreMount = document.getElementById("sidebar-more-section");
+  if (!mainMount && !moreMount) return; // page has no app-shell sidebar, or hasn't adopted the mount points yet
 
   // The active item is whichever page we're actually on -- compared by
   // filename only (not the full href), since deep links can carry a
   // hash or query string (e.g. a filtered edge-analysis.html?setup=...).
-  const currentFile = window.location.pathname.split("/").pop() || "index.html";
+  // Normalized (decoded + lowercased + trailing-slash-stripped) so a
+  // trailing slash, URL-encoded character, or case difference from how
+  // a link/bookmark was typed doesn't silently break the match.
+  function normalizeFile(name) {
+    try {
+      return decodeURIComponent(name || "").toLowerCase().replace(/\/+$/, "");
+    } catch (e) {
+      return String(name || "").toLowerCase();
+    }
+  }
+  const currentFile = normalizeFile(window.location.pathname.split("/").pop()) || "index.html";
 
-  mount.innerHTML =
-    '<div class="nav-section-label">More</div>' +
-    SIDEBAR_MORE_ITEMS.map((item) => {
-      const isActive = item.href !== "#" && item.href.split("?")[0] === currentFile;
-      const idAttr = item.id ? ` id="${item.id}"` : "";
-      const titleAttr = item.title ? ` title="${item.title}"` : "";
-      return (
-        `<a class="nav-item${isActive ? " active" : ""}"${idAttr} href="${item.href}"${titleAttr}>` +
-        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${item.icon}</svg>` +
-        `<span class="nav-label">${item.label}</span>` +
-        `</a>`
-      );
-    }).join("");
+  if (mainMount) {
+    mainMount.innerHTML =
+      '<div class="nav-section-label">Journal</div>' +
+      SIDEBAR_MAIN_ITEMS.map((item) => {
+        const hrefFile = normalizeFile(item.href.split("?")[0].split("#")[0]);
+        const isActive =
+          hrefFile === currentFile ||
+          (item.extraActiveFiles || []).some((f) => normalizeFile(f) === currentFile);
+        return (
+          `<a class="nav-item${isActive ? " active" : ""}" href="${item.href}" title="${item.title}">` +
+          `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${item.icon}</svg>` +
+          `<span class="nav-label">${item.label}</span>` +
+          `</a>`
+        );
+      }).join("");
+  }
+
+  if (moreMount) {
+    moreMount.innerHTML =
+      '<div class="nav-section-label">More</div>' +
+      SIDEBAR_MORE_ITEMS.map((item) => {
+        const isActive = item.href !== "#" && normalizeFile(item.href.split("?")[0]) === currentFile;
+        const idAttr = item.id ? ` id="${item.id}"` : "";
+        // Every item gets a title tooltip (falling back to its label) so
+        // hovering an icon identifies the page even when the sidebar is
+        // collapsed and the text label is hidden -- previously only the
+        // "Import Trades" item had one, so every other icon was unlabeled
+        // once collapsed.
+        const titleAttr = ` title="${item.title || item.label}"`;
+        return (
+          `<a class="nav-item${isActive ? " active" : ""}"${idAttr} href="${item.href}"${titleAttr}>` +
+          `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${item.icon}</svg>` +
+          `<span class="nav-label">${item.label}</span>` +
+          `</a>`
+        );
+      }).join("");
+  }
 })();
 
 (function () {
@@ -549,45 +595,31 @@ window.NavState = (function () {
 })();
 
 // ================================================================
-// SETUP/TAG COLOR CODING (shared by journal, trade detail, patterns,
+// SETUP/TAG STYLING (shared by journal, trade detail, patterns,
 // practice, rewind -- anywhere a setup_type or lesson tag is shown).
-// Hashes the tag's own text to one of 8 accent hues so a given setup
-// always renders in the same color everywhere it appears, instead of
-// every tag looking identical. Purely a rendering rule off the string
-// that's already there -- no new field, nothing to configure per tag.
-// Hues are chosen to stay clear of the green/red bands already used
-// for win/loss coloring throughout the app, so a tag color is never
-// mistaken for a win/loss signal.
+// Every tag renders in the same single accent color (the app's
+// primary/brand color) instead of a different hue per tag -- a
+// calmer, more professional look than a rainbow of per-tag colors.
 (function () {
   "use strict";
-  var HUES = [255, 228, 200, 172, 42, 300, 322, 66]; // violet, blue, cyan, teal, amber, magenta, pink, gold
-  function hashStr(s) {
-    var h = 0;
-    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-    return h;
-  }
-  window.setupTagStyle = function (name) {
-    var key = String(name || "").trim().toLowerCase();
-    var hue = HUES[hashStr(key) % HUES.length];
+  window.setupTagStyle = function () {
     return {
-      hue: hue,
-      bg: "hsla(" + hue + ", 65%, 55%, 0.16)",
-      border: "hsla(" + hue + ", 65%, 55%, 0.38)",
-      fg: "hsl(" + hue + ", 85%, 74%)",
+      bg: "var(--primary-soft)",
+      border: "rgba(139,124,246,0.3)",
+      fg: "var(--primary)",
     };
   };
   // Inline style-attribute shorthand for a colored pill: background +
-  // border + text all in the tag's hue.
-  window.setupTagStyleAttr = function (name) {
-    var c = window.setupTagStyle(name);
+  // border + text all in the shared accent color.
+  window.setupTagStyleAttr = function () {
+    var c = window.setupTagStyle();
     return "background:" + c.bg + ";border-color:" + c.border + ";color:" + c.fg + ";";
   };
   // Just a small dot, for places already showing the label as plain
   // text (table rows, breakdown lists) where a full recolored pill
-  // would be too heavy -- a leading dot keys it to the pill color used
-  // elsewhere without changing the row's own text styling.
-  window.setupTagDot = function (name) {
-    var c = window.setupTagStyle(name);
+  // would be too heavy.
+  window.setupTagDot = function () {
+    var c = window.setupTagStyle();
     return '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + c.fg + ';margin-right:6px;vertical-align:middle;"></span>';
   };
 })();

@@ -150,13 +150,8 @@
     document.getElementById("advanced-grid").innerHTML = "";
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-  function fmtMoney(v) {
-    const sign = v >= 0 ? "+" : "-";
-    return sign + "$" + Math.abs(v).toFixed(2);
-  }
+// escapeHtml() now in utils.js (loads first on every page).
+// fmtMoney() now in utils.js (loads first on every page).
   // ¢/share = the raw price move, not a commission figure -- entry $8.33
   // -> exit $8.45 is +12.0¢/share no matter what commission did to the
   // dollar P&L. Short trades invert the sign (a lower exit is the win).
@@ -381,24 +376,10 @@
   // into the hundreds, and that was making those sections (collapsed or
   // not) enormous.
   // ----------------------------------------------------------------
-  let reportRowSeq = 0;
-  const TRADE_LIST_PAGE_SIZE = 25;
-  const tradeListState = new Map(); // uid -> { rows, shown }
-
-  function tradeListItemHtml(r) {
-    return `<li><a href="trade.html?id=${encodeURIComponent(r.id)}">${escapeHtml(r.symbol)} — ${escapeHtml(r.trade_date)} <span class="${r.win ? "up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></a></li>`;
-  }
-  function tradeListMoreHtml(uid, remaining) {
-    return `<li class="tag-trade-list-more"><button type="button" class="btn-load-more" data-load-more="${uid}">Load more (${remaining} left)</button></li>`;
-  }
-  function tradeListHtml(rowsList, uid) {
-    const sorted = rowsList.slice().sort((a, b) => (b.trade_date || "").localeCompare(a.trade_date || ""));
-    const shown = Math.min(TRADE_LIST_PAGE_SIZE, sorted.length);
-    tradeListState.set(uid, { rows: sorted, shown });
-    const items = sorted.slice(0, shown).map(tradeListItemHtml).join("");
-    const more = shown < sorted.length ? tradeListMoreHtml(uid, sorted.length - shown) : "";
-    return `<ul class="tag-trade-list" id="${uid}">${items}${more}</ul>`;
-  }
+  // tradeListItemHtml/tradeListMoreHtml/tradeListHtml/
+  // TRADE_LIST_PAGE_SIZE/tradeListState/bindTradeToggles all now in
+  // utils.js (identical here to edge-analysis.js/patterns.html/
+  // stats.html's copies, minus their URL-sync step -- see utils.js).
   // Shared "key -> {trades, net}" breakdown table with a Load More button
   // -- used by Overview's "By symbol" and the Sector/Country tables. A
   // busy account can have hundreds of symbols; rendering a <tr> for every
@@ -441,32 +422,7 @@
     }
   }
 
-  function bindTradeToggles(container) {
-    container.querySelectorAll("[data-trade-toggle]").forEach((row) => {
-      row.addEventListener("click", () => {
-        const list = document.getElementById(row.getAttribute("data-trade-toggle"));
-        if (list) list.classList.toggle("open");
-      });
-    });
-    container.querySelectorAll("[data-load-more]").forEach((btn) => {
-      btn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        const uid = btn.getAttribute("data-load-more");
-        const state = tradeListState.get(uid);
-        if (!state) return;
-        const nextShown = Math.min(state.shown + TRADE_LIST_PAGE_SIZE, state.rows.length);
-        const newItemsHtml = state.rows.slice(state.shown, nextShown).map(tradeListItemHtml).join("");
-        state.shown = nextShown;
-        const moreLi = btn.closest("li");
-        moreLi.insertAdjacentHTML("beforebegin", newItemsHtml);
-        if (state.shown < state.rows.length) {
-          btn.textContent = `Load more (${state.rows.length - state.shown} left)`;
-        } else {
-          moreLi.remove();
-        }
-      });
-    });
-  }
+  // bindTradeToggles() now in utils.js (loads first on every page).
   function pad2(n) { return String(n).padStart(2, "0"); }
   function dateKey(y, m, d) { return `${y}-${pad2(m + 1)}-${pad2(d)}`; }
 
@@ -1360,9 +1316,7 @@
   // ================================================================
   // REPORTS — filter bar
   // ================================================================
-  function prettifyTag(s) {
-    return String(s).replace(/_/g, " ");
-  }
+// prettifyTag() now in utils.js (loads first on every page).
 
   function matchesReportFilters(t) {
     if (reportFilters.symbol && !t.symbol.toLowerCase().includes(reportFilters.symbol.toLowerCase())) return false;

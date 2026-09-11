@@ -52,9 +52,7 @@
     });
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
+// escapeHtml() now in utils.js (loads first on every page).
 
   function apiCall(path, opts) {
     if (!API()) return Promise.reject(new Error("window.LIVE_SERVICE_URL isn't set in config.js yet."));
@@ -112,18 +110,7 @@
       .map((r) => r.symbol);
   }
 
-  function fmtMoney(n) {
-    // Matches the canonical form in common.js's window.fmtMoney (not
-    // called directly -- see the load-order note there): "+$"/"-$"
-    // prefix and "—" for non-finite input, instead of this file's old
-    // behavior of a bare "$" (no "+") on positive amounts and a silent
-    // $0.00 for anything that wasn't a number. Every other page in the
-    // app already showed the "+" on a winning P&L; this was the one
-    // that didn't.
-    const v = Number(n);
-    if (!Number.isFinite(v)) return "—";
-    return (v >= 0 ? "+$" : "-$") + Math.abs(v).toFixed(2);
-  }
+// fmtMoney() now in utils.js (loads first on every page).
   function fmtPct(v) {
     return typeof v === "number" ? v.toFixed(1) + "%" : "—";
   }

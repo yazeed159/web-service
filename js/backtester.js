@@ -34,9 +34,7 @@
     });
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
+// escapeHtml() now in utils.js (loads first on every page).
 
   // Auto-fires the same "Send to Journal" call report.js's button does,
   // right when a run finishes here -- so by the time you open the full
@@ -90,11 +88,7 @@
       });
   }
 
-  function fmtMoney(v) {
-    if (typeof v !== "number") return "—";
-    const sign = v >= 0 ? "+" : "-";
-    return sign + "$" + Math.abs(v).toFixed(2);
-  }
+// fmtMoney() now in utils.js (loads first on every page).
   function fmtPct(v) {
     return typeof v === "number" ? v.toFixed(1) + "%" : "—";
   }

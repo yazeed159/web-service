@@ -1,18 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="auth.js"></script>
+<script src="js/auth.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Practice — trade.log</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="common.css">
-<link rel="stylesheet" href="quiz-shared.css">
-<link rel="stylesheet" href="rewind.css">
-<link rel="stylesheet" href="practice.css">
-<link rel="stylesheet" href="ui-modal.css">
+<link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/quiz-shared.css">
+<link rel="stylesheet" href="css/rewind.css">
+<link rel="stylesheet" href="css/practice.css">
+<link rel="stylesheet" href="css/ui-modal.css">
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js" defer></script>
 </head>
 <body>
@@ -31,27 +32,7 @@
     </div>
 
     <nav class="sidebar-nav">
-      <div class="nav-section-label">Journal</div>
-
-      <a class="nav-item" href="index.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
-        <span class="nav-label">Dashboard</span>
-      </a>
-
-      <a class="nav-item" href="index.html#dayview">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line></svg>
-        <span class="nav-label">Day View</span>
-      </a>
-
-      <a class="nav-item" href="index.html#reports">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line></svg>
-        <span class="nav-label">Reports</span>
-      </a>
-
-      <a class="nav-item" href="journal.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-        <span class="nav-label">Journal</span>
-      </a>
+      <div id="sidebar-main-section"></div>
 
 
       <div id="sidebar-more-section"></div>
@@ -91,7 +72,7 @@
       <!-- ============ SETUP SCREEN ============ -->
       <div id="pr-setup-screen">
 
-        <div id="pr-resume-box" class="pr-resume-box" style="display:none;">
+        <div id="pr-resume-box" class="pr-resume-box hidden">
           <div class="rb-text">You left a session in progress on <b id="pr-resume-label"></b>.</div>
           <button class="btn-confirm" id="pr-resume-btn">Resume session</button>
         </div>
@@ -147,7 +128,7 @@
         <div class="panel-box" id="pr-progress-box" style="margin-bottom:18px;">
           <div class="panel-box-head">
             <span class="title">Practice progress</span>
-            <button type="button" class="link" id="pr-reset-all-btn" style="display:none;">Reset all</button>
+            <button type="button" class="link hidden" id="pr-reset-all-btn">Reset all</button>
           </div>
           <div id="pr-progress-list"></div>
         </div>
@@ -287,17 +268,17 @@
       <!-- ============ /pr-practice-view ============ -->
 
       <!-- ============ ANALYTICS SCREEN (was practice-analytics.html) ============ -->
-      <div id="pr-analytics-screen" style="display:none;">
+      <div id="pr-analytics-screen" class="hidden">
 
         <div class="panel-head">
           <div class="sub">Built from your practice account's fill history on this page — resets whenever you reset that account.</div>
         </div>
 
-        <div id="pa-empty-state" class="panel-box" style="display:none;">
+        <div id="pa-empty-state" class="panel-box hidden">
           <div class="empty-state">No practice trades yet. Switch to the Practice tab, pick a chart, and place a few fills — your analytics will show up here, including how long you held each one.</div>
         </div>
 
-        <div id="pa-body" style="display:none;">
+        <div id="pa-body" class="hidden">
 
           <div class="stat-grid" id="pa-stat-grid" style="margin-bottom:18px;"></div>
 
@@ -306,7 +287,7 @@
               <div class="panel-box-head"><span class="title">Equity curve</span></div>
               <div class="pr-equity-wrap">
                 <svg id="pa-equity-svg" viewBox="0 0 1000 200" preserveAspectRatio="none"></svg>
-                <div class="pr-equity-empty" id="pa-equity-empty" style="display:none;">Close a few trades to build your equity curve.</div>
+                <div class="pr-equity-empty hidden" id="pa-equity-empty">Close a few trades to build your equity curve.</div>
               </div>
             </div>
 
@@ -347,10 +328,10 @@
   </div>
 </div>
 
-<script src="ui-modal.js"></script>
-<script src="chart-indicators.js"></script>
-<script src="practice.js"></script>
-<script src="practice-analytics.js"></script>
+<script src="js/ui-modal.js"></script>
+<script src="js/chart-indicators.js"></script>
+<script src="js/practice.js"></script>
+<script src="js/practice-analytics.js"></script>
 <script>
 (function () {
   "use strict";
@@ -393,7 +374,7 @@
   }
 })();
 </script>
-<script src="common.js"></script>
-<script src="global-search.js"></script>
+<script src="js/common.js"></script>
+<script src="js/global-search.js"></script>
 </body>
 </html>

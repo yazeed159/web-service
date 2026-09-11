@@ -21,21 +21,13 @@
 
   // ---------------- shared formatting helpers (same conventions as
   // practice.js / app.js) ----------------
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-  function toUnix(t) {
-    return Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000);
-  }
+// escapeHtml() now in utils.js (loads first on every page).
+// toUnix() now in utils.js (loads first on every page).
   function fmtUsd(v) {
     if (!Number.isFinite(v)) return "—";
     return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
-  function fmtMoney(v) {
-    if (!Number.isFinite(v)) return "—";
-    const sign = v >= 0 ? "+" : "-";
-    return sign + "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
+// fmtMoney() now in utils.js (loads first on every page).
   function fmtPrice(v) {
     if (v === null || v === undefined || !Number.isFinite(Number(v))) return "—";
     const n = Number(v);

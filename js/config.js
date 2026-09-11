@@ -45,9 +45,12 @@ window.N8N_BACKTEST_IMPORT_URL = "https://chart-service-wroj.onrender.com/backte
 //    model real indicator data (VWAP/EMA/MACD at entry, S/R levels, etc.)
 //    instead of just the trade's raw P&L row. Fails silently if unset or
 //    unreachable; chat still works off the trade-journal text alone either way.
-// Point this at whatever's printed when you run start_chart_service.ps1
-// (the ngrok https URL, no trailing slash) -- it changes every time you
-// restart ngrok on the free plan, so update this line each session.
+// Stable Render URL for the chart-service deploy -- unlike LIVE_SERVICE_URL
+// below, this one doesn't rotate; no per-session update needed. (Leftover
+// from the pre-migration architecture: this used to be a local
+// start_chart_service.ps1 + ngrok tunnel that changed on every restart --
+// see README's "History" section. That's gone; this is now just the
+// Render deploy's URL, same as N8N_SR_URL/N8N_CHAT_URL/etc. above.)
 window.CHART_SERVICE_URL = "https://chart-service-wroj.onrender.com";
 
 // live-trading.html / live-trading.js. THIS IS NOT chart_service.py --
@@ -58,6 +61,11 @@ window.CHART_SERVICE_URL = "https://chart-service-wroj.onrender.com";
 // whatever tunnel (Cloudflare Tunnel / ngrok) you put in front of its
 // port 8800. Leave blank and the Live Trading page will just show an
 // error instead of failing silently.
+// NOTE: unlike CHART_SERVICE_URL above, this genuinely IS a rotating
+// trycloudflare.com quick-tunnel URL -- it changes whenever the tunnel
+// restarts (reboot, network drop, etc.), and there's no indicator
+// anywhere in the UI when it's gone stale beyond Live Trading showing
+// an error. Update this line whenever you restart the tunnel.
 window.LIVE_SERVICE_URL = "https://pushing-republican-education-livecam.trycloudflare.com";
 
 // Supabase project -- used by auth.js for login/signup and to read/write

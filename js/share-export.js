@@ -9,20 +9,17 @@
 window.TradeLogShare = (function () {
   "use strict";
 
-  function escapeHtml(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-  function fmtMoney(v) {
-    v = Number(v) || 0;
-    const sign = v >= 0 ? "+" : "-";
-    return sign + "$" + Math.abs(v).toFixed(2);
-  }
+// escapeHtml() now in utils.js (loads first on every page).
+// fmtMoney() now in utils.js (loads first on every page).
   function fmtPct(v) {
     return (Number(v) || 0).toFixed(1) + "%";
   }
-  function toUnix(t) {
-    return Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000);
-  }
+  // toUnix() now in utils.js (loads first on every page). NOTE: the
+  // *other* toUnix() further down in this file, inside the
+  // scriptExtra template string, is intentionally NOT touched -- that
+  // one runs inside the standalone exported HTML file this module
+  // generates, which has no access to utils.js and must stay fully
+  // self-contained.
   function nowStamp() {
     const d = new Date();
     return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });

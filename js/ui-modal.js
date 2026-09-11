@@ -12,11 +12,7 @@
      confirmLabel, cancelLabel, inputType }
 =================================================================== */
 (function () {
-  function escapeHtml(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
-  }
+// escapeHtml() now in utils.js (loads first on every page).
 
   function open(cfg) {
     return new Promise((resolve) => {

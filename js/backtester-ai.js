@@ -181,9 +181,7 @@
   let requestInFlight = false;
   let awaitingConfirmation = false;
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
+// escapeHtml() now in utils.js (loads first on every page).
 
   function formatReply(text) {
     const escaped = escapeHtml(text)

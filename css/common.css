@@ -116,6 +116,25 @@ button { font-family: var(--sans); }
 .flat { color: var(--text-dim); }
 .dim { color: var(--text-dim); }
 
+/* Small utility classes -- consolidate the handful of inline `style="..."`
+   strings that were hand-typed the same way over and over across the
+   static markup (`.hidden` alone replaced 50+ copies of
+   `style="display:none"`). Kept intentionally tiny: single-property,
+   only for patterns that showed up repeatedly. Not a general utility
+   framework -- one-off styling still belongs inline or in a page's own
+   CSS file. */
+/* !important here is deliberate (matches existing usage elsewhere in this
+   file): .hidden is combined with other classes throughout the markup
+   (e.g. `class="calc-row hidden"`), several of which set their own
+   `display` later in this same file -- at equal specificity the one
+   later in source order wins, so without !important .hidden would
+   silently lose to e.g. .calc-row's `display:flex` and fail to hide
+   the element. */
+.hidden { display: none !important; }
+.text-faint { color: var(--text-faint); }
+.cursor-pointer { cursor: pointer; }
+.mb-16 { margin-bottom: 16px; }
+
 /* =====================================================
    APP SHELL
 ===================================================== */

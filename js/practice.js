@@ -127,12 +127,8 @@
   // ---------------------------------------------------------------
   // shared helpers (same conventions as rewind.js / trade.js / app.js)
   // ---------------------------------------------------------------
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-  function toUnix(t) {
-    return Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000);
-  }
+// escapeHtml() now in utils.js (loads first on every page).
+// toUnix() now in utils.js (loads first on every page).
   function fmtPrice(v) {
     if (v === null || v === undefined || !Number.isFinite(Number(v))) return "—";
     const n = Number(v);
@@ -142,11 +138,7 @@
     if (!Number.isFinite(v)) return "—";
     return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
-  function fmtMoney(v) {
-    if (!Number.isFinite(v)) return "—";
-    const sign = v >= 0 ? "+" : "-";
-    return sign + "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
+// fmtMoney() now in utils.js (loads first on every page).
   function fmtTime(t) {
     try { return new Date(String(t).replace(" ", "T")).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); }
     catch (e) { return String(t); }
@@ -997,15 +989,7 @@
   // symbol info card -- same "About <SYMBOL>" card trade.html shows,
   // built from the trade's own symbol_info + indicators blocks.
   // ---------------------------------------------------------------
-  function fmtShares(n) {
-    if (n === null || n === undefined) return null;
-    const v = Number(n);
-    if (!Number.isFinite(v)) return null;
-    if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
-    if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
-    if (v >= 1e3) return (v / 1e3).toFixed(0) + "K";
-    return String(v);
-  }
+// fmtShares() now in utils.js (loads first on every page).
   function volumeFloatPills(trade) {
     const ind = trade.indicators || {};
     const parts = [];

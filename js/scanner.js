@@ -22,9 +22,7 @@
     });
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
+// escapeHtml() now in utils.js (loads first on every page).
 
   function fmtAgo(iso) {
     const ageS = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
@@ -40,15 +38,7 @@
 
   // Same compact share-count formatting as trade.js's fmtShares -- kept
   // as a local copy since this page doesn't otherwise load trade.js.
-  function fmtShares(n) {
-    if (n === null || n === undefined) return null;
-    const v = Number(n);
-    if (!Number.isFinite(v)) return null;
-    if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
-    if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
-    if (v >= 1e3) return (v / 1e3).toFixed(0) + "K";
-    return String(v);
-  }
+// fmtShares() now in utils.js (loads first on every page).
 
   function fmtPrice(n) {
     return (n === null || n === undefined) ? "—" : "$" + Number(n).toFixed(2);

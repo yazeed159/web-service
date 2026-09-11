@@ -24,16 +24,11 @@
   const topbarRight = document.querySelector(".topbar-right");
   if (!topbar || !topbarRight) return;
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
+// escapeHtml() now in utils.js (loads first on every page).
   function escapeRegex(s) {
     return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
-  function fmtMoney(v) {
-    if (v == null || !isFinite(v)) return "";
-    return (v >= 0 ? "+$" : "-$") + Math.abs(v).toFixed(2);
-  }
+// fmtMoney() now in utils.js (loads first on every page).
   function highlight(text, query) {
     const escaped = escapeHtml(text || "");
     const escapedQuery = escapeHtml(query || "");

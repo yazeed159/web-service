@@ -172,13 +172,8 @@
       });
   }
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-  function fmtMoney(v) {
-    const sign = v >= 0 ? "+" : "-";
-    return sign + "$" + Math.abs(v).toFixed(2);
-  }
+// escapeHtml() now in utils.js (loads first on every page).
+// fmtMoney() now in utils.js (loads first on every page).
   // ¢/share = the raw price move, not the P&L -- entry $8.33 -> exit $8.45
   // is +12.0¢/share no matter what the commission or share count did to
   // the dollar P&L. Short trades invert the sign (a lower exit is the win).
@@ -195,19 +190,9 @@
     const sign = cents >= 0 ? "+" : "-";
     return sign + Math.abs(cents).toFixed(1) + "¢";
   }
-  function toUnix(t) {
-    return Math.floor(new Date(t.replace(" ", "T") + "Z").getTime() / 1000);
-  }
+// toUnix() now in utils.js (loads first on every page).
   // Compact share-count formatting for the About card -- 18,500,000 -> "18.5M".
-  function fmtShares(n) {
-    if (n === null || n === undefined) return null;
-    const v = Number(n);
-    if (!Number.isFinite(v)) return null;
-    if (v >= 1e9) return (v / 1e9).toFixed(2) + "B";
-    if (v >= 1e6) return (v / 1e6).toFixed(1) + "M";
-    if (v >= 1e3) return (v / 1e3).toFixed(0) + "K";
-    return String(v);
-  }
+// fmtShares() now in utils.js (loads first on every page).
   const TAG_LABELS = {
     avgvol_under_500k: "Avg vol < 500K", avgvol_500k_1m: "Avg vol 500K–1M",
     avgvol_1m_5m: "Avg vol 1M–5M", avgvol_5m_20m: "Avg vol 5M–20M", avgvol_20m_plus: "Avg vol 20M+",

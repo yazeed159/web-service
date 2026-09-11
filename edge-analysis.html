@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="auth.js"></script>
+<script src="js/auth.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Edge Analysis — trade.log</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="common.css">
+<link rel="stylesheet" href="css/common.css">
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
   /* Edge Analysis — page-local styling */
@@ -169,27 +170,7 @@
     </div>
 
     <nav class="sidebar-nav">
-      <div class="nav-section-label">Journal</div>
-
-      <a class="nav-item" href="index.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
-        <span class="nav-label">Dashboard</span>
-      </a>
-
-      <a class="nav-item" href="index.html#dayview">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line></svg>
-        <span class="nav-label">Day View</span>
-      </a>
-
-      <a class="nav-item" href="index.html#reports">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line></svg>
-        <span class="nav-label">Reports</span>
-      </a>
-
-      <a class="nav-item" href="journal.html">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-        <span class="nav-label">Journal</span>
-      </a>
+      <div id="sidebar-main-section"></div>
 
 
       <div id="sidebar-more-section"></div>
@@ -222,8 +203,8 @@
   </div>
 </div>
 
-<script src="edge-analysis.js"></script>
-<script src="common.js"></script>
-<script src="global-search.js"></script>
+<script src="js/edge-analysis.js"></script>
+<script src="js/common.js"></script>
+<script src="js/global-search.js"></script>
 </body>
 </html>
