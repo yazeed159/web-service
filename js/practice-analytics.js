@@ -23,16 +23,8 @@
   // practice.js / app.js) ----------------
 // escapeHtml() now in utils.js (loads first on every page).
 // toUnix() now in utils.js (loads first on every page).
-  function fmtUsd(v) {
-    if (!Number.isFinite(v)) return "—";
-    return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
+// fmtUsd() now in utils.js (loads first on every page).
 // fmtMoney() now in utils.js (loads first on every page).
-  function fmtPrice(v) {
-    if (v === null || v === undefined || !Number.isFinite(Number(v))) return "—";
-    const n = Number(v);
-    return n.toFixed(Math.abs(n) < 5 ? 4 : 2);
-  }
   function fmtClock(t) {
     try { return new Date(String(t).replace(" ", "T")).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }); }
     catch (e) { return String(t); }

@@ -11,9 +11,10 @@ window.TradeLogShare = (function () {
 
 // escapeHtml() now in utils.js (loads first on every page).
 // fmtMoney() now in utils.js (loads first on every page).
-  function fmtPct(v) {
-    return (Number(v) || 0).toFixed(1) + "%";
-  }
+// fmtPct() now in utils.js (loads first on every page). NOTE: canonical
+// fmtPct() returns "—" for invalid input; this file's old copy coerced to
+// 0 and rendered "0.0%" instead -- winRate is always a finite number by
+// the time it reaches this call, so the difference is not observable here.
   // toUnix() now in utils.js (loads first on every page). NOTE: the
   // *other* toUnix() further down in this file, inside the
   // scriptExtra template string, is intentionally NOT touched -- that
@@ -257,7 +258,6 @@ ${scriptExtra || ""}
   var infoOverlay = document.createElement("div");
   infoOverlay.className = "chart-info-overlay";
   el.appendChild(infoOverlay);
-  function fmtPrice(v){ return (v == null || isNaN(v)) ? "—" : Number(v).toFixed(2); }
   function volRowHtml(vol, color){ return '<div class="row"><span class="k">Vol</span><span class="v' + (color ? (" " + color) : "") + '">' + (vol == null ? "—" : Number(vol).toLocaleString()) + '</span></div>'; }
   function indicatorRowsHtml(vwap, ema9, ema20, ema200){
     return '<div class="row"><span class="k">VWAP</span><span class="v" style="color:#e8a94c">' + fmtPrice(vwap) + '</span></div>'

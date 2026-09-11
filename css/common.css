@@ -1388,6 +1388,40 @@ body::before {
 
 /* ripple */
 .ripple { position: absolute; border-radius: 50%; pointer-events: none; background: rgba(255,255,255,0.35); transform: scale(0); animation: rippleAnim 0.55s ease-out; }
+
+/* ---------- Toast (background-failure notices) ----------
+   Bottom-center stack, non-blocking, auto-dismiss. See showToast()
+   in utils.js for when this fires vs. UIModal. */
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 28px -12px rgba(0,0,0,0.6);
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--text);
+  max-width: min(420px, calc(100vw - 32px));
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.error { border-color: rgba(242,85,90,0.4); background: linear-gradient(0deg, var(--red-soft), var(--red-soft)), var(--panel); }
+@media (prefers-reduced-motion: reduce) { .toast { transition: opacity 0.01s linear; } }
+
 @keyframes rippleAnim { to { transform: scale(1); opacity: 0; } }
 
 /* ---------- Table rows ---------- */

@@ -111,9 +111,7 @@
   }
 
 // fmtMoney() now in utils.js (loads first on every page).
-  function fmtPct(v) {
-    return typeof v === "number" ? v.toFixed(1) + "%" : "—";
-  }
+// fmtPct() now in utils.js (loads first on every page).
 
   // Loaded once from /api/live/strategies and keyed by id -- both the
   // "Start a run" picker's own details panel and any run card's "View

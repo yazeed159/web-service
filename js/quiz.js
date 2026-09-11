@@ -61,11 +61,6 @@
   // ---------------------------------------------------------------
 // escapeHtml() now in utils.js (loads first on every page).
 // toUnix() now in utils.js (loads first on every page).
-  function fmtPrice(v) {
-    if (v === null || v === undefined || !Number.isFinite(Number(v))) return "—";
-    const n = Number(v);
-    return n.toFixed(Math.abs(n) < 5 ? 4 : 2);
-  }
   function fmtSignedPerShare(v) {
     if (!Number.isFinite(v)) return "—";
     const sign = v >= 0 ? "+" : "-";

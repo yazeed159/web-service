@@ -28,7 +28,7 @@
 
 // escapeHtml() now in utils.js (loads first on every page).
 // fmtMoney() now in utils.js (loads first on every page).
-  function fmtPct(v) { return typeof v === "number" && isFinite(v) ? v.toFixed(1) + "%" : "—"; }
+// fmtPct() now in utils.js (loads first on every page).
   function fmtR(v) { return typeof v === "number" && isFinite(v) ? v.toFixed(2) + "R" : "—"; }
   function fmtMinutes(v) {
     if (typeof v !== "number" || !isFinite(v)) return "—";

@@ -274,8 +274,12 @@
   //   KV.get(key)             -- sync read of the cached remote value
   //                              (undefined until KV.ready resolves, or
   //                              if nothing's been synced under that key)
-  //   KV.set(key, value)      -- fire-and-forget upsert; updates the
-  //                              local cache immediately
+  //   KV.set(key, value)      -- fire-and-forget upsert (updates the
+  //                              local cache immediately, returns a
+  //                              promise callers can ignore); shows an
+  //                              error toast if the upsert itself fails,
+  //                              since the local cache already changed
+  //                              by the time the network call finishes
   //   KV.sync(key, onRemote)  -- call once per feature at page load:
   //                              once KV.ready resolves, if Supabase
   //                              already has a value for `key` it wins
@@ -336,26 +340,40 @@
 
     function set(key, value) {
       cache[key] = value;
-      ready.then(function (session) {
+      return ready.then(function (session) {
         if (!session) return;
         return window.sb
           .from("user_kv")
           .upsert({ user_id: session.user.id, key: key, value: value })
           .then(function (res) {
-            if (res.error) console.error("KV.set(" + key + ") failed:", res.error.message);
+            if (res.error) {
+              console.error("KV.set(" + key + ") failed:", res.error.message);
+              // Optimistic update above already showed the new value as
+              // if it saved -- without this, a failed write here is
+              // invisible until the next page load silently reverts it
+              // (the initial-load SELECT above never saw the failed
+              // write), by which point there's no way to tell why.
+              if (window.showToast) window.showToast("Couldn't save your change — check your connection and try again.", { tone: "error" });
+            }
           });
       });
     }
 
     function del(key) {
       delete cache[key];
-      ready.then(function (session) {
+      return ready.then(function (session) {
         if (!session) return;
         return window.sb
           .from("user_kv")
           .delete()
           .eq("user_id", session.user.id)
-          .eq("key", key);
+          .eq("key", key)
+          .then(function (res) {
+            if (res.error) {
+              console.error("KV.delete(" + key + ") failed:", res.error.message);
+              if (window.showToast) window.showToast("Couldn't save your change — check your connection and try again.", { tone: "error" });
+            }
+          });
       });
     }
 

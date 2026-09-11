@@ -40,10 +40,6 @@
   // as a local copy since this page doesn't otherwise load trade.js.
 // fmtShares() now in utils.js (loads first on every page).
 
-  function fmtPrice(n) {
-    return (n === null || n === undefined) ? "—" : "$" + Number(n).toFixed(2);
-  }
-
   // Badge -> which .pill-ish class it gets, so "Above VWAP" reads green
   // and "Below VWAP" / "Extended From EMA9" read amber -- same intent
   // language as trade.js's win/loss pills, just for scanner context tags
@@ -153,10 +149,10 @@
         <td class="mono-num">$${Number(r.price).toFixed(2)}</td>
         <td><span class="pill ${r.gap_pct >= 0 ? "win" : "loss"} mono-num">${r.gap_pct >= 0 ? "+" : ""}${Number(r.gap_pct).toFixed(1)}%</span></td>
         <td class="mono-num">${fmtVol(r.premkt_volume)}</td>
-        <td class="mono-num">${enriched ? fmtPrice(r.day_high) : "—"}</td>
-        <td class="mono-num">${enriched ? fmtPrice(r.vwap) : "—"}</td>
-        <td class="mono-num">${enriched ? fmtPrice(r.ema9) : "—"}</td>
-        <td class="mono-num">${enriched ? fmtPrice(r.ema200) : "—"}</td>
+        <td class="mono-num">${enriched ? "$" + fmtPrice(r.day_high) : "—"}</td>
+        <td class="mono-num">${enriched ? "$" + fmtPrice(r.vwap) : "—"}</td>
+        <td class="mono-num">${enriched ? "$" + fmtPrice(r.ema9) : "—"}</td>
+        <td class="mono-num">${enriched ? "$" + fmtPrice(r.ema200) : "—"}</td>
         <td class="mono-num">${(r.float_shares !== undefined && r.float_shares !== null) ? fmtShares(r.float_shares) : "—"}</td>
         <td class="mono-num">${(r.relative_volume !== undefined && r.relative_volume !== null) ? Number(r.relative_volume).toFixed(1) + "x" : "—"}</td>
         <td>${renderBadges(r.badges)}</td>

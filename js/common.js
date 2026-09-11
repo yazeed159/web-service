@@ -481,7 +481,16 @@ window.NavState = (function () {
   /* ---------- 2. Ripple on click for buttons ---------- */
   function initRipple() {
     if (reduced) return;
-    var selector = '.filter-btn, .icon-btn, .cal-nav-btn, .sidebar-toggle, .nav-item, .btn-advanced, .btn-confirm, .btn-danger, .btn-icon, .sr-run-btn, .toptab-btn, .pp-order-btn, .quiz-answer-btn, .quiz-mode-btn, .quiz-preset-btn, .qz-speed-btn, .quiz-speed-btn';
+    // Selector originally covered every clickable control except a
+    // handful of "tab" families that happened to ship later
+    // (subtab-btn, pr-view-tab, tf-btn, pp-size-mode-btn, calc-chip,
+    // chatw-icon-action) -- so pressing those didn't ripple while
+    // near-identical toggle buttons elsewhere (toptab-btn, nav-item,
+    // quiz-mode-btn) did. Added below so every "press one of these to
+    // switch view/mode" control behaves the same everywhere.
+    // (qz-move-stop-btn isn't listed separately -- it already matches
+    // via its own .btn-advanced class.)
+    var selector = '.filter-btn, .icon-btn, .cal-nav-btn, .sidebar-toggle, .nav-item, .btn-advanced, .btn-confirm, .btn-danger, .btn-icon, .sr-run-btn, .toptab-btn, .pp-order-btn, .quiz-answer-btn, .quiz-mode-btn, .quiz-preset-btn, .qz-speed-btn, .quiz-speed-btn, .subtab-btn, .pr-view-tab, .tf-btn, .pp-size-mode-btn, .calc-chip, .chatw-icon-action';
     document.addEventListener('click', function (e) {
       var el = e.target.closest(selector);
       if (!el) return;

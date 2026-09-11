@@ -122,9 +122,11 @@
       const cleaned = String(str).replace(/[^0-9.\-]/g, "");
       return cleaned === "" ? NaN : parseFloat(cleaned);
     }
-    function fmtUsd(v) {
-      return "$" + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
+    // fmtUsd() now in utils.js (loads first on every page). NOTE: canonical
+    // fmtUsd() adds an isFinite() guard this copy lacked and uses "en-US"
+    // explicitly instead of the browser-default locale; every call site
+    // here already isFinite()-checked before calling, so this is not a
+    // behavior change.
     function currentBalance() {
       return startingBalance + latestEquityAfter;
     }

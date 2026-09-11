@@ -89,9 +89,7 @@
   }
 
 // fmtMoney() now in utils.js (loads first on every page).
-  function fmtPct(v) {
-    return typeof v === "number" ? v.toFixed(1) + "%" : "—";
-  }
+// fmtPct() now in utils.js (loads first on every page).
   function fmtR(v) {
     return typeof v === "number" ? v.toFixed(2) + "R" : "—";
   }

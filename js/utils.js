@@ -13,6 +13,40 @@
 // existing behavior, not an arbitrary new one -- see comments per
 // function for what drifted and why.
 
+// Lightweight, non-blocking toast -- for background-failure notices
+// (KV.set()/KV.delete() failing silently in auth.js, where the UI
+// already updated optimistically before the network call even
+// started) where UIModal.alert()'s blocking dialog would be wrong:
+// nothing the user clicked triggered this, so it shouldn't demand a
+// click to dismiss. Lives here (not common.js) so it's defined before
+// auth.js runs, same reasoning as every other helper in this file.
+// Multiple toasts stack; each auto-dismisses unless hovered.
+window.showToast = function showToast(message, opts) {
+  opts = opts || {};
+  const tone = opts.tone || "default";
+  const duration = opts.duration || 5000;
+  let container = document.getElementById("toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toast-container";
+    container.className = "toast-container";
+    document.body.appendChild(container);
+  }
+  const el = document.createElement("div");
+  el.className = "toast" + (tone === "error" ? " error" : "");
+  el.setAttribute("role", tone === "error" ? "alert" : "status");
+  el.textContent = message;
+  container.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("show"));
+  let timer = setTimeout(dismiss, duration);
+  el.addEventListener("mouseenter", () => clearTimeout(timer));
+  el.addEventListener("mouseleave", () => { timer = setTimeout(dismiss, duration); });
+  function dismiss() {
+    el.classList.remove("show");
+    setTimeout(() => el.remove(), 200);
+  }
+};
+
 // Canonical form: null/undefined -> "" instead of the literal string
 // "null"/"undefined". 20 of the 21 duplicate copies used bare
 // String(s), which renders those literal words when a field is
@@ -37,6 +71,21 @@ window.fmtMoney = function fmtMoney(v) {
   return (n >= 0 ? "+$" : "-$") + Math.abs(n).toFixed(2);
 };
 
+// Canonical form: always 2 decimals, no "$" (callers prepend their own
+// "$" at the render site -- 6 of 7 duplicate copies already did this,
+// so this matches everywhere except scanner.js's old copy, which is
+// updated to prepend "$" at its call sites instead). No "$5 cutoff"
+// step-up to 4 decimals: 4 of 7 duplicate copies (practice.js,
+// practice-analytics.js, quiz.js, rewind.js) used to switch to 4
+// decimals under $5, which meant the same sub-$5 trade price rendered
+// with a different number of decimals depending which page you were
+// on (e.g. "2.35" on trade.js's chart overlay vs. "2.3456" on
+// rewind.js) -- always-2-decimals removes that drift.
+window.fmtPrice = function fmtPrice(v) {
+  const n = Number(v);
+  return v === null || v === undefined || !Number.isFinite(n) ? "—" : n.toFixed(2);
+};
+
 // Canonical form: String(t) first. 6 of 8 duplicate copies guarded with
 // String(t) before .replace(), so a non-string `t` (e.g. a bar whose
 // `t` came through as a Date or a raw number somewhere upstream)
@@ -44,6 +93,28 @@ window.fmtMoney = function fmtMoney(v) {
 // copy was the one missing this guard.
 window.toUnix = function toUnix(t) {
   return Math.floor(new Date(String(t).replace(" ", "T") + "Z").getTime() / 1000);
+};
+
+// Canonical form: typeof v === "number" && isFinite(v) guard (only
+// report.js's copy had both checks; live-trading.js/backtester.js accepted
+// any typeof "number" including NaN, which would have rendered "NaN%";
+// share-export.js went the other direction and coerced any non-number to 0,
+// rendering "0.0%" instead of flagging it), "—" for anything invalid to
+// match fmtMoney/fmtPrice above.
+window.fmtPct = function fmtPct(v) {
+  return typeof v === "number" && isFinite(v) ? v.toFixed(1) + "%" : "—";
+};
+
+// Canonical form: "—" for non-finite input (calculator.js's copy lacked
+// this guard; its own call sites already isFinite()-checked before calling,
+// so nothing broke, but the guard now lives in the function itself like
+// every other formatter here), "en-US" locale explicitly rather than the
+// browser default (calculator.js passed `undefined`) so the grouping/decimal
+// format doesn't shift for a user with a different regional locale --
+// matches practice.js/practice-analytics.js's copies.
+window.fmtUsd = function fmtUsd(v) {
+  if (!Number.isFinite(v)) return "—";
+  return "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 // Identical across all 3 duplicate copies (practice.js, scanner.js,

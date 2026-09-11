@@ -102,10 +102,6 @@
     }));
   }
 
-  function fmtPrice(v) {
-    return v == null || isNaN(v) ? "—" : Number(v).toFixed(2);
-  }
-
   // Exact markup/colors trade.js's overlay, report.js's overlay, and the
   // inlined version in share-export.js all use -- kept in one place so
   // the three never drift from each other.
