@@ -10,6 +10,22 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
+/* Every page here is a separate .html file, so clicking a sidebar link
+   is a real full-page browser navigation, not an SPA route change --
+   normally that means a hard cut to a blank white page and back for
+   every single click, which (combined with the app-shell markup being
+   identical on both ends) is exactly what made it feel like each page
+   was a completely different site reloading from scratch rather than
+   one app. Opting in to the browser's native cross-document view
+   transitions fixes that at the platform level: same-origin
+   navigations crossfade instead of flashing to white, with the
+   sidebar/topbar chrome appearing to stay in place since it's visually
+   identical frame to frame. No JS, no app rewrite -- unsupported
+   browsers just silently keep the old hard-cut behavior. */
+@view-transition {
+  navigation: auto;
+}
+
 :root {
   --bg: #0a0b0f;
   --sidebar-bg: #0d0e13;
