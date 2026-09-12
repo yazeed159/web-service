@@ -1,17 +1,18 @@
-// nav-render.js — renders the sidebar's Journal/More nav links and
-// highlights the active page.
+// nav-render.js — renders the sidebar's Journal/More/Work-in-Progress
+// nav links and highlights the active page.
 //
 // Split out of common.js and loaded right after the sidebar markup
 // (instead of at the bottom of the page with the rest of common.js).
-// The mount points (#sidebar-main-section / #sidebar-more-section) used
-// to sit empty until common.js ran as the very last <script> on the
-// page -- on any page with a lot of markup/inline scripts above it,
-// that meant a visibly empty nav (just the logo, no links) for a beat
-// on every single page load, which on top of the full page navigation
-// browsers already do made every click look like it had landed on a
-// broken/different site. Running this immediately after the sidebar's
-// HTML exists removes that gap entirely -- the nav is complete before
-// the browser even gets to the rest of the page.
+// The mount points (#sidebar-main-section / #sidebar-more-section /
+// #sidebar-wip-section) used to sit empty until common.js ran as the
+// very last <script> on the page -- on any page with a lot of markup/
+// inline scripts above it, that meant a visibly empty nav (just the
+// logo, no links) for a beat on every single page load, which on top
+// of the full page navigation browsers already do made every click
+// look like it had landed on a broken/different site. Running this
+// immediately after the sidebar's HTML exists removes that gap
+// entirely -- the nav is complete before the browser even gets to the
+// rest of the page.
 (function () {
   "use strict";
 
@@ -65,6 +66,11 @@
   // back to the other copies. Both are folded into this single list
   // below, so every page shows the same items and the same wording,
   // and adding a page here is the only place it needs adding.
+  //
+  // Quiz itself has been removed (it duplicated Rewind's setup-quiz-
+  // history-play flow) -- quiz.html, css/quiz.css and js/quiz.js are
+  // gone. css/quiz-shared.css stays: Practice and Rewind's quiz-style
+  // screens still use those classes.
   const SIDEBAR_MORE_ITEMS = [
     {
       href: "#", id: "import-trades-link", title: "Upload a CSV of past trades to import into your real journal",
@@ -97,16 +103,6 @@
       label: "Backtester",
     },
     {
-      href: "live-trading.html",
-      icon: '<circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"></circle>',
-      label: "Live Trading",
-    },
-    {
-      href: "scanner.html",
-      icon: '<path d="M3 11l18-8-8 18-2-8-8-2z"></path>',
-      label: "Scanner",
-    },
-    {
       href: "rewind.html",
       icon: '<polygon points="11 19 2 12 11 5 11 19"></polygon><polygon points="22 19 13 12 22 5 22 19"></polygon>',
       label: "Rewind",
@@ -117,20 +113,33 @@
       label: "Practice",
     },
     {
-      href: "quiz.html",
-      icon: '<circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1"></circle>',
-      label: "Quiz",
-    },
-    {
       href: "settings.html",
       icon: '<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>',
       label: "Settings",
     },
   ];
 
+  // Sidebar's third section, for pages that are live in the nav but
+  // not finished yet -- kept visually separate (its own "Work in
+  // Progress" label) rather than mixed into "More" so it doesn't read
+  // as a finished feature.
+  const SIDEBAR_WIP_ITEMS = [
+    {
+      href: "live-trading.html",
+      icon: '<circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"></circle>',
+      label: "Live Trading",
+    },
+    {
+      href: "scanner.html",
+      icon: '<path d="M3 11l18-8-8 18-2-8-8-2z"></path>',
+      label: "Scanner",
+    },
+  ];
+
   const mainMount = document.getElementById("sidebar-main-section");
   const moreMount = document.getElementById("sidebar-more-section");
-  if (!mainMount && !moreMount) return; // page has no app-shell sidebar, or hasn't adopted the mount points yet
+  const wipMount = document.getElementById("sidebar-wip-section");
+  if (!mainMount && !moreMount && !wipMount) return; // page has no app-shell sidebar, or hasn't adopted the mount points yet
 
   // The active item is whichever page we're actually on -- compared by
   // filename only (not the full href), since deep links can carry a
@@ -164,10 +173,13 @@
       }).join("");
   }
 
-  if (moreMount) {
-    moreMount.innerHTML =
-      '<div class="nav-section-label">More</div>' +
-      SIDEBAR_MORE_ITEMS.map((item) => {
+  // Shared renderer for the "More" and "Work in Progress" sections --
+  // same item shape, same markup, just a different label and list.
+  function renderSection(mount, label, items) {
+    if (!mount) return;
+    mount.innerHTML =
+      `<div class="nav-section-label">${label}</div>` +
+      items.map((item) => {
         const isActive = item.href !== "#" && normalizeFile(item.href.split("?")[0]) === currentFile;
         const idAttr = item.id ? ` id="${item.id}"` : "";
         // Every item gets a title tooltip (falling back to its label) so
@@ -184,28 +196,28 @@
         );
       }).join("");
   }
+  renderSection(moreMount, "More", SIDEBAR_MORE_ITEMS);
+  renderSection(wipMount, "Work in Progress", SIDEBAR_WIP_ITEMS);
 
   // The shell (this nav + the topbar/page skeleton around it) is now
   // fully in place -- fade out the top progress bar and the full-screen
   // loading screen from common.css together. Data inside the page may
   // still be fetching, but that's this page's own "Loading…"
   // placeholder to show, not this bar/overlay's job.
+  //
+  // Both elements are only *hidden* here (the "done" class), never
+  // removed from the document. page-transition.js re-arms them the
+  // instant someone clicks a link to leave this page -- if they'd been
+  // torn out of the DOM already (as an earlier version of this file
+  // did, via removeChild on a timeout), that re-arm would be flipping
+  // a class on a detached node nobody can see, and the departing page
+  // would flash its raw content with nothing covering it right up
+  // until the browser actually unloads it. Leaving them in place is
+  // what makes them reusable for that split second.
   var bar = document.getElementById("page-progress-bar");
   var loader = document.getElementById("page-loader-overlay");
-  if (bar || loader) {
-    requestAnimationFrame(function () {
-      if (bar) {
-        bar.classList.add("done");
-        setTimeout(function () {
-          if (bar.parentNode) bar.parentNode.removeChild(bar);
-        }, 300);
-      }
-      if (loader) {
-        loader.classList.add("done");
-        setTimeout(function () {
-          if (loader.parentNode) loader.parentNode.removeChild(loader);
-        }, 300);
-      }
-    });
-  }
+  requestAnimationFrame(function () {
+    if (bar) bar.classList.add("done");
+    if (loader) loader.classList.add("done");
+  });
 })();

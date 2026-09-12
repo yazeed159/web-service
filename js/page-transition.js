@@ -15,10 +15,31 @@
   "use strict";
 
   var overlay = document.getElementById("page-loader-overlay");
-  if (!overlay) return;
+  var bar = document.getElementById("page-progress-bar");
+  if (!overlay && !bar) return;
 
   function showLoader() {
-    overlay.classList.remove("done");
+    // Both re-shows happen with transitions/animations forced off and
+    // a synchronous reflow in between, so the "covered" state is what
+    // paints on the very next frame -- not something that eases in
+    // over a couple hundred ms while the page underneath is still
+    // visible and about to be torn down anyway.
+    if (overlay) {
+      overlay.style.transition = "none";
+      overlay.classList.remove("done");
+      void overlay.offsetHeight;
+      overlay.style.transition = "";
+    }
+    if (bar) {
+      bar.classList.remove("done");
+      // Removing "done" alone doesn't restart the CSS keyframe grow
+      // animation once it's already played through on this page load
+      // -- toggling the animation property itself forces it back to
+      // frame zero.
+      bar.style.animation = "none";
+      void bar.offsetWidth;
+      bar.style.animation = "";
+    }
   }
 
   document.addEventListener(
@@ -65,6 +86,8 @@
   // -- make sure a restored page always comes back clear instead of
   // possibly stuck on the loading screen.
   window.addEventListener("pageshow", function (e) {
-    if (e.persisted) overlay.classList.add("done");
+    if (!e.persisted) return;
+    if (overlay) overlay.classList.add("done");
+    if (bar) bar.classList.add("done");
   });
 })();
