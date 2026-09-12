@@ -1,6 +1,31 @@
 (function () {
   "use strict";
 
+  // page-transition.js's SPA router re-inserts this script fresh (a brand
+  // new <script src="js/app.js">) on every hop that lands on index.html --
+  // that's necessary, since the freshly-swapped .tab-panel/nav-item DOM
+  // needs its listeners rebound and its data re-rendered -- but a plain
+  // re-insertion doesn't unbind anything the PREVIOUS copy set up. Bounce
+  // between two pages that both route here (e.g. Journal -> Reports ->
+  // Journal -> Reports) and every hop stacked one more full set of nav
+  // listeners on top of the last, plus one more concurrent trades fetch +
+  // render pass -- all still wired to whatever DOM existed at the moment
+  // each copy loaded.
+  //
+  // Fix: every addEventListener below is registered with `signal`, and
+  // window.__appTeardown() (called by page-transition.js right before it
+  // loads a fresh copy) aborts it -- detaching every listener this copy
+  // owns in one shot. `cancelled` stops this copy's in-flight fetch/render
+  // work from touching the DOM if it resolves after that teardown.
+  if (window.__appTeardown) window.__appTeardown();
+  const abortController = new AbortController();
+  const signal = abortController.signal;
+  let cancelled = false;
+  window.__appTeardown = function () {
+    cancelled = true;
+    abortController.abort();
+  };
+
   let trades = [];
   let hasCapitalLedger = false; // set once trades load -- see renderEquity()
   let reportFilters = { symbol: "", tags: [], durationMin: null, durationMax: null, setup: "all", dateFrom: "", dateTo: "" };
@@ -52,6 +77,11 @@
 
   Promise.all([window.fetchTradesIndex(), window.fetchCapitalLedger()])
     .then(([data, ledger]) => {
+      // A newer copy of this script (loaded by a later SPA navigation)
+      // has since torn this one down -- the .main it would render into
+      // isn't "our" DOM anymore, so bail instead of painting over
+      // whatever the current copy is showing.
+      if (cancelled) return;
       trades = data.slice().sort((a, b) => (a.trade_date + a.entry_time).localeCompare(b.trade_date + b.entry_time));
       if (!trades.length) {
         renderEmptyEverywhere();
@@ -101,6 +131,7 @@
       clearStrandedLoadingStates();
     })
     .catch((err) => {
+      if (cancelled) return;
       const msg = `Couldn't load your trades (${escapeHtml(String(err.message))}). Make sure you're signed in and Supabase is reachable.`;
       statGrid.innerHTML = "";
       const heroEl = document.getElementById("dash-hero");
@@ -360,8 +391,8 @@
       tooltip.style.display = "none";
       dot.style.display = "none";
     }
-    wrap.addEventListener("pointermove", (e) => showAt(e.clientX));
-    wrap.addEventListener("pointerleave", hide);
+    wrap.addEventListener("pointermove", (e) => showAt(e.clientX), { signal });
+    wrap.addEventListener("pointerleave", hide, { signal });
   }
 
 
@@ -418,7 +449,7 @@
       btn.addEventListener("click", () => {
         state.shown += BREAKDOWN_PAGE_SIZE;
         renderBreakdownTablePage(elId);
-      });
+      }, { signal });
     }
   }
 
@@ -457,10 +488,10 @@
     }
   }
   document.querySelectorAll(".nav-item[data-tab]").forEach((btn) => {
-    btn.addEventListener("click", () => goToTab(btn.dataset.tab));
+    btn.addEventListener("click", () => goToTab(btn.dataset.tab), { signal });
   });
   document.querySelectorAll("[data-goto]").forEach((btn) => {
-    btn.addEventListener("click", () => goToTab(btn.dataset.goto));
+    btn.addEventListener("click", () => goToTab(btn.dataset.goto), { signal });
   });
 
   // Other pages (backtester.html, journal.html, report.html, etc.) link
@@ -476,7 +507,7 @@
     return VALID_TABS.includes(h) ? h : "dashboard";
   }
   setTab(tabFromHash());
-  window.addEventListener("hashchange", () => setTab(tabFromHash()));
+  window.addEventListener("hashchange", () => setTab(tabFromHash()), { signal });
 
   // sidebar-toggle / mobile-nav-btn / backdrop / Escape-to-close are all
   // wired up by nav.js (shared across every page) — see script tag below.
@@ -486,7 +517,7 @@
     btn.addEventListener("click", () => {
       document.querySelectorAll(".subtab-btn").forEach((b) => b.classList.toggle("active", b === btn));
       document.querySelectorAll(".subtab-panel").forEach((p) => p.classList.toggle("active", p.id === "subtab-" + btn.dataset.subtab));
-    });
+    }, { signal });
   });
 
   // Reports → top-level tabs (Overview / Detailed / Win vs Loss Days / Drawdown / Compare / Tag Breakdown / Advanced)
@@ -494,16 +525,16 @@
     btn.addEventListener("click", () => {
       document.querySelectorAll(".toptab-btn").forEach((b) => b.classList.toggle("active", b === btn));
       document.querySelectorAll(".toptab-panel").forEach((p) => p.classList.toggle("active", p.id === "toptab-" + btn.dataset.toptab));
-    });
+    }, { signal });
   });
 
   // Reports → Compare tab controls (not gated behind trades having loaded —
   // periodStats() just returns an empty result until data arrives)
   const cmpApplyBtn = document.getElementById("cmp-apply");
-  if (cmpApplyBtn) cmpApplyBtn.addEventListener("click", updateCompare);
+  if (cmpApplyBtn) cmpApplyBtn.addEventListener("click", updateCompare, { signal });
   ["cmp-a-start", "cmp-a-end", "cmp-b-start", "cmp-b-end"].forEach((id) => {
     const el = document.getElementById(id);
-    if (el) el.addEventListener("change", updateCompare);
+    if (el) el.addEventListener("change", updateCompare, { signal });
   });
 
   // ================================================================
@@ -947,7 +978,7 @@
       equityRange = btn.dataset.range;
       wrap.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === btn));
       renderEquity();
-    });
+    }, { signal });
   }
 
   function renderEquity() {
@@ -1143,14 +1174,14 @@
       if (dot) dot.style.display = "none";
     }
 
-    wrap.addEventListener("pointermove", (e) => showAt(e.clientX));
-    wrap.addEventListener("pointerleave", hide);
+    wrap.addEventListener("pointermove", (e) => showAt(e.clientX), { signal });
+    wrap.addEventListener("pointerleave", hide, { signal });
     wrap.addEventListener("click", (e) => {
       if (!equityState) return;
       const i = nearestIndex(e.clientX);
       const p = equityState.points[i];
       if (p && p.t) window.location.href = `trade.html?id=${encodeURIComponent(p.t.id)}`;
-    });
+    }, { signal });
   }
 
   // ================================================================
@@ -1200,16 +1231,16 @@
         } else {
           window.location.href = url;
         }
-      });
+      }, { signal });
       row.addEventListener("auxclick", (e) => {
         if (e.button === 1) { // middle / scroll-wheel button
           e.preventDefault();
           window.open(url, "_blank", "noopener");
         }
-      });
+      }, { signal });
       row.addEventListener("keydown", (e) => {
         if (e.key === "Enter") window.location.href = url;
-      });
+      }, { signal });
     });
   }
 
@@ -1264,7 +1295,7 @@
         renderCalendar();
         if (selectedDay) showDayDetail(selectedDay, map.get(selectedDay));
         else document.getElementById("day-detail-panel").style.display = "none";
-      });
+      }, { signal });
     });
   }
 
@@ -1297,21 +1328,21 @@
     NavState.set({ day: null });
     document.getElementById("day-detail-panel").style.display = "none";
     renderCalendar();
-  });
+  }, { signal });
   document.getElementById("cal-prev").addEventListener("click", () => {
     calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; }
     selectedDay = null;
     NavState.set({ cy: calYear, cm: calMonth, day: null });
     document.getElementById("day-detail-panel").style.display = "none";
     renderCalendar();
-  });
+  }, { signal });
   document.getElementById("cal-next").addEventListener("click", () => {
     calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
     selectedDay = null;
     NavState.set({ cy: calYear, cm: calMonth, day: null });
     document.getElementById("day-detail-panel").style.display = "none";
     renderCalendar();
-  });
+  }, { signal });
 
   // ================================================================
   // REPORTS — filter bar
@@ -1417,25 +1448,25 @@
       });
     }
 
-    symbolInput.addEventListener("input", (e) => { reportFilters.symbol = e.target.value.trim(); });
-    setupSel.addEventListener("change", (e) => { reportFilters.setup = e.target.value; });
-    durMinInput.addEventListener("input", (e) => { reportFilters.durationMin = parseNum(e.target.value); });
-    durMaxInput.addEventListener("input", (e) => { reportFilters.durationMax = parseNum(e.target.value); });
-    dateFromInput.addEventListener("change", (e) => { reportFilters.dateFrom = e.target.value || defaultFrom; });
-    dateToInput.addEventListener("change", (e) => { reportFilters.dateTo = e.target.value || defaultTo; });
+    symbolInput.addEventListener("input", (e) => { reportFilters.symbol = e.target.value.trim(); }, { signal });
+    setupSel.addEventListener("change", (e) => { reportFilters.setup = e.target.value; }, { signal });
+    durMinInput.addEventListener("input", (e) => { reportFilters.durationMin = parseNum(e.target.value); }, { signal });
+    durMaxInput.addEventListener("input", (e) => { reportFilters.durationMax = parseNum(e.target.value); }, { signal });
+    dateFromInput.addEventListener("change", (e) => { reportFilters.dateFrom = e.target.value || defaultFrom; }, { signal });
+    dateToInput.addEventListener("change", (e) => { reportFilters.dateTo = e.target.value || defaultTo; }, { signal });
 
     tagsToggle.addEventListener("click", (e) => {
       e.stopPropagation();
       tagsPanel.classList.toggle("open");
-    });
+    }, { signal });
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".tags-field")) tagsPanel.classList.remove("open");
-    });
+    }, { signal });
     tagsPanel.addEventListener("change", () => {
       const checked = Array.from(tagsPanel.querySelectorAll("input:checked")).map((cb) => cb.value);
       reportFilters.tags = checked;
       tagsToggle.textContent = checked.length ? `${checked.length} selected` : "All tags";
-    });
+    }, { signal });
 
     const clearBtn = document.getElementById("report-filter-clear");
     if (clearBtn) clearBtn.addEventListener("click", () => {
@@ -1450,13 +1481,13 @@
       tagsToggle.textContent = "All tags";
       persistFilters();
       applyReportFiltersAndRender();
-    });
+    }, { signal });
 
     const applyBtn = document.getElementById("report-filter-apply");
     if (applyBtn) applyBtn.addEventListener("click", () => {
       persistFilters();
       applyReportFiltersAndRender();
-    });
+    }, { signal });
 
     // Daily/Weekly/Monthly/Yearly rollup switcher for the "Trade
     // distribution & performance by <period>" charts -- same underlying
@@ -1470,7 +1501,7 @@
       periodSelect.addEventListener("change", () => {
         reportPeriodTimeframe = periodSelect.value;
         applyReportFiltersAndRender();
-      });
+      }, { signal });
     }
   }
 
@@ -2627,7 +2658,7 @@
       overviewCumRange = btn.dataset.range;
       wrap.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === btn));
       renderOverviewCumulativePnl();
-    });
+    }, { signal });
   }
 
   function renderOverviewCumulativePnl() {

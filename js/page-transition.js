@@ -179,6 +179,14 @@
   }
 
   function swapTo(url, cfg, push) {
+    // A page whose own script wired up a window.__<page>Teardown() hook
+    // (currently just app.js's window.__appTeardown, guarding index.html's
+    // trade-data fetch/render pass and its nav/hashchange listeners) gets
+    // torn down here, before its DOM is swapped out from under it -- not
+    // just when a fresh copy of the same script reloads itself. Without
+    // this, leaving index.html for a different SPA page still left its
+    // listeners live and pointed at DOM that no longer exists.
+    if (window.__appTeardown) window.__appTeardown();
     showLoader();
     fetch(url.href, { credentials: "same-origin" })
       .then(function (res) {

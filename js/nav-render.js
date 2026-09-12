@@ -169,13 +169,21 @@
   }
   const currentFile = normalizeFile(window.location.pathname.split("/").pop()) || "index";
 
+  // Dashboard / Day View / Reports are all index.html, distinguished
+  // only by #hash -- stripping the hash before comparing (as the
+  // generic filename check below does) collapses all three to the
+  // same "index" identifier and lights all three up together whenever
+  // we're anywhere on index.html. Only index.html's own tab hashes are
+  // compared this way; every other item keeps the filename-only check.
+  const currentHash = (window.location.hash || "").replace(/^#/, "");
   if (mainMount) {
     mainMount.innerHTML =
       '<div class="nav-section-label">Journal</div>' +
       SIDEBAR_MAIN_ITEMS.map((item) => {
         const hrefFile = normalizeFile(item.href.split("?")[0].split("#")[0]);
+        const hrefHash = (item.href.split("#")[1] || "");
         const isActive =
-          hrefFile === currentFile ||
+          (hrefFile === currentFile && (hrefFile !== "index" || hrefHash === currentHash)) ||
           (item.extraActiveFiles || []).some((f) => normalizeFile(f) === currentFile);
         return (
           `<a class="nav-item${isActive ? " active" : ""}" href="${item.href}" title="${item.title}">` +
