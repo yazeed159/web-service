@@ -147,14 +147,20 @@
   // Normalized (decoded + lowercased + trailing-slash-stripped) so a
   // trailing slash, URL-encoded character, or case difference from how
   // a link/bookmark was typed doesn't silently break the match.
+  // Also strips a trailing ".html" so this matches regardless of
+  // whether the page is reached via its raw filename (journal.html)
+  // or via the clean URL the Worker actually serves in production
+  // (…/journal, no extension) -- without this, currentFile ("journal")
+  // never matched any item's hrefFile ("journal.html") and the active
+  // state silently never lit up on ANY page.
   function normalizeFile(name) {
     try {
-      return decodeURIComponent(name || "").toLowerCase().replace(/\/+$/, "");
+      return decodeURIComponent(name || "").toLowerCase().replace(/\/+$/, "").replace(/\.html$/, "");
     } catch (e) {
-      return String(name || "").toLowerCase();
+      return String(name || "").toLowerCase().replace(/\.html$/, "");
     }
   }
-  const currentFile = normalizeFile(window.location.pathname.split("/").pop()) || "index.html";
+  const currentFile = normalizeFile(window.location.pathname.split("/").pop()) || "index";
 
   if (mainMount) {
     mainMount.innerHTML =

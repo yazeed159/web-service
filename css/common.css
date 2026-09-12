@@ -316,10 +316,12 @@ button { font-family: var(--sans); }
   box-sizing: border-box;
 }
 .nav-item svg { flex: none; width: 18px; height: 18px; }
+/* Icon color is a constant brand accent on every tab, not an
+   active-state indicator -- active/hover get their own separate
+   background + border + glow treatment below, purely decorative. */
+.nav-item:not(.disabled) svg { color: var(--cyan); }
 .nav-item .nav-label { flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .nav-item:hover:not(.disabled) { background: var(--panel-2); color: var(--text); }
-.nav-item.active { background: var(--primary-soft); color: var(--primary); }
-.nav-item.active svg { color: var(--primary); }
 .nav-item.disabled { color: var(--text-faint); cursor: default; opacity: 0.7; }
 .soon-tag {
   flex: none; font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em;
@@ -1428,7 +1430,9 @@ body::before {
   color: #fff;
   box-shadow: inset 2px 0 0 0 var(--violet);
 }
-.nav-item.active svg { color: var(--cyan); filter: drop-shadow(0 0 6px var(--glow-cyan)); }
+/* Icon color itself doesn't change here (it's already cyan on every
+   tab, active or not) -- active just adds the glow on top of it. */
+.nav-item.active svg { filter: drop-shadow(0 0 6px var(--glow-cyan)); }
 
 /* The gradient/left-border highlight above is built for a normal wide
    row: violet at the left edge, fading out toward the label. That
@@ -1447,7 +1451,6 @@ body::before {
   box-shadow: none;
 }
 .sidebar.collapsed .nav-item.active svg {
-  color: var(--cyan);
   filter: drop-shadow(0 0 6px var(--glow-cyan));
 }
 
