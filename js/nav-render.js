@@ -136,6 +136,13 @@
     },
   ];
 
+  // Wrapped in a named, re-callable function (instead of running once
+  // inline) so the SPA router (js/page-transition.js) can call this
+  // again after swapping in a new page's content -- the mount points
+  // below live in the persistent sidebar, which the router never
+  // touches, so re-running this is just "recompute the active item
+  // for wherever we are now", safe to call as many times as needed.
+  function renderNav() {
   const mainMount = document.getElementById("sidebar-main-section");
   const moreMount = document.getElementById("sidebar-more-section");
   const wipMount = document.getElementById("sidebar-wip-section");
@@ -226,4 +233,9 @@
     if (bar) bar.classList.add("done");
     if (loader) loader.classList.add("done");
   });
+  } // end renderNav()
+
+  // Exposed for the SPA router to call after an in-place content swap.
+  window.__renderSidebarNav = renderNav;
+  renderNav();
 })();

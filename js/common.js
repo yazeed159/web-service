@@ -198,7 +198,6 @@ window.NavState = (function () {
 (function () {
   const sidebar = document.getElementById("sidebar");
   const sidebarToggle = document.getElementById("sidebar-toggle");
-  const mobileNavBtn = document.getElementById("mobile-nav-btn");
   if (!sidebar) return; // page doesn't use the app-shell sidebar
 
   // Every page is a separate load (this isn't an SPA), so without this
@@ -244,11 +243,18 @@ window.NavState = (function () {
     });
   }
 
-  if (mobileNavBtn) {
-    mobileNavBtn.addEventListener("click", () => {
+  // Delegated on document (not bound directly to mobileNavBtn) so it
+  // keeps working even if the SPA router (js/page-transition.js) ever
+  // swaps in a topbar that recreates this button -- a direct binding
+  // would go dead the moment its original element is replaced. Not
+  // currently exercised (the router keeps the topbar itself out of
+  // the swapped region), but costs nothing and removes a footgun for
+  // whoever changes that later.
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#mobile-nav-btn")) {
       sidebar.classList.toggle("mobile-open");
-    });
-  }
+    }
+  });
 
   // Exposed so pages with their own tab-switching logic (index.html)
   // can close the mobile drawer on navigation without re-implementing it.
@@ -311,8 +317,16 @@ window.NavState = (function () {
   }
 
   /* ---------- 2. Ripple on click for buttons ---------- */
+  var rippleBound = false;
   function initRipple() {
-    if (reduced) return;
+    if (reduced || rippleBound) return;
+    // Delegated on document, so it already covers any element matching
+    // the selector that exists NOW or is added later (e.g. by the SPA
+    // router swapping in a new page's buttons) -- bind it once, ever.
+    // boot() (below) can run more than once (see initReveal's comment),
+    // and re-adding this same delegated listener on every call would
+    // stack duplicates, firing the ripple effect multiple times per click.
+    rippleBound = true;
     // Selector originally covered every clickable control except a
     // handful of "tab" families that happened to ship later
     // (subtab-btn, pr-view-tab, tf-btn, pp-size-mode-btn, calc-chip,
@@ -398,6 +412,11 @@ window.NavState = (function () {
   } else {
     boot();
   }
+
+  // Exposed for the SPA router to call after swapping in new content --
+  // re-applies scroll-reveal/value-flash/tilt to the freshly-added
+  // elements. initRipple() is a no-op past its first call (see above).
+  window.__rebootDecor = boot;
 
   /* Re-run reveal/tilt hookup after tab switches or late DOM insertions
      (app.js renders dashboard content async on load). */
