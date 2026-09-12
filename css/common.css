@@ -44,28 +44,18 @@
 * { box-sizing: border-box; }
 html { color-scheme: dark; }
 
-/* ---------- Seamless cross-page navigation ----------
-   Every sidebar link is a normal full-page navigation (journal.html,
-   stats.html, etc. are separate documents, not client-side routes),
-   which is why they used to hard-cut to a blank page and repaint --
-   unlike the dashboard/day-view/reports tabs inside index.html, which
-   are one document and never reload. This opts every same-origin
-   navigation into the browser's native cross-document view transition
-   instead: the outgoing page cross-fades into the incoming one, so
-   switching pages reads as seamless without changing how any page is
-   built or loaded. Unsupported browsers (Safari, older Firefox/Chrome)
-   just get the normal instant navigation they always had -- no worse
-   than before. */
-@view-transition {
-  navigation: auto;
-}
-::view-transition-old(root), ::view-transition-new(root) {
-  animation-duration: 0.15s;
-  animation-timing-function: ease-out;
-}
-@media (prefers-reduced-motion: reduce) {
-  @view-transition { navigation: none; }
-}
+/* ---------- Cross-page navigation ----------
+   Page-to-page navigation used to also opt into the browser's native
+   cross-document view transition (a @view-transition rule here, plus
+   ::view-transition-old/new timing) on top of the loading-screen setup
+   below. That meant every navigation ran the browser's own automatic
+   screenshot crossfade *and* our own deliberate overlay fade/spin at
+   the same time -- two independently-timed animations fighting for
+   the same moment, on top of the progress bar's motion, which is what
+   made switching pages feel like several things happening at once
+   instead of one simple transition. Removed in favor of just the
+   loading screen below, which is the one thing actually controlling
+   what the transition looks like now. */
 
 /* ---------- "Still loading" indicator, not a flicker ----------
    The sidebar/topbar shell now paints essentially instantly on every
@@ -97,9 +87,8 @@ html { color-scheme: dark; }
   transition: opacity 0.2s ease 0.05s;
 }
 @keyframes page-progress-grow {
-  0% { width: 0%; }
-  60% { width: 65%; }
-  100% { width: 88%; }
+  from { width: 0%; }
+  to { width: 90%; }
 }
 @media (prefers-reduced-motion: reduce) {
   #page-progress-bar { display: none; }
@@ -146,7 +135,11 @@ html { color-scheme: dark; }
   font-size: 21px;
   color: #0b0714;
   box-shadow: 0 0 0 1px rgba(139,124,246,0.25), 0 8px 32px rgba(139,124,246,0.38);
-  animation: page-loader-breathe 1.7s ease-in-out infinite;
+  /* Static -- the ring below is the loader's one and only motion.
+     This used to also pulse (scale+opacity breathing) at its own
+     independent timing while the ring spun at a different speed,
+     which put two competing animations on the same small element;
+     one clean spin reads as "loading" just as well on its own. */
 }
 .page-loader-ring {
   position: absolute;
@@ -164,16 +157,12 @@ html { color-scheme: dark; }
   transform-origin: 50% 50%;
   animation: page-loader-spin 1.05s linear infinite;
 }
-@keyframes page-loader-breathe {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(0.9); opacity: 0.82; }
-}
 @keyframes page-loader-spin {
   to { transform: rotate(360deg); }
 }
 @media (prefers-reduced-motion: reduce) {
   #page-loader-overlay { transition: none; }
-  .page-loader-mark, .page-loader-ring circle { animation: none; }
+  .page-loader-ring circle { animation: none; }
 }
 
 html, body {
@@ -1440,6 +1429,27 @@ body::before {
   box-shadow: inset 2px 0 0 0 var(--violet);
 }
 .nav-item.active svg { color: var(--cyan); filter: drop-shadow(0 0 6px var(--glow-cyan)); }
+
+/* The gradient/left-border highlight above is built for a normal wide
+   row: violet at the left edge, fading out toward the label. That
+   reads fine when the icon sits at the left, right in the strong part
+   of the gradient. Collapsed mode centers the icon instead (see
+   ".sidebar.collapsed .nav-item" above), which pushes it into the
+   already-faded, nearly-transparent tail of that same gradient -- the
+   highlight is technically still there, just invisible behind where
+   the icon actually ended up. Every collapsed nav-item had this
+   problem equally; it just happened to be least noticeable on
+   Dashboard/Day View/Reports. Collapsed mode gets its own centered,
+   symmetric highlight instead of trying to reuse a gradient built for
+   a different layout. */
+.sidebar.collapsed .nav-item.active {
+  background: var(--primary-soft);
+  box-shadow: none;
+}
+.sidebar.collapsed .nav-item.active svg {
+  color: var(--cyan);
+  filter: drop-shadow(0 0 6px var(--glow-cyan));
+}
 
 .pipeline-status .dot { animation: pulseDot 2.2s ease-in-out infinite; }
 @keyframes pulseDot {

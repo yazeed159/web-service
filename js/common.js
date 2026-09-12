@@ -413,9 +413,9 @@ window.NavState = (function () {
 // next document. Warming the browser's cache for a link as soon as the
 // pointer lands on it (people reliably pause on a link for a beat
 // before clicking) means that by the time the click actually happens,
-// the page is often already cached -- so the view-transition in
-// common.css has nothing left to wait on and the switch reads as
-// instant, without changing how any page loads or is built.
+// the page is often already cached -- so the loading screen in
+// common.css barely has anything left to cover, and the switch reads
+// as instant, without changing how any page loads or is built.
 (function () {
   "use strict";
   var done = Object.create(null);
