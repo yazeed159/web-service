@@ -186,16 +186,26 @@
   }
 
   // The shell (this nav + the topbar/page skeleton around it) is now
-  // fully in place -- fade out the "page is loading" bar from
-  // common.css. Data inside the page may still be fetching, but that's
-  // this page's own "Loading…" placeholder to show, not this bar's job.
+  // fully in place -- fade out the top progress bar and the full-screen
+  // loading screen from common.css together. Data inside the page may
+  // still be fetching, but that's this page's own "Loading…"
+  // placeholder to show, not this bar/overlay's job.
   var bar = document.getElementById("page-progress-bar");
-  if (bar) {
+  var loader = document.getElementById("page-loader-overlay");
+  if (bar || loader) {
     requestAnimationFrame(function () {
-      bar.classList.add("done");
-      setTimeout(function () {
-        if (bar.parentNode) bar.parentNode.removeChild(bar);
-      }, 300);
+      if (bar) {
+        bar.classList.add("done");
+        setTimeout(function () {
+          if (bar.parentNode) bar.parentNode.removeChild(bar);
+        }, 300);
+      }
+      if (loader) {
+        loader.classList.add("done");
+        setTimeout(function () {
+          if (loader.parentNode) loader.parentNode.removeChild(loader);
+        }, 300);
+      }
     });
   }
 })();

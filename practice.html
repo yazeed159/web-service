@@ -14,6 +14,21 @@
 </head>
 <body>
 <div id="page-progress-bar"></div>
+<div id="page-loader-overlay" aria-hidden="true">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="page-loader-ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#8b7cf6"/>
+        <stop offset="100%" stop-color="#22d3ee"/>
+      </linearGradient>
+    </defs>
+  </svg>
+  <div class="page-loader-mark">
+    <span>T</span>
+    <svg class="page-loader-ring" viewBox="0 0 78 78"><circle cx="39" cy="39" r="31"></circle></svg>
+  </div>
+</div>
+<script src="js/page-transition.js"></script>
 
 <div class="app-shell">
 

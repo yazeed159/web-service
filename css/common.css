@@ -105,6 +105,77 @@ html { color-scheme: dark; }
   #page-progress-bar { display: none; }
 }
 
+/* ---------- Full-screen loading screen ----------
+   The bar above signals "something is happening"; this covers the gap
+   underneath it -- the moment between one page's content disappearing
+   and the next page's shell/data appearing, which used to be a blank
+   or half-built flash. It paints by default (no JS needed to show it),
+   using the exact same --bg every page already uses, so there is
+   nothing for it to visibly cut against. page-transition.js re-arms it
+   the instant someone clicks a link that's about to leave the current
+   page, and nav-render.js fades it out once the next page's shell has
+   actually painted -- so both sides of a navigation show this same
+   idle screen at the seam, and the swap reads as one continuous
+   transition rather than a hard reload. */
+#page-loader-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  opacity: 1;
+  transition: opacity 0.28s ease;
+}
+#page-loader-overlay.done {
+  opacity: 0;
+  pointer-events: none;
+}
+.page-loader-mark {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 21px;
+  color: #0b0714;
+  box-shadow: 0 0 0 1px rgba(139,124,246,0.25), 0 8px 32px rgba(139,124,246,0.38);
+  animation: page-loader-breathe 1.7s ease-in-out infinite;
+}
+.page-loader-ring {
+  position: absolute;
+  inset: -13px;
+  width: 78px;
+  height: 78px;
+  overflow: visible;
+}
+.page-loader-ring circle {
+  fill: none;
+  stroke: url(#page-loader-ring-gradient);
+  stroke-width: 2.5px;
+  stroke-linecap: round;
+  stroke-dasharray: 46 200;
+  transform-origin: 50% 50%;
+  animation: page-loader-spin 1.05s linear infinite;
+}
+@keyframes page-loader-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.9); opacity: 0.82; }
+}
+@keyframes page-loader-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #page-loader-overlay { transition: none; }
+  .page-loader-mark, .page-loader-ring circle { animation: none; }
+}
+
 html, body {
   /* Fixes a flicker of the horizontal scrollbar when scrolling past the
      top/bottom of a page (rubber-band/elastic overscroll on trackpads and
