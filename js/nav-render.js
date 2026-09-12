@@ -184,4 +184,18 @@
         );
       }).join("");
   }
+
+  // The shell (this nav + the topbar/page skeleton around it) is now
+  // fully in place -- fade out the "page is loading" bar from
+  // common.css. Data inside the page may still be fetching, but that's
+  // this page's own "Loading…" placeholder to show, not this bar's job.
+  var bar = document.getElementById("page-progress-bar");
+  if (bar) {
+    requestAnimationFrame(function () {
+      bar.classList.add("done");
+      setTimeout(function () {
+        if (bar.parentNode) bar.parentNode.removeChild(bar);
+      }, 300);
+    });
+  }
 })();

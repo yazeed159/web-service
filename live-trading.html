@@ -1,10 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="js/utils.js"></script>
-<script src="js/config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="js/auth.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Live Trading — trade.log</title>
@@ -180,6 +176,7 @@
 </style>
 </head>
 <body>
+<div id="page-progress-bar"></div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -498,6 +495,10 @@
   </div>
 </div>
 
+<script src="js/utils.js"></script>
+<script src="js/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/auth.js"></script>
 <script src="js/strategy-presets.js"></script>
 <script src="js/live-trading.js"></script>
 <script src="js/common.js"></script>

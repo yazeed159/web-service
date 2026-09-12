@@ -9,23 +9,6 @@
 =================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-
-/* Every page here is a separate .html file, so clicking a sidebar link
-   is a real full-page browser navigation, not an SPA route change --
-   normally that means a hard cut to a blank white page and back for
-   every single click, which (combined with the app-shell markup being
-   identical on both ends) is exactly what made it feel like each page
-   was a completely different site reloading from scratch rather than
-   one app. Opting in to the browser's native cross-document view
-   transitions fixes that at the platform level: same-origin
-   navigations crossfade instead of flashing to white, with the
-   sidebar/topbar chrome appearing to stay in place since it's visually
-   identical frame to frame. No JS, no app rewrite -- unsupported
-   browsers just silently keep the old hard-cut behavior. */
-@view-transition {
-  navigation: auto;
-}
-
 :root {
   --bg: #0a0b0f;
   --sidebar-bg: #0d0e13;
@@ -82,6 +65,44 @@ html { color-scheme: dark; }
 }
 @media (prefers-reduced-motion: reduce) {
   @view-transition { navigation: none; }
+}
+
+/* ---------- "Still loading" indicator, not a flicker ----------
+   The sidebar/topbar shell now paints essentially instantly on every
+   page (nav-render.js runs before any network script), but the page's
+   own data still has to come back from Supabase. This bar gives that
+   wait a visible, continuous "something is happening" signal instead
+   of the page just sitting there -- it's the first thing in <body> on
+   every page, so it's on screen before anything else, grows on its
+   own via CSS (no JS needed to start it), and script.js calls
+   hidePageProgressBar() once the page's own shell/data is ready to
+   fade it out. If that call never happens (a page forgets to wire it
+   up), it simply stops growing at 90% and sits there rather than
+   lying about being finished. */
+#page-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2.5px;
+  width: 0%;
+  background: linear-gradient(90deg, var(--blue), var(--primary));
+  z-index: 9999;
+  animation: page-progress-grow 1.6s ease-out forwards;
+  pointer-events: none;
+}
+#page-progress-bar.done {
+  animation: none;
+  width: 100%;
+  opacity: 0;
+  transition: opacity 0.2s ease 0.05s;
+}
+@keyframes page-progress-grow {
+  0% { width: 0%; }
+  60% { width: 65%; }
+  100% { width: 88%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #page-progress-bar { display: none; }
 }
 
 html, body {
