@@ -649,13 +649,17 @@
       } catch (e) { /* genuinely plain text -- fall through below */ }
     }
     if (typeof l === "string") return `<li style="margin-bottom:6px; font-size:12.5px;">${escapeHtml(l)}</li>`;
-    const how = l.how_to_know
-      ? `<div style="font-size:11px; opacity:.65; margin-top:2px;">How you'd know: ${escapeHtml(l.how_to_know)}</div>`
-      : "";
+    // "How you'd know" is deliberately NOT shown here -- it's a real-time
+    // signal to watch for, which belongs with the better-entry/exit calls
+    // in betterRow() ("What you should've done"). A lesson is a
+    // retrospective note about the trade, so even if an older lesson
+    // still carries a how_to_know from before the prompt stopped asking
+    // for one (see daily_sync.py's _build_verdict_prompt), it's ignored
+    // here rather than duplicated into this section.
     const tagBadge = l.tag
       ? `<span class="lesson-tag" style="display:inline-block; font-size:10px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; padding:1px 6px; border-radius:3px; background:rgba(91,147,240,.15); color:#5b93f0; margin-left:6px; vertical-align:middle;">${escapeHtml(String(l.tag).replace(/_/g, " "))}</span>`
       : "";
-    return `<li style="margin-bottom:8px; font-size:12.5px;">${escapeHtml(l.lesson || l.text || "")}${tagBadge}${how}</li>`;
+    return `<li style="margin-bottom:8px; font-size:12.5px;">${escapeHtml(l.lesson || l.text || "")}${tagBadge}</li>`;
   }
 
   function buildCharts(trade, overrideBars) {

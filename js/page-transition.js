@@ -228,6 +228,32 @@
     });
   }
 
+  // The sidebar's bottom "pipeline status" strip has exactly the same
+  // problem as the main nav section above, for the same underlying
+  // reason (the sidebar lives outside .main and is never swapped): every
+  // page hardcodes its OWN name there as static text -- "Journal",
+  // "Scanner", "Settings", etc. -- except index.html, which instead
+  // holds a <span id="last-updated"> that app.js fills in dynamically
+  // (last trade date / "Loading…" / "No data"). Whichever page's label
+  // happened to be there when the SPA router last ran just sat there
+  // unchanged through every subsequent swap -- e.g. leaving scanner.html
+  // (not itself an SPA page, but still whatever the sidebar last showed)
+  // for journal.html left the strip reading \"Scanner\" while every panel
+  // above it was clearly Journal's. Resyncing it from the freshly
+  // fetched document on every swap, the same way as the main nav
+  // section, fixes it for both the static-label pages and index.html
+  // (whose own app.js re-run then fills the restored placeholder in, as
+  // it does on a normal full load).
+  function swapSidebarBottom(newDoc) {
+    var curBottom = document.querySelector(".sidebar-bottom");
+    var newBottom = newDoc.querySelector(".sidebar-bottom");
+    if (!curBottom || !newBottom) return; // unexpected shape -- leave it alone rather than guess
+    curBottom.innerHTML = "";
+    Array.prototype.slice.call(newBottom.childNodes).forEach(function (node) {
+      curBottom.appendChild(document.importNode(node, true));
+    });
+  }
+
   function swapTo(url, cfg, push) {
     // A page whose own script wired up a window.__<page>Teardown() hook
     // (currently just app.js's window.__appTeardown, guarding index.html's
@@ -249,6 +275,7 @@
         document.title = newDoc.title || document.title;
         swapContent(newDoc);
         swapSidebarMain(newDoc);
+        swapSidebarBottom(newDoc);
         return runPageScripts(cfg, newDoc);
       })
       .then(function () {
