@@ -1,0 +1,14 @@
+{
+  "name": "trade-log-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Smoke tests for the SPA router in js/page-transition.js -- see tests/README.md.",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0"
+  }
+}

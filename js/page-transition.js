@@ -27,6 +27,26 @@
 // on screen. Moving one of those into SPA_PAGES later means auditing
 // that page's own script for exactly that first, then giving it a
 // window.__pageTeardown() the swap can call before it goes.
+//
+// Known page-specific regions of the persistent shell (checklist for
+// adding a new one): the shell -- sidebar + topbar chrome -- is built
+// on the assumption that it's identical across every page, which is
+// what lets swapContent() below leave it alone entirely. Twice now
+// that assumption has quietly been false for one small region at a
+// time (a bug that looks exactly like "stale label/highlight that
+// won't update"), because a per-page difference got hand-written into
+// the sidebar's raw HTML instead of being computed at render time:
+//   - the sidebar's main nav section (Dashboard/Day View/Reports/
+//     Journal) -- fixed by swapSidebarMain() below
+//   - the sidebar-bottom "pipeline status" label -- fixed by
+//     swapSidebarBottom() below
+// Before adding anything new to the sidebar or topbar that varies by
+// page (a badge, a count, a per-page tooltip, anything not driven by
+// nav-render.js's mount points), either drive it from the mount-point
+// pattern (so nav-render.js's re-run after a swap keeps it correct
+// for free) or add a swap step here alongside the two above -- don't
+// assume swapContent() below will pick it up, since by design it only
+// ever touches .main.
 (function () {
   "use strict";
 
