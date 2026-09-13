@@ -77,9 +77,6 @@ window.LIVE_SERVICE_URL = "https://pushing-republican-education-livecam.trycloud
 window.SUPABASE_URL = "https://vxddylzwyyhkvptztkpr.supabase.co";
 window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4ZGR5bHp3eXloa3ZwdHp0a3ByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyOTI5MTgsImV4cCI6MjEwMzg2ODkxOH0.c8CsoRwoSSTboXhi8asY3FgFXPCFaCxEOftnACGedrI";
 
-document.addEventListener("DOMContentLoaded", function () {
-  var link = document.getElementById("import-trades-link");
-  if (link && window.N8N_IMPORT_URL) {
-    link.href = window.N8N_IMPORT_URL;
-  }
-});
+// Note: the Import Trades sidebar link no longer needs a patch here --
+// js/nav-render.js resolves window.N8N_IMPORT_URL itself at render time
+// (including on every SPA navigation, not just once on initial load).

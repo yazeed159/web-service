@@ -73,7 +73,15 @@
   // screens still use those classes.
   const SIDEBAR_MORE_ITEMS = [
     {
-      href: "#", id: "import-trades-link", title: "Upload a CSV of past trades to import into your real journal",
+      // Real target is user-configurable (window.N8N_IMPORT_URL, set by
+      // config.js) -- resolved at render time below, not hardcoded here,
+      // since config.js hasn't run yet the first time this file executes
+      // (it loads later in every page's <script> order) and this item's
+      // HTML gets rebuilt from scratch on every SPA navigation, not just
+      // once on initial page load. "import-trades.html" is just the
+      // fallback for the (in-practice-unreachable) case config.js hasn't
+      // set it yet.
+      id: "import-trades-link", title: "Upload a CSV of past trades to import into your real journal",
       icon: '<path d="M12 3v12"></path><path d="M7 8l5-5 5 5"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path>',
       label: "Import Trades",
     },
@@ -201,7 +209,8 @@
     mount.innerHTML =
       `<div class="nav-section-label">${label}</div>` +
       items.map((item) => {
-        const isActive = item.href !== "#" && normalizeFile(item.href.split("?")[0]) === currentFile;
+        const href = item.href || window.N8N_IMPORT_URL || "import-trades.html";
+        const isActive = href !== "#" && normalizeFile(href.split("?")[0]) === currentFile;
         const idAttr = item.id ? ` id="${item.id}"` : "";
         // Every item gets a title tooltip (falling back to its label) so
         // hovering an icon identifies the page even when the sidebar is
@@ -210,7 +219,7 @@
         // once collapsed.
         const titleAttr = ` title="${item.title || item.label}"`;
         return (
-          `<a class="nav-item${isActive ? " active" : ""}"${idAttr} href="${item.href}"${titleAttr}>` +
+          `<a class="nav-item${isActive ? " active" : ""}"${idAttr} href="${href}"${titleAttr}>` +
           `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${item.icon}</svg>` +
           `<span class="nav-label">${item.label}</span>` +
           `</a>`
