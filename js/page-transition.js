@@ -178,6 +178,56 @@
     });
   }
 
+  // The sidebar's "Journal" section (Dashboard/Day View/Reports/Journal)
+  // is the one part of the persistent sidebar whose markup differs by
+  // page: index.html hand-writes real <button data-tab> elements there
+  // (app.js needs to bind to actual elements, not ones nav-render.js
+  // templates in later), while every other page just holds an empty
+  // <div id="sidebar-main-section"> for nav-render.js to fill in.
+  //
+  // Because swapContent() above only ever touches .main -- the sidebar
+  // itself is left alone on purpose, to avoid re-flashing it -- leaving
+  // index.html's page controlled this region never got reconciled when
+  // navigating to/from index.html: nav-render.js's renderNav() (which
+  // hideLoader() calls) looks for #sidebar-main-section to update, and
+  // on index.html that id doesn't exist, so the stale buttons (with
+  // whatever "active" class they had before we left) just sat there
+  // through every subsequent SPA page. Explicitly swapping this one
+  // region to match the destination page -- before hideLoader()'s
+  // renderNav() call -- fixes that for both directions: landing on a
+  // normal page gets a fresh empty mount for renderNav() to fill
+  // correctly, and landing back on index.html gets its real buttons
+  // back for app.js's owned re-run to bind and set correctly.
+  function swapSidebarMain(newDoc) {
+    var curMoreMount = document.getElementById("sidebar-more-section");
+    var newMoreMount = newDoc.getElementById("sidebar-more-section");
+    if (!curMoreMount || !newMoreMount) return; // unexpected shape -- leave sidebar alone rather than guess
+
+    // Walk backward from the (stable, always-present) More mount to the
+    // section label that starts this region, in the freshly-fetched doc.
+    var newNodes = [];
+    var n = newMoreMount.previousSibling;
+    while (n) {
+      if (n.nodeType === 1 && n.classList && n.classList.contains("nav-section-label")) break;
+      newNodes.unshift(n);
+      n = n.previousSibling;
+    }
+
+    // Remove the current document's equivalent range.
+    var c = curMoreMount.previousSibling;
+    while (c) {
+      var prev = c.previousSibling;
+      if (c.nodeType === 1 && c.classList && c.classList.contains("nav-section-label")) break;
+      c.remove();
+      c = prev;
+    }
+
+    // Insert clones of the destination's nodes in its place.
+    newNodes.forEach(function (node) {
+      curMoreMount.parentNode.insertBefore(document.importNode(node, true), curMoreMount);
+    });
+  }
+
   function swapTo(url, cfg, push) {
     // A page whose own script wired up a window.__<page>Teardown() hook
     // (currently just app.js's window.__appTeardown, guarding index.html's
@@ -198,6 +248,7 @@
         if (push) history.pushState({ spa: true }, "", url.href);
         document.title = newDoc.title || document.title;
         swapContent(newDoc);
+        swapSidebarMain(newDoc);
         return runPageScripts(cfg, newDoc);
       })
       .then(function () {
