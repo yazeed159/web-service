@@ -78,7 +78,12 @@
   // automatically below -- always re-run, in document order, no need
   // to list them here.
   var SPA_PAGES = {
-    index: { shared: ["js/grade.js"], owned: ["js/app.js"] },
+    // app.js was split into four files (shared/dashboard/dayview/reports --
+    // see the comment at the top of app-shared.js). All four are "owned":
+    // each needs a fresh re-run against the freshly-swapped DOM, and this
+    // array's order is load order -- app-shared.js MUST come first, since
+    // it builds window.App and the other three register onto it.
+    index: { shared: ["js/grade.js"], owned: ["js/app-shared.js", "js/app-dashboard.js", "js/app-dayview.js", "js/app-reports.js"] },
     journal: { shared: ["js/grade.js"], owned: ["js/share-export.js"] },
     patterns: { shared: [], owned: [] },
     calculator: { shared: [], owned: ["js/calculator.js"] },
