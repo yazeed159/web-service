@@ -322,7 +322,22 @@
             return;
           }
           if (mode === "signup" && res.data && res.data.user && !res.data.session) {
-            setMsg("Check your email to confirm your account, then sign in.", "ok");
+            // Email confirmation is off in Supabase (Authentication -> Providers
+            // -> Email -> "Confirm email"), so signUp() should return a session
+            // immediately and we won't normally land here. If it ever does
+            // (confirmation re-enabled, or some other edge case), don't tell
+            // people to check an email that may never arrive -- drop them back
+            // to the sign-in form instead.
+            mode = "signin";
+            formHeading.textContent = "Sign in";
+            modeSub.textContent = "Enter your email and password to continue.";
+            submitBtn.textContent = "Sign in";
+            toggleText.textContent = "No account yet?";
+            toggleLink.textContent = "Create one";
+            confirmWrap.classList.remove("show");
+            confirmPasswordEl.required = false;
+            confirmPasswordEl.value = "";
+            setMsg("Account created. Sign in below.", "ok");
             return;
           }
           window.location.href = "/";
