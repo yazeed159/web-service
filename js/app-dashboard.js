@@ -276,6 +276,31 @@
     const subset = App.state.trades.filter((t) => new Date(t.trade_date + "T12:00:00") >= cutoff);
     return subset.length ? subset : App.state.trades;
   }
+  // Splits a polyline into pieces that never cross the threshold line --
+  // used so the equity curve can color each stretch by whether IT sits
+  // above/below the starting balance, instead of painting the whole
+  // curve by only its final value. Every (x1,y1)-(x2,y2) pair from
+  // `coords` is classified by the sign of its two `values` relative to
+  // thresholdValue; a pair that actually crosses gets split at the
+  // interpolated crossing point (thresholdY) so the color switches
+  // exactly where the balance does, not at the nearest sampled point.
+  function splitSignedSegments(coords, values, thresholdY, thresholdValue) {
+    const segs = [];
+    for (let i = 0; i < coords.length - 1; i++) {
+      const [x1, y1] = coords[i], [x2, y2] = coords[i + 1];
+      const v1 = values[i], v2 = values[i + 1];
+      const pos1 = v1 >= thresholdValue, pos2 = v2 >= thresholdValue;
+      if (pos1 === pos2) {
+        segs.push({ x1, y1, x2, y2, positive: pos1 });
+      } else {
+        const t = (thresholdValue - v1) / (v2 - v1);
+        const xm = x1 + (x2 - x1) * t;
+        segs.push({ x1, y1, x2: xm, y2: thresholdY, positive: pos1 });
+        segs.push({ x1: xm, y1: thresholdY, x2, y2, positive: pos2 });
+      }
+    }
+    return segs;
+  }
   function bindEquityRangeToggle() {
     const wrap = document.getElementById("eq-range-toggle");
     if (!wrap || wrap.dataset.bound) return;
@@ -311,9 +336,7 @@
       return [x, y];
     });
 
-    const pathD = coords.map((c, i) => (i === 0 ? "M" : "L") + c[0].toFixed(1) + "," + c[1].toFixed(1)).join(" ");
     const zeroY = H - PAD - ((startBalance - min) / range) * (H - PAD * 2);
-    const fillD = pathD + ` L${coords[coords.length - 1][0].toFixed(1)},${zeroY} L0,${zeroY} Z`;
 
     // Drawdown shading (Edgewonk-style): a running "peak so far" line
     // tracks the account's high-water mark, and the band between that
@@ -339,13 +362,19 @@
     const allTimeHighY = Math.min(...peakCoords.map((c) => c[1]));
 
     const finalPositive = values[values.length - 1] >= startBalance;
+    const segs = coords.length > 1 ? splitSignedSegments(coords, values, zeroY, startBalance) : [];
+    const fmt1 = (n) => n.toFixed(1);
+    const strokeMarkup = segs.length
+      ? segs.map((s) => `<path d="M${fmt1(s.x1)},${fmt1(s.y1)} L${fmt1(s.x2)},${fmt1(s.y2)}" class="equity-path ${s.positive ? "" : "neg"}" />`).join("")
+      : `<path d="M${fmt1(coords[0][0])},${fmt1(coords[0][1])} L${fmt1(coords[0][0])},${fmt1(coords[0][1])}" class="equity-path ${finalPositive ? "" : "neg"}" />`;
+    const fillMarkup = segs.map((s) => `<path d="M${fmt1(s.x1)},${fmt1(s.y1)} L${fmt1(s.x2)},${fmt1(s.y2)} L${fmt1(s.x2)},${fmt1(zeroY)} L${fmt1(s.x1)},${fmt1(zeroY)} Z" fill="${s.positive ? "url(#gGreen)" : "url(#gRed)"}" />`).join("");
     const svg = document.getElementById("equity-svg");
     svg.innerHTML = `
       <line x1="0" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" class="equity-zero" />
       <line x1="0" y1="${allTimeHighY.toFixed(1)}" x2="${W}" y2="${allTimeHighY.toFixed(1)}" class="equity-ath" />
-      <path d="${fillD}" fill="${finalPositive ? "url(#gGreen)" : "url(#gRed)"}" />
+      ${fillMarkup}
       <path d="${ddPathD}" class="equity-drawdown" />
-      <path d="${pathD}" class="equity-path ${finalPositive ? "" : "neg"}" />
+      ${strokeMarkup}
       <circle id="equity-hover-dot" r="4" fill="var(--panel)" stroke="${finalPositive ? "var(--green)" : "var(--red)"}" stroke-width="2" style="display:none;" />
       <defs>
         <linearGradient id="gGreen" x1="0" y1="0" x2="0" y2="1">
@@ -370,7 +399,7 @@
         : 'Add your starting capital in <a href="settings.html">Settings</a> to see your real account balance here instead of just cumulative P&amp;L.';
     }
 
-    equityState = { points, coords, values, W, H };
+    equityState = { points, coords, values, startBalance, W, H };
     renderEquityStats(points, values);
     bindEquityInteractivity();
   }
@@ -438,7 +467,7 @@
 
     function showAt(clientX) {
       if (!equityState) return;
-      const { points, coords, W } = equityState;
+      const { points, coords, values, startBalance, W } = equityState;
       const i = nearestIndex(clientX);
       const [cx] = coords[i];
       const rect = wrap.getBoundingClientRect();
@@ -452,6 +481,7 @@
         dot.style.display = "block";
         dot.setAttribute("cx", coords[i][0].toFixed(1));
         dot.setAttribute("cy", coords[i][1].toFixed(1));
+        dot.setAttribute("stroke", values[i] >= startBalance ? "var(--green)" : "var(--red)");
       }
 
       const p = points[i];
@@ -501,15 +531,21 @@
     const initials = symbol.slice(0, 2).toUpperCase();
     return `<span class="sym-avatar" style="background:hsla(${hue},70%,55%,0.16); color:hsl(${hue},70%,68%);">${initials}</span>`;
   }
+  // "$5.20", or an em dash when a trade has no recorded price -- null.toFixed()
+  // used to throw here and took the whole Recent trades table down with it.
+  function fmtPriceOrDash(v) {
+    if (v == null || v === "" || !Number.isFinite(Number(v))) return "\u2014";
+    return "$" + Number(v).toFixed(2);
+  }
   function tradeRowHtml(t) {
     const setupLabel = t.setup_type ? String(t.setup_type).replace(/_/g, " ") : "";
     return `
-    <tr data-id="${t.id}">
+    <tr data-id="${escapeHtml(t.id)}">
       <td class="sym">${symbolAvatarHtml(t.symbol)}<span>${escapeHtml(t.symbol)}</span>${setupLabel ? `<span class="setup-pill">${escapeHtml(setupLabel)}</span>` : ""}</td>
       <td class="mono dim">${t.trade_date}</td>
-      <td class="mono dim">${t.entry_time}</td>
-      <td class="mono">$${t.entry_price.toFixed(2)} → $${t.exit_price.toFixed(2)}</td>
-      <td class="mono dim">${t.shares}</td>
+      <td class="mono dim">${escapeHtml(t.entry_time || "\u2014")}</td>
+      <td class="mono">${fmtPriceOrDash(t.entry_price)} → ${fmtPriceOrDash(t.exit_price)}</td>
+      <td class="mono dim">${escapeHtml(t.shares == null ? "\u2014" : t.shares)}</td>
       <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
       <td>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(t), { size: 12 }) : "—"}</td>
     </tr>`;

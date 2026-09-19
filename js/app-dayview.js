@@ -10,6 +10,14 @@
 
 // escapeHtml() now in utils.js (loads first on every page).
 // fmtMoney() now in utils.js (loads first on every page).
+  // "$5.20", or an em dash when the price is missing/non-numeric. Prices
+  // can come back null for a trade that has no fill price recorded, and
+  // null.toFixed() used to throw here -- which aborted the whole day-detail
+  // render, leaving the panel open with a title but no trades in it.
+  function fmtPrice(v) {
+    if (v == null || v === "" || !Number.isFinite(Number(v))) return "\u2014";
+    return "$" + Number(v).toFixed(2);
+  }
   // ¢/share = the raw price move, not a commission figure -- entry $8.33
   // -> exit $8.45 is +12.0¢/share no matter what commission did to the
   // dollar P&L. Short trades invert the sign (a lower exit is the win).
@@ -83,19 +91,29 @@
     panel.classList.remove("hidden"); panel.style.display = "block";
     const dateLabel = new Date(key + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", year: "numeric" });
     document.getElementById("day-detail-title").textContent = `${dateLabel} — ${fmtMoney(entry.net)} · ${entry.count} trade${entry.count === 1 ? "" : "s"} · Gross ${fmtMoney(entry.gross)} · Comm $${entry.comm.toFixed(2)}`;
-    const sorted = entry.trades.slice().sort((a, b) => a.entry_time.localeCompare(b.entry_time));
-    const rows = sorted.map((t) => `
-      <tr data-id="${t.id}">
+    const sorted = entry.trades.slice().sort((a, b) => String(a.entry_time || "").localeCompare(String(b.entry_time || "")));
+    const rowHtml = (t) => `
+      <tr data-id="${escapeHtml(t.id)}">
         <td class="sym"><span class="side-dot" style="background:${t.win ? "var(--green)" : "var(--red)"}"></span>${escapeHtml(t.symbol)}</td>
-        <td class="mono">$${t.entry_price.toFixed(2)} → $${t.exit_price.toFixed(2)}</td>
+        <td class="mono">${fmtPrice(t.entry_price)} → ${fmtPrice(t.exit_price)}</td>
         <td class="mono">${pricePerShareMove(t.entry_price, t.exit_price, t.side)}</td>
-        <td class="mono dim">${t.shares}</td>
+        <td class="mono dim">${escapeHtml(t.shares == null ? "\u2014" : t.shares)}</td>
         <td class="mono dim">${App.fmtDurationPrecise(App.durationMinutes(t))}</td>
         <td class="mono ${t.pnl_before_comm >= 0 ? "up" : "down"}">${fmtMoney(t.pnl_before_comm)}</td>
-        <td class="mono dim">$${(t.commission || 0).toFixed(2)}</td>
+        <td class="mono dim">$${(Number(t.commission) || 0).toFixed(2)}</td>
         <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
-        <td class="mono dim">${t.entry_time} → ${t.exit_time}</td>
-      </tr>`).join("");
+        <td class="mono dim">${escapeHtml(t.entry_time || "\u2014")} → ${escapeHtml(t.exit_time || "\u2014")}</td>
+      </tr>`;
+    // Render each trade on its own so one malformed trade degrades to a
+    // plain (still clickable) row instead of taking down the whole table.
+    const rows = sorted.map((t) => {
+      try {
+        return rowHtml(t);
+      } catch (err) {
+        console.error("[dayview] couldn't render trade", t && t.id, err);
+        return `<tr data-id="${escapeHtml(t && t.id)}"><td class="sym">${escapeHtml(t && t.symbol)}</td><td class="dim" colspan="8">Couldn't display this trade's details — click to open it.</td></tr>`;
+      }
+    }).join("");
     const body = document.getElementById("day-detail-body");
     body.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Price</th><th>C/Share</th><th>Shares</th><th>Hold</th><th>Gross</th><th>Comm</th><th>Net P&amp;L</th><th>Entry/Exit</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     App.bindTradeRows(body);

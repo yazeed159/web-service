@@ -123,6 +123,31 @@
   // series: [{ x: <label shown in tooltip>, y: <number> }, ...] in
   // chronological order.
   let mlcSeq = 0;
+  // Splits a polyline into pieces that never cross the threshold line --
+  // used so a chart can color each stretch by whether IT is above/below
+  // zero, instead of painting the whole curve by only its final value.
+  // Every (x1,y1)-(x2,y2) pair from `coords` is classified by the sign of
+  // its two `values` relative to thresholdValue; a pair that actually
+  // crosses gets split at the interpolated crossing point (thresholdY) so
+  // the color switches exactly where the data does, not at the nearest
+  // sampled point.
+  function splitSignedSegments(coords, values, thresholdY, thresholdValue) {
+    const segs = [];
+    for (let i = 0; i < coords.length - 1; i++) {
+      const [x1, y1] = coords[i], [x2, y2] = coords[i + 1];
+      const v1 = values[i], v2 = values[i + 1];
+      const pos1 = v1 >= thresholdValue, pos2 = v2 >= thresholdValue;
+      if (pos1 === pos2) {
+        segs.push({ x1, y1, x2, y2, positive: pos1 });
+      } else {
+        const t = (thresholdValue - v1) / (v2 - v1);
+        const xm = x1 + (x2 - x1) * t;
+        segs.push({ x1, y1, x2: xm, y2: thresholdY, positive: pos1 });
+        segs.push({ x1: xm, y1: thresholdY, x2, y2, positive: pos2 });
+      }
+    }
+    return segs;
+  }
   function renderMiniLineChart(container, series, opts) {
     opts = opts || {};
     if (!container) return;
@@ -138,26 +163,23 @@
       const y = H - PAD - ((p.y - min) / range) * (H - PAD * 2);
       return [x, y];
     });
-    const pathD = coords.map((c, i) => (i === 0 ? "M" : "L") + c[0].toFixed(1) + "," + c[1].toFixed(1)).join(" ");
     const zeroY = H - PAD - ((0 - min) / range) * (H - PAD * 2);
-    const fillD = pathD + ` L${coords[coords.length - 1][0].toFixed(1)},${zeroY.toFixed(1)} L0,${zeroY.toFixed(1)} Z`;
     const finalPositive = values[values.length - 1] >= 0;
-    const gradId = "mlcGrad" + (mlcSeq++);
-    const swatch = finalPositive ? "#2fd08a" : "#f2555a";
+
+    const segs = coords.length > 1 ? splitSignedSegments(coords, values, zeroY, 0) : [];
+    const fmt1 = (n) => n.toFixed(1);
+    const strokeMarkup = segs.length
+      ? segs.map((s) => `<path d="M${fmt1(s.x1)},${fmt1(s.y1)} L${fmt1(s.x2)},${fmt1(s.y2)}" class="equity-path ${s.positive ? "" : "neg"}" />`).join("")
+      : `<path d="M${fmt1(coords[0][0])},${fmt1(coords[0][1])} L${fmt1(coords[0][0])},${fmt1(coords[0][1])}" class="equity-path ${finalPositive ? "" : "neg"}" />`;
+    const fillMarkup = segs.map((s) => `<path d="M${fmt1(s.x1)},${fmt1(s.y1)} L${fmt1(s.x2)},${fmt1(s.y2)} L${fmt1(s.x2)},${fmt1(zeroY)} L${fmt1(s.x1)},${fmt1(zeroY)} Z" fill="${s.positive ? "#2fd08a" : "#f2555a"}" fill-opacity="0.14" />`).join("");
 
     container.innerHTML = `
       <div class="equity-chart-wrap mini-line-wrap">
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%; height:${H}px; display:block;">
           <line x1="0" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" class="equity-zero" />
-          <path d="${fillD}" fill="url(#${gradId})" />
-          <path d="${pathD}" class="equity-path ${finalPositive ? "" : "neg"}" />
+          ${fillMarkup}
+          ${strokeMarkup}
           <circle class="mlc-hover-dot" r="4" fill="var(--panel)" stroke="${finalPositive ? "var(--green)" : "var(--red)"}" stroke-width="2" style="display:none;" />
-          <defs>
-            <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="${swatch}" stop-opacity="0.2" />
-              <stop offset="100%" stop-color="${swatch}" stop-opacity="0" />
-            </linearGradient>
-          </defs>
         </svg>
         <div class="equity-crosshair mlc-crosshair"></div>
         <div class="equity-tooltip mlc-tooltip"></div>
@@ -183,6 +205,7 @@
       dot.style.display = "block";
       dot.setAttribute("cx", cx.toFixed(1));
       dot.setAttribute("cy", cy.toFixed(1));
+      dot.setAttribute("stroke", values[i] >= 0 ? "var(--green)" : "var(--red)");
       const p = series[i];
       tooltip.innerHTML = `<div class="eq-date">${escapeHtml(p.x)}</div><div class="eq-bal">${valueFmt(p.y)}</div>`;
       tooltip.style.display = "block";
@@ -1110,6 +1133,7 @@
   // gets the same treatment in one line.
   function setBucketBreakdownHtml(elId, buckets, labelHeader) {
     const el = document.getElementById(elId);
+    if (!el) return;
     el.innerHTML = bucketBreakdownTableHtml(buckets, labelHeader);
     bindTradeToggles(el);
   }
@@ -1147,6 +1171,9 @@
   function renderDetailHour() {
     const map = new Map();
     App.state.trades.forEach((t) => {
+      // No entry time -> no hour to put it in. Skip it rather than throw
+      // (which used to blank this whole breakdown).
+      if (typeof t.entry_time !== "string" || t.entry_time.length < 2) return;
       const label = t.entry_time.slice(0, 2) + ":00";
       if (!map.has(label)) map.set(label, { label, trades: [] });
       map.get(label).trades.push(t);
@@ -1163,6 +1190,9 @@
   function renderDetailPrice() {
     const buckets = PRICE_BUCKETS.map((b) => ({ ...b, trades: [] }));
     App.state.trades.forEach((t) => {
+      // A missing price would otherwise coerce to 0 and land in the "< $2"
+      // bucket (null <= 2 is true), quietly skewing that row. Skip it.
+      if (t.entry_price == null || !Number.isFinite(Number(t.entry_price))) return;
       const bucket = buckets.find((b) => t.entry_price <= b.max);
       (bucket || buckets[buckets.length - 1]).trades.push(t);
     });

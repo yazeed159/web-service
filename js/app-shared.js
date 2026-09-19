@@ -280,9 +280,19 @@
   // time_in_trade, so it's computed here the same way the detail page
   // would show it.
   function durationMinutes(t) {
-    const toSec = (s) => { const [h, m, sec] = s.split(":").map(Number); return h * 3600 + m * 60 + (sec || 0); };
+    // A trade with a missing/blank entry_time or exit_time (e.g. one
+    // backfilled from a CSV that had no execution times) has no duration
+    // -- return null for it, the same as a zero/negative span, instead of
+    // throwing on null.split(). That throw used to abort the whole Day View
+    // trade table (and several Reports sections) for any day containing
+    // such a trade.
+    const toSec = (s) => {
+      if (typeof s !== "string" || !s) return NaN;
+      const [h, m, sec] = s.split(":").map(Number);
+      return h * 3600 + m * 60 + (sec || 0);
+    };
     const diff = toSec(t.exit_time) - toSec(t.entry_time);
-    return diff > 0 ? diff / 60 : null;
+    return diff > 0 ? diff / 60 : null; // NaN > 0 is false -> null
   }
 
   // fmtDuration() now in utils.js (loads first on every page). NOTE: the
