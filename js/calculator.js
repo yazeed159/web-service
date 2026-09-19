@@ -105,7 +105,7 @@
       stopChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.stoppct) === stopPct));
       winRateChips.forEach((c) => c.classList.toggle("active", parseFloat(c.dataset.winrate) === winRate));
       stopPctChipsWrap.style.display = stopMode === "pct" ? "flex" : "none";
-      stopPriceWrap.style.display = stopMode === "price" ? "flex" : "none";
+      stopPriceWrap.classList.remove("hidden"); stopPriceWrap.style.display = stopMode === "price" ? "flex" : "none";
       renderBalance();
       calculate();
     }
@@ -155,7 +155,7 @@
       if (window.KV) window.KV.set(LS_KEYS.stopMode, mode);
       stopModeBtns.forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
       stopPctChipsWrap.style.display = mode === "pct" ? "flex" : "none";
-      stopPriceWrap.style.display = mode === "price" ? "flex" : "none";
+      stopPriceWrap.classList.remove("hidden"); stopPriceWrap.style.display = mode === "price" ? "flex" : "none";
       calculate();
     }
     stopModeBtns.forEach((b) => b.addEventListener("click", () => setStopMode(b.dataset.mode)));
@@ -289,9 +289,9 @@
         r2El.textContent = "\u2014";
         r3El.textContent = "\u2014";
         [r1RowEl, r2RowEl, r3RowEl].forEach((row) => { delete row.dataset.price; });
-        rTargetRowEl.style.display = "none";
-        qualityEmptyEl.style.display = "";
-        qualityGridEl.style.display = "none";
+        rTargetRowEl.classList.remove("hidden"); rTargetRowEl.style.display = "none";
+        qualityEmptyEl.classList.remove("hidden"); qualityEmptyEl.style.display = "";
+        qualityGridEl.classList.remove("hidden"); qualityGridEl.style.display = "none";
         qualityEmptyEl.textContent = "enter an entry price and a stop to see position size and reward";
         summaryEl.innerHTML = "Enter an entry price and a stop on the left to see how many shares to buy.";
         return;
@@ -364,9 +364,9 @@
         : NaN;
 
       if (!hasTarget || !(rewardPerShare > 0) || maxShares <= 0) {
-        rTargetRowEl.style.display = "none";
-        qualityEmptyEl.style.display = "";
-        qualityGridEl.style.display = "none";
+        rTargetRowEl.classList.remove("hidden"); rTargetRowEl.style.display = "none";
+        qualityEmptyEl.classList.remove("hidden"); qualityEmptyEl.style.display = "";
+        qualityGridEl.classList.remove("hidden"); qualityGridEl.style.display = "none";
         qualityEmptyEl.textContent = (hasTarget && !(rewardPerShare > 0))
           ? `target should be ${direction === "long" ? "above" : "below"} entry for this ${direction}`
           : "enter a target price to see risk/reward and expected value";
@@ -377,11 +377,11 @@
       const netReward = rewardPerShare * maxShares - entryCommission - targetCommission;
       const targetR = rewardPerShare / perShareRisk;
 
-      rTargetRowEl.style.display = "";
+      rTargetRowEl.classList.remove("hidden"); rTargetRowEl.style.display = "";
       rTargetEl.textContent = `${fmtUsd(target)} (${targetR.toFixed(2)}R, ${netReward >= 0 ? "+" : "\u2212"}${fmtUsd(Math.abs(netReward))} net)`;
 
-      qualityEmptyEl.style.display = "none";
-      qualityGridEl.style.display = "";
+      qualityEmptyEl.classList.remove("hidden"); qualityEmptyEl.style.display = "none";
+      qualityGridEl.classList.remove("hidden"); qualityGridEl.style.display = "";
 
       netRewardEl.textContent = fmtUsd(Math.abs(netReward));
       netRewardEl.classList.toggle("up", netReward >= 0);
@@ -445,7 +445,7 @@
         // for anyone who hasn't already picked their own win-rate chip.
         const wins = trades.filter((t) => t.win).length;
         const actualWinRate = (wins / trades.length) * 100;
-        winRateActualEl.style.display = "block";
+        winRateActualEl.classList.remove("hidden"); winRateActualEl.style.display = "block";
         winRateActualEl.innerHTML = `Your actual win rate across ${trades.length} logged trade${trades.length === 1 ? "" : "s"}: <b>${actualWinRate.toFixed(0)}%</b> — <button type="button" id="calc-use-actual-winrate" style="all:unset;cursor:pointer;color:var(--primary);text-decoration:underline;">use this</button>`;
         document.getElementById("calc-use-actual-winrate").addEventListener("click", () => {
           winRateChips.forEach((c) => c.classList.remove("active"));
@@ -464,7 +464,7 @@
           recent.push(t);
         }
         if (recent.length) {
-          symbolRow.style.display = "flex";
+          symbolRow.classList.remove("hidden"); symbolRow.style.display = "flex";
           symbolListEl.innerHTML = "";
           recent.forEach((t) => {
             const chip = document.createElement("button");

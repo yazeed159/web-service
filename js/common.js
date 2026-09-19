@@ -259,6 +259,23 @@ window.NavState = (function () {
   // Exposed so pages with their own tab-switching logic (index.html)
   // can close the mobile drawer on navigation without re-implementing it.
   window.closeMobileNav = closeMobileNav;
+
+  // Touch swipe for the mobile drawer, so it behaves like any other
+  // app's off-screen nav instead of only opening via the topbar button:
+  // swipe right from the screen's left edge to open it, swipe left
+  // anywhere on the open drawer (or its backdrop) to close it. Bound on
+  // `document` (not just the sidebar) so the open-gesture works from
+  // wherever the page currently is -- edgeStartMaxX keeps it from
+  // hijacking an ordinary left-to-right drag/scroll started elsewhere
+  // on the page.
+  if (window.bindSwipe) {
+    window.bindSwipe(document, {
+      edgeStartMaxX: 24,
+      onSwipeRight: () => { if (window.innerWidth <= 760) sidebar.classList.add("mobile-open"); },
+    });
+    window.bindSwipe(sidebar, { onSwipeLeft: closeMobileNav });
+    window.bindSwipe(sidebarBackdrop, { onSwipeLeft: closeMobileNav });
+  }
 })();
 
 

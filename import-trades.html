@@ -242,7 +242,7 @@
             "<td class=\"" + (journalStatus === "published" ? "win" : (journalStatus === "failed" || journalStatus === "skipped" ? "loss" : "")) + "\">" + escapeHtml(journalStatus) + "</td>";
           tbody.appendChild(tr);
         });
-        resultsEl.style.display = trades.length ? "table" : "none";
+        resultsEl.classList.remove("hidden"); resultsEl.style.display = trades.length ? "table" : "none";
       }
 
       function finishJob(body, matchedTrades, wasCancelled) {
@@ -254,7 +254,7 @@
         var published = (body.publish_results || []).filter(function (r) { return r.status === "published"; }).length;
         var failed = (body.publish_results || []).filter(function (r) { return r.status === "failed"; }).length;
         var skippedN = (body.publish_results || []).filter(function (r) { return r.status === "skipped"; }).length;
-        nextNote.style.display = "none";
+        nextNote.classList.remove("hidden"); nextNote.style.display = "none";
         var prefix = wasCancelled ? "Cancelled after " + (body.completed || 0) + " of " + (body.total || 0) + " trades. " : "";
         setStatus(prefix + published + " published, " + failed + " failed, " + skippedN + " skipped.", failed || wasCancelled ? "err" : "ok");
         runBtn.disabled = false;
@@ -311,8 +311,8 @@
           }
 
           runBtn.disabled = true;
-          resultsEl.style.display = "none";
-          nextNote.style.display = "none";
+          resultsEl.classList.remove("hidden"); resultsEl.style.display = "none";
+          nextNote.classList.remove("hidden"); nextNote.style.display = "none";
           hideProgress();
           setStatus("Uploading and matching...");
 
@@ -333,7 +333,7 @@
               }
               var trades = result.body.trades || [];
               renderRows(trades, null);
-              nextNote.style.display = trades.length ? "block" : "none";
+              nextNote.classList.remove("hidden"); nextNote.style.display = trades.length ? "block" : "none";
               var skippedNote = result.body.skipped_rows ? (" (" + result.body.skipped_rows + " row(s) skipped)") : "";
               setStatus(trades.length + " trade(s) matched" + skippedNote + " -- charting & publishing...", "ok");
               if (trades.length && result.body.job_id) {

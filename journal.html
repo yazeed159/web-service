@@ -216,7 +216,7 @@
   function floatBtnIdle() {
     floatBtn.disabled = false;
     floatBtn.textContent = "Fill missing floats";
-    floatCancelBtn.style.display = "none";
+    floatCancelBtn.classList.remove("hidden"); floatCancelBtn.style.display = "none";
   }
 
   if (floatBtn) {
@@ -236,7 +236,7 @@
           }
           floatJobId = j.job_id;
           floatBtn.textContent = "Running…";
-          floatCancelBtn.style.display = "";
+          floatCancelBtn.classList.remove("hidden"); floatCancelBtn.style.display = "";
           floatCancelBtn.disabled = false;
           floatCancelBtn.textContent = "Cancel";
           floatProgress.style.display = "";

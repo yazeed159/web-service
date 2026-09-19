@@ -456,10 +456,10 @@
   };
 
   function showOnly(which) {
-    els.importState.style.display = which === "import" ? "" : "none";
-    els.mapState.style.display = which === "map" ? "" : "none";
-    els.loadedState.style.display = which === "loaded" ? "" : "none";
-    els.errorState.style.display = which === "error" ? "" : "none";
+    els.importState.classList.remove("hidden"); els.importState.style.display = which === "import" ? "" : "none";
+    els.mapState.classList.remove("hidden"); els.mapState.style.display = which === "map" ? "" : "none";
+    els.loadedState.classList.remove("hidden"); els.loadedState.style.display = which === "loaded" ? "" : "none";
+    els.errorState.classList.remove("hidden"); els.errorState.style.display = which === "error" ? "" : "none";
   }
 
   // ================= tabs =================
@@ -738,18 +738,18 @@
     const stats = report.stats || {};
 
     if (report.source === "backend" && report.params && report.params.start) {
-      els.rangePill.style.display = "";
+      els.rangePill.classList.remove("hidden"); els.rangePill.style.display = "";
       els.rangePill.textContent = `${report.params.start} → ${report.params.end}`;
     } else {
-      els.rangePill.style.display = "none";
+      els.rangePill.classList.remove("hidden"); els.rangePill.style.display = "none";
     }
 
     els.subtitle.textContent = report.source === "csv"
       ? `Imported from CSV${report.created_at ? " on " + new Date(report.created_at).toLocaleString() : ""} — ${trades.length} trade${trades.length === 1 ? "" : "s"}${report.skipped_rows ? ` (${report.skipped_rows} row${report.skipped_rows === 1 ? "" : "s"} skipped — missing data)` : ""}.`
       : `Saved backtest run${report.created_at ? " from " + new Date(report.created_at).toLocaleString() : ""}.`;
 
-    els.sendJournal.style.display = report.source === "backend" ? "" : "none";
-    els.replaceCsv.style.display = report.source === "csv" ? "" : "none";
+    els.sendJournal.classList.remove("hidden"); els.sendJournal.style.display = report.source === "backend" ? "" : "none";
+    els.replaceCsv.classList.remove("hidden"); els.replaceCsv.style.display = report.source === "csv" ? "" : "none";
     els.toolbarStatus.textContent = "";
 
     // stat grid
@@ -969,14 +969,14 @@
     els.chartModalSub.textContent = `${t.win ? "WIN" : "LOSS"} · ${fmtMoney(t.pnl_dollars)} · entry ${t.entry_time || "—"} @ $${Number(t.entry_price).toFixed(2)} → exit ${t.exit_time || "—"} @ $${Number(t.exit_price).toFixed(2)}`;
 
     if (t.verdict) {
-      els.chartVerdict.style.display = "";
+      els.chartVerdict.classList.remove("hidden"); els.chartVerdict.style.display = "";
       els.chartVerdict.textContent = t.verdict;
     } else {
-      els.chartVerdict.style.display = "none";
+      els.chartVerdict.classList.remove("hidden"); els.chartVerdict.style.display = "none";
       els.chartVerdict.textContent = "";
     }
-    els.chartLegendBetterEntry.style.display = t.better_entry_price ? "" : "none";
-    els.chartLegendBetterExit.style.display = t.better_exit_price ? "" : "none";
+    els.chartLegendBetterEntry.classList.remove("hidden"); els.chartLegendBetterEntry.style.display = t.better_entry_price ? "" : "none";
+    els.chartLegendBetterExit.classList.remove("hidden"); els.chartLegendBetterExit.style.display = t.better_exit_price ? "" : "none";
 
     wirePracticeHandoff(t);
     wireRewindHandoff(t);
@@ -1398,8 +1398,8 @@
   // ================= local reports list (import/empty state) =================
   function renderLocalList() {
     const list = loadLocalIndex();
-    if (!list.length) { els.localLabel.style.display = "none"; els.localList.innerHTML = ""; return; }
-    els.localLabel.style.display = "";
+    if (!list.length) { els.localLabel.classList.remove("hidden"); els.localLabel.style.display = "none"; els.localList.innerHTML = ""; return; }
+    els.localLabel.classList.remove("hidden"); els.localLabel.style.display = "";
     els.localList.innerHTML = list.map((e) => `
       <div class="rpt-local-card" data-id="${escapeHtml(e.id)}">
         <div>

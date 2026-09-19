@@ -220,14 +220,25 @@ button { font-family: var(--sans); }
    only for patterns that showed up repeatedly. Not a general utility
    framework -- one-off styling still belongs inline or in a page's own
    CSS file. */
-/* !important here is deliberate (matches existing usage elsewhere in this
-   file): .hidden is combined with other classes throughout the markup
-   (e.g. `class="calc-row hidden"`), several of which set their own
-   `display` later in this same file -- at equal specificity the one
-   later in source order wins, so without !important .hidden would
+/* .hidden is combined with other classes throughout the markup (e.g.
+   `class="calc-row hidden"`), several of which set their own `display`
+   later in this same file -- at equal specificity the one later in
+   source order wins, so a plain single-class `.hidden` rule would
    silently lose to e.g. .calc-row's `display:flex` and fail to hide
-   the element. */
-.hidden { display: none !important; }
+   the element.
+   This used to be solved with !important, but that also beat every
+   inline `el.style.display = "..."` that pages' own JS uses to REVEAL
+   an element once loaded (report.js's upload/loaded/error states,
+   rewind.js's quiz summary screen, practice-analytics.js's whole
+   page body, app-dayview.js's day-detail panel, and more) -- since
+   !important always wins over a plain inline style, those elements
+   could never actually be un-hidden, leaving the page looking blank
+   or stuck. Repeating the class instead (0,0,2,0 specificity) still
+   beats any single-class rule like .calc-row regardless of source
+   order, but -- unlike !important -- a plain inline style set by JS
+   still outranks it, so removing/never-adding .hidden isn't required
+   for those toggles to work correctly. */
+.hidden.hidden { display: none; }
 .text-faint { color: var(--text-faint); }
 .cursor-pointer { cursor: pointer; }
 .mb-16 { margin-bottom: 16px; }

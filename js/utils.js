@@ -405,3 +405,40 @@ window.bindTradeToggles = function bindTradeToggles(container, onChange) {
     });
   });
 };
+
+// Lightweight single-touch swipe helper -- shared by anywhere a page wants
+// "swipe left/right" (calendar month nav, an off-screen drawer) without
+// pulling in a gesture library for one thing. Tracks one active touch,
+// and ignores drags that are mostly vertical (so it never fights the
+// page's own scrolling) or too short to be a deliberate swipe.
+window.bindSwipe = function bindSwipe(el, opts) {
+  opts = opts || {};
+  const threshold = opts.threshold || 45; // px of horizontal travel to count as a swipe
+  let startX = 0, startY = 0, tracking = false;
+  const listenerOpts = { passive: true };
+  if (opts.signal) listenerOpts.signal = opts.signal;
+  el.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1) { tracking = false; return; }
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    tracking = true;
+  }, listenerOpts);
+  el.addEventListener("touchend", (e) => {
+    if (!tracking) return;
+    tracking = false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+    // Too short, or more vertical than horizontal (a scroll, not a swipe).
+    if (Math.abs(dx) < threshold || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0 && opts.onSwipeLeft) { opts.onSwipeLeft(); return; }
+    if (dx > 0 && opts.onSwipeRight) {
+      // edgeStartMaxX: only fire a right-swipe that BEGAN within this many
+      // px of the left edge -- e.g. opening an off-screen drawer, where a
+      // rightward drag starting mid-page more likely means a scroll or a
+      // text selection than a request to open it.
+      if (opts.edgeStartMaxX != null && startX > opts.edgeStartMaxX) return;
+      opts.onSwipeRight();
+    }
+  }, listenerOpts);
+};

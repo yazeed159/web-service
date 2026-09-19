@@ -527,8 +527,8 @@
     els.runBtn.disabled = true;
     els.runBtn.textContent = "Starting…";
     els.runStatus.textContent = "";
-    if (els.cancelBtn) { els.cancelBtn.style.display = ""; els.cancelBtn.disabled = false; els.cancelBtn.textContent = "Cancel"; }
-    els.progressBox.style.display = "";
+    if (els.cancelBtn) { els.cancelBtn.classList.remove("hidden"); els.cancelBtn.style.display = ""; els.cancelBtn.disabled = false; els.cancelBtn.textContent = "Cancel"; }
+    els.progressBox.classList.remove("hidden"); els.progressBox.style.display = "";
     els.progressFill.style.width = "0%";
     els.progressLabel.textContent = "Scanning for gappers…";
   }
@@ -600,8 +600,8 @@
     clearActiveJob();
     els.runBtn.disabled = false;
     els.runBtn.textContent = "Run Backtest";
-    if (els.cancelBtn) els.cancelBtn.style.display = "none";
-    setTimeout(() => { els.progressBox.style.display = "none"; }, 800);
+    if (els.cancelBtn) els.cancelBtn.classList.remove("hidden"); els.cancelBtn.style.display = "none";
+    setTimeout(() => { els.progressBox.classList.remove("hidden"); els.progressBox.style.display = "none"; }, 800);
   }
 
   // On load, if a job was left running (refresh, tab reopened, etc.),

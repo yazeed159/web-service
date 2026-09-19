@@ -380,10 +380,10 @@
     });
     if (view === "analytics") {
       practiceView.style.display = "none";
-      analyticsView.style.display = "";
+      analyticsView.classList.remove("hidden"); analyticsView.style.display = "";
       if (shortcutsBtn) shortcutsBtn.style.display = "none";
     } else {
-      analyticsView.style.display = "none";
+      analyticsView.classList.remove("hidden"); analyticsView.style.display = "none";
       practiceView.style.display = "";
       if (shortcutsBtn) shortcutsBtn.style.display = "";
     }

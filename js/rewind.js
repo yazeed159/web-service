@@ -401,7 +401,7 @@
     state.backtestTrades = [];
     if (!runId) { renderCandidateCount(); return; }
     const base = chartServiceBase();
-    els.btHint.style.display = "";
+    els.btHint.classList.remove("hidden"); els.btHint.style.display = "";
     els.btHint.innerHTML = "Loading this run's trades…";
     els.startBtn.disabled = true;
 
@@ -431,9 +431,9 @@
   function setSource(src) {
     state.source = src === "backtest" ? "backtest" : "log";
     els.sourceRow.querySelectorAll(".quiz-mode-btn").forEach((b) => b.classList.toggle("active", b.dataset.source === state.source));
-    els.sourceHint.style.display = state.source === "backtest" ? "" : "none";
+    els.sourceHint.classList.remove("hidden"); els.sourceHint.style.display = state.source === "backtest" ? "" : "none";
     els.logFields.style.display = state.source === "backtest" ? "none" : "";
-    els.btFields.style.display = state.source === "backtest" ? "" : "none";
+    els.btFields.classList.remove("hidden"); els.btFields.style.display = state.source === "backtest" ? "" : "none";
     if (els.includeReviewedCheck) {
       const row = document.getElementById("qf-include-reviewed-row");
       if (row) row.style.display = state.source === "backtest" ? "none" : "";
@@ -947,7 +947,7 @@
     btn.addEventListener("click", () => {
       els.tickModeRow.querySelectorAll(".quiz-mode-btn").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
-      els.tickModeHint.style.display = btn.dataset.tickmode === "real" ? "" : "none";
+      els.tickModeHint.classList.remove("hidden"); els.tickModeHint.style.display = btn.dataset.tickmode === "real" ? "" : "none";
     });
   });
   els.startBtn.addEventListener("click", () => {
@@ -967,10 +967,10 @@
     if (els.heroStat) {
       if (history.length) {
         const totalTrades = history.reduce((s, h) => s + (h.count || 0), 0);
-        els.heroStat.style.display = "";
+        els.heroStat.classList.remove("hidden"); els.heroStat.style.display = "";
         els.heroStat.innerHTML = `<div class="rs-num">${totalTrades}</div><div class="rs-lbl">trade${totalTrades === 1 ? "" : "s"} reviewed</div>`;
       } else {
-        els.heroStat.style.display = "none";
+        els.heroStat.classList.remove("hidden"); els.heroStat.style.display = "none";
       }
     }
     if (!history.length) {
@@ -1018,7 +1018,7 @@
     const rows = state.index.filter((r) => r.id);
     if (!rows.length) {
       els.progressList.innerHTML = `<div class="quiz-history-empty">No logged trades yet.</div>`;
-      if (els.resetAllBtn) els.resetAllBtn.style.display = "none";
+      if (els.resetAllBtn) els.resetAllBtn.classList.remove("hidden"); els.resetAllBtn.style.display = "none";
       return;
     }
     const reviewed = loadReviewed();
@@ -1049,7 +1049,7 @@
       + setupKeys.map((s) => rowHtml(s.replace(/_/g, " "), bySetup[s], s)).join("");
 
     if (els.resetAllBtn) {
-      els.resetAllBtn.style.display = allIds.some((id) => reviewed[id]) ? "" : "none";
+      els.resetAllBtn.classList.remove("hidden"); els.resetAllBtn.style.display = allIds.some((id) => reviewed[id]) ? "" : "none";
     }
 
     els.progressList.querySelectorAll(".rw-progress-reset").forEach((btn) => {
@@ -1314,7 +1314,7 @@
     state.results = [];
     state.recordedIds = new Set();
     els.setupScreen.style.display = "none";
-    els.summaryScreen.style.display = "none";
+    els.summaryScreen.classList.remove("hidden"); els.summaryScreen.style.display = "none";
     els.playScreen.style.display = "";
     loadQuestion();
   }
@@ -2558,7 +2558,7 @@
     if (state.current && state.current.replayHandle) state.current.replayHandle.stop();
     state.current = null;
     els.playScreen.style.display = "none";
-    els.summaryScreen.style.display = "none";
+    els.summaryScreen.classList.remove("hidden"); els.summaryScreen.style.display = "none";
     els.setupScreen.style.display = "";
     renderHistoryPanel();
     renderCandidateCount();
@@ -2573,7 +2573,7 @@
   // ---------------------------------------------------------------
   function finishQuiz() {
     els.playScreen.style.display = "none";
-    els.summaryScreen.style.display = "";
+    els.summaryScreen.classList.remove("hidden"); els.summaryScreen.style.display = "";
 
     const total = state.results.length;
     const entered = state.results.filter((r) => r.entered).length;

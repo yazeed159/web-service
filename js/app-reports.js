@@ -12,6 +12,16 @@
   // Report-only filter/view state -- never read outside this file.
   let reportFilters = { symbol: "", tags: [], durationMin: null, durationMax: null, setup: "all", dateFrom: "", dateTo: "" };
   let reportPeriodTimeframe = "monthly"; // daily | weekly | monthly | yearly -- see renderPeriodDistPerf
+  // Unique-id counter for every trade-list toggle row this tab renders
+  // (symbol/DOW/time-of-day/duration breakdowns, leaderboards, sector/
+  // country, win/loss days, detail lessons/distribution -- anywhere a
+  // row expands into its underlying trades via data-trade-toggle). Was
+  // missing its declaration entirely -- every `reportRowSeq++` below
+  // threw a ReferenceError under this file's "use strict", which
+  // safeRender (app-shared.js) quietly caught, leaving each of those
+  // sections stuck on "Loading…" and then swept into the generic
+  // "Couldn't load this section" placeholder.
+  let reportRowSeq = 0;
 
   const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -921,7 +931,7 @@
       else worstLossStreakSum = Math.min(worstLossStreakSum, curStreakSum);
     });
 
-    const allHold = App.state.trades.map(durationMinutes).filter((v) => v != null);
+    const allHold = App.state.trades.map(App.durationMinutes).filter((v) => v != null);
     const avgHoldAll = allHold.length ? allHold.reduce((a, b) => a + b, 0) / allHold.length : null;
 
     return { commPctOfGross, tradesPerDay, dailySharpe, bestWinStreakSum, worstLossStreakSum, avgHoldAll };
@@ -995,9 +1005,9 @@
 
     const scratch = App.state.trades.filter((t) => t.pnl_after_comm === 0);
     const avgOf = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
-    const holdWinAvg = avgOf(s.wins.map(durationMinutes).filter((v) => v != null));
-    const holdLossAvg = avgOf(s.losses.map(durationMinutes).filter((v) => v != null));
-    const holdScratchAvg = avgOf(scratch.map(durationMinutes).filter((v) => v != null));
+    const holdWinAvg = avgOf(s.wins.map(App.durationMinutes).filter((v) => v != null));
+    const holdLossAvg = avgOf(s.losses.map(App.durationMinutes).filter((v) => v != null));
+    const holdScratchAvg = avgOf(scratch.map(App.durationMinutes).filter((v) => v != null));
 
     let bestWin = 0, bestLoss = 0, curWin = 0, curLoss = 0;
     App.state.trades.forEach((t) => {

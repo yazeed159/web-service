@@ -111,10 +111,10 @@
   function renderStats(rows) {
     const wrap = document.getElementById("sc-stats");
     if (!rows.length) {
-      wrap.style.display = "none";
+      wrap.classList.remove("hidden"); wrap.style.display = "none";
       return;
     }
-    wrap.style.display = "";
+    wrap.classList.remove("hidden"); wrap.style.display = "";
     const top = rows.slice().sort((a, b) => b.gap_pct - a.gap_pct)[0];
     const avgGap = rows.reduce((sum, r) => sum + Number(r.gap_pct), 0) / rows.length;
     const mostRecent = rows.reduce((latest, r) => {
@@ -139,13 +139,13 @@
 
     if (!filtered.length) {
       tbody.innerHTML = "";
-      empty.style.display = "block";
+      empty.classList.remove("hidden"); empty.style.display = "block";
       empty.textContent = lastRows.length
         ? `No symbols match "${filterText}".`
         : "No gappers found yet today.";
       return;
     }
-    empty.style.display = "none";
+    empty.classList.remove("hidden"); empty.style.display = "none";
 
     const rows = applySort(filtered);
     tbody.innerHTML = rows.map((r) => {
@@ -195,7 +195,7 @@
     } catch (e) {
       const empty = document.getElementById("sc-empty");
       document.getElementById("sc-tbody").innerHTML = "";
-      empty.style.display = "block";
+      empty.classList.remove("hidden"); empty.style.display = "block";
       empty.textContent = "Couldn't load the scanner: " + e.message;
       document.getElementById("sc-stats").style.display = "none";
     }

@@ -80,7 +80,7 @@
   }
   function showDayDetail(key, entry) {
     const panel = document.getElementById("day-detail-panel");
-    panel.style.display = "block";
+    panel.classList.remove("hidden"); panel.style.display = "block";
     const dateLabel = new Date(key + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", year: "numeric" });
     document.getElementById("day-detail-title").textContent = `${dateLabel} — ${fmtMoney(entry.net)} · ${entry.count} trade${entry.count === 1 ? "" : "s"} · Gross ${fmtMoney(entry.gross)} · Comm $${entry.comm.toFixed(2)}`;
     const sorted = entry.trades.slice().sort((a, b) => a.entry_time.localeCompare(b.entry_time));
@@ -123,6 +123,17 @@
     renderCalendar();
   }, { signal: App.signal });
 
+  // Swipe left/right on the calendar grid to move a month, same as
+  // tapping the prev/next arrows -- the buttons stay the source of
+  // truth for the actual navigation (this just clicks them), so paging
+  // logic never has to live in two places. A tap/click on a day cell
+  // is unaffected: bindSwipe only fires once horizontal travel clears
+  // its threshold, well past what a tap moves.
+  window.bindSwipe(document.getElementById("cal-grid"), {
+    signal: App.signal,
+    onSwipeLeft: () => document.getElementById("cal-next").click(),
+    onSwipeRight: () => document.getElementById("cal-prev").click(),
+  });
 
   App.tabs.dayview.renderCalendar = renderCalendar;
   App.tabs.dayview.showDayDetail = showDayDetail;

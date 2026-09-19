@@ -139,10 +139,10 @@
     const points = [0, ...closed.map((t, i, arr) => arr.slice(0, i + 1).reduce((s, x) => s + x.pnl, 0))];
     if (points.length < 2) {
       els.equitySvg.innerHTML = "";
-      els.equityEmpty.style.display = "";
+      els.equityEmpty.classList.remove("hidden"); els.equityEmpty.style.display = "";
       return;
     }
-    els.equityEmpty.style.display = "none";
+    els.equityEmpty.classList.remove("hidden"); els.equityEmpty.style.display = "none";
     const min = Math.min(0, ...points);
     const max = Math.max(0, ...points);
     const range = max - min || 1;
@@ -294,12 +294,12 @@
   function render(account, indexMap) {
     const closed = computeClosedTrades(account.fills);
     if (!account.fills.length) {
-      els.emptyState.style.display = "";
-      els.body.style.display = "none";
+      els.emptyState.classList.remove("hidden"); els.emptyState.style.display = "";
+      els.body.classList.remove("hidden"); els.body.style.display = "none";
       return;
     }
-    els.emptyState.style.display = "none";
-    els.body.style.display = "";
+    els.emptyState.classList.remove("hidden"); els.emptyState.style.display = "none";
+    els.body.classList.remove("hidden"); els.body.style.display = "";
 
     renderStatGrid(account, closed);
     renderEquityCurve(closed);
@@ -319,8 +319,8 @@
     const indexMap = new Map();
 
     if (!account || !account.fills.length) {
-      els.emptyState.style.display = "";
-      els.body.style.display = "none";
+      els.emptyState.classList.remove("hidden"); els.emptyState.style.display = "";
+      els.body.classList.remove("hidden"); els.body.style.display = "none";
       return;
     }
     // Best-effort enrichment: map each practiced chartId back to its

@@ -525,7 +525,7 @@
     renderFillsBox();
 
     if (account.session && account.session.chartId) {
-      els.resumeBox.style.display = "";
+      els.resumeBox.classList.remove("hidden"); els.resumeBox.style.display = "";
       if (account.session.backtestTrade) {
         const bt = account.session.backtestTrade;
         els.resumeLabel.textContent = `${bt.symbol} — ${bt.trade_date} (bar ${account.session.barIndex + 1}) · from backtest`;
@@ -536,7 +536,7 @@
           : `Chart ${account.session.chartId} (bar ${account.session.barIndex + 1})`;
       }
     } else {
-      els.resumeBox.style.display = "none";
+      els.resumeBox.classList.remove("hidden"); els.resumeBox.style.display = "none";
     }
   }
 
@@ -655,7 +655,7 @@
     const rows = state.index.filter((r) => r.id);
     if (!rows.length) {
       els.progressList.innerHTML = `<div class="quiz-history-empty">No logged trades yet.</div>`;
-      if (els.resetAllBtn) els.resetAllBtn.style.display = "none";
+      if (els.resetAllBtn) els.resetAllBtn.classList.remove("hidden"); els.resetAllBtn.style.display = "none";
       return;
     }
     const practiced = loadPracticed();
@@ -686,7 +686,7 @@
       + setupKeys.map((s) => rowHtml(s.replace(/_/g, " "), bySetup[s], s)).join("");
 
     if (els.resetAllBtn) {
-      els.resetAllBtn.style.display = allIds.some((id) => practiced[id]) ? "" : "none";
+      els.resetAllBtn.classList.remove("hidden"); els.resetAllBtn.style.display = allIds.some((id) => practiced[id]) ? "" : "none";
     }
 
     els.progressList.querySelectorAll(".rw-progress-reset").forEach((btn) => {

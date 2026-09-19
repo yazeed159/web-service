@@ -264,7 +264,7 @@
       const ctrl = document.getElementById(ctrlId);
       if (!ctrl) return;
       const allowed = allowedCsv.split(",");
-      el.style.display = allowed.includes(ctrl.value) ? "" : "none";
+      el.classList.remove("hidden"); el.style.display = allowed.includes(ctrl.value) ? "" : "none";
     });
   }
 
@@ -292,7 +292,7 @@
     const noteEl = document.getElementById("lt-params-dirty");
     if (!noteEl) return;
     const dirty = editorLoadedSnapshot !== null && JSON.stringify(buildParamsFromEditor()) !== editorLoadedSnapshot;
-    noteEl.style.display = dirty ? "inline" : "none";
+    noteEl.classList.remove("hidden"); noteEl.style.display = dirty ? "inline" : "none";
   }
 
   function resetParamsEditor() {
@@ -354,21 +354,21 @@
     const strat = sel.value ? strategiesById[sel.value] : null;
 
     if (!strat) {
-      detailsEl.style.display = "none";
+      detailsEl.classList.remove("hidden"); detailsEl.style.display = "none";
       detailsEl.innerHTML = "";
-      editorEl.style.display = "none";
+      editorEl.classList.remove("hidden"); editorEl.style.display = "none";
       editorLoadedSnapshot = null;
       paramsStatusEl.textContent = "";
       noteEl.textContent = "";
       noteEl.classList.remove("warn");
-      fillBtn.style.display = "none";
+      fillBtn.classList.remove("hidden"); fillBtn.style.display = "none";
       return;
     }
 
-    detailsEl.style.display = "block";
+    detailsEl.classList.remove("hidden"); detailsEl.style.display = "block";
     detailsEl.innerHTML = renderStrategyDetails(strat);
 
-    editorEl.style.display = "block";
+    editorEl.classList.remove("hidden"); editorEl.style.display = "block";
     applyParamsToEditor(strat.params || {});
     paramsStatusEl.textContent = "";
     // Presets aren't real Supabase rows (see builtInStrategies) -- nothing
@@ -385,7 +385,7 @@
       symbolsInput.value = (rule.symbols || []).join(", ");
       noteEl.textContent = "Prefilled from this strategy's saved symbol list — edit freely for this run.";
       noteEl.classList.remove("warn");
-      fillBtn.style.display = "none";
+      fillBtn.classList.remove("hidden"); fillBtn.style.display = "none";
     } else if (rule.mode === "top_gappers" && !isPreset) {
       // Real (saved) strategy: leave Symbols blank and live_engine.py
       // resolves it against the live scanner at start, then keeps
@@ -397,7 +397,7 @@
       symbolsInput.value = "";
       noteEl.textContent = "This strategy trades whatever the live top-gappers scanner finds — leave Symbols blank to auto-select and keep tracking the scan while the run is live (see the Scanner page), or enter symbols to override with a fixed list for just this run.";
       noteEl.classList.remove("warn");
-      fillBtn.style.display = "";
+      fillBtn.classList.remove("hidden"); fillBtn.style.display = "";
     } else if (rule.mode === "top_gappers" && isPreset) {
       // Presets are client-side only (no Supabase row), so there's no
       // strategy_id for live_engine.py to resolve a gappers_rule against
@@ -407,11 +407,11 @@
       symbolsInput.value = "";
       noteEl.textContent = "This preset scans for top gappers, but starter presets aren't saved strategies, so there's nothing for the live scanner to auto-track — use \"Fill from live scanner\" for today's snapshot, or enter symbols by hand.";
       noteEl.classList.add("warn");
-      fillBtn.style.display = "";
+      fillBtn.classList.remove("hidden"); fillBtn.style.display = "";
     } else {
       noteEl.textContent = "";
       noteEl.classList.remove("warn");
-      fillBtn.style.display = "none";
+      fillBtn.classList.remove("hidden"); fillBtn.style.display = "none";
     }
   }
 
@@ -502,7 +502,7 @@
         // live-service being unreachable shouldn't hide the built-in
         // presets -- they don't depend on it at all.
         renderStrategyOptions(presets, []);
-        emptyEl.style.display = "block";
+        emptyEl.classList.remove("hidden"); emptyEl.style.display = "block";
         emptyEl.textContent = "Couldn't load your saved strategies (" + err.message + ") -- starter presets still work below.";
       });
   }
@@ -521,7 +521,7 @@
       (presetOptions ? `<optgroup label="Starter presets">${presetOptions}</optgroup>` : "") +
       (savedOptions ? `<optgroup label="Saved from Backtester">${savedOptions}</optgroup>` : "");
 
-    emptyEl.style.display = saved.length ? "none" : "block";
+    emptyEl.classList.remove("hidden"); emptyEl.style.display = saved.length ? "none" : "block";
     onStrategyChange();
   }
 
@@ -964,11 +964,11 @@
     if (!el) return;
     const showing = el.style.display !== "none";
     if (showing) {
-      el.style.display = "none";
+      el.classList.remove("hidden"); el.style.display = "none";
       btn.textContent = "View strategy details";
       return;
     }
-    el.style.display = "block";
+    el.classList.remove("hidden"); el.style.display = "block";
     btn.textContent = "Hide strategy details";
     const cached = strategiesById[strategyId];
     if (cached) {
@@ -1021,7 +1021,7 @@
   function loadAccount() {
     const mode = document.getElementById("lt-account-mode").value;
     const errEl = document.getElementById("lt-account-error");
-    errEl.style.display = "none";
+    errEl.classList.remove("hidden"); errEl.style.display = "none";
     apiCall(`/api/live/account?mode=${encodeURIComponent(mode)}`)
       .then((acct) => {
         document.getElementById("lt-acct-netliq").textContent = acct.NetLiquidation != null ? fmtMoney(acct.NetLiquidation) : "—";
@@ -1030,7 +1030,7 @@
         document.getElementById("lt-acct-rpnl").textContent = acct.RealizedPnL != null ? fmtMoney(acct.RealizedPnL) : "—";
       })
       .catch((err) => {
-        errEl.style.display = "block";
+        errEl.classList.remove("hidden"); errEl.style.display = "block";
         errEl.textContent = "Couldn't load account info: " + err.message;
       });
   }
