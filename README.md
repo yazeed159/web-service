@@ -117,3 +117,28 @@ replaced by the Supabase + Render setup above — n8n is no longer part of
 this project. (The one-time `import-legacy.html` tool that moved data
 from that era into Supabase has since been removed, now that every
 account's history is confirmed migrated.)
+
+## Installable app + seamless page transitions
+
+The site is an installable PWA and is meant to be wrapped as an Android APK
+(PWABuilder / Bubblewrap TWA, or Capacitor pointed at the live URL).
+
+- `manifest.json` + `icons/` -- app name, icons, standalone display, theme colour.
+- `sw.js` -- service worker. Pre-caches the whole shell on install and serves
+  same-origin files (and the supabase-js / lightweight-charts CDN scripts)
+  stale-while-revalidate, so page loads come from the device. API calls
+  (Supabase, Render, the live-trading tunnel) are never intercepted. A deploy
+  shows up one navigation later; bump `CACHE_VERSION` in `sw.js` to force a
+  full purge. If you add a page/CSS/JS file, add it to `SHELL` in `sw.js` so
+  it is pre-cached (it still works if you forget -- it just caches on first use).
+- `js/pwa-register.js` -- registers the service worker; loaded from every page's `<head>`.
+- **View transitions** -- `css/common.css` opts every page into cross-document
+  view transitions (`@view-transition`), so a normal page load cross-fades from
+  the old page instead of flashing a loader; the desktop sidebar is pinned so
+  it never animates. `js/page-transition.js` skips the loader overlay when the
+  browser supports this (Chrome / Android WebView 126+) and wraps the in-place
+  SPA swaps in `document.startViewTransition()`. Browsers without support, or
+  with `prefers-reduced-motion`, keep the original loader-overlay behaviour.
+- `<link rel="expect" href="#page-title" blocking="render">` in each page's
+  `<head>` holds the first paint until the sidebar + topbar exist, so the new
+  page never appears half-built inside a transition.

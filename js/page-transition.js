@@ -54,6 +54,17 @@
   var bar = document.getElementById("page-progress-bar");
   if (!overlay && !bar) return;
 
+  // View Transitions. When the browser supports them (Chrome/Android WebView
+  // 126+), pages cross-fade with the old page held on screen until the new one
+  // has painted, so the loader overlay is not needed at the seam and is skipped:
+  //   - CROSS_DOC_VT: full page loads (@view-transition in common.css)
+  //   - SAME_DOC_VT:  in-place SPA swaps below (document.startViewTransition)
+  // Anything else -- older browsers, or prefers-reduced-motion -- keeps the
+  // original loader-overlay behaviour untouched.
+  var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var CROSS_DOC_VT = typeof window.CSSViewTransitionRule !== "undefined" && !reducedMotion;
+  var SAME_DOC_VT = typeof document.startViewTransition === "function" && !reducedMotion;
+
   // Keyed by the normalized destination filename (see normalizeFile
   // below -- matches with or without ".html", so it works whether the
   // link/URL is "journal.html" or the clean "/journal" the Worker
@@ -288,7 +299,7 @@
     // this, leaving index.html for a different SPA page still left its
     // listeners live and pointed at DOM that no longer exists.
     if (window.__appTeardown) window.__appTeardown();
-    showLoader();
+    if (!SAME_DOC_VT) showLoader();
     fetch(url.href, { credentials: "same-origin" })
       .then(function (res) {
         if (!res.ok) throw new Error("bad response");
@@ -296,17 +307,29 @@
       })
       .then(function (html) {
         var newDoc = new DOMParser().parseFromString(html, "text/html");
-        if (push) history.pushState({ spa: true }, "", url.href);
-        document.title = newDoc.title || document.title;
-        swapContent(newDoc);
-        swapSidebarMain(newDoc);
-        swapSidebarBottom(newDoc);
-        return runPageScripts(cfg, newDoc);
-      })
-      .then(function () {
-        window.scrollTo(0, 0);
-        if (window.__rebootDecor) window.__rebootDecor();
-        hideLoader();
+
+        // Everything that mutates the live page. With view transitions this
+        // runs inside document.startViewTransition(): the browser snapshots the
+        // old page, waits for this to finish (including the destination's
+        // scripts), then cross-fades to the result -- no loader overlay.
+        function apply() {
+          if (push) history.pushState({ spa: true }, "", url.href);
+          document.title = newDoc.title || document.title;
+          swapContent(newDoc);
+          swapSidebarMain(newDoc);
+          swapSidebarBottom(newDoc);
+          return runPageScripts(cfg, newDoc).then(function () {
+            window.scrollTo(0, 0);
+            if (window.__rebootDecor) window.__rebootDecor();
+            hideLoader();
+          });
+        }
+
+        if (SAME_DOC_VT) {
+          var vt = document.startViewTransition(apply);
+          return vt.updateCallbackDone.then(function () { return vt.finished; });
+        }
+        return apply();
       })
       .catch(function () {
         // Any failure (network, parse, missing .main) falls back to a
@@ -356,7 +379,10 @@
         return;
       }
 
-      showLoader();
+      // Full page load. Where cross-document view transitions exist the old
+      // page simply stays on screen until the new one paints; otherwise cover
+      // the seam with the loader overlay as before.
+      if (!CROSS_DOC_VT) showLoader();
     },
     true
   );
@@ -369,6 +395,10 @@
     var cfg = SPA_PAGES[keyFor(window.location.pathname)];
     if (cfg && e.state && e.state.spa) {
       swapTo(new URL(window.location.href), cfg, false);
+    } else if (CROSS_DOC_VT) {
+      // Not a reload, so the browser can cross-fade it like any other
+      // navigation; the URL is already the destination's after popstate.
+      window.location.replace(window.location.href);
     } else {
       window.location.reload();
     }

@@ -66,6 +66,14 @@
      make the page uselessly stale). */
   .sc-enrich-note { font-size: 11.5px; color: var(--text-faint); margin: -6px 0 14px; }
 </style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0b0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="trade.log">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="expect" href="#page-title" blocking="render">
+<script src="js/pwa-register.js" defer></script>
 </head>
 <body>
 <div id="page-progress-bar"></div>

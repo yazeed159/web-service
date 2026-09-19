@@ -2146,3 +2146,30 @@ body::before {
 @media (max-width: 480px) {
   .bt-field-grid, .bt-field-grid.wide { grid-template-columns: 1fr 1fr; }
 }
+
+/* ---------- Cross-page view transitions ----------
+   Chrome/Android WebView (126+) can cross-fade between two *separate* page
+   loads when both pages opt in with @view-transition. The outgoing page stays
+   on screen until the incoming one has painted its first frame, so there is no
+   blank gap and no loading splash between pages. The sidebar is given its own
+   transition name and never animates, so it reads as one persistent app shell.
+   Browsers without support ignore all of this and keep the loader overlay
+   (see page-transition.js). */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+}
+::view-transition-group(root) { animation-duration: 0.18s; }
+/* Desktop only: on phones the sidebar is an off-canvas drawer, so it should
+   fade with the rest of the page instead of being pinned. */
+@media (min-width: 761px) {
+  .sidebar { view-transition-name: sidebar; }
+  ::view-transition-group(sidebar) { animation: none; }
+  ::view-transition-old(sidebar) { display: none; }
+  ::view-transition-new(sidebar) { animation: none; }
+}
+
+/* While a view transition is running the old page is what covers the seam, so
+   the loading splash and progress bar must stay out of the snapshot. The splash
+   still shows on a cold launch, where there is no transition. */
+html:active-view-transition #page-loader-overlay,
+html:active-view-transition #page-progress-bar { display: none !important; }
