@@ -1,0 +1,18 @@
+# Files in the project root that must NOT be uploaded as website assets.
+# (wrangler uploads the whole assets directory "." and rejects any file
+# over 25 MiB -- node_modules/workerd alone is 127 MiB.)
+node_modules
+tests
+test-results
+playwright-report
+package.json
+package-lock.json
+bun.lock
+bun.lockb
+playwright.config.js
+push.bat
+wrangler.jsonc
+.assetsignore
+.gitignore
+.git
+.wrangler
