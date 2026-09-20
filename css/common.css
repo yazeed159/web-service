@@ -1109,6 +1109,9 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .compare-period { display: flex; align-items: center; gap: 8px; }
 .compare-period-title { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-right: 4px; }
 .compare-to { font-size: 12px; color: var(--text-faint); }
+.compare-table th.num, .compare-table td.num { text-align: right; white-space: nowrap; }
+.compare-table th .range { display: block; margin-top: 2px; text-transform: none; letter-spacing: 0; font-weight: 400; font-family: var(--mono); font-size: 10.5px; }
+.compare-table td.strong { font-weight: 700; }
 
 .subtab-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 20px 0 16px; }
 .subtab-btn {

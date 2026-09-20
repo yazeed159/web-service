@@ -866,38 +866,139 @@
     if (!startDate || !endDate) return null;
     const subset = App.state.trades.filter((t) => t.trade_date >= startDate && t.trade_date <= endDate);
     if (!subset.length) return null;
+    const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
     const wins = subset.filter((t) => t.win);
     const losses = subset.filter((t) => !t.win);
-    const net = subset.reduce((s, t) => s + t.pnl_after_comm, 0);
+    const sum = (arr, f) => arr.reduce((s, t) => s + f(t), 0);
+    const net = sum(subset, (t) => num(t.pnl_after_comm));
+    const gross = sum(subset, (t) => num(t.pnl_before_comm));
+    const commissions = sum(subset, (t) => num(t.commission));
     const winRate = (wins.length / subset.length) * 100;
-    const avgWin = wins.length ? wins.reduce((s, t) => s + t.pnl_after_comm, 0) / wins.length : 0;
-    const avgLoss = losses.length ? losses.reduce((s, t) => s + t.pnl_after_comm, 0) / losses.length : 0;
-    const grossWinSum = wins.reduce((s, t) => s + t.pnl_after_comm, 0);
-    const grossLossSum = Math.abs(losses.reduce((s, t) => s + t.pnl_after_comm, 0));
+    const grossWinSum = sum(wins, (t) => num(t.pnl_after_comm));
+    const lossSum = sum(losses, (t) => num(t.pnl_after_comm));
+    // null (shown as "—") when the period has no winners / no losers, rather than a fake $0.00.
+    const avgWin = wins.length ? grossWinSum / wins.length : null;
+    const avgLoss = losses.length ? lossSum / losses.length : null;
+    const grossLossSum = Math.abs(lossSum);
     const profitFactor = grossLossSum > 0 ? grossWinSum / grossLossSum : (grossWinSum > 0 ? Infinity : 0);
-    return { n: subset.length, net, winRate, avgWin, avgLoss, profitFactor };
+    const payoffRatio = avgWin != null && avgLoss != null && avgLoss !== 0 ? avgWin / Math.abs(avgLoss) : null;
+    const pnls = subset.map((t) => num(t.pnl_after_comm));
+    // reduce, not Math.max(...arr): spreading a very large array can overflow the call stack.
+    const maxOf = (arr) => arr.reduce((m, v) => (v > m ? v : m), -Infinity);
+    const minOf = (arr) => arr.reduce((m, v) => (v < m ? v : m), Infinity);
+    // Per-day nets, for the day-level rows (best/worst day, winning-day %).
+    const byDay = new Map();
+    subset.forEach((t) => byDay.set(t.trade_date, (byDay.get(t.trade_date) || 0) + num(t.pnl_after_comm)));
+    const dayNets = Array.from(byDay.values());
+    const holds = subset.map((t) => App.durationMinutes(t)).filter((m) => m != null);
+    return {
+      n: subset.length,
+      days: dayNets.length,
+      net, gross, commissions, winRate, avgWin, avgLoss, profitFactor, payoffRatio,
+      expectancy: net / subset.length,
+      largestWin: maxOf(pnls),
+      largestLoss: minOf(pnls),
+      tradesPerDay: subset.length / dayNets.length,
+      avgPerDay: net / dayNets.length,
+      winningDayPct: (dayNets.filter((d) => d > 0).length / dayNets.length) * 100,
+      bestDay: maxOf(dayNets),
+      worstDay: minOf(dayNets),
+      avgHold: holds.length ? holds.reduce((a, b) => a + b, 0) / holds.length : null,
+      avgShares: sum(subset, (t) => num(t.shares)) / subset.length,
+    };
   }
-  function periodStatsHtml(s) {
-    if (!s) return `<div class="empty-state small">No trades in this range.</div>`;
-    const pf = s.profitFactor === Infinity ? "∞" : s.profitFactor.toFixed(2);
-    const rows = [
-      ["Trades", s.n],
-      ["Net P&amp;L", `<span class="${s.net >= 0 ? "up" : "down"}">${fmtMoney(s.net)}</span>`],
-      ["Win rate", s.winRate.toFixed(0) + "%"],
-      ["Avg win", fmtMoney(s.avgWin)],
-      ["Avg loss", fmtMoney(s.avgLoss)],
-      ["Profit factor", pf],
-    ];
-    return `<div class="kv-list">${rows.map(([k, v]) => `<div class="kv-row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join("")}</div>`;
+  // One row per metric. `better` says which direction of change is good
+  // ("up" = higher is better, "down" = lower is better, null = neutral, so
+  // the Change column only colors a difference when it clearly helps or
+  // hurts). Every metric here is signed such that "higher = better" holds
+  // except commissions.
+  const COMPARE_ROWS = [
+    { label: "Trading days", key: "days", kind: "int" },
+    { label: "Trades", key: "n", kind: "int" },
+    { label: "Trades per day", key: "tradesPerDay", kind: "dec1" },
+    { label: "Net P&amp;L", key: "net", kind: "money", better: "up", bold: true },
+    { label: "Gross P&amp;L", key: "gross", kind: "money", better: "up" },
+    { label: "Commissions", key: "commissions", kind: "moneyAbs", better: "down" },
+    { label: "Avg P&amp;L per day", key: "avgPerDay", kind: "money", better: "up" },
+    { label: "Win rate", key: "winRate", kind: "pct", better: "up" },
+    { label: "Winning days", key: "winningDayPct", kind: "pct", better: "up" },
+    { label: "Avg win", key: "avgWin", kind: "money", better: "up" },
+    { label: "Avg loss", key: "avgLoss", kind: "money", better: "up" },
+    { label: "Win/loss ratio", key: "payoffRatio", kind: "dec2", better: "up" },
+    { label: "Profit factor", key: "profitFactor", kind: "dec2", better: "up" },
+    { label: "Expectancy per trade", key: "expectancy", kind: "money", better: "up" },
+    { label: "Largest win", key: "largestWin", kind: "money", better: "up" },
+    { label: "Largest loss", key: "largestLoss", kind: "money", better: "up" },
+    { label: "Best day", key: "bestDay", kind: "money", better: "up" },
+    { label: "Worst day", key: "worstDay", kind: "money", better: "up" },
+    { label: "Avg hold time", key: "avgHold", kind: "duration" },
+    { label: "Avg shares per trade", key: "avgShares", kind: "int" },
+  ];
+  function compareFormat(kind, v) {
+    if (v == null || Number.isNaN(v)) return "\u2014";
+    if (v === Infinity) return "\u221e";
+    switch (kind) {
+      case "int": return Math.round(v).toLocaleString();
+      case "dec1": return v.toFixed(1);
+      case "dec2": return v.toFixed(2);
+      case "pct": return v.toFixed(1) + "%";
+      case "money": return fmtMoney(v);
+      case "moneyAbs": return "$" + v.toFixed(2);
+      case "duration": return App.fmtDurationPrecise(v);
+      default: return String(v);
+    }
+  }
+  function compareDeltaHtml(row, a, b) {
+    const av = a ? a[row.key] : null, bv = b ? b[row.key] : null;
+    if (av == null || bv == null || !Number.isFinite(av) || !Number.isFinite(bv)) return `<span class="dim">\u2014</span>`;
+    const diff = bv - av;
+    if (Math.abs(diff) < 1e-9) return `<span class="dim">0</span>`;
+    const sign = diff > 0 ? "+" : "-";
+    const mag = Math.abs(diff);
+    let text;
+    switch (row.kind) {
+      case "money": text = sign + "$" + mag.toFixed(2); break;
+      case "moneyAbs": text = sign + "$" + mag.toFixed(2); break;
+      case "pct": text = sign + mag.toFixed(1) + " pp"; break;
+      case "dec1": text = sign + mag.toFixed(1); break;
+      case "dec2": text = sign + mag.toFixed(2); break;
+      case "duration": text = sign + App.fmtDurationPrecise(mag); break;
+      default: text = sign + Math.round(mag).toLocaleString();
+    }
+    let cls = "dim";
+    if (row.better === "up") cls = diff > 0 ? "up" : "down";
+    else if (row.better === "down") cls = diff > 0 ? "down" : "up";
+    return `<span class="${cls}">${text}</span>`;
+  }
+  function periodStatsHtml(a, b, ranges) {
+    if (!a && !b) return `<div class="empty-state small">No trades in either date range.</div>`;
+    const cell = (s, row) => {
+      const txt = s ? compareFormat(row.kind, s[row.key]) : "\u2014";
+      // Color the signed-money rows green/red by sign; everything else stays neutral.
+      const cls = s && row.kind === "money" && Number.isFinite(s[row.key]) ? (s[row.key] >= 0 ? " up" : " down") : "";
+      return `<td class="mono num${cls}${row.bold ? " strong" : ""}">${txt}</td>`;
+    };
+    const rows = COMPARE_ROWS.map((row) => `<tr>
+        <td>${row.label}</td>${cell(a, row)}${cell(b, row)}
+        <td class="mono num">${compareDeltaHtml(row, a, b)}</td>
+      </tr>`).join("");
+    const note = (!a || !b) ? `<div class="dim" style="font-size:12px;margin-bottom:8px;">No trades in ${!a ? "Period A" : "Period B"}'s date range.</div>` : "";
+    return `${note}<div class="table-scroll"><table class="report-table compare-table"><thead><tr>
+      <th>Metric</th>
+      <th class="num">Period A<span class="range">${escapeHtml(ranges.a)}</span></th>
+      <th class="num">Period B<span class="range">${escapeHtml(ranges.b)}</span></th>
+      <th class="num">Change (B vs A)</th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
   }
   function updateCompare() {
-    const aEl = document.getElementById("compare-a");
-    const bEl = document.getElementById("compare-b");
-    if (!aEl || !bEl) return;
+    const el = document.getElementById("compare-table");
+    if (!el) return;
     const aS = document.getElementById("cmp-a-start").value, aE = document.getElementById("cmp-a-end").value;
     const bS = document.getElementById("cmp-b-start").value, bE = document.getElementById("cmp-b-end").value;
-    aEl.innerHTML = periodStatsHtml(periodStats(aS, aE));
-    bEl.innerHTML = periodStatsHtml(periodStats(bS, bE));
+    el.innerHTML = periodStatsHtml(periodStats(aS, aE), periodStats(bS, bE), {
+      a: aS && aE ? `${aS} \u2192 ${aE}` : "no range",
+      b: bS && bE ? `${bS} \u2192 ${bE}` : "no range",
+    });
   }
   function renderCompare() {
     if (!App.state.trades.length) { updateCompare(); return; }
