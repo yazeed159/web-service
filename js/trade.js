@@ -340,8 +340,6 @@
         </div>
       </div>
 
-      <div id="journal-card"></div>
-
       <div class="chart-panel">
         <div class="chart-toolbar">
           <div class="legend">
@@ -438,6 +436,8 @@
           <div id="sr-result"></div>
         </div>
       </div>
+
+      <div id="journal-card"></div>
     `;
 
     buildCharts(trade);
