@@ -22,7 +22,7 @@ var SHELL = [
   "trade.html", "report.html", "scanner.html", "search.html", "import-trades.html",
   "live-trading.html", "login.html", "favicon.svg", "manifest.json",
   "icons/icon-192.png", "icons/icon-512.png",
-  "css/common.css", "css/dashboard.css", "css/rewind.css", "css/practice.css",
+  "css/common.css", "css/buttons.css", "css/dashboard.css", "css/rewind.css", "css/practice.css",
   "css/quiz-shared.css", "css/report.css", "css/ui-modal.css", "css/search.css",
   "js/utils.js", "js/config.js", "js/auth.js", "js/page-transition.js", "js/nav-render.js",
   "js/global-search.js", "js/common.js", "js/pwa-register.js", "js/grade.js", "js/trade-notes.js", "js/daily-notes.js", "js/discipline.js", "js/ui-modal.js",

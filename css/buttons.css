@@ -1,0 +1,214 @@
+/* ===================================================================
+   buttons.css -- one modern button system for the whole site.
+   Loaded LAST on every page (right before </head>) so it wins over the
+   older per-page rules at equal specificity. It only restyles; class
+   names, markup and JS hooks are unchanged. Delete the <link> to revert.
+
+   Families
+     primary    .btn-confirm
+     secondary  .btn-advanced .filter-btn .icon-btn .btn-icon .cal-nav-btn
+                .sidebar-toggle
+     tinted     .sr-run-btn
+     segmented  .pr-view-tab .quiz-mode-btn .tf-btn .calc-toggle button
+                .eq-range-toggle button
+     chip       .calc-chip .calc-symbol-chip .chat-chip button.pill.tagpill
+     text link  .link .calc-balance-edit .edge-explain-toggle
+     danger     .int-disconnect .strat-card-delete
+   =================================================================== */
+:root {
+  --btn-radius: 10px;
+  --btn-ring: 0 0 0 3px rgba(139, 124, 246, 0.35);
+  --btn-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --btn-surface: rgba(255, 255, 255, 0.045);
+  --btn-surface-hi: rgba(255, 255, 255, 0.085);
+  --btn-edge: rgba(255, 255, 255, 0.10);
+  --btn-edge-hi: rgba(255, 255, 255, 0.20);
+}
+
+/* ---------- shared behaviour ---------- */
+.btn-confirm, .btn-advanced, .filter-btn, .icon-btn, .btn-icon, .cal-nav-btn,
+.sidebar-toggle, .sr-run-btn, .pr-view-tab, .quiz-mode-btn, .tf-btn,
+.calc-toggle button, .eq-range-toggle button, .calc-chip, .calc-symbol-chip,
+.chat-chip, button.pill.tagpill, .int-disconnect, .strat-card-delete {
+  font-family: var(--sans);
+  letter-spacing: -0.005em;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: background-color .18s var(--btn-ease), border-color .18s var(--btn-ease),
+              color .18s var(--btn-ease), box-shadow .18s var(--btn-ease),
+              transform .12s var(--btn-ease), opacity .18s var(--btn-ease);
+}
+.btn-confirm:focus-visible, .btn-advanced:focus-visible, .filter-btn:focus-visible,
+.icon-btn:focus-visible, .btn-icon:focus-visible, .cal-nav-btn:focus-visible,
+.sidebar-toggle:focus-visible, .sr-run-btn:focus-visible, .pr-view-tab:focus-visible,
+.quiz-mode-btn:focus-visible, .tf-btn:focus-visible, .calc-toggle button:focus-visible,
+.eq-range-toggle button:focus-visible, .calc-chip:focus-visible,
+.calc-symbol-chip:focus-visible, .chat-chip:focus-visible,
+button.pill.tagpill:focus-visible, .int-disconnect:focus-visible {
+  outline: none;
+  box-shadow: var(--btn-ring);
+}
+.btn-confirm:disabled, .btn-advanced:disabled, .filter-btn:disabled,
+.sr-run-btn:disabled, .icon-btn:disabled, .btn-icon:disabled {
+  opacity: .45; cursor: not-allowed; transform: none;
+}
+
+/* ---------- primary ---------- */
+.btn-confirm {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 9px 18px;
+  font-size: 13px; font-weight: 600; line-height: 1.2;
+  color: #fff; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--btn-radius);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(135deg, var(--violet, #8457ff), var(--primary-2, #6e5bf0));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset, 0 6px 18px -6px var(--glow-violet, rgba(132, 87, 255, .5));
+}
+.btn-confirm:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, 0 10px 24px -8px var(--glow-violet, rgba(132, 87, 255, .6));
+  filter: brightness(1.07);
+}
+.btn-confirm:active:not(:disabled) { transform: translateY(0) scale(.98); filter: brightness(.96); }
+.btn-confirm:focus-visible { box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, var(--btn-ring); }
+
+/* ---------- secondary ---------- */
+.btn-advanced, .filter-btn, .icon-btn, .btn-icon, .cal-nav-btn, .sidebar-toggle {
+  color: var(--text); cursor: pointer;
+  background: var(--btn-surface);
+  border: 1px solid var(--btn-edge);
+  border-radius: var(--btn-radius);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+.btn-advanced { padding: 8px 14px; font-size: 13px; font-weight: 500; }
+.filter-btn   { font-weight: 500; }
+.btn-advanced:hover:not(:disabled), .filter-btn:hover, .icon-btn:hover,
+.btn-icon:hover, .cal-nav-btn:hover, .sidebar-toggle:hover {
+  background: var(--btn-surface-hi);
+  border-color: var(--btn-edge-hi);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+.btn-advanced:active:not(:disabled), .filter-btn:active, .icon-btn:active,
+.btn-icon:active, .cal-nav-btn:active, .sidebar-toggle:active {
+  transform: translateY(0) scale(.97);
+}
+.filter-btn.active, .btn-advanced.active {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(132, 87, 255, .30), rgba(34, 211, 238, .16));
+  border-color: rgba(139, 124, 246, .55);
+  box-shadow: 0 0 0 1px rgba(139, 124, 246, .18) inset;
+}
+.btn-icon { display: inline-flex; align-items: center; justify-content: center; }
+
+/* ---------- tinted accent ---------- */
+.sr-run-btn {
+  border-radius: var(--btn-radius); font-weight: 600; cursor: pointer;
+  color: #cfc8ff;
+  background: linear-gradient(135deg, rgba(132, 87, 255, .22), rgba(34, 211, 238, .10));
+  border: 1px solid rgba(139, 124, 246, .45);
+}
+.sr-run-btn:hover:not(:disabled) {
+  color: #fff; transform: translateY(-1px);
+  border-color: rgba(139, 124, 246, .8);
+  box-shadow: 0 8px 22px -10px var(--glow-violet, rgba(132, 87, 255, .6));
+}
+
+/* ---------- segmented / tabs ---------- */
+.pr-view-tab, .quiz-mode-btn, .tf-btn, .calc-toggle button, .eq-range-toggle button {
+  border-radius: 8px; cursor: pointer; font-weight: 600;
+}
+.pr-view-tab, .tf-btn, .calc-toggle button {
+  background: transparent; border: 1px solid transparent; color: var(--text-dim);
+}
+.pr-view-tab:hover, .tf-btn:hover, .calc-toggle button:hover { color: var(--text); background: var(--btn-surface); }
+.pr-view-tab.active, .tf-btn.active, .calc-toggle button.active, .calc-toggle button.on {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(132, 87, 255, .38), rgba(110, 91, 240, .26));
+  border-color: rgba(139, 124, 246, .45);
+  box-shadow: 0 4px 14px -6px var(--glow-violet, rgba(132, 87, 255, .6));
+}
+.quiz-mode-btn, .eq-range-toggle button {
+  background: var(--btn-surface); border: 1px solid var(--btn-edge); color: var(--text-dim);
+}
+.quiz-mode-btn:hover, .eq-range-toggle button:hover { color: var(--text); border-color: var(--btn-edge-hi); background: var(--btn-surface-hi); }
+.quiz-mode-btn.active, .eq-range-toggle button.active {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(132, 87, 255, .34), rgba(34, 211, 238, .14));
+  border-color: rgba(139, 124, 246, .6);
+}
+
+/* ---------- chips / pills ---------- */
+.calc-chip, .calc-symbol-chip, .chat-chip, button.pill.tagpill {
+  cursor: pointer; border-radius: 999px;
+  background: var(--btn-surface); border: 1px solid var(--btn-edge); color: var(--text-dim);
+}
+.calc-symbol-chip { border-radius: 12px; }
+.calc-chip:hover, .calc-symbol-chip:hover, .chat-chip:hover, button.pill.tagpill:hover {
+  color: var(--text); border-color: rgba(139, 124, 246, .55); background: var(--btn-surface-hi);
+  transform: translateY(-1px);
+}
+.calc-chip:active, .calc-symbol-chip:active, .chat-chip:active, button.pill.tagpill:active { transform: scale(.96); }
+.calc-chip.active, button.pill.tagpill.on, button.pill.tagpill.active {
+  color: #fff; font-weight: 600;
+  background: linear-gradient(135deg, rgba(132, 87, 255, .42), rgba(34, 211, 238, .18));
+  border-color: rgba(139, 124, 246, .7);
+}
+
+/* ---------- text links ---------- */
+.link, .calc-balance-edit, .edge-explain-toggle {
+  cursor: pointer; background: none; border: 0; color: var(--primary);
+  border-radius: 6px; padding: 2px 6px; margin: -2px -6px;
+}
+.link:hover, .calc-balance-edit:hover, .edge-explain-toggle:hover {
+  color: #fff; background: var(--primary-soft);
+}
+
+/* ---------- danger ---------- */
+.int-disconnect, .strat-card-delete {
+  cursor: pointer; border-radius: 8px; padding: 5px 10px;
+  color: var(--red); background: transparent; border: 1px solid transparent;
+}
+.int-disconnect:hover, .strat-card-delete:hover {
+  background: var(--red-soft); border-color: rgba(242, 85, 90, .4); text-decoration: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-confirm, .btn-advanced, .filter-btn, .icon-btn, .btn-icon, .cal-nav-btn,
+  .sidebar-toggle, .sr-run-btn, .pr-view-tab, .quiz-mode-btn, .tf-btn,
+  .calc-toggle button, .eq-range-toggle button, .calc-chip, .calc-symbol-chip,
+  .chat-chip, button.pill.tagpill, .int-disconnect, .strat-card-delete { transition: none; transform: none !important; }
+}
+
+/* ---------- stragglers ---------- */
+/* Risk calculator R-target rows (had no button styling at all). */
+.calc-r-row.calc-r-row-btn {
+  width: 100%; text-align: left; cursor: pointer;
+  font-family: var(--sans); font-size: 13px; color: var(--text);
+  background: transparent; border: 0; border-top: 1px solid var(--border);
+  transition: background-color .18s var(--btn-ease), padding-left .18s var(--btn-ease);
+}
+.calc-r-row.calc-r-row-btn:first-child { border-top: 0; background: transparent; }
+.calc-r-row.calc-r-row-btn:hover { background: var(--primary-soft); padding-left: 18px; }
+.calc-r-row.calc-r-row-btn:active { background: rgba(139, 124, 246, .22); }
+.calc-r-row.calc-r-row-btn:focus-visible { outline: none; box-shadow: inset var(--btn-ring); }
+
+/* Small inline text buttons that were bare <button>s. */
+#calc-use-actual-winrate, .rw-progress-reset {
+  cursor: pointer; background: none; border: 0; color: var(--primary);
+  font-family: var(--sans); border-radius: 6px; padding: 1px 5px; margin: -1px -5px;
+  transition: background-color .18s var(--btn-ease), color .18s var(--btn-ease);
+}
+#calc-use-actual-winrate:hover, .rw-progress-reset:hover { color: #fff; background: var(--primary-soft); text-decoration: none; }
+
+/* Daily checklist remove (x). */
+#dn-checklist button[data-del] {
+  cursor: pointer; width: 22px; height: 22px; padding: 0; line-height: 1; font-size: 11px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-faint); background: transparent; border: 1px solid transparent; border-radius: 50%;
+  transition: background-color .18s var(--btn-ease), color .18s var(--btn-ease);
+}
+#dn-checklist button[data-del]:hover { color: var(--red); background: var(--red-soft); }
