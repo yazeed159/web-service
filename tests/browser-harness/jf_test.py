@@ -1,0 +1,12 @@
+seed = "localStorage.setItem('trade.log:journal_entries', JSON.stringify({T1:{plan_stop:4.8,plan_target:5.6,setup:'Breakout',mistakes:[],followed_rules:true,notes:'',updated:'x'},T2:{plan_stop:2.9,plan_target:null,setup:'Dip buy',mistakes:['Chased entry'],followed_rules:false,notes:'',updated:'x'}}))"
+pg.add_init_script("if(!localStorage.getItem('trade.log:journal_entries')){"+seed+"}")
+pg.goto("http://localhost:8788/journal.html"); pg.wait_for_timeout(2500)
+print("setup opts:", pg.eval_on_selector("#f-mysetup","s=>[...s.options].map(o=>o.value)"))
+print("mistake opts:", pg.eval_on_selector("#f-mymistake","s=>[...s.options].map(o=>o.value)"))
+def rows(): return pg.locator("tbody tr").count()
+print("rows all:", rows())
+pg.select_option("#f-myrules","no"); pg.wait_for_timeout(500); print("broke rules:", rows(), pg.locator("tbody tr").first.inner_text()[:60].replace("\n"," "))
+pg.select_option("#f-myrules","unset"); pg.wait_for_timeout(500); print("unset:", rows())
+pg.select_option("#f-myrules",""); pg.select_option("#f-mysetup","Breakout"); pg.wait_for_timeout(500); print("Breakout:", rows())
+pg.goto("http://localhost:8788/stats.html"); pg.wait_for_timeout(3500)
+print("insights:", pg.inner_text("#journal-insights").replace("\n"," | ")[:700])

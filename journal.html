@@ -117,6 +117,9 @@
         <select id="f-avgvol" title="30-day average daily volume"><option value="">All avg. volume</option></select>
         <select id="f-float" title="Float (shares outstanding, approx.)"><option value="">All float</option></select>
         <select id="f-tag" title="Lesson tags you've logged on trades"><option value="">All tags</option></select>
+        <select id="f-mysetup" title="Setup you labelled on the trade page"><option value="">My setup: any</option></select>
+        <select id="f-mymistake" title="Mistake you tagged on the trade page"><option value="">My mistake: any</option></select>
+        <select id="f-myrules" title="Whether you marked the trade as following your rules"><option value="">Rules: any</option><option value="yes">Followed rules</option><option value="no">Broke rules</option><option value="unset">Not answered</option></select>
         <select id="f-grade" title="Self-graded execution quality — separate from win/loss">
           <option value="">All grades</option>
           <option value="5">★★★★★ only</option>
@@ -146,6 +149,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/grade.js"></script>
+<script src="js/trade-notes.js"></script>
 <script src="js/share-export.js"></script>
 <script>
 (function () {
@@ -170,6 +174,9 @@
     avgvol: document.getElementById("f-avgvol"),
     float: document.getElementById("f-float"),
     tag: document.getElementById("f-tag"),
+    mySetup: document.getElementById("f-mysetup"),
+    myMistake: document.getElementById("f-mymistake"),
+    myRules: document.getElementById("f-myrules"),
     grade: document.getElementById("f-grade"),
     flagged: document.getElementById("f-flagged"),
     timeFrom: document.getElementById("f-time-from"),
@@ -410,6 +417,24 @@
   // escapeHtml() now in utils.js (loads first on every page).
   // fmtMoney() now in utils.js (loads first on every page).
 
+  // Fill the "my setup"/"my mistake" dropdowns from the tags actually used
+  // in the journal entries (trade-notes.js), keeping any current selection.
+  function populateJournalFilters() {
+    if (!window.TradeNotes) return;
+    const entries = Object.values(window.TradeNotes.all());
+    const setups = new Set(), mistakes = new Set();
+    entries.forEach((e) => { if (e.setup) setups.add(e.setup); (e.mistakes || []).forEach((m) => mistakes.add(m)); });
+    const fill = (sel, values, anyLabel) => {
+      const cur = sel.value;
+      sel.innerHTML = `<option value="">${anyLabel}</option>` + Array.from(values).sort().map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+      if (cur && values.has(cur)) sel.value = cur;
+    };
+    fill(els.mySetup, setups, "My setup: any");
+    fill(els.myMistake, mistakes, "My mistake: any");
+  }
+  populateJournalFilters();
+  if (window.KV) window.KV.ready.then(() => { populateJournalFilters(); });
+
   function applyFilters() {
     const symbol = els.symbol.value.trim().toUpperCase();
     const from = els.from.value;
@@ -421,6 +446,9 @@
     const floatTag = els.float.value;
     const tag = els.tag.value;
     const gradeFilter = els.grade.value;
+    const mySetup = els.mySetup.value;
+    const myMistake = els.myMistake.value;
+    const myRules = els.myRules.value;
     const flaggedOnly = els.flagged.checked;
     const timeFrom = els.timeFrom.value; // "HH:MM" or ""
     const timeTo = els.timeTo.value;
@@ -442,6 +470,14 @@
         else if (!g || g < Number(gradeFilter)) return false;
       }
       if (flaggedOnly && !(r.better_entry_price || r.better_exit_price)) return false;
+      if (mySetup || myMistake || myRules) {
+        const je = window.TradeNotes ? window.TradeNotes.get(r.id) : null;
+        if (mySetup && (!je || je.setup !== mySetup)) return false;
+        if (myMistake && (!je || !(je.mistakes || []).includes(myMistake))) return false;
+        if (myRules === "yes" && !(je && je.followed_rules === true)) return false;
+        if (myRules === "no" && !(je && je.followed_rules === false)) return false;
+        if (myRules === "unset" && je && je.followed_rules !== null && je.followed_rules !== undefined) return false;
+      }
       // entry_time is "HH:MM:SS"; time inputs give "HH:MM" -- string
       // comparison on the HH:MM prefix is enough for a same-day range.
       const entryHM = String(r.entry_time || "").slice(0, 5);

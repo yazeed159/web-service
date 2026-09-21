@@ -138,6 +138,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/grade.js"></script>
+<script src="js/trade-notes.js"></script>
+<script src="js/daily-notes.js"></script>
+<script src="js/discipline.js"></script>
 <script>
 (function () {
   "use strict";
@@ -315,6 +318,21 @@
       </div>
 
       <div class="panel-box mb-16">
+        <div class="panel-box-head">
+          <span class="title">Discipline Score</span>
+          <span id="discipline-window" style="display:flex; gap:4px;"></span>
+        </div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">0–100 from what you control, not P&amp;L: rules followed, max daily loss held, journaling, having a plan, stops respected, no size-up after a loss. Parts with no data yet are left out, not scored 0.</p>
+        <div id="discipline-score"></div>
+      </div>
+
+      <div class="panel-box mb-16">
+        <div class="panel-box-head"><span class="title">Your Journal: Setups, Mistakes &amp; Rules</span></div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Built from the tags, rules check and planned stop you enter on each trade's page — your own read, not the AI's.</p>
+        <div id="journal-insights"></div>
+      </div>
+
+      <div class="panel-box mb-16">
         <div class="panel-box-head"><span class="title">Grade vs. P&amp;L</span></div>
         <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Self-graded execution quality (1-5 stars, set on each trade's page) compared against net P&amp;L per trade — separate axis from win/loss: a clean 1-star loss and a chased 5-star win both happen.</p>
         <div id="grade-breakdown"></div>
@@ -367,6 +385,8 @@
     renderSlippage(sorted);
     renderSlippageBySetup(sorted);
     renderGradeBreakdown(sorted);
+    renderDisciplineScore(sorted);
+    renderJournalInsights(sorted);
     renderTrends(sorted, currentTrendWindow);
     bindTrendWindowToggle(sorted);
     renderSlippageTrend(sorted);
@@ -972,6 +992,136 @@
       </div>
       ${tradeListHtml(rows, uid)}`;
     }).join("");
+    bindTradeToggles(el);
+  }
+
+  // Discipline score (discipline.js) over a selectable window, with the
+  // change vs. the previous window of the same length when that has data.
+  let disciplineWindow = "30";
+  function renderDisciplineScore(sorted) {
+    const el = document.getElementById("discipline-score");
+    const tog = document.getElementById("discipline-window");
+    if (!el || !tog) return;
+    if (!window.Discipline) { el.innerHTML = `<div class="empty-state small">Discipline utility failed to load.</div>`; return; }
+    const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return isoDay(d); };
+    const opts = ["7", "30", "90", "all"];
+    tog.innerHTML = opts.map((o) => `<button type="button" class="pill tagpill" data-dw="${o}" style="cursor:pointer;${o === disciplineWindow ? "background:var(--primary);color:#fff;border-color:var(--primary);" : ""}">${o === "all" ? "All" : o + "D"}</button>`).join("");
+    tog.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { disciplineWindow = b.dataset.dw; renderDisciplineScore(sorted); }));
+
+    let cur, prev = null;
+    if (disciplineWindow === "all") {
+      cur = window.Discipline.compute(sorted);
+    } else {
+      const n = Number(disciplineWindow);
+      cur = window.Discipline.compute(sorted, { from: daysAgo(n - 1) });
+      prev = window.Discipline.compute(sorted, { from: daysAgo(2 * n - 1), to: daysAgo(n) });
+    }
+    if (!cur.trades) { el.innerHTML = `<div class="empty-state small">No trades in this window.</div>`; return; }
+    if (cur.score === null) {
+      el.innerHTML = `<div class="empty-state small">${cur.trades} trade${cur.trades === 1 ? "" : "s"} in this window, but nothing to score yet — mark trades as followed/broke rules, set a planned stop, or set a max daily loss on the Daily page.</div>`;
+      return;
+    }
+    const score = Math.round(cur.score);
+    const color = score >= 75 ? "var(--green)" : score >= 60 ? "var(--text)" : "var(--red)";
+    let delta = "";
+    if (prev && prev.score !== null) {
+      const d = Math.round(cur.score - prev.score);
+      delta = `<span style="font-size:12px; color:${d >= 0 ? "var(--green)" : "var(--red)"};">${d >= 0 ? "▲" : "▼"} ${Math.abs(d)} vs. previous ${disciplineWindow}D</span>`;
+    }
+    const covered = Math.round(cur.coveredWeight);
+    const bars = cur.components.map((c) => {
+      if (c.value === null) {
+        return `<div class="bar-row"><div class="bar-label" style="min-width:210px;">${escapeHtml(c.label)}</div><div style="flex:1; color:var(--text-faint); font-size:12px;">no data yet</div><div style="width:60px; text-align:right; color:var(--text-faint);">${c.weight}%</div></div>`;
+      }
+      const v = Math.round(c.value);
+      const col = v >= 75 ? "var(--green)" : v >= 50 ? "var(--text-dim)" : "var(--red)";
+      return `<div class="bar-row"><div class="bar-label" style="min-width:210px;">${escapeHtml(c.label)}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${v}%; background:${col};"></div></div>
+        <div style="width:50px; text-align:right; flex-shrink:0; color:${col};">${v}%</div>
+        <div style="width:60px; text-align:right; flex-shrink:0; color:var(--text-faint);">n=${c.n}</div>
+        <div style="width:50px; text-align:right; flex-shrink:0; color:var(--text-faint);">${c.weight}%</div></div>`;
+    }).join("");
+    const worst = cur.components.filter((c) => c.value !== null).sort((a, b) => a.value - b.value)[0];
+    el.innerHTML = `
+      <div style="display:flex; align-items:baseline; gap:14px; margin:6px 0 12px;">
+        <span style="font-size:38px; font-weight:700; color:${color};">${score}</span>
+        <span style="font-size:14px; color:var(--text-dim);">${window.Discipline.grade(cur.score)}</span>
+        ${delta}
+      </div>
+      <div style="display:flex; gap:12px; font-size:11px; color:var(--text-faint); justify-content:flex-end;"><span style="width:50px; text-align:right;">Score</span><span style="width:60px; text-align:right;">Sample</span><span style="width:50px; text-align:right;">Weight</span></div>
+      ${bars}
+      <p style="color:var(--text-faint); font-size:12px; margin:12px 0 0;">Based on ${cur.trades} trade${cur.trades === 1 ? "" : "s"}; ${covered}% of the score's weight has data. Weakest area: <b>${escapeHtml(worst.label)}</b> (${Math.round(worst.value)}%).${covered < 60 ? " Low coverage — treat this as a rough read until more of the journal is filled in." : ""}</p>`;
+  }
+
+  // Aggregates the trader's own journal entries (trade-notes.js): P&L by
+  // self-labelled setup, total cost of each mistake tag, rules-followed vs
+  // not, and R-multiple stats for trades that have a planned stop.
+  function renderJournalInsights(sorted) {
+    const el = document.getElementById("journal-insights");
+    if (!el) return;
+    if (!window.TradeNotes) { el.innerHTML = `<div class="empty-state small">Journal utility failed to load.</div>`; return; }
+    const entries = window.TradeNotes.all();
+    const rows = sorted
+      .filter((r) => entries[r.id])
+      .map((r) => ({ r, e: entries[r.id], m: window.TradeNotes.metrics(r, entries[r.id]) }));
+    if (!rows.length) {
+      el.innerHTML = `<div class="empty-state small">Nothing journaled yet — add a setup, mistakes or a planned stop on a trade's page to start seeing this.</div>`;
+      return;
+    }
+    const pnl = (r) => (typeof r.pnl_after_comm === "number" ? r.pnl_after_comm : 0);
+    const sum = (a) => a.reduce((s, v) => s + v, 0);
+    const winPct = (a) => (a.length ? Math.round((a.filter((x) => x.r.win).length / a.length) * 1000) / 10 : 0);
+    const bar = (label, items, key) => {
+      const total = sum(items.map((x) => pnl(x.r)));
+      const avgPnl = total / items.length;
+      const rs = items.map((x) => x.m.r_multiple).filter((v) => v !== null);
+      const avgR = rs.length ? sum(rs) / rs.length : null;
+      const color = key === "total" ? (total >= 0 ? "var(--green)" : "var(--red)") : (avgPnl >= 0 ? "var(--green)" : "var(--red)");
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `<div class="bar-row cursor-pointer" data-trade-toggle="${uid}">
+        <div class="bar-label" style="min-width:130px;">${escapeHtml(label)}</div>
+        <div style="flex:1;"></div>
+        <div style="width:110px; text-align:right; flex-shrink:0; color:${color};">${fmtMoney(key === "total" ? total : avgPnl)} ${key === "total" ? "total" : "avg"}</div>
+        <div style="width:70px; text-align:right; flex-shrink:0; color:var(--text-faint);">${winPct(items)}% win</div>
+        <div style="width:70px; text-align:right; flex-shrink:0; color:var(--text-faint);">${avgR === null ? "—" : (avgR >= 0 ? "+" : "") + avgR.toFixed(2) + "R"}</div>
+        <div style="width:50px; text-align:right; flex-shrink:0; color:var(--text-faint);">${items.length}x</div>
+      </div>
+      ${tradeListHtml(items.map((x) => x.r), uid)}`;
+    };
+    const section = (title, body) => `<div style="margin:14px 0 6px; font-size:12px; font-weight:600; color:var(--text-dim);">${title}</div>${body}`;
+
+    const bySetup = {};
+    rows.forEach((x) => { if (x.e.setup) (bySetup[x.e.setup] = bySetup[x.e.setup] || []).push(x); });
+    const setupRows = Object.entries(bySetup).sort((a, b) => sum(b[1].map((x) => pnl(x.r))) - sum(a[1].map((x) => pnl(x.r))));
+
+    const byMistake = {};
+    rows.forEach((x) => (x.e.mistakes || []).forEach((t) => (byMistake[t] = byMistake[t] || []).push(x)));
+    const mistakeRows = Object.entries(byMistake).sort((a, b) => sum(a[1].map((x) => pnl(x.r))) - sum(b[1].map((x) => pnl(x.r))));
+
+    const yes = rows.filter((x) => x.e.followed_rules === true);
+    const no = rows.filter((x) => x.e.followed_rules === false);
+
+    const withR = rows.filter((x) => x.m.r_multiple !== null);
+    let rSummary = "";
+    if (withR.length) {
+      const rs = withR.map((x) => x.m.r_multiple);
+      const avgR = sum(rs) / rs.length;
+      const wr = rs.filter((v) => v > 0);
+      const lr = rs.filter((v) => v <= 0);
+      const wrate = wr.length / rs.length;
+      const expectancy = avgR; // mean R per trade == expectancy in R
+      rSummary = `<p style="color:var(--text-faint); font-size:12px; margin:12px 0 0;">R-stats over ${withR.length} trade${withR.length === 1 ? "" : "s"} with a planned stop: expectancy <b style="color:${expectancy >= 0 ? "var(--green)" : "var(--red)"};">${expectancy >= 0 ? "+" : ""}${expectancy.toFixed(2)}R</b> per trade, avg win ${wr.length ? "+" + (sum(wr) / wr.length).toFixed(2) : "—"}R, avg loss ${lr.length ? (sum(lr) / lr.length).toFixed(2) : "—"}R, win rate ${(wrate * 100).toFixed(0)}%.</p>`;
+    }
+
+    el.innerHTML = `
+      <div style="display:flex; gap:12px; font-size:11px; color:var(--text-faint); justify-content:flex-end;"><span style="width:110px; text-align:right;">P&amp;L</span><span style="width:70px; text-align:right;">Win</span><span style="width:70px; text-align:right;">Avg R</span><span style="width:50px; text-align:right;">Trades</span></div>
+      ${mistakeRows.length ? section("Mistake cost (total P&L of trades tagged)", mistakeRows.map(([k, v]) => bar(k, v, "total")).join("")) : ""}
+      ${setupRows.length ? section("By your setup (avg per trade)", setupRows.map(([k, v]) => bar(k, v, "avg")).join("")) : ""}
+      ${(yes.length || no.length) ? section("Rules (avg per trade)", [yes.length ? bar("Followed rules", yes, "avg") : "", no.length ? bar("Broke rules", no, "avg") : ""].join("")) : ""}
+      ${rSummary}
+      <div style="margin-top:8px; color:var(--text-faint); font-size:11.5px;">${rows.length} of ${sorted.length} trades journaled.</div>
+    `;
     bindTradeToggles(el);
   }
 

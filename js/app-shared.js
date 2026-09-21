@@ -353,6 +353,7 @@
     [
       "wld-summary", "wld-top-win", "wld-top-loss", "dd-summary", "dd-periods",
       "compare-table", "tagb-setup", "tagb-lessons",
+      "insights-breakeven", "insights-timesize", "insights-behavior", "insights-rules", "insights-concentration",
     ].forEach((id) => { const el = document.getElementById(id); if (el) el.innerHTML = '<div class="empty-state small">No data yet.</div>'; });
     document.getElementById("advanced-grid").innerHTML = "";
   }

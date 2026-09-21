@@ -582,10 +582,24 @@
   // Which provider is "active": whatever's explicitly saved in llm_provider,
   // falling back to whichever provider's key(s) are already filled in (for
   // rows saved before this column existed), falling back to the first option.
+  //
+  // SECURITY: secret fields (tokens / API keys) are write-only in the browser.
+  // Their stored values are never loaded into `row` or put into the DOM --
+  // `savedSecrets` only records WHICH ones exist, so the card can show
+  // "saved" and the user can replace or remove them. See
+  // security/broker_accounts_lockdown.sql for the matching DB-side change.
+  const savedSecrets = new Set();
+  const SECRET_KEYS = new Set(
+    INTEGRATIONS.flatMap((d) => (d.providers ? d.providers.flatMap((p) => p.fields) : d.fields))
+      .filter((f) => f.secret).map((f) => f.key)
+  );
+  function hasValue(key) {
+    return SECRET_KEYS.has(key) ? savedSecrets.has(key) : !!(row[key] && String(row[key]).trim());
+  }
   function resolveActiveProvider(row) {
     const providers = INTEGRATIONS.find((d) => d.id === "ai_provider").providers;
     if (row.llm_provider && providers.some((p) => p.id === row.llm_provider)) return row.llm_provider;
-    const found = providers.find((p) => p.fields.every((f) => row[f.key] && String(row[f.key]).trim()));
+    const found = providers.find((p) => p.fields.every((f) => hasValue(f.key)));
     return found ? found.id : providers[0].id;
   }
 
@@ -601,20 +615,23 @@
   function isConnected(defn) {
     if (defn.dynamic) {
       const active = defn.providers.find((p) => p.id === resolveActiveProvider(row));
-      return !!active && active.fields.every((f) => row[f.key] && String(row[f.key]).trim());
+      return !!active && active.fields.every((f) => hasValue(f.key));
     }
-    return defn.fields.every((f) => row[f.key] && String(row[f.key]).trim());
+    return defn.fields.every((f) => hasValue(f.key));
   }
 
   function fieldsHtmlFor(idPrefix, fields) {
     return fields.map((f) => {
       const inputId = idPrefix + f.key;
+      const saved = f.secret && savedSecrets.has(f.key);
+      const shownPlaceholder = saved ? "•••••••• saved — leave blank to keep" : f.placeholder;
+      const shownValue = f.secret ? "" : (row[f.key] || "");
       return `
         <div class="int-field">
           <label for="${inputId}">${escapeHtml(f.label)}</label>
           <div class="int-field-row">
             <input class="filter-input" id="${inputId}" type="${f.secret ? "password" : "text"}"
-                   placeholder="${escapeHtml(f.placeholder)}" value="${escapeHtml(row[f.key] || "")}"
+                   placeholder="${escapeHtml(shownPlaceholder)}" value="${escapeHtml(shownValue)}"
                    autocomplete="off" data-field="${f.key}">
             ${f.secret ? `<button type="button" class="btn-icon" data-toggle-visibility="${inputId}" title="Show/hide" aria-label="Show/hide">${EYE_OPEN}</button>` : ""}
           </div>
@@ -687,12 +704,20 @@
   function saveFields(defn, fieldValues) {
     if (!currentUserId) return Promise.resolve();
     const payload = Object.assign({ user_id: currentUserId }, fieldValues);
-    return window.sb.from("broker_accounts").upsert(payload).then((res) => {
+    // onConflict: user_id -- the table has ONE row per user (unique user_id),
+    // so a second save must update that row, not try to insert a new one.
+    return window.sb.from("broker_accounts").upsert(payload, { onConflict: "user_id" }).then((res) => {
       if (res.error) {
         console.error("broker_accounts upsert(" + defn.id + ") failed:", res.error.message);
         return false;
       }
-      Object.assign(row, fieldValues);
+      Object.keys(fieldValues).forEach((k) => {
+        if (SECRET_KEYS.has(k)) {
+          if (fieldValues[k]) savedSecrets.add(k); else savedSecrets.delete(k);
+        } else {
+          row[k] = fieldValues[k];
+        }
+      });
       return true;
     });
   }
@@ -735,13 +760,17 @@
           const active = defn.providers.find((p) => p.id === aiSelectedProvider) || defn.providers[0];
           active.fields.forEach((f) => {
             const input = document.getElementById("int-ai_provider-" + f.key);
-            next[f.key] = input ? input.value.trim() : "";
+            const v = input ? input.value.trim() : "";
+            if (f.secret && !v) return; // blank secret = keep what's saved
+            next[f.key] = v;
           });
           next.llm_provider = active.id;
         } else {
           defn.fields.forEach((f) => {
             const input = document.getElementById("int-" + id + "-" + f.key);
-            next[f.key] = input ? input.value.trim() : "";
+            const v = input ? input.value.trim() : "";
+            if (f.secret && !v) return; // blank secret = keep what's saved
+            next[f.key] = v;
           });
         }
         btn.disabled = true;
@@ -788,7 +817,25 @@
       return;
     }
     currentUserId = session.user.id;
-    return window.sb.from("broker_accounts").select("*").eq("user_id", currentUserId).maybeSingle().then((res) => {
+    // Prefer broker_accounts_status (non-secret columns + has_<secret> booleans;
+    // see security/broker_accounts_lockdown.sql). If that view hasn't been
+    // created yet, fall back to the old select("*") -- but secrets are dropped
+    // from the result right away and only their existence is kept.
+    const loadRow = () => window.sb.from("broker_accounts_status").select("*").eq("user_id", currentUserId).maybeSingle()
+      .then((res) => {
+        if (!res.error) {
+          const d = res.data || {};
+          SECRET_KEYS.forEach((k) => { if (d["has_" + k]) savedSecrets.add(k); delete d["has_" + k]; });
+          return { data: res.data ? d : null, error: null };
+        }
+        return window.sb.from("broker_accounts").select("*").eq("user_id", currentUserId).maybeSingle().then((legacy) => {
+          if (legacy.data) {
+            SECRET_KEYS.forEach((k) => { if (legacy.data[k]) savedSecrets.add(k); delete legacy.data[k]; });
+          }
+          return legacy;
+        });
+      });
+    return loadRow().then((res) => {
       if (res.error && res.error.code !== "PGRST116") {
         // PGRST116 = no row yet (maybeSingle already handles that as null, but
         // Supabase versions differ on the exact code) -- anything else is a

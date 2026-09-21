@@ -145,6 +145,38 @@ ${scriptExtra || ""}
     return `<li>${escapeHtml(l.lesson || l.text || "")}${tagBadge}</li>`;
   }
 
+  // The trader's own journal entry (trade-notes.js), if that module is on
+  // the page. Read here so callers don't have to pass it in.
+  function journalFor(trade) {
+    try { return window.TradeNotes && trade && trade.id ? window.TradeNotes.get(trade.id) : null; } catch (e) { return null; }
+  }
+  function journalMetrics(trade, je) {
+    try { return window.TradeNotes && je ? window.TradeNotes.metrics(trade, je) : null; } catch (e) { return null; }
+  }
+  function fmtR(v) { return v == null ? "—" : (v >= 0 ? "+" : "") + v.toFixed(2) + "R"; }
+
+  function journalCardHtml(trade) {
+    const je = journalFor(trade);
+    if (!je) return "";
+    const m = journalMetrics(trade, je) || {};
+    const rules = je.followed_rules === true ? "Yes" : je.followed_rules === false ? "No" : "—";
+    const chips = (arr) => arr.map((x) => `<span class="setup-tag" style="margin-right:6px;">${escapeHtml(x)}</span>`).join("");
+    return `
+      <div class="card">
+        <h2>Trader's journal</h2>
+        <div class="meta" style="margin-bottom:10px;">
+          ${je.setup ? `Setup <span class="meta-standout">${escapeHtml(je.setup)}</span> &nbsp;·&nbsp; ` : ""}
+          Followed rules <span class="meta-standout">${rules}</span>
+          ${je.plan_stop ? ` &nbsp;·&nbsp; planned stop <span class="meta-standout">$${Number(je.plan_stop).toFixed(2)}</span>` : ""}
+          ${je.plan_target ? ` &nbsp;·&nbsp; planned target <span class="meta-standout">$${Number(je.plan_target).toFixed(2)}</span>` : ""}
+          ${m.planned_rr != null ? ` &nbsp;·&nbsp; planned R:R <span class="meta-standout">${m.planned_rr.toFixed(2)}</span>` : ""}
+          ${m.r_multiple != null ? ` &nbsp;·&nbsp; result <span class="meta-standout ${m.r_multiple >= 0 ? "up" : "down"}">${fmtR(m.r_multiple)}</span>` : ""}
+        </div>
+        ${(je.mistakes || []).length ? `<div style="margin-bottom:10px;"><span class="muted" style="font-size:12px;">Mistakes:</span> ${chips(je.mistakes)}</div>` : ""}
+        ${(je.notes || "").trim() ? `<div class="verdict-text" style="white-space:pre-wrap;">${escapeHtml(je.notes)}</div>` : ""}
+      </div>`;
+  }
+
   function buildTradeSharePage(trade) {
     const win = !!trade.win;
     const bars = Array.isArray(trade.bars) ? trade.bars : [];
@@ -192,6 +224,8 @@ ${scriptExtra || ""}
         ${trade.setup_type ? `<span class="setup-tag">${escapeHtml(String(trade.setup_type).replace(/_/g, " "))}</span>` : ""}
         ${trade.walk_away_rule ? `<div class="walk-away"><b>Walk-away rule:</b> ${escapeHtml(trade.walk_away_rule)}</div>` : ""}
       </div>
+
+      ${journalCardHtml(trade)}
 
       ${(trade.better_entry && trade.better_entry.price) || (trade.better_exit && trade.better_exit.price) ? `
       <div class="card">
@@ -369,18 +403,25 @@ ${scriptExtra || ""}
         <div style="padding:14px 18px 0;"><h2 style="margin:0;">${trades.length} trade${trades.length === 1 ? "" : "s"}</h2></div>
         <div style="overflow-x:auto;">
         <table class="data-table">
-          <thead><tr><th>Date</th><th>Symbol</th><th>Setup</th><th>Entry</th><th>Exit</th><th>Net P&amp;L</th><th>Result</th></tr></thead>
+          <thead><tr><th>Date</th><th>Symbol</th><th>Setup</th><th>My setup</th><th>Mistakes</th><th>Rules</th><th>Entry</th><th>Exit</th><th>Net P&amp;L</th><th>R</th><th>Result</th></tr></thead>
           <tbody>
-            ${sorted.map((r) => `
+            ${sorted.map((r) => {
+              const je = journalFor(r);
+              const m = journalMetrics(r, je);
+              return `
               <tr>
                 <td>${escapeHtml(r.trade_date)}</td>
                 <td>${escapeHtml(r.symbol)}</td>
                 <td>${escapeHtml((r.setup_type || "—").toString().replace(/_/g, " "))}</td>
+                <td>${escapeHtml((je && je.setup) || "—")}</td>
+                <td>${je && (je.mistakes || []).length ? escapeHtml(je.mistakes.join(", ")) : "—"}</td>
+                <td>${je && je.followed_rules === true ? "yes" : je && je.followed_rules === false ? '<span class="down">no</span>' : "—"}</td>
                 <td>$${Number(r.entry_price).toFixed(2)}</td>
                 <td>$${Number(r.exit_price).toFixed(2)}</td>
                 <td class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</td>
+                <td>${m ? fmtR(m.r_multiple) : "—"}</td>
                 <td><span class="pill ${r.win ? "win" : "loss"}">${r.win ? "WIN" : "LOSS"}</span></td>
-              </tr>`).join("")}
+              </tr>`; }).join("")}
           </tbody>
         </table>
         </div>

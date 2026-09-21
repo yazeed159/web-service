@@ -54,6 +54,11 @@
       // its own filename doesn't match "journal.html".
       extraActiveFiles: ["trade.html"],
     },
+    {
+      href: "daily.html", title: "Daily plan and review",
+      icon: '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
+      label: "Daily",
+    },
   ];
 
   // Single source of truth for the sidebar's "More" section -- every
@@ -184,28 +189,10 @@
   // we're anywhere on index.html. Only index.html's own tab hashes are
   // compared this way; every other item keeps the filename-only check.
   const currentHash = (window.location.hash || "").replace(/^#/, "");
-
-  // Same active-item test the "More" / "Work in Progress" renderer below
-  // uses -- pulled out so the top heading can ask "is the page we're on in
-  // that group?" without duplicating the matching rules.
-  function sectionItemActive(item) {
-    const href = item.href || window.N8N_IMPORT_URL || "import-trades.html";
-    return href !== "#" && normalizeFile(href.split("?")[0]) === currentFile;
-  }
-
-  // The heading above the first block of links names the group of the
-  // page you're currently on (Journal / More / Work in Progress) instead
-  // of always saying "Journal" -- which read as "you're in the Journal"
-  // on pages like Edge Analysis that live under "More". Pages that
-  // aren't in any group (search, report, notes, ...) keep "Journal", as
-  // before.
-  const activeGroupLabel = SIDEBAR_WIP_ITEMS.some(sectionItemActive) ? "Work in Progress"
-    : SIDEBAR_MORE_ITEMS.some(sectionItemActive) ? "More"
-    : "Journal";
-
   if (mainMount) {
+    // No section heading above this first block of links (it used to say
+    // "Journal" on every page, including ones that live under "More").
     mainMount.innerHTML =
-      '<div class="nav-section-label">' + activeGroupLabel + '</div>' +
       SIDEBAR_MAIN_ITEMS.map((item) => {
         const hrefFile = normalizeFile(item.href.split("?")[0].split("#")[0]);
         const hrefHash = (item.href.split("#")[1] || "");
@@ -229,7 +216,7 @@
       `<div class="nav-section-label">${label}</div>` +
       items.map((item) => {
         const href = item.href || window.N8N_IMPORT_URL || "import-trades.html";
-        const isActive = sectionItemActive(item);
+        const isActive = href !== "#" && normalizeFile(href.split("?")[0]) === currentFile;
         const idAttr = item.id ? ` id="${item.id}"` : "";
         // Every item gets a title tooltip (falling back to its label) so
         // hovering an icon identifies the page even when the sidebar is

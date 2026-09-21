@@ -61,8 +61,6 @@
     </div>
 
     <nav class="sidebar-nav">
-      <div class="nav-section-label">Journal</div>
-
       <button class="nav-item active" data-tab="dashboard">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
         <span class="nav-label">Dashboard</span>
@@ -247,9 +245,74 @@
               <input type="date" class="filter-input" id="report-filter-date-to" aria-label="Date range end" />
             </div>
           </div>
-          <button class="btn-advanced">Advanced</button>
+          <button type="button" class="btn-advanced" id="report-filter-advanced" aria-expanded="false" aria-controls="report-advanced-panel">Advanced</button>
           <button class="btn-icon" id="report-filter-clear" title="Clear filters">🗑</button>
           <button class="btn-icon btn-confirm" id="report-filter-apply" title="Apply">✓</button>
+        </div>
+
+        <!-- Extra filters, opened by the "Advanced" button above. Same model as
+             the bar above: edit, then press ✓ to apply / 🗑 to clear. -->
+        <div class="reports-filter-bar advanced-filters" id="report-advanced-panel">
+          <div class="filter-field">
+            <label>Side</label>
+            <select class="filter-input" id="report-filter-side">
+              <option value="all">All</option>
+              <option value="long">Long</option>
+              <option value="short">Short</option>
+            </select>
+          </div>
+          <div class="filter-field">
+            <label>Result</label>
+            <select class="filter-input" id="report-filter-result">
+              <option value="all">All</option>
+              <option value="win">Winners</option>
+              <option value="loss">Losers</option>
+            </select>
+          </div>
+          <div class="filter-field duration-field">
+            <label>Net P&amp;L ($)</label>
+            <div class="range-inputs">
+              <input type="number" step="any" placeholder="Min" class="filter-input" id="report-filter-pnl-min" />
+              <span class="range-sep">–</span>
+              <input type="number" step="any" placeholder="Max" class="filter-input" id="report-filter-pnl-max" />
+            </div>
+          </div>
+          <div class="filter-field duration-field">
+            <label>Entry price ($)</label>
+            <div class="range-inputs">
+              <input type="number" min="0" step="any" placeholder="Min" class="filter-input" id="report-filter-price-min" />
+              <span class="range-sep">–</span>
+              <input type="number" min="0" step="any" placeholder="Max" class="filter-input" id="report-filter-price-max" />
+            </div>
+          </div>
+          <div class="filter-field duration-field">
+            <label>Shares</label>
+            <div class="range-inputs">
+              <input type="number" min="0" step="1" placeholder="Min" class="filter-input" id="report-filter-shares-min" />
+              <span class="range-sep">–</span>
+              <input type="number" min="0" step="1" placeholder="Max" class="filter-input" id="report-filter-shares-max" />
+            </div>
+          </div>
+          <div class="filter-field time-range">
+            <label>Entry time</label>
+            <div class="range-inputs">
+              <input type="time" class="filter-input" id="report-filter-time-from" aria-label="Entry time from" />
+              <span class="range-sep">–</span>
+              <input type="time" class="filter-input" id="report-filter-time-to" aria-label="Entry time to" />
+            </div>
+          </div>
+          <div class="filter-field">
+            <label>Weekday</label>
+            <div class="dow-chips" id="report-filter-dow">
+              <button type="button" class="dow-chip" data-dow="1">Mon</button>
+              <button type="button" class="dow-chip" data-dow="2">Tue</button>
+              <button type="button" class="dow-chip" data-dow="3">Wed</button>
+              <button type="button" class="dow-chip" data-dow="4">Thu</button>
+              <button type="button" class="dow-chip" data-dow="5">Fri</button>
+              <button type="button" class="dow-chip" data-dow="6">Sat</button>
+              <button type="button" class="dow-chip" data-dow="0">Sun</button>
+            </div>
+          </div>
         </div>
 
         <div class="report-toptabs" id="report-toptabs">
@@ -258,6 +321,7 @@
           <button class="toptab-btn" data-toptab="win-loss-days">Win vs Loss Days</button>
           <button class="toptab-btn" data-toptab="drawdown">Drawdown</button>
           <button class="toptab-btn" data-toptab="compare">Compare</button>
+          <button class="toptab-btn" data-toptab="insights">Insights</button>
           <button class="toptab-btn" data-toptab="tag-breakdown">Tag Breakdown</button>
           <button class="toptab-btn" data-toptab="advanced">Advanced</button>
         </div>
@@ -574,6 +638,19 @@
               <div id="tagb-lessons"><div class="loading-line">Loading…</div></div>
             </div>
           </div>
+        </div>
+
+        <div class="toptab-panel" id="toptab-insights">
+          <div class="section-label">Breakeven &amp; costs</div>
+          <div class="panel-box"><div id="insights-breakeven"><div class="loading-line">Loading…</div></div></div>
+          <div class="section-label">Time vs size</div>
+          <div class="panel-box"><div id="insights-timesize"><div class="loading-line">Loading…</div></div></div>
+          <div class="section-label">Behavior</div>
+          <div class="panel-box"><div id="insights-behavior"><div class="loading-line">Loading…</div></div></div>
+          <div class="section-label">What if you'd stopped earlier?</div>
+          <div class="panel-box"><div id="insights-rules"><div class="loading-line">Loading…</div></div></div>
+          <div class="section-label">Concentration</div>
+          <div class="panel-box"><div id="insights-concentration"><div class="loading-line">Loading…</div></div></div>
         </div>
 
         <div class="toptab-panel" id="toptab-advanced">

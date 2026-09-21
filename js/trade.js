@@ -187,6 +187,112 @@
     </div>`;
   }
 
+  // Your own journal entry for this trade (plan, setup, mistakes, rules,
+  // notes) -- see trade-notes.js. Saves on every change, debounced for text.
+  function renderJournalCard(trade) {
+    const host = document.getElementById("journal-card");
+    if (!host) return;
+    const entry = Object.assign(
+      { plan_stop: null, plan_target: null, setup: "", mistakes: [], followed_rules: null, notes: "" },
+      window.TradeNotes.get(trade.id) || {}
+    );
+    const tags = window.TradeNotes.knownTags();
+    const chip = (label, on, attr) =>
+      `<button type="button" class="pill tagpill jn-chip${on ? " on" : ""}" ${attr}="${escapeHtml(label)}" style="cursor:pointer; ${on ? "background:var(--primary); color:#fff; border-color:var(--primary);" : ""}">${escapeHtml(label)}</button>`;
+    const inputStyle = "background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 8px; font-size:13px; width:100%; box-sizing:border-box;";
+    const lbl = "font-size:11.5px; color:var(--text-faint); display:block; margin-bottom:4px;";
+
+    host.innerHTML = `
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+          <div style="font-weight:600;">Your journal</div>
+          <span id="jn-status" style="font-size:11.5px; color:var(--text-faint);"></span>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:14px;">
+          <div><label style="${lbl}">Planned stop ($)</label><input id="jn-stop" type="number" step="0.01" min="0" inputmode="decimal" style="${inputStyle}" value="${entry.plan_stop ?? ""}"></div>
+          <div><label style="${lbl}">Planned target ($)</label><input id="jn-target" type="number" step="0.01" min="0" inputmode="decimal" style="${inputStyle}" value="${entry.plan_target ?? ""}"></div>
+          <div><label style="${lbl}">Followed my rules?</label>
+            <div id="jn-rules" style="display:flex; gap:6px;">
+              ${chip("Yes", entry.followed_rules === true, "data-rules")}${chip("No", entry.followed_rules === false, "data-rules")}
+            </div>
+          </div>
+        </div>
+        <div id="jn-metrics" style="display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; margin-bottom:14px;"></div>
+        <div style="margin-bottom:12px;">
+          <label style="${lbl}">Setup</label>
+          <div id="jn-setups" style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+            ${tags.setups.map((t) => chip(t, entry.setup === t, "data-setup")).join("")}
+            <input id="jn-setup-new" placeholder="+ custom" style="${inputStyle} width:110px;">
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="${lbl}">Mistakes</label>
+          <div id="jn-mistakes" style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+            ${tags.mistakes.map((t) => chip(t, entry.mistakes.includes(t), "data-mistake")).join("")}
+            <input id="jn-mistake-new" placeholder="+ custom" style="${inputStyle} width:110px;">
+          </div>
+        </div>
+        <div>
+          <label style="${lbl}">Notes</label>
+          <textarea id="jn-notes" rows="3" placeholder="Why you took it, what you felt, what you'd change…" style="${inputStyle} resize:vertical;">${escapeHtml(entry.notes)}</textarea>
+        </div>
+      </div>`;
+
+    const $ = (id) => document.getElementById(id);
+    const statusEl = $("jn-status");
+    let timer = null;
+
+    function paintMetrics() {
+      const m = window.TradeNotes.metrics(trade, entry);
+      const parts = [];
+      if (m.risk_dollars != null) parts.push(`Risk <b>$${m.risk_dollars.toFixed(2)}</b> (${(m.risk_per_share * 100).toFixed(1)}¢/sh)`);
+      if (m.planned_rr != null) parts.push(`Planned R:R <b>${m.planned_rr.toFixed(2)}</b>`);
+      if (m.r_multiple != null) parts.push(`Realised <b class="${m.r_multiple >= 0 ? "up" : "down"}">${m.r_multiple >= 0 ? "+" : ""}${m.r_multiple.toFixed(2)}R</b>`);
+      if (entry.plan_stop && m.risk_per_share == null) parts.push(`<span style="color:var(--red);">Stop must be on the losing side of entry ($${trade.entry_price.toFixed(2)})</span>`);
+      $("jn-metrics").innerHTML = parts.join("<span style=\"color:var(--border);\">|</span>");
+    }
+    function persist(immediate) {
+      clearTimeout(timer);
+      const run = () => {
+        window.TradeNotes.save(trade.id, entry);
+        statusEl.textContent = "Saved";
+        setTimeout(() => { if (statusEl.textContent === "Saved") statusEl.textContent = ""; }, 1500);
+      };
+      if (immediate) run(); else { statusEl.textContent = "Saving…"; timer = setTimeout(run, 500); }
+    }
+
+    $("jn-stop").addEventListener("input", (e) => { entry.plan_stop = e.target.value === "" ? null : Number(e.target.value); paintMetrics(); persist(); });
+    $("jn-target").addEventListener("input", (e) => { entry.plan_target = e.target.value === "" ? null : Number(e.target.value); paintMetrics(); persist(); });
+    $("jn-notes").addEventListener("input", (e) => { entry.notes = e.target.value; persist(); });
+
+    host.querySelectorAll("[data-rules]").forEach((b) => b.addEventListener("click", () => {
+      const v = b.getAttribute("data-rules") === "Yes";
+      entry.followed_rules = entry.followed_rules === v ? null : v;
+      persist(true); renderJournalCard(trade);
+    }));
+    host.querySelectorAll("[data-setup]").forEach((b) => b.addEventListener("click", () => {
+      const v = b.getAttribute("data-setup");
+      entry.setup = entry.setup === v ? "" : v;
+      persist(true); renderJournalCard(trade);
+    }));
+    host.querySelectorAll("[data-mistake]").forEach((b) => b.addEventListener("click", () => {
+      const v = b.getAttribute("data-mistake");
+      entry.mistakes = entry.mistakes.includes(v) ? entry.mistakes.filter((x) => x !== v) : entry.mistakes.concat(v);
+      persist(true); renderJournalCard(trade);
+    }));
+    $("jn-setup-new").addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" || !e.target.value.trim()) return;
+      entry.setup = e.target.value.trim(); persist(true); renderJournalCard(trade);
+    });
+    $("jn-mistake-new").addEventListener("keydown", (e) => {
+      const v = e.target.value.trim();
+      if (e.key !== "Enter" || !v) return;
+      if (!entry.mistakes.includes(v)) entry.mistakes.push(v);
+      persist(true); renderJournalCard(trade);
+    });
+    paintMetrics();
+  }
+
   function renderTrade(trade, siblings) {
     document.title = `${trade.symbol} — trade.log`;
     const win = trade.win;
@@ -233,6 +339,8 @@
           <div class="value ${trade.shares && centsPerShareValue(trade.entry_price, trade.exit_price, trade.side) < 0 ? "down" : "up"}">${trade.shares ? centsPerShare(trade.entry_price, trade.exit_price, trade.side) : "—"}</div>
         </div>
       </div>
+
+      <div id="journal-card"></div>
 
       <div class="chart-panel">
         <div class="chart-toolbar">
@@ -333,6 +441,7 @@
     `;
 
     buildCharts(trade);
+    if (window.TradeNotes) renderJournalCard(trade);
 
     // Self-graded execution quality (1-5 stars, separate from win/loss --
     // see grade.js). Persists to localStorage immediately on click; the

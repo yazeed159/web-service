@@ -13,9 +13,11 @@
 
   let allSorted = [];
   let regretResults = [];
+  let excursionResults = []; // {row, exc:{mae,mfe,bars}} -- filled by the same bar-level run as regretResults
+  let shuffleSeed = 987654;
   let rowSeq = 0;
   let explainSeq = 0;
-  const summaryState = { totalTrades: 0, baseline: 0, flaggedSetups: 0, totalSetups: 0, sizingTellActive: null, regretCapture: null };
+  const summaryState = { totalTrades: 0, baseline: 0, flaggedSetups: 0, totalSetups: 0, sizingTellActive: null, regretCapture: null, pValue: null, streak95: null };
   let decayGroups = {};
   let decayRows = [];
   let decaySort = { key: "n", dir: -1 };
@@ -205,6 +207,10 @@
   const ICON_REGRET = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline></svg>`;
   const ICON_SIZING = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="12" width="4" height="9"></rect><rect x="10" y="7" width="4" height="14"></rect><rect x="17" y="3" width="4" height="18"></rect></svg>`;
 
+  const ICON_CONF = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="4" x2="12" y2="20"></line><line x1="8" y1="4" x2="16" y2="4"></line><line x1="8" y1="20" x2="16" y2="20"></line><circle cx="12" cy="12" r="2"></circle></svg>`;
+  const ICON_EXCURSION = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"></path><path d="M8 7l4-4 4 4"></path><path d="M8 17l4 4 4-4"></path></svg>`;
+  const ICON_SHUFFLE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>`;
+
   // ---------- edge-health summary strip ----------
   function statIcon(pathsSvg) { return `<svg class="label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${pathsSvg}</svg>`; }
   function renderEdgeHealthSummary() {
@@ -215,8 +221,11 @@
     const sizingCls = summaryState.sizingTellActive === true ? "down" : (summaryState.sizingTellActive === false ? "up" : "");
     const regretLabel = summaryState.regretCapture === null ? "Not run yet" : `${Math.round(summaryState.regretCapture * 100)}%`;
     const regretCls = summaryState.regretCapture === null ? "" : (summaryState.regretCapture >= 0.6 ? "up" : "down");
+    const pLabel = summaryState.pValue === null ? "—" : (summaryState.pValue < 0.001 ? "p < 0.001" : "p = " + summaryState.pValue.toFixed(3));
+    const pCls = summaryState.pValue === null ? "" : (summaryState.pValue < 0.05 ? "up" : "");
+    const streakLabel = summaryState.streak95 === null ? "—" : summaryState.streak95 + " in a row";
     el.innerHTML = `
-      <div class="stat" title="Every published trade in data/trades.json">
+      <div class="stat" title="Every synced trade in your account">
         <div class="label-row"><span class="label">Trades Analyzed</span>${statIcon('<rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect>')}</div>
         <div class="value">${summaryState.totalTrades}</div>
         <div class="sub-value">${summaryState.baseline}% overall win rate</div>
@@ -235,6 +244,16 @@
         <div class="label-row"><span class="label">Best-Bar Capture</span>${statIcon('<circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline>')}</div>
         <div class="value ${regretCls}">${regretLabel}</div>
         <div class="sub-value">avg. of best bar-close, when run</div>
+      </div>
+      <div class="stat" title="t-test of average P&L per trade against zero — see Confidence Ranges below">
+        <div class="label-row"><span class="label">Edge vs. Zero</span>${statIcon('<line x1="12" y1="4" x2="12" y2="20"></line><line x1="8" y1="4" x2="16" y2="4"></line><line x1="8" y1="20" x2="16" y2="20"></line><circle cx="12" cy="12" r="2"></circle>')}</div>
+        <div class="value ${pCls}">${pLabel}</div>
+        <div class="sub-value">${summaryState.pValue !== null && summaryState.pValue < 0.05 ? "avg. P&amp;L is distinguishable from zero" : "can't yet rule out zero edge"}</div>
+      </div>
+      <div class="stat" title="Longest losing streak that shows up in 1 of 20 shuffled orderings of your trades — see Losing Streaks &amp; Drawdown below">
+        <div class="label-row"><span class="label">Streak to Plan For</span>${statIcon('<polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line>')}</div>
+        <div class="value">${streakLabel}</div>
+        <div class="sub-value">losing streak, 95th pct of shuffles</div>
       </div>
     `;
   }
@@ -288,7 +307,7 @@
         <div class="edge-intro-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7 7-4 11L21 3 10 14l11 7-7-4"></path></svg></div>
         <div>
           <h2>Is your edge real, or did you get lucky?</h2>
-          <p>Four skeptical checks against <span class="mono">data/trades.json</span> — built to try to break your stats, not flatter them: whether each setup's win rate is holding up or fading, whether a volume/float tag beats baseline by more than noise, how much money your exit timing is leaving on the table, and whether you size up right before your worst stretches. Each section below has a plain summary and a "How this works" toggle for the exact math.</p>
+          <p>Skeptical checks against your synced trades — built to try to break your stats, not flatter them: whether each setup's win rate is holding up or fading, whether a volume/float tag beats baseline by more than noise, how wide the uncertainty around your averages really is, how much money your exit timing is leaving on the table, how far trades ran against and for you (and where stops and targets would have landed), whether you size up right before your worst stretches, and how bad losing streaks and drawdowns could plausibly get. Each section below has a plain summary and a "How this works" toggle for the exact math.</p>
         </div>
       </div>
 
@@ -297,8 +316,11 @@
       <div class="edge-jumpnav" id="edge-jumpnav">
         <span class="pill active" data-section="section-decay"><span class="dot"></span>Edge Decay</span>
         <span class="pill" data-section="section-volume"><span class="dot"></span>Volume &amp; Float</span>
+        <span class="pill" data-section="section-confidence"><span class="dot"></span>Confidence</span>
         <span class="pill" data-section="section-regret"><span class="dot"></span>Regret Curve</span>
+        <span class="pill" data-section="section-excursion"><span class="dot"></span>MAE / MFE</span>
         <span class="pill" data-section="section-sizing"><span class="dot"></span>Position Sizing</span>
+        <span class="pill" data-section="section-shuffle"><span class="dot"></span>Streaks &amp; Drawdown</span>
       </div>
 
       <div class="panel-box" id="section-decay" style="margin-bottom:16px;">
@@ -346,6 +368,17 @@
         </div>
       </div>
 
+      <div class="panel-box" id="section-confidence" style="margin-bottom:16px;">
+        <div class="edge-section-head">${sectionIcon(ICON_CONF)}<span class="title">Confidence Ranges</span></div>
+        ${explainBlock(
+          `An average P&amp;L or win rate from a limited number of trades is an estimate, not a fact. These ranges show how far each number could plausibly move if you'd simply drawn a different sample of trades from the same underlying edge.`,
+          `<p><b>Expectancy</b> (average P&amp;L per trade, after commission) gets two ranges: a <b>t-test</b> range (assumes averages behave roughly normally) and a <b>bootstrap</b> range, which re-draws your trades with replacement 5,000 times and reads the 2.5th and 97.5th percentiles of the results — no normality assumption. The <b>profit factor</b> range comes from the same resamples. <b>Win rate</b> uses a Wilson score interval, which stays sensible at low win rates.</p>
+           <p>The <b>p-value</b> is the t-test's two-sided probability of seeing an average this far from zero if the true average were zero. It's approximate: it treats trades as independent and P&amp;L as roughly bell-shaped, which flatters a strategy whose profit sits in a few large winners. If the bootstrap and t-test ranges disagree, trust the wider one.</p>
+           <p>The Reports tab's "Probability of Random Chance" is the same test with a normal approximation; this one uses the t distribution, which is a bit more conservative when trades are few.</p>`
+        )}
+        <div id="confidence-body"></div>
+      </div>
+
       <div class="panel-box" id="section-regret" style="margin-bottom:16px;">
         <div class="edge-section-head">${sectionIcon(ICON_REGRET)}<span class="title">Regret Curve — Exit Timing</span></div>
         ${explainBlock(
@@ -359,16 +392,35 @@
            </ul>`
         )}
         <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;">
-          <button class="btn-confirm" id="regret-run-btn">Run bar-level exit analysis</button>
-          <span id="regret-status" style="color:var(--text-faint); font-size:12px;"></span>
+          <button class="btn-confirm" id="regret-run-btn" data-bar-run>Run bar-level exit analysis</button>
+          <span id="regret-status" data-bar-status style="color:var(--text-faint); font-size:12px;"></span>
         </div>
-        <div id="regret-progress" style="display:none; margin-bottom:14px;"><div class="progress-track"><div class="progress-fill" id="regret-progress-fill" style="width:0%;"></div></div></div>
+        <div id="regret-progress" data-bar-progress style="display:none; margin-bottom:14px;"><div class="progress-track"><div class="progress-fill" id="regret-progress-fill" data-bar-fill style="width:0%;"></div></div></div>
         <div id="regret-summary"></div>
         <div id="regret-histogram"></div>
         <div class="edge-section-head" style="margin-top:22px;"><span class="title">Regret Curve for One Trade</span></div>
         <div class="filters" style="margin:8px 0 10px;"><select id="regret-trade-select"><option value="">Run the analysis above first…</option></select></div>
         <div id="regret-trade-chart" style="height:240px;"></div>
         <div id="regret-trade-note" style="color:var(--text-faint); font-size:12px; margin-top:8px;"></div>
+      </div>
+
+      <div class="panel-box" id="section-excursion" style="margin-bottom:16px;">
+        <div class="edge-section-head">${sectionIcon(ICON_EXCURSION)}<span class="title">MAE / MFE — Stops &amp; Targets From Your Own Trades</span></div>
+        ${explainBlock(
+          `For each trade: how far price went <b>against</b> you (MAE, maximum adverse excursion) and <b>for</b> you (MFE, maximum favorable excursion) between entry and exit. Winners' MAE tells you how much room a good trade actually needed, which is where a stop belongs. It uses the same on-demand bar-level run as the Regret Curve (most recent ${REGRET_MAX} trades) — run either button and both sections fill in.`,
+          `<p>MAE and MFE are measured from your fill price using each bar's <b>high and low</b> from the bar containing your entry through the bar containing your exit, in price per share. Longs: MAE = entry − lowest low, MFE = highest high − entry. Shorts are mirrored. Trades whose bars are missing highs or lows are skipped rather than approximated from closes.</p>
+           <p>Bars are 1-minute candles, so the first and last bar can include prices from before your fill or after your exit. On very short scalps that makes both numbers slightly generous (a bit more adverse <i>and</i> a bit more favorable than you truly saw).</p>
+           <p><b>Stop sweep:</b> for each candidate stop distance, any trade whose MAE reached it is assumed to stop out at exactly that distance; every other trade keeps its real result. The table shows how many winners that would have killed, how many losers it would have cut shorter, and the change in total P&amp;L (before commission, size held constant). <b>Target sweep</b> works the same way with MFE: a trade whose MFE reached the target is assumed to exit at exactly that target, which also caps bigger winners.</p>
+           <p>Read these as hypotheses, not rules: they're in-sample, assume you'd have been filled at the level, and can't tell what order the high and low happened in inside one bar — which is why stops and targets are swept separately, never together. With few winners the percentiles are noisy; the counts shown are the sample size behind each number.</p>`
+        )}
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;">
+          <button class="btn-confirm" id="mae-run-btn" data-bar-run>Run bar-level analysis</button>
+          <span id="mae-status" data-bar-status style="color:var(--text-faint); font-size:12px;"></span>
+        </div>
+        <div data-bar-progress style="display:none; margin-bottom:14px;"><div class="progress-track"><div class="progress-fill" data-bar-fill style="width:0%;"></div></div></div>
+        <div id="excursion-summary"><div class="empty-state small">Run the bar-level analysis to fill this in.</div></div>
+        <div id="excursion-stops"></div>
+        <div id="excursion-targets"></div>
       </div>
 
       <div class="panel-box" id="section-sizing" style="margin-bottom:16px;">
@@ -383,6 +435,25 @@
         <div id="sizing-tell" style="margin-bottom:18px;"></div>
         <div id="sizing-chart" style="height:220px;"></div>
       </div>
+
+      <div class="panel-box" id="section-shuffle" style="margin-bottom:16px;">
+        <div class="edge-section-head">${sectionIcon(ICON_SHUFFLE)}<span class="title">Losing Streaks &amp; Drawdown — Trade-Shuffle Simulation</span></div>
+        ${explainBlock(
+          `Your total P&amp;L doesn't depend on the order of your trades, but drawdowns and losing streaks do. This reshuffles your real trades thousands of times to show how deep a drawdown and how long a losing streak your <i>same</i> edge could plausibly hand you.`,
+          `<p>Each of the 5,000 runs randomly reorders all of your trades (using their actual after-commission P&amp;L, so your real sizing is included) and records the deepest peak-to-trough drop in dollars, measured from a running peak that starts at zero, and the longest run of losing trades. A "losing" trade is any trade not counted as a win, so scratches extend a streak — the same rule as Max Consecutive Losses in Reports.</p>
+           <p>"Yours" is your real sequence, and the percentage beside it is how many shuffled orderings were <i>at least as bad</i>. If your real order is much worse than most shuffles, your losses were clumped more than luck alone predicts (a regime change, tilt, or a setup going stale). If it's much better, you may have been fortunate with sequencing and shouldn't expect that to repeat.</p>
+           <p>The fan chart shows the 5th–95th percentile band of equity paths. Every path ends at the same total, so the spread in the middle is pure path risk.</p>
+           <p><b>Limits:</b> shuffling assumes trades are independent of each other, which is false if your results cluster by market regime or by your own state. It also can't create a drawdown worse than the trades you've already taken can produce, so treat the 99th percentile as a floor on tail risk, not a ceiling.</p>`
+        )}
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;">
+          <button class="btn-confirm" id="shuffle-run-btn">Re-shuffle</button>
+          <span id="shuffle-status" style="color:var(--text-faint); font-size:12px;"></span>
+        </div>
+        <div id="shuffle-summary"></div>
+        <div id="shuffle-streaks"></div>
+        <div class="edge-section-head" style="margin-top:22px;"><span class="title">Equity Paths (5th–95th percentile) vs. Your Actual Order</span></div>
+        <div id="shuffle-fan" style="height:260px;"></div>
+      </div>
     `;
 
     summaryState.totalTrades = allSorted.length;
@@ -391,12 +462,19 @@
     safeRender(() => renderDecay(allSorted), "renderDecay");
     safeRender(() => renderVolume(allSorted, baseline), "renderVolume");
     safeRender(() => renderSizing(allSorted), "renderSizing");
+    safeRender(() => renderConfidence(allSorted), "renderConfidence");
+    safeRender(() => renderShuffle(allSorted), "renderShuffle");
     safeRender(renderEdgeHealthSummary, "renderEdgeHealthSummary");
     safeRender(initJumpnav, "initJumpnav");
     safeRender(() => bindExplainToggles(content), "bindExplainToggles");
     clearStrandedLoadingStates();
-    const regretBtn = document.getElementById("regret-run-btn");
-    if (regretBtn) regretBtn.addEventListener("click", runRegretAnalysis);
+    content.querySelectorAll("[data-bar-run]").forEach((b) => b.addEventListener("click", runBarAnalysis));
+    const shuffleBtn = document.getElementById("shuffle-run-btn");
+    if (shuffleBtn) shuffleBtn.addEventListener("click", () => {
+      shuffleSeed = (shuffleSeed * 1664525 + 1013904223) >>> 0; // fresh seed each click
+      safeRender(() => renderShuffle(allSorted), "renderShuffle");
+      renderEdgeHealthSummary();
+    });
     restoreTradeListState();
   }
 
@@ -582,20 +660,25 @@
     return { path, entryIdx, exitIdx, bestIdx, bestPnl, actualPnl, gaveBackBars, capture };
   }
 
-  async function runRegretAnalysis() {
-    const btn = document.getElementById("regret-run-btn");
-    const status = document.getElementById("regret-status");
-    const progWrap = document.getElementById("regret-progress");
-    const progFill = document.getElementById("regret-progress-fill");
-    btn.disabled = true;
-    progWrap.style.display = "block";
-    progFill.style.width = "0%";
+  // One shared bar-level run feeds BOTH the Regret Curve and MAE/MFE
+  // sections (same detail fetches, two computations per trade), so either
+  // section's button triggers it and both sections' controls stay in sync.
+  async function runBarAnalysis() {
+    const btns = Array.from(content.querySelectorAll("[data-bar-run]"));
+    const statuses = Array.from(content.querySelectorAll("[data-bar-status]"));
+    const progWraps = Array.from(content.querySelectorAll("[data-bar-progress]"));
+    const progFills = Array.from(content.querySelectorAll("[data-bar-fill]"));
+    if (btns.some((b) => b.disabled)) return; // already running
+    btns.forEach((b) => { b.disabled = true; });
+    progWraps.forEach((w) => { w.style.display = "block"; });
+    progFills.forEach((f) => { f.style.width = "0%"; });
 
     const candidates = allSorted.slice()
       .sort((a, b) => ((b.trade_date || "") + (b.entry_time || "")).localeCompare((a.trade_date || "") + (a.entry_time || "")))
       .slice(0, REGRET_MAX);
 
     regretResults = [];
+    excursionResults = [];
     let done = 0;
     let idx = 0;
     const CONCURRENCY = 6;
@@ -607,22 +690,31 @@
           if (detail) {
             const computed = computeRegretForTrade(row, detail);
             if (computed) regretResults.push({ row, computed });
+            const exc = computeExcursionForTrade(row, detail);
+            if (exc) excursionResults.push({ row, exc });
           }
         } catch (e) { /* skip this trade, keep going */ }
         done++;
-        progFill.style.width = Math.round((done / candidates.length) * 100) + "%";
-        status.textContent = `Loaded ${done} / ${candidates.length}`;
+        progFills.forEach((f) => { f.style.width = Math.round((done / candidates.length) * 100) + "%"; });
+        statuses.forEach((st) => { st.textContent = `Loaded ${done} / ${candidates.length}`; });
       }
     }
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, candidates.length) }, worker));
 
-    progWrap.style.display = "none";
-    btn.disabled = false;
-    btn.textContent = "Re-run bar-level exit analysis";
-    status.textContent = `${regretResults.length} of ${candidates.length} checked trades had usable bar data.`;
+    progWraps.forEach((w) => { w.style.display = "none"; });
+    btns.forEach((b) => { b.disabled = false; });
+    const regretBtn = document.getElementById("regret-run-btn");
+    const maeBtn = document.getElementById("mae-run-btn");
+    if (regretBtn) regretBtn.textContent = "Re-run bar-level exit analysis";
+    if (maeBtn) maeBtn.textContent = "Re-run bar-level analysis";
+    const regretStatus = document.getElementById("regret-status");
+    const maeStatus = document.getElementById("mae-status");
+    if (regretStatus) regretStatus.textContent = `${regretResults.length} of ${candidates.length} checked trades had usable bar data.`;
+    if (maeStatus) maeStatus.textContent = `${excursionResults.length} of ${candidates.length} checked trades had bars with highs and lows.`;
 
-    renderRegretSummary();
-    renderRegretTradeSelect();
+    safeRender(renderRegretSummary, "renderRegretSummary");
+    safeRender(renderRegretTradeSelect, "renderRegretTradeSelect");
+    safeRender(renderExcursion, "renderExcursion");
   }
 
   function renderRegretSummary() {
@@ -818,6 +910,269 @@
     const chart = makeChart(el, 220, { timeScale: { borderColor: "#262a34", tickMarkFormatter: (t) => "#" + t }, localization: { timeFormatter: (t) => "Trade #" + t } });
     const series = chart.addHistogramSeries({ priceFormat: { type: "volume" } });
     series.setData(chrono.map((r, i) => ({ time: i + 1, value: r.shares, color: r.win ? "rgba(47,208,138,0.75)" : "rgba(242,85,90,0.75)" })));
+    chart.timeScale().fitContent();
+  }
+
+  // ================= 5. CONFIDENCE RANGES =================
+  // Small formatting helpers for the three sections below.
+  function fmtPx(v) { return Number.isFinite(v) ? (v < 0 ? "-$" : "$") + Math.abs(v).toFixed(Math.abs(v) < 1 ? 3 : 2) : "—"; }
+  function fmtShare(x) { return (x * 100).toFixed(x < 0.1 && x > 0 ? 1 : 0) + "%"; }
+  function fmtPf(v) { return v === Infinity ? "∞" : (Number.isFinite(v) ? v.toFixed(2) : "—"); }
+  function statsOrMessage(el) {
+    if (window.EdgeStats) return window.EdgeStats;
+    if (el) el.innerHTML = `<div class="empty-state small">Couldn't load js/edge-stats.js — refresh the page.</div>`;
+    return null;
+  }
+
+  function renderConfidence(rows) {
+    const el = document.getElementById("confidence-body");
+    if (!el) return;
+    const ES = statsOrMessage(el);
+    if (!ES) return;
+    const pnls = rows.map((r) => r.pnl_after_comm).filter((v) => typeof v === "number" && isFinite(v));
+    const winCount = rows.filter((r) => r.win).length;
+    const tt = ES.tTest(pnls);
+    const bs = ES.bootstrapTradeStats(pnls, { iterations: 5000, seed: 20260921 });
+    const wr = ES.wilson(winCount, rows.length);
+    if (!tt || !bs || !wr) {
+      summaryState.pValue = null;
+      el.innerHTML = `<div class="empty-state small">Needs at least 5 trades with P&amp;L that isn't all identical.</div>`;
+      return;
+    }
+    summaryState.pValue = tt.p;
+
+    const e = bs.expectancy, pf = bs.profitFactor;
+    const pStr = tt.p < 0.001 ? "&lt; 0.001" : tt.p.toFixed(3);
+    // Trust the wider of the two ranges (the explainer says so): that's the
+    // conservative read of "could the true average be zero?".
+    const lo = Math.min(tt.ci[0], e.lo), hi = Math.max(tt.ci[1], e.hi);
+    let verdict;
+    if (lo > 0) {
+      verdict = `Both ranges sit above zero: on this sample, an average loss per trade isn't a plausible explanation. That's evidence the edge is real <i>so far</i>, not a promise it persists — check Edge Decay above.`;
+    } else if (hi < 0) {
+      verdict = `Both ranges sit below zero: on this sample, the average trade is losing money, and luck alone is an unlikely explanation.`;
+    } else {
+      verdict = `The plausible average runs from <b>${fmtMoney(lo)}</b> to <b>${fmtMoney(hi)}</b> per trade, so this record can't yet separate your edge from zero. As a rule of thumb, about 4× as many trades would halve that width.`;
+    }
+    if (tt.n < 30) verdict += ` With only ${tt.n} trades, every range here rests on very little data.`;
+    if (pf.infiniteShare > 0.01 && Number.isFinite(pf.point)) verdict += ` About ${fmtShare(pf.infiniteShare)} of resamples drew no losing trade at all, so the top of the profit-factor range is unbounded.`;
+
+    el.innerHTML = `
+      <div class="stat-grid" style="margin-bottom:14px;">
+        <div class="stat">
+          <div class="label-row"><span class="label">Expectancy / Trade</span></div>
+          <div class="value ${e.point >= 0 ? "up" : "down"}">${fmtMoney(e.point)}</div>
+          <div class="sub-value">bootstrap 95%: ${fmtMoney(e.lo)} to ${fmtMoney(e.hi)}</div>
+          <div class="sub-value">t-test 95%: ${fmtMoney(tt.ci[0])} to ${fmtMoney(tt.ci[1])}</div>
+        </div>
+        <div class="stat">
+          <div class="label-row"><span class="label">Profit Factor</span></div>
+          <div class="value ${pf.point >= 1 ? "up" : "down"}">${fmtPf(pf.point)}</div>
+          <div class="sub-value">bootstrap 95%: ${fmtPf(pf.lo)} to ${fmtPf(pf.hi)}</div>
+        </div>
+        <div class="stat">
+          <div class="label-row"><span class="label">Win Rate</span></div>
+          <div class="value">${(wr.p * 100).toFixed(1)}%</div>
+          <div class="sub-value">Wilson 95%: ${(wr.lo * 100).toFixed(1)}% to ${(wr.hi * 100).toFixed(1)}%</div>
+        </div>
+        <div class="stat">
+          <div class="label-row"><span class="label">P-value (avg. P&amp;L ≠ 0)</span></div>
+          <div class="value ${tt.p < 0.05 ? "up" : ""}">${pStr}</div>
+          <div class="sub-value">t = ${tt.t.toFixed(2)} · n = ${tt.n} · df = ${tt.df}</div>
+        </div>
+      </div>
+      <p class="edge-explain-blurb" style="margin:0;">${verdict}</p>`;
+  }
+
+  // ================= 6. MAE / MFE =================
+  // Runs off the same detail fetches as the Regret Curve (see
+  // runBarAnalysis). Returns null when this trade's bars can't support it.
+  function computeExcursionForTrade(row, detail) {
+    if (!window.EdgeStats) return null;
+    const bars = detail && Array.isArray(detail.bars) ? detail.bars : null;
+    if (!bars || !bars.length || !row.trade_date || !row.entry_time || !row.exit_time) return null;
+    if (typeof row.entry_price !== "number" || typeof row.exit_price !== "number") return null;
+    const entryTs = toUnix(`${row.trade_date} ${row.entry_time}`);
+    const exitTs = toUnix(`${row.trade_date} ${row.exit_time}`);
+    const exc = window.EdgeStats.computeExcursion(bars, entryTs, exitTs, row.entry_price, row.side, toUnix);
+    if (!exc) return null;
+    const sign = row.side === "short" ? -1 : 1;
+    return Object.assign(exc, { pnl: (row.exit_price - row.entry_price) * sign });
+  }
+
+  function sweepTableHtml(headers, cols, rowsHtml) {
+    const tpl = `grid-template-columns:${cols};`;
+    return `<div style="overflow-x:auto;"><div style="min-width:560px;">
+      <div class="decay-head" style="${tpl}">${headers.map((h, i) => `<span class="${i ? "c-num" : ""}" style="${i ? "text-align:right;" : ""}">${h}</span>`).join("")}</div>
+      ${rowsHtml}
+    </div></div>`;
+  }
+  function deltaCell(v) {
+    return `<div class="c-num" style="color:${v > 0.005 ? "var(--green)" : (v < -0.005 ? "var(--red)" : "var(--text-faint)")};">${fmtMoney(v)}</div>`;
+  }
+
+  function renderExcursion() {
+    const sumEl = document.getElementById("excursion-summary");
+    const stopEl = document.getElementById("excursion-stops");
+    const tgtEl = document.getElementById("excursion-targets");
+    if (!sumEl) return;
+    const ES = statsOrMessage(sumEl);
+    if (!ES) return;
+    const rows = excursionResults.map(({ row, exc }) => ({
+      mae: exc.mae, mfe: exc.mfe, pnl: exc.pnl, win: !!row.win,
+      shares: typeof row.shares === "number" && row.shares > 0 ? row.shares : 0,
+    }));
+    if (!rows.length) {
+      sumEl.innerHTML = `<div class="empty-state small">None of the checked trades had bars with both highs and lows around the trade.</div>`;
+      stopEl.innerHTML = ""; tgtEl.innerHTML = "";
+      return;
+    }
+    const winners = rows.filter((r) => r.win);
+    const losers = rows.filter((r) => !r.win);
+    const asc = (arr, k) => arr.map((r) => r[k]).sort((a, b) => a - b);
+    const med = (arr, k) => (arr.length ? ES.percentile(asc(arr, k), 0.5) : NaN);
+    const p = (arr, k, q) => (arr.length ? ES.percentile(asc(arr, k), q) : NaN);
+    const avgPnl = (arr) => (arr.length ? ES.mean(arr.map((r) => r.pnl)) : NaN);
+    const sized = rows.filter((r) => r.shares > 0);
+    const avgMaeUsd = sized.length ? ES.mean(sized.map((r) => r.mae * r.shares)) : NaN;
+    const avgMfeUsd = sized.length ? ES.mean(sized.map((r) => r.mfe * r.shares)) : NaN;
+
+    const card = (label, value, sub, cls) => `<div class="stat"><div class="label-row"><span class="label">${label}</span></div><div class="value ${cls || ""}">${value}</div><div class="sub-value">${sub}</div></div>`;
+    sumEl.innerHTML = `
+      <div class="stat-grid" style="margin-bottom:16px;">
+        ${card("Winners' MAE (median)", fmtPx(med(winners, "mae")), `90th pct ${fmtPx(p(winners, "mae", 0.9))} · n = ${winners.length}`)}
+        ${card("Winners' MFE (median)", fmtPx(med(winners, "mfe")), `avg. realized ${fmtPx(avgPnl(winners))} / share`)}
+        ${card("Losers' MAE (median)", fmtPx(med(losers, "mae")), `avg. realized ${fmtPx(avgPnl(losers))} / share · n = ${losers.length}`)}
+        ${card("Losers' MFE (median)", fmtPx(med(losers, "mfe")), "how far losers went your way first")}
+        ${card("Avg. Position MAE", sized.length ? "$" + avgMaeUsd.toFixed(2) : "—", "per trade, all checked trades")}
+        ${card("Avg. Position MFE", sized.length ? "$" + avgMfeUsd.toFixed(2) : "—", "per trade, all checked trades")}
+      </div>
+      ${winners.length < 15 ? `<p class="edge-explain-blurb" style="margin:0 0 6px;">Only ${winners.length} winning trade${winners.length === 1 ? "" : "s"} in the checked sample — winner percentiles are rough at this size.</p>` : ""}
+      <p class="edge-explain-blurb" style="margin:0 0 4px;">All figures are price per share unless marked $; the two "Avg. Position" cards multiply by share count.</p>`;
+
+    const sweepRows = rows.filter((r) => r.shares > 0);
+    if (!sweepRows.length) { stopEl.innerHTML = ""; tgtEl.innerHTML = ""; return; }
+
+    // ---- stop sweep: candidate stops just beyond winners' MAE percentiles ----
+    const stopQs = [[0.5, "50th"], [0.75, "75th"], [0.9, "90th"], [0.95, "95th"]];
+    const stopLevels = [], stopLabels = {};
+    if (winners.length >= 2) {
+      stopQs.forEach(([q, lab]) => {
+        const lvl = Math.ceil(p(winners, "mae", q) * 100 - 1e-9) / 100; // round UP to the cent
+        if (lvl > 0 && !(lvl in stopLabels)) { stopLevels.push(lvl); stopLabels[lvl] = `Beyond winners' ${lab} pct MAE`; }
+      });
+    }
+    if (stopLevels.length) {
+      const res = ES.stopSweep(sweepRows, stopLevels);
+      const cols = "minmax(170px,1.5fr) 84px 118px 92px 96px";
+      stopEl.innerHTML = `
+        <div class="edge-section-head" style="margin-top:20px;"><span class="title">Stop Sweep</span></div>
+        <p class="edge-explain-blurb" style="margin:0 0 8px;">What a fixed per-share stop would have done to these ${sweepRows.length} trades — fills assumed at the stop, before commission, size unchanged.</p>
+        ${sweepTableHtml(["Stop placed", "Stop", "Winners stopped", "Losers cut", "Δ total P&amp;L"], cols, res.map((r) => `
+          <div class="edge-row" style="grid-template-columns:${cols};">
+            <div class="c-label" style="text-transform:none;">${stopLabels[r.level]}</div>
+            <div class="c-num">${fmtPx(r.level)}</div>
+            <div class="c-num">${fmtShare(r.winnerShare)} <span style="color:var(--text-faint);">(${r.winnersStopped})</span></div>
+            <div class="c-num">${r.losersImproved}</div>
+            ${deltaCell(r.delta)}
+          </div>`).join(""))}`;
+    } else {
+      stopEl.innerHTML = "";
+    }
+
+    // ---- target sweep: targets at MFE percentiles across all trades ----
+    const tgtQs = [[0.25, 75], [0.5, 50], [0.75, 25], [0.9, 10]];
+    const tgtLevels = [], tgtLabels = {};
+    tgtQs.forEach(([q, reachedPct]) => {
+      const lvl = Math.floor(p(sweepRows, "mfe", q) * 100 + 1e-9) / 100; // round DOWN to the cent
+      if (lvl > 0 && !(lvl in tgtLabels)) { tgtLevels.push(lvl); tgtLabels[lvl] = `Reached by ~${reachedPct}% of trades`; }
+    });
+    if (tgtLevels.length) {
+      const res = ES.targetSweep(sweepRows, tgtLevels);
+      const cols = "minmax(170px,1.5fr) 84px 118px 96px";
+      tgtEl.innerHTML = `
+        <div class="edge-section-head" style="margin-top:20px;"><span class="title">Target Sweep</span></div>
+        <p class="edge-explain-blurb" style="margin:0 0 8px;">What taking profit at a fixed per-share target would have done — fills assumed at the target, which also caps bigger winners.</p>
+        ${sweepTableHtml(["Target placed", "Target", "Trades reaching it", "Δ total P&amp;L"], cols, res.map((r) => `
+          <div class="edge-row" style="grid-template-columns:${cols};">
+            <div class="c-label" style="text-transform:none;">${tgtLabels[r.level]}</div>
+            <div class="c-num">${fmtPx(r.level)}</div>
+            <div class="c-num">${fmtShare(r.reachedShare)}</div>
+            ${deltaCell(r.delta)}
+          </div>`).join(""))}`;
+    } else {
+      tgtEl.innerHTML = "";
+    }
+  }
+
+  // ================= 7. LOSING STREAKS & DRAWDOWN (trade-shuffle) =================
+  function renderShuffle(rows) {
+    const sumEl = document.getElementById("shuffle-summary");
+    const streakEl = document.getElementById("shuffle-streaks");
+    const fanEl = document.getElementById("shuffle-fan");
+    const statusEl = document.getElementById("shuffle-status");
+    if (!sumEl) return;
+    const ES = statsOrMessage(sumEl);
+    if (!ES) return;
+    const pnls = [], lose = [];
+    rows.forEach((r) => {
+      if (typeof r.pnl_after_comm === "number" && isFinite(r.pnl_after_comm)) { pnls.push(r.pnl_after_comm); lose.push(r.win ? 0 : 1); }
+    });
+    const sim = ES.shuffleSimulation(pnls, lose, { runs: 5000, seed: shuffleSeed });
+    if (!sim) {
+      summaryState.streak95 = null;
+      sumEl.innerHTML = `<div class="empty-state small">Needs at least 5 trades to shuffle.</div>`;
+      streakEl.innerHTML = ""; fanEl.innerHTML = ""; if (statusEl) statusEl.textContent = "";
+      return;
+    }
+    summaryState.streak95 = Math.ceil(sim.streak.p95);
+    if (statusEl) statusEl.textContent = `${sim.runs.toLocaleString()} shuffles of ${sim.n} trades`;
+
+    const card = (label, value, sub, cls) => `<div class="stat"><div class="label-row"><span class="label">${label}</span></div><div class="value ${cls || ""}">${value}</div><div class="sub-value">${sub}</div></div>`;
+    const dd = (v) => fmtMoney(-v);
+    sumEl.innerHTML = `
+      <div class="stat-grid" style="margin-bottom:16px;">
+        ${card("Losing Streak — Typical", `${Math.round(sim.streak.median)} in a row`, `95th pct: ${Math.ceil(sim.streak.p95)} · 99th: ${Math.ceil(sim.streak.p99)}`)}
+        ${card("Losing Streak — Yours", `${sim.actual.streak} in a row`, `${fmtShare(sim.actualStreakShare)} of shuffles were this long or longer`)}
+        ${card("Max Drawdown — Typical", dd(sim.maxDD.median), `95th pct: ${dd(sim.maxDD.p95)} · 99th: ${dd(sim.maxDD.p99)}`, "down")}
+        ${card("Max Drawdown — Yours", dd(sim.actual.maxDD), `${fmtShare(sim.actualDDShare)} of shuffles were at least this deep`, "down")}
+      </div>`;
+
+    // P(longest losing streak >= k), a few values either side of typical.
+    const kStart = Math.max(1, Math.round(sim.streak.median) - 3);
+    const kEnd = Math.min(Math.ceil(sim.streak.p99) + 2, kStart + 24);
+    let below = 0;
+    for (let j = 0; j < kStart; j++) below += sim.streakCounts[j] || 0;
+    let barsHtml = "";
+    for (let k = kStart; k <= kEnd; k++) {
+      const share = (sim.runs - below) / sim.runs;
+      below += sim.streakCounts[k] || 0;
+      const pct = Math.round(share * 1000) / 10;
+      const mine = k === sim.actual.streak;
+      barsHtml += `<div class="edge-row" style="grid-template-columns: 190px minmax(60px,1fr) 56px;">
+        <div class="c-label" style="text-transform:none;${mine ? "color:var(--primary); font-weight:700;" : ""}">${k}+ in a row${mine ? " ← yours" : ""}</div>
+        <div class="c-bar bar-track"><div class="bar-fill" data-w="${pct}" style="width:0%; background:${mine ? "var(--primary)" : "var(--red)"};"></div></div>
+        <div class="c-num">${fmtShare(share)}</div>
+      </div>`;
+    }
+    streakEl.innerHTML = `<div class="edge-section-head" style="margin-top:6px;"><span class="title">Chance the Longest Losing Streak Reaches…</span></div>
+      <p class="edge-explain-blurb" style="margin:4px 0 8px;">Share of shuffled orderings of your ${sim.n} trades containing a losing streak at least this long.</p>${barsHtml}`;
+    animateBarFills(streakEl);
+
+    // Equity fan vs. actual order.
+    fanEl.innerHTML = "";
+    const chart = makeChart(fanEl, 260, { timeScale: { borderColor: "#262a34", tickMarkFormatter: (t) => "#" + t }, localization: { timeFormatter: (t) => "Trade #" + t } });
+    const addLine = (arr, color, width, style) => {
+      const series = chart.addLineSeries({ color, lineWidth: width, lineStyle: style || 0, priceLineVisible: false, lastValueVisible: false });
+      series.setData(arr.map((v, i) => ({ time: i + 1, value: Math.round(v * 100) / 100 })));
+    };
+    addLine(sim.bands.p5, "rgba(242,85,90,0.85)", 1);
+    addLine(sim.bands.p25, "rgba(139,143,163,0.7)", 1, 2);
+    addLine(sim.bands.p50, "#8b7cf6", 2);
+    addLine(sim.bands.p75, "rgba(139,143,163,0.7)", 1, 2);
+    addLine(sim.bands.p95, "rgba(47,208,138,0.85)", 1);
+    let cum = 0;
+    addLine(pnls.map((v) => (cum += v)), "#e8a94c", 2);
     chart.timeScale().fitContent();
   }
 

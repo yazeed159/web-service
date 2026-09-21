@@ -37,16 +37,17 @@ there's no session) → the page's own script.
 - **`index.html`** — Dashboard / Day View / Reports tabs (hash-routed, one page)
 - **`journal.html`** — full trade log, filterable/sortable, deep-linkable via `?setup=`
 - **`stats.html`** ("Performance") — equity curve, win rate, setup breakdown, slippage, feedback tally
-- **`edge-analysis.html`** — deeper statistical breakdown of what's actually working
+- **`edge-analysis.html`** — deeper statistical breakdown of what's actually working: setup decay, volume/float tags, confidence ranges (t-test + bootstrap), regret curve, MAE/MFE with stop/target sweeps, position sizing, and a trade-shuffle simulation of losing streaks and drawdown. The bar-level sections (regret + MAE/MFE) share one on-demand run over the most recent 100 trades. Pure math lives in `js/edge-stats.js` (unit-tested: `npm run test:unit`).
 - **`patterns.html`** — recurring `lesson_tags` clustered by frequency
 - **`calculator.html`** — position-size / risk-per-trade calculator
 - **`backtester.html`** — ORB/gap-gainer strategy backtester against real Polygon minute bars
 - **`rewind.html`** — chart-reading practice replaying your own logged trades, not graded
 - **`practice.html`** — paper-trade a logged chart bar-by-bar; its Analytics tab used to be `practice-analytics.html`
+- **`daily.html`** — daily plan (max loss, goal, checklist) and end-of-day review, plus a weekly table and discipline score
 - **`settings.html`** — capital ledger (deposits/withdrawals), account prefs
 
 **Per-trade / support:**
-- **`trade.html?id=<trade_id>`** — full trade detail: interactive candlestick chart, AI verdict, Support/Resistance (on-demand), 👍/👎 feedback
+- **`trade.html?id=<trade_id>`** — full trade detail: interactive candlestick chart, AI verdict, Support/Resistance (on-demand), star grade, and your own journal card (planned stop/target, setup, mistakes, rules followed, notes)
 - **`import-trades.html`** — CSV import of new trades
 - **`login.html`** — Supabase email/password sign-in; `auth.js` redirects here on any page when there's no session
 

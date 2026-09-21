@@ -5,6 +5,7 @@
   "description": "Smoke tests for the SPA router in js/page-transition.js -- see tests/README.md.",
   "scripts": {
     "test": "playwright test",
+    "test:unit": "node --test tests/edge-stats.test.js tests/journal.test.js",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui"
   },

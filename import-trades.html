@@ -17,6 +17,11 @@
     background: var(--panel-2); padding: 18px; display: flex; align-items: center;
     justify-content: space-between; gap: 12px;
   }
+  #m-msg { min-height: 1em; }
+  .it-card input[type="text"], .it-card input[type="number"], .it-card input[type="date"], .it-card input[type="time"], .it-card select {
+    width: 100%; box-sizing: border-box; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 7px 9px; font-size: 13px; font-family: inherit;
+  }
   input[type="file"] { color: var(--text-dim); font-size: 13px; max-width: 100%; }
   #run-btn { margin-top: 20px; padding: 11px 22px; }
   #status { margin-top: 16px; font-size: 13px; font-family: var(--mono); }
@@ -172,6 +177,32 @@
           this page; it'll keep running on the server either way.
         </div>
       </div>
+
+      <div class="card it-card" style="margin-top:16px;">
+        <div class="panel-head">
+          <p class="sub">
+            <b>Add one trade by hand</b> — for a trade your broker sync missed. It goes through the same import
+            pipeline as a CSV (charted, AI-graded, published), and shows in the table and status area above.
+            Times are exchange-local, 24h. Re-adding the same symbol at the same entry time replaces that trade
+            rather than duplicating it.
+          </p>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:12px;">
+          <div><label for="m-symbol">Symbol</label><input id="m-symbol" type="text" placeholder="AAPL" autocapitalize="characters"></div>
+          <div><label for="m-date">Date</label><input id="m-date" type="date"></div>
+          <div><label for="m-side">Side</label><select id="m-side"><option value="long">Long</option><option value="short">Short</option></select></div>
+          <div><label for="m-shares">Shares</label><input id="m-shares" type="number" min="1" step="1" inputmode="numeric"></div>
+          <div><label for="m-entry-time">Entry time</label><input id="m-entry-time" type="time" step="1"></div>
+          <div><label for="m-entry-price">Entry price</label><input id="m-entry-price" type="number" min="0" step="0.0001" inputmode="decimal"></div>
+          <div><label for="m-exit-time">Exit time</label><input id="m-exit-time" type="time" step="1"></div>
+          <div><label for="m-exit-price">Exit price</label><input id="m-exit-price" type="number" min="0" step="0.0001" inputmode="decimal"></div>
+          <div><label for="m-comm">Commission, round trip ($)</label><input id="m-comm" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"></div>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <button class="btn-confirm" id="m-add-btn" type="button">Add trade</button>
+          <span id="m-msg" style="font-size:12.5px;"></span>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -294,8 +325,7 @@
           .catch(function () { /* the next poll tick will still pick up wherever the job lands */ });
       });
 
-      runBtn.addEventListener("click", function () {
-        var file = fileEl.files[0];
+      function startImport(file) {
         if (!file) return;
 
         var base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
@@ -348,6 +378,40 @@
               runBtn.disabled = false;
             });
         });
+      }
+
+      runBtn.addEventListener("click", function () { startImport(fileEl.files[0]); });
+
+      // ---- Add one trade by hand (a missed trade / a broker outage) ----
+      // Builds a two-row execution CSV (entry fill + exit fill) and pushes it
+      // through the exact same /import-trades pipeline as a file upload, so
+      // the trade is FIFO-matched, charted, AI-graded and published like any
+      // other -- no separate write path to the trades table.
+      var mBtn = document.getElementById("m-add-btn");
+      var mMsg = document.getElementById("m-msg");
+      function mv(id) { return document.getElementById(id).value.trim(); }
+      function mErr(t) { mMsg.textContent = t; mMsg.style.color = "var(--red)"; }
+      mBtn.addEventListener("click", function () {
+        var symbol = mv("m-symbol").toUpperCase().replace(/[^A-Z0-9.\-]/g, "");
+        var date = mv("m-date"), side = mv("m-side");
+        var entryT = mv("m-entry-time"), exitT = mv("m-exit-time");
+        var entryP = parseFloat(mv("m-entry-price")), exitP = parseFloat(mv("m-exit-price"));
+        var shares = parseFloat(mv("m-shares")), comm = parseFloat(mv("m-comm") || "0");
+        if (!symbol || !date || !entryT || !exitT) return mErr("Fill in symbol, date and both times.");
+        if (!(entryP > 0) || !(exitP > 0)) return mErr("Entry and exit prices must be positive numbers.");
+        if (!(shares > 0)) return mErr("Shares must be a positive number.");
+        if (!(comm >= 0)) return mErr("Commission can't be negative.");
+        var withSecs = function (t) { return t.length === 5 ? t + ":00" : t; };
+        var entryDT = date + " " + withSecs(entryT), exitDT = date + " " + withSecs(exitT);
+        if (exitDT <= entryDT) return mErr("Exit time must be after entry time.");
+        mMsg.textContent = "";
+        // Commission is entered as a round-trip total; split it across the two fills.
+        var half = (comm / 2).toFixed(4);
+        var entrySide = side === "short" ? "SELL" : "BUY", exitSide = side === "short" ? "BUY" : "SELL";
+        var csv = "Symbol,DateTime,Buy/Sell,Quantity,TradePrice,Commission\n" +
+          symbol + "," + entryDT + "," + entrySide + "," + shares + "," + entryP + "," + half + "\n" +
+          symbol + "," + exitDT + "," + exitSide + "," + shares + "," + exitP + "," + half + "\n";
+        startImport(new File([csv], "manual-trade.csv", { type: "text/csv" }));
       });
     })();
   </script>

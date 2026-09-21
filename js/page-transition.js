@@ -241,27 +241,20 @@
 
     // Walk backward from the (stable, always-present) More mount to the
     // section label that starts this region, in the freshly-fetched doc.
-    // The label is part of the region (index.html hand-writes one; every
-    // other page's label lives inside its #sidebar-main-section mount and
-    // is filled in by nav-render.js). It used to be left out of the swap,
-    // which left index.html's static "Journal" label sitting above the
-    // next page's own label -- and, now that the heading names the current
-    // page's group, a stale one.
     var newNodes = [];
     var n = newMoreMount.previousSibling;
     while (n) {
-      newNodes.unshift(n);
       if (n.nodeType === 1 && n.classList && n.classList.contains("nav-section-label")) break;
+      newNodes.unshift(n);
       n = n.previousSibling;
     }
 
-    // Remove the current document's equivalent range (label included).
+    // Remove the current document's equivalent range.
     var c = curMoreMount.previousSibling;
     while (c) {
       var prev = c.previousSibling;
-      var wasLabel = c.nodeType === 1 && c.classList && c.classList.contains("nav-section-label");
+      if (c.nodeType === 1 && c.classList && c.classList.contains("nav-section-label")) break;
       c.remove();
-      if (wasLabel) break;
       c = prev;
     }
 
