@@ -7,8 +7,8 @@ time.sleep(1)
 errors=[]
 def setup(ctx):
     ctx.route(lambda u: not u.startswith("http://localhost"), lambda r: r.abort())
-    ctx.route("**/@supabase/supabase-js**", lambda r: r.fulfill(body=fake, content_type="application/javascript"))
-    ctx.route("**/lightweight-charts**", lambda r: r.fulfill(body="(function(){const mk=()=>new Proxy(function(){},{get:(t,k)=>k===Symbol.toPrimitive?()=>0:mk(),apply:()=>mk(),construct:()=>mk()});window.LightweightCharts=new Proxy({},{get:(t,k)=>mk()});})()", content_type="application/javascript"))
+    ctx.route("**/vendor/supabase.js", lambda r: r.fulfill(body=fake, content_type="application/javascript"))
+    ctx.route("**/vendor/lightweight-charts.js", lambda r: r.fulfill(body="(function(){const mk=()=>new Proxy(function(){},{get:(t,k)=>k===Symbol.toPrimitive?()=>0:mk(),apply:()=>mk(),construct:()=>mk()});window.LightweightCharts=new Proxy({},{get:(t,k)=>mk()});})()", content_type="application/javascript"))
 try:
   with sync_playwright() as p:
     b = p.chromium.launch()

@@ -130,9 +130,6 @@ html { color-scheme: dark; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--mono);
-  font-weight: 700;
-  font-size: 21px;
   color: #0b0714;
   box-shadow: 0 0 0 1px rgba(139,124,246,0.25), 0 8px 32px rgba(139,124,246,0.38);
   /* Static -- the ring below is the loader's one and only motion.
@@ -141,6 +138,7 @@ html { color-scheme: dark; }
      which put two competing animations on the same small element;
      one clean spin reads as "loading" just as well on its own. */
 }
+.page-loader-mark svg { width: 30px; height: 30px; }
 .page-loader-ring {
   position: absolute;
   inset: -13px;
@@ -281,9 +279,10 @@ button { font-family: var(--sans); }
   width: 30px; height: 30px; border-radius: 8px;
   background: linear-gradient(135deg, var(--primary), var(--primary-2));
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--mono); font-weight: 700; font-size: 14px; color: #0b0714;
+  color: #0b0714;
   box-shadow: 0 0 0 1px rgba(139,124,246,0.25), 0 4px 14px rgba(139,124,246,0.25);
 }
+.brand .mark svg { width: 17px; height: 17px; }
 .brand .name { font-weight: 700; letter-spacing: -0.01em; font-size: 15.5px; white-space: nowrap; }
 .brand .name .muted { color: var(--text-dim); font-weight: 400; }
 .sidebar.collapsed .brand .name { display: none; }
@@ -1944,6 +1943,7 @@ body::before {
   font-family: var(--display, var(--sans)); font-size: 12.5px; font-weight: 700;
   box-shadow: 0 2px 10px var(--glow-violet);
 }
+.account-avatar svg { width: 16px; height: 16px; }
 .account-chevron { flex: none; width: 13px; height: 13px; color: var(--text-faint); transition: transform .15s var(--ease); }
 .account-trigger.open .account-chevron { transform: rotate(180deg); color: var(--text-dim); }
 
@@ -1963,6 +1963,7 @@ body::before {
   background: var(--grad-signature); color: #fff; font-size: 14px; font-weight: 700;
   font-family: var(--display, var(--sans));
 }
+.account-panel-avatar svg { width: 19px; height: 19px; }
 .account-panel-id { min-width: 0; }
 .account-panel-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .account-panel-email { font-size: 11.5px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1988,6 +1989,7 @@ body::before {
   background: var(--grad-signature); color: #fff; font-size: 20px; font-weight: 700;
   font-family: var(--display, var(--sans)); box-shadow: 0 4px 16px var(--glow-violet);
 }
+.account-hero-avatar svg { width: 28px; height: 28px; }
 .account-hero-id { min-width: 0; }
 .account-hero-name { font-size: 16px; font-weight: 700; }
 .account-hero-email { font-size: 12.5px; color: var(--text-faint); margin-top: 2px; }

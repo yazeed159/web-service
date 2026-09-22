@@ -132,8 +132,10 @@
     var meta = user.user_metadata || {};
     var email = user.email || "Account";
     var displayName = (meta.full_name || "").trim();
-    var initialsSource = displayName || email;
-    var initial = initialsSource.charAt(0).toUpperCase() || "?";
+    var AVATAR_ICON_SVG =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2">' +
+      '</path><circle cx="12" cy="7" r="4"></circle></svg>';
 
     // Was position:fixed at a hardcoded viewport corner (top:12px;
     // right:12px), completely outside the topbar's own layout -- that's
@@ -152,7 +154,7 @@
     btn.title = displayName ? displayName + " (" + email + ")" : email;
     btn.setAttribute("aria-label", "Account menu");
     btn.innerHTML =
-      '<span class="account-avatar" id="auth-account-avatar">' + escapeHtml(initial) + "</span>" +
+      '<span class="account-avatar" id="auth-account-avatar">' + AVATAR_ICON_SVG + "</span>" +
       '<svg class="account-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
 
     var panel = document.createElement("div");
@@ -162,7 +164,7 @@
     var head = document.createElement("div");
     head.className = "account-panel-head";
     head.innerHTML =
-      '<span class="account-panel-avatar" id="auth-account-panel-avatar">' + escapeHtml(initial) + "</span>" +
+      '<span class="account-panel-avatar" id="auth-account-panel-avatar">' + AVATAR_ICON_SVG + "</span>" +
       '<span class="account-panel-id">' +
         '<span class="account-panel-name" id="auth-account-panel-name">' + escapeHtml(displayName || "Trader") + "</span>" +
         '<span class="account-panel-email" id="auth-account-panel-email">' + escapeHtml(email) + "</span>" +
@@ -223,13 +225,7 @@
     // without needing a full page reload (they're both on the same page).
     window.addEventListener("account:profile-updated", function (ev) {
       var name = ((ev.detail && ev.detail.fullName) || "").trim();
-      var src = name || email;
-      var ch = src.charAt(0).toUpperCase() || "?";
-      var avatarEl = document.getElementById("auth-account-avatar");
-      var panelAvatarEl = document.getElementById("auth-account-panel-avatar");
       var nameEl = document.getElementById("auth-account-panel-name");
-      if (avatarEl) avatarEl.textContent = ch;
-      if (panelAvatarEl) panelAvatarEl.textContent = ch;
       if (nameEl) nameEl.textContent = name || "Trader";
       btn.title = name ? name + " (" + email + ")" : email;
     });
@@ -237,9 +233,28 @@
 
   // Every protected page awaits this before it's allowed to query data.
   // Resolves to the session object, or null (and redirects) if signed out.
-  window.AUTH_READY = window.sb.auth.getSession().then(function (res) {
+  // getSession() can fail for reasons that have nothing to do with being
+  // signed out (network blip while it silently refreshes an expired token).
+  // Only a clean "no session, no error" answer means signed out; an error
+  // gets a few retries and, if it persists, does NOT bounce you to the login
+  // page -- it sets window.AUTH_ERROR so data helpers can say what happened.
+  function loadSession(attempt) {
+    return window.sb.auth.getSession().then(function (res) {
+      var hasSession = res && res.data && res.data.session;
+      if (!hasSession && res && res.error && attempt < 3) {
+        return sleep(jitter(800 * (attempt + 1))).then(function () { return loadSession(attempt + 1); });
+      }
+      return res;
+    }, function (thrown) {
+      if (attempt < 3) return sleep(jitter(800 * (attempt + 1))).then(function () { return loadSession(attempt + 1); });
+      return { data: { session: null }, error: thrown || new Error("getSession failed") };
+    });
+  }
+  window.AUTH_ERROR = null;
+  window.AUTH_READY = loadSession(0).then(function (res) {
     var session = res && res.data && res.data.session;
     if (!session) {
+      if (res && res.error) { window.AUTH_ERROR = res.error; return null; } // unknown, not "signed out"
       if (!isLoginPage) window.location.href = "login";
       return null;
     }
@@ -250,6 +265,23 @@
     addAccountWidget(session);
     return session;
   });
+
+  // Resolves to a usable session, re-checking once if the first attempt
+  // errored (so a page-level "Retry" can succeed without a full reload).
+  // Rejects (instead of returning null) when the session is unknown, so
+  // callers show "couldn't load" + Retry rather than a fake empty account.
+  function sessionForData() {
+    return window.AUTH_READY.then(function (session) {
+      if (session) return session;
+      if (!window.AUTH_ERROR) return null; // genuinely signed out; redirect already underway
+      return loadSession(2).then(function (res) {
+        var s2 = res && res.data && res.data.session;
+        if (s2) { window.AUTH_ERROR = null; addAccountWidget(s2); return s2; }
+        if (res && res.error) throw new Error("Couldn't verify your session (" + (res.error.message || "network problem") + ")");
+        return null;
+      });
+    });
+  }
 
   // Keep behavior in sync if the session changes in another tab, or
   // expires mid-visit.
@@ -304,18 +336,113 @@
     var msg = ((err && err.message) || "").toLowerCase();
     return msg.indexOf("issued at future") !== -1 || (msg.indexOf("jwt") !== -1 && msg.indexOf("future") !== -1);
   }
-  function withClockSkewRetry(runQuery) {
-    return runQuery().then(function (res) {
-      if (res && res.error && isClockSkewError(res.error)) {
-        return new Promise(function (resolve) { setTimeout(resolve, 1200); }).then(runQuery);
-      }
-      return res;
+
+  // ------------------------------------------------------------------
+  // Resilient queries. Every data helper below goes through
+  // withClockSkewRetry() (name kept so callers don't change), which used
+  // to retry ONE specific error once. It now retries anything that is
+  // plausibly temporary, because the symptom of NOT doing so is what the
+  // site kept showing: a page that says "Couldn't load this section"
+  // until you hit refresh. Causes it now rides out:
+  //   - network blips / laptop wake / Wi-Fi switch  ("Failed to fetch")
+  //   - Supabase or Cloudflare gateway hiccups       (502/503/504/522/524, 429)
+  //   - an expired access token after the tab slept  ("JWT expired", 401)
+  //       -> refreshSession() first, then the retry uses the new token
+  //   - the original clock-skew "JWT issued at future" case
+  //   - a request that hangs forever                 (per-attempt timeout)
+  // Real errors (RLS denied, bad column, ...) are NOT retried.
+  // ------------------------------------------------------------------
+  var RETRY_DELAYS = [600, 1500, 3000, 6000];   // ms between attempts (+ jitter)
+  var ATTEMPT_TIMEOUT_MS = 20000;
+
+  function errKind(err, status) {
+    if (!err && !status) return null;
+    var msg = ((err && (err.message || err.details || err.hint)) || (typeof err === "string" ? err : "") || "").toLowerCase();
+    var code = String((err && err.code) || "");
+    if (isClockSkewError(err)) return "skew";
+    if (status === 401 || code === "PGRST301" || code === "PGRST303" ||
+        msg.indexOf("jwt expired") !== -1 || msg.indexOf("invalid jwt") !== -1 ||
+        (msg.indexOf("jwt") !== -1 && msg.indexOf("expired") !== -1)) return "auth";
+    if (status === 408 || status === 425 || status === 429 || (status >= 500 && status <= 599) ||
+        /failed to fetch|networkerror|network request failed|load failed|network error|timed out|timeout|aborted|abort|gateway|upstream|temporar|unavailable|overloaded|connection|econn|socket|offline|fetch/.test(msg)) return "transient";
+    return null;
+  }
+
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function jitter(ms) { return ms + Math.floor(Math.random() * ms * 0.3); }
+
+  function withTimeout(promise, ms) {
+    return new Promise(function (resolve, reject) {
+      var done = false;
+      var t = setTimeout(function () { if (!done) { done = true; reject(new Error("Request timed out")); } }, ms);
+      promise.then(function (v) { if (!done) { done = true; clearTimeout(t); resolve(v); } },
+                   function (e) { if (!done) { done = true; clearTimeout(t); reject(e); } });
     });
   }
+
+  // If the browser knows it's offline, waiting for the "online" event beats
+  // burning retries against a dead network.
+  function waitForOnline(maxMs) {
+    if (typeof navigator === "undefined" || navigator.onLine !== false) return Promise.resolve();
+    return new Promise(function (resolve) {
+      var t = setTimeout(done, maxMs);
+      function done() { clearTimeout(t); window.removeEventListener("online", done); resolve(); }
+      window.addEventListener("online", done);
+    });
+  }
+
+  function refreshSessionQuietly() {
+    try {
+      return window.sb.auth.refreshSession().then(function () {}, function () {});
+    } catch (e) { return Promise.resolve(); }
+  }
+
+  function withClockSkewRetry(runQuery) {
+    var attempt = 0;
+    function go() {
+      return waitForOnline(30000).then(function () {
+        return withTimeout(Promise.resolve().then(runQuery), ATTEMPT_TIMEOUT_MS);
+      }).then(function (res) {
+        var kind = res && res.error ? errKind(res.error, res.status) : null;
+        if (!kind || attempt >= RETRY_DELAYS.length) return res;
+        return retry(kind);
+      }, function (thrown) {
+        var kind = errKind(thrown);
+        if (!kind || attempt >= RETRY_DELAYS.length) throw thrown;
+        return retry(kind);
+      });
+    }
+    function retry(kind) {
+      var wait = jitter(RETRY_DELAYS[attempt]);
+      attempt++;
+      if (window.console && console.warn) console.warn("[data] " + kind + " error, retry " + attempt + "/" + RETRY_DELAYS.length + " in " + wait + "ms");
+      var pre = kind === "auth" ? refreshSessionQuietly() : Promise.resolve();
+      return pre.then(function () { return sleep(wait); }).then(go);
+    }
+    return go();
+  }
+  window.__withRetry = withClockSkewRetry; // exposed for pages that query Supabase directly + for tests
 
   window.KV = (function () {
     var cache = {};
     var loaded = false;
+
+    // If the first load still failed after all retries (long outage), keep
+    // trying quietly in the background and fill in any keys that are still
+    // missing, so things like the capital ledger and journal notes show up
+    // without needing a manual refresh. Locally-set values are never overwritten.
+    function recoverKvLater(n) {
+      if (n >= 6) return;
+      setTimeout(function () {
+        withClockSkewRetry(function () { return window.sb.from("user_kv").select("key,value"); })
+          .then(function (res) {
+            if (res && !res.error && res.data) {
+              res.data.forEach(function (row) { if (!Object.prototype.hasOwnProperty.call(cache, row.key)) cache[row.key] = row.value; });
+              try { window.dispatchEvent(new CustomEvent("kv-recovered")); } catch (e) {}
+            } else { recoverKvLater(n + 1); }
+          }, function () { recoverKvLater(n + 1); });
+      }, 8000 * (n + 1));
+    }
 
     var ready = window.AUTH_READY.then(function (session) {
       if (!session) return null;
@@ -328,6 +455,7 @@
             });
           } else if (res.error) {
             console.error("KV: initial load failed:", res.error.message);
+            recoverKvLater(0);
           }
           loaded = true;
           return session;
@@ -405,7 +533,7 @@
   // Returns a Promise<Array> of trade rows, sorted the same way the
   // publish pipeline sorts data/trades.json (trade_date, entry_time).
   window.fetchTradesIndex = function () {
-    return window.AUTH_READY.then(function (session) {
+    return sessionForData().then(function (session) {
       if (!session) return [];
       return withClockSkewRetry(function () {
         return window.sb
@@ -454,7 +582,7 @@
   // chart depend on staying pure cumulative P&L.)
 
   window.fetchTradeDetail = function (id) {
-    return window.AUTH_READY.then(function (session) {
+    return sessionForData().then(function (session) {
       if (!session) return null;
       return Promise.all([
         withClockSkewRetry(function () { return window.sb.from("trades").select("*").eq("id", id).maybeSingle(); }),

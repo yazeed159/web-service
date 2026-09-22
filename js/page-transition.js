@@ -50,6 +50,7 @@
 (function () {
   "use strict";
 
+  var currentPath = window.location.pathname; // path of the document currently on screen (see popstate below)
   var overlay = document.getElementById("page-loader-overlay");
   var bar = document.getElementById("page-progress-bar");
   if (!overlay && !bar) return;
@@ -198,10 +199,33 @@
     if (!curMain || !newMain) throw new Error("no .main to swap");
 
     var curTopbar = curMain.querySelector(".topbar");
+    var newTopbar = newMain.querySelector(".topbar");
     var newTitleEl = newMain.querySelector("#page-title");
     if (curTopbar && newTitleEl) {
       var curTitleEl = curTopbar.querySelector("#page-title");
       if (curTitleEl) curTitleEl.textContent = newTitleEl.textContent;
+    }
+    // .topbar-left is the ONLY part of the topbar that differs by page: it
+    // holds the title plus page-specific pills (index.html's #date-range,
+    // backtester's #bt-api-pill, report's #rpt-range-pill). The topbar stays
+    // in place across navigations (see above), so those pills used to be
+    // whatever the PREVIOUS page had -- meaning a page script that looks
+    // one up (app-shared.js sets #date-range) found null and threw. That
+    // was the "Couldn't load this section... until I refresh" bug: it only
+    // happened when you arrived via the sidebar from another page, and a
+    // full refresh (which loads the page's own topbar) always fixed it.
+    // Resync .topbar-left from the fetched page. .topbar-right and the
+    // search box are identical everywhere / injected by script, so they are
+    // left alone.
+    if (curTopbar && newTopbar) {
+      var curLeft = curTopbar.querySelector(".topbar-left");
+      var newLeft = newTopbar.querySelector(".topbar-left");
+      if (curLeft && newLeft) {
+        curLeft.innerHTML = "";
+        Array.prototype.slice.call(newLeft.childNodes).forEach(function (node) {
+          curLeft.appendChild(document.importNode(node, true));
+        });
+      }
     }
 
     Array.prototype.slice.call(curMain.children).forEach(function (el) {
@@ -314,6 +338,7 @@
         // scripts), then cross-fades to the result -- no loader overlay.
         function apply() {
           if (push) history.pushState({ spa: true }, "", url.href);
+          currentPath = url.pathname;
           document.title = newDoc.title || document.title;
           swapContent(newDoc);
           swapSidebarMain(newDoc);
@@ -373,7 +398,14 @@
       if (url.pathname === window.location.pathname && url.hash) return;
 
       var cfg = SPA_PAGES[keyFor(url.pathname)];
-      if (cfg) {
+      // Only swap in place when the page we're LEAVING is an SPA page too.
+      // Leaving scanner/live-trading/stats/backtester/etc. by swapping their
+      // DOM out from under them leaves their timers, polls and chart
+      // instances running against elements that no longer exist (errors
+      // like "Cannot set properties of null"), which is why those pages
+      // are deliberately not in SPA_PAGES. From them, do a normal full load.
+      var fromCfg = SPA_PAGES[keyFor(window.location.pathname)];
+      if (cfg && fromCfg) {
         e.preventDefault();
         swapTo(url, cfg, true);
         return;
@@ -392,6 +424,13 @@
   // own load, or points at a non-SPA page) falls back to a real
   // reload, since there's no fetched document to diff against here.
   window.addEventListener("popstate", function (e) {
+    // Fragment-only navigation (index.html's tab buttons set location.hash)
+    // also fires popstate in Chrome. That is not a page change: this
+    // handler used to answer it with location.replace(sameUrl), which is
+    // itself a fragment navigation -> popstate again -> infinite recursion
+    // ("Maximum call stack size exceeded"). Same path = same document:
+    // leave it to the page's own hashchange handling.
+    if (window.location.pathname === currentPath) return;
     var cfg = SPA_PAGES[keyFor(window.location.pathname)];
     if (cfg && e.state && e.state.spa) {
       swapTo(new URL(window.location.href), cfg, false);

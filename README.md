@@ -143,3 +143,9 @@ The site is an installable PWA and is meant to be wrapped as an Android APK
 - `<link rel="expect" href="#page-title" blocking="render">` in each page's
   `<head>` holds the first paint until the sidebar + topbar exist, so the new
   page never appears half-built inside a transition.
+
+
+## Reliability notes
+- `js/auth.js` retries transient data failures (network blips, 5xx/429, expired JWT with a session refresh, clock skew, hung requests) before any page sees an error; the dashboard/reports page then shows a banner with a Retry button and retries on its own (backoff, `online`, tab refocus).
+- `supabase-js` and `lightweight-charts` are self-hosted in `js/vendor/` (no CDN dependency). Bump `CACHE_VERSION` in `sw.js` when you update them.
+- `tests/browser-harness/flaky_test.py` injects failures against the real pages.

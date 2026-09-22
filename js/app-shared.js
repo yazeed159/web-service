@@ -318,7 +318,7 @@
   }
 
   function renderEmptyEverywhere() {
-    document.getElementById("last-updated").textContent = "No trades yet";
+    const luNo = document.getElementById("last-updated"); if (luNo) luNo.textContent = "No trades yet";
     statGrid.innerHTML = "";
     const heroEl = document.getElementById("dash-hero");
     if (heroEl) heroEl.innerHTML = '<div class="empty-state small">No trades logged yet — once your pipeline publishes, your Net P&amp;L and recent form will show up here.</div>';
@@ -380,13 +380,105 @@
     tabs: { dashboard: {}, dayview: {}, reports: {} },
   };
 
-  Promise.all([window.fetchTradesIndex(), window.fetchCapitalLedger()])
-    .then(([data, ledger]) => {
-      // A newer copy of this script (loaded by a later SPA navigation)
-      // has since torn this one down -- the .main it would render into
-      // isn't "our" DOM anymore, so bail instead of painting over
-      // whatever the current copy is showing.
+  // ----------------------------------------------------------------
+  // Loading with automatic recovery.
+  //
+  // This used to be a single fetch: if it failed for ANY reason (a network
+  // blip, a token that expired while the tab slept, a gateway hiccup) every
+  // section turned into "Couldn't load this section" and stayed that way
+  // until a manual refresh. Now: auth.js already retries the query itself
+  // (see withClockSkewRetry); if it STILL fails, the page keeps its
+  // placeholders, shows a banner with a Retry button, retries by itself on
+  // a backoff, and retries immediately when the network comes back or the
+  // tab is refocused. Failures while DRAWING (a real bug) are told apart
+  // from failures while FETCHING, so a bug never loops forever.
+  // ----------------------------------------------------------------
+  let loadTries = 0;
+  let retryTimer = null;
+  let loadInFlight = false;
+  let loadFailed = false;
+  const MAX_AUTO_RETRIES = 6;
+
+  function bannerHost() { return document.querySelector(".main") || document.body; }
+  function showLoadBanner(html) {
+    let el = document.getElementById("load-banner");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "load-banner";
+      el.setAttribute("role", "status");
+      el.style.cssText = "margin:12px 0; padding:11px 14px; border:1px solid rgba(232,169,76,.45); background:var(--amber-soft,rgba(232,169,76,.12)); color:var(--text); border-radius:10px; font-size:13px; display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap;";
+      const host = bannerHost();
+      host.insertBefore(el, host.firstChild);
+    }
+    el.innerHTML = html;
+    const btn = el.querySelector("[data-retry]");
+    if (btn) btn.addEventListener("click", () => loadAndRender(true));
+  }
+  function hideLoadBanner() {
+    const el = document.getElementById("load-banner");
+    if (el) el.remove();
+  }
+  function markPlaceholdersRetrying() {
+    document.querySelectorAll(".loading-line").forEach((el) => { el.textContent = "Couldn't load yet — retrying…"; });
+  }
+
+  function onLoadFailed(err) {
+    loadFailed = true;
+    const msg = escapeHtml(String((err && err.message) || err || "unknown error"));
+    const luEl = document.getElementById("last-updated");
+    if (luEl) luEl.textContent = "Reconnecting…";
+    markPlaceholdersRetrying();
+    const willRetry = loadTries < MAX_AUTO_RETRIES;
+    showLoadBanner(
+      `<span>Couldn't load your trades (${msg}). ${willRetry ? "Retrying automatically…" : "Automatic retries used up."}</span>` +
+      `<button type="button" class="btn-advanced" data-retry>Retry now</button>`
+    );
+    if (willRetry) {
+      clearTimeout(retryTimer);
+      retryTimer = setTimeout(() => loadAndRender(false), Math.min(3000 * Math.pow(2, loadTries), 30000));
+    } else {
+      const lu2 = document.getElementById("last-updated");
+      if (lu2) lu2.textContent = "No data";
+    }
+  }
+
+  function onRenderFailed(err) {
+    console.error("[app.js] render failed:", err);
+    showLoadBanner(
+      `<span>Something went wrong drawing this page (${escapeHtml(String((err && err.message) || err))}). Your data loaded fine.</span>` +
+      `<button type="button" class="btn-advanced" onclick="location.reload()">Reload</button>`
+    );
+    clearStrandedLoadingStates();
+  }
+
+  function loadAndRender(manual) {
+    if (cancelled || loadInFlight) return;
+    loadInFlight = true;
+    clearTimeout(retryTimer);
+    if (manual) loadTries = 0; else loadTries++;
+    Promise.all([window.fetchTradesIndex(), window.fetchCapitalLedger()]).then((results) => {
+      loadInFlight = false;
       if (cancelled) return;
+      loadFailed = false;
+      hideLoadBanner();
+      try { renderAll(results[0], results[1]); } catch (err) { onRenderFailed(err); }
+    }, (err) => {
+      loadInFlight = false;
+      if (cancelled) return;
+      onLoadFailed(err);
+    });
+  }
+  // Retry right away when connectivity returns or the tab comes back to the
+  // foreground (laptop wake, Wi-Fi switch) instead of waiting out the backoff.
+  window.addEventListener("online", () => { if (loadFailed) loadAndRender(true); }, { signal });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && loadFailed) loadAndRender(true);
+  }, { signal });
+  App.retryLoad = () => loadAndRender(true);
+
+  function renderAll(data, ledger) {
+      // (A newer copy of this script loaded by a later SPA navigation may
+      // have torn this one down -- loadAndRender already bailed if so.)
       state.trades = data.slice().sort((a, b) => (a.trade_date + a.entry_time).localeCompare(b.trade_date + b.entry_time));
       if (!state.trades.length) {
         renderEmptyEverywhere();
@@ -400,8 +492,10 @@
       state.trades.forEach((t, i) => { t._balance = balances[i]; });
       state.hasCapitalLedger = ledger.length > 0;
       const last = state.trades[state.trades.length - 1];
-      document.getElementById("last-updated").textContent = "Through " + last.trade_date;
-      document.getElementById("date-range").textContent =
+      const lastUpdatedEl = document.getElementById("last-updated");
+      if (lastUpdatedEl) lastUpdatedEl.textContent = "Through " + last.trade_date;
+      const dateRangeEl = document.getElementById("date-range");
+      if (dateRangeEl) dateRangeEl.textContent =
         state.trades[0].trade_date === last.trade_date ? last.trade_date : `${state.trades[0].trade_date} → ${last.trade_date}`;
 
       const lastDate = new Date(last.trade_date + "T12:00:00");
@@ -434,17 +528,8 @@
       safeRender(App.tabs.reports.initReportFilters, "initReportFilters");
       safeRender(App.tabs.reports.applyReportFiltersAndRender, "applyReportFiltersAndRender");
       clearStrandedLoadingStates();
-    })
-    .catch((err) => {
-      if (cancelled) return;
-      const msg = `Couldn't load your trades (${escapeHtml(String(err.message))}). Make sure you're signed in and Supabase is reachable.`;
-      statGrid.innerHTML = "";
-      const heroEl = document.getElementById("dash-hero");
-      if (heroEl) heroEl.innerHTML = `<div class="empty-state">${msg}</div>`;
-      document.getElementById("recent-trades").innerHTML = `<div class="empty-state">${msg}</div>`;
-      document.getElementById("last-updated").textContent = "No data";
-      clearStrandedLoadingStates();
-    });
+  }
+  loadAndRender(true);
 
   // ================================================================
   // TAB NAVIGATION

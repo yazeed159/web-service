@@ -59,7 +59,7 @@
     </defs>
   </svg>
   <div class="page-loader-mark">
-    <span>T</span>
+    <span><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="6" y1="11" x2="6" y2="17"></line><rect x="4.5" y="12" width="3" height="4" rx="1" stroke="none"></rect><line x1="12" y1="6" x2="12" y2="19"></line><rect x="10.5" y="8" width="3" height="8" rx="1" stroke="none"></rect><line x1="18" y1="3" x2="18" y2="15"></line><rect x="16.5" y="5" width="3" height="6" rx="1" stroke="none"></rect></g></svg></span>
     <svg class="page-loader-ring" viewBox="0 0 78 78"><circle cx="39" cy="39" r="31"></circle></svg>
   </div>
 </div>
@@ -70,7 +70,7 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-top">
       <a href="index.html" class="brand">
-        <span class="mark">T</span>
+        <span class="mark"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="6" y1="11" x2="6" y2="17"></line><rect x="4.5" y="12" width="3" height="4" rx="1" stroke="none"></rect><line x1="12" y1="6" x2="12" y2="19"></line><rect x="10.5" y="8" width="3" height="8" rx="1" stroke="none"></rect><line x1="18" y1="3" x2="18" y2="15"></line><rect x="16.5" y="5" width="3" height="6" rx="1" stroke="none"></rect></g></svg></span>
         <span class="name">trade<span class="muted">.log</span></span>
       </a>
       <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
@@ -114,7 +114,7 @@
         </div>
 
         <div class="account-hero" id="acct-hero">
-          <span class="account-hero-avatar" id="acct-hero-avatar">—</span>
+          <span class="account-hero-avatar" id="acct-hero-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
           <div class="account-hero-id">
             <div class="account-hero-name" id="acct-hero-name">—</div>
             <div class="account-hero-email" id="acct-hero-email">—</div>
@@ -232,7 +232,7 @@
 
 <script src="js/utils.js"></script>
 <script src="js/config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/vendor/supabase.js"></script>
 <script src="js/auth.js"></script>
 <script>
 (function () {
@@ -244,7 +244,6 @@
   // the account itself. Both fields below are backed directly by
   // Supabase Auth's own user record via supabase-js's updateUser() --
   // no extra table needed. Display name lives in user_metadata.full_name.
-  const heroAvatarEl = document.getElementById("acct-hero-avatar");
   const heroNameEl = document.getElementById("acct-hero-name");
   const heroEmailEl = document.getElementById("acct-hero-email");
   const heroSinceEl = document.getElementById("acct-hero-since");
@@ -278,7 +277,6 @@
     const displayName = (meta.full_name || "").trim();
     currentEmail = user.email || "";
 
-    heroAvatarEl.textContent = (displayName || currentEmail || "?").charAt(0).toUpperCase();
     heroNameEl.textContent = displayName || "Trader";
     heroEmailEl.textContent = currentEmail;
     if (user.created_at) {
@@ -309,7 +307,6 @@
       return;
     }
     flashSaved(profileSavedNote);
-    heroAvatarEl.textContent = (nextName || nextEmail || "?").charAt(0).toUpperCase();
     heroNameEl.textContent = nextName || "Trader";
     window.dispatchEvent(new CustomEvent("account:profile-updated", { detail: { fullName: nextName } }));
     if (emailChanged) {
@@ -757,23 +754,45 @@
         const id = btn.getAttribute("data-save");
         const defn = INTEGRATIONS.find((d) => d.id === id);
         const next = {};
+        let fieldsToCheck, idPrefix;
         if (defn.dynamic) {
           const active = defn.providers.find((p) => p.id === aiSelectedProvider) || defn.providers[0];
+          fieldsToCheck = active.fields;
+          idPrefix = "int-ai_provider-";
           active.fields.forEach((f) => {
-            const input = document.getElementById("int-ai_provider-" + f.key);
+            const input = document.getElementById(idPrefix + f.key);
             const v = input ? input.value.trim() : "";
             if (f.secret && !v) return; // blank secret = keep what's saved
             next[f.key] = v;
           });
           next.llm_provider = active.id;
         } else {
+          fieldsToCheck = defn.fields;
+          idPrefix = "int-" + id + "-";
           defn.fields.forEach((f) => {
-            const input = document.getElementById("int-" + id + "-" + f.key);
+            const input = document.getElementById(idPrefix + f.key);
             const v = input ? input.value.trim() : "";
             if (f.secret && !v) return; // blank secret = keep what's saved
             next[f.key] = v;
           });
         }
+
+        // Nothing typed and nothing already on file for any of this card's
+        // fields -- an upsert here would just write blanks and then flash
+        // "Saved" next to a card that's still going to say "Not connected"
+        // a second later, which reads as the save having silently failed
+        // (or, worse, as having wiped out a value that actually was saved,
+        // for non-secret fields). Bail out before the round trip and put
+        // the cursor in the first field instead of claiming success.
+        const hasSomethingToSave = fieldsToCheck.some((f) =>
+          f.secret ? !!(next[f.key] || savedSecrets.has(f.key)) : !!(next[f.key] || row[f.key])
+        );
+        if (!hasSomethingToSave) {
+          const firstInput = document.getElementById(idPrefix + fieldsToCheck[0].key);
+          if (firstInput) firstInput.focus();
+          return;
+        }
+
         btn.disabled = true;
         saveFields(defn, next).then(() => {
           btn.disabled = false;

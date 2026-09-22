@@ -16,6 +16,16 @@
       then(res, rej){
         let out;
         const f = r => filt.every(([k,v])=>r[k]===v);
+        const F = window.__fail;
+        if (F && F.n>0 && (F.table||'trades')===table){
+          F.n--; window.__failCount=(window.__failCount||0)+1;
+          if (F.kind==='throw') return new Promise((_,rj)=>setTimeout(()=>rj(new TypeError('Failed to fetch')),50)).then(res, rej);
+          const e = F.kind==='jwt' ? {message:'JWT expired',code:'PGRST301',status:401}
+                  : F.kind==='503' ? {message:'Service Unavailable',status:503}
+                  : F.kind==='rls' ? {message:'permission denied for table trades',code:'42501'}
+                  : {message:'TypeError: Failed to fetch'};
+          return new Promise(r=>setTimeout(()=>r({data:null,error:e,status:e.status}),50)).then(res, rej);
+        }
         if(op==="select"){ const d = rows.filter(f); out = {data: single ? (d[0]||null) : d, error:null}; }
         else if(op==="upsert"){ const i = rows.findIndex(r=>r.user_id===payload.user_id && r.key===payload.key); if(i>=0) rows[i]=payload; else rows.push(payload); db[table]=rows; out={data:null,error:null}; }
         else { db[table]=rows.filter(r=>!f(r)); out={data:null,error:null}; }
@@ -25,6 +35,6 @@
     return api;
   }
   window.supabase = { createClient(){ return {
-    auth:{ getSession: async()=>({data:{session}}), onAuthStateChange(){ return {data:{subscription:{unsubscribe(){}}}}; }, signOut: async()=>({}) },
+    auth:{ getSession: async()=>{ const F=window.__failSession; if(F&&F.n>0){F.n--; return {data:{session:null},error:{message:'Failed to fetch'}};} return {data:{session}}; }, refreshSession: async()=>{ window.__refreshed=(window.__refreshed||0)+1; return {data:{session}}; }, onAuthStateChange(){ return {data:{subscription:{unsubscribe(){}}}}; }, signOut: async()=>({}) },
     from: q } } };
 })();

@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="css/quiz-shared.css">
 <link rel="stylesheet" href="css/rewind.css">
 <link rel="stylesheet" href="css/ui-modal.css">
-<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js" defer></script>
+<script src="js/vendor/lightweight-charts.js" defer></script>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0b0f">
 <meta name="mobile-web-app-capable" content="yes">
@@ -32,7 +32,7 @@
     </defs>
   </svg>
   <div class="page-loader-mark">
-    <span>T</span>
+    <span><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="6" y1="11" x2="6" y2="17"></line><rect x="4.5" y="12" width="3" height="4" rx="1" stroke="none"></rect><line x1="12" y1="6" x2="12" y2="19"></line><rect x="10.5" y="8" width="3" height="8" rx="1" stroke="none"></rect><line x1="18" y1="3" x2="18" y2="15"></line><rect x="16.5" y="5" width="3" height="6" rx="1" stroke="none"></rect></g></svg></span>
     <svg class="page-loader-ring" viewBox="0 0 78 78"><circle cx="39" cy="39" r="31"></circle></svg>
   </div>
 </div>
@@ -55,7 +55,7 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-top">
       <a href="index.html" class="brand">
-        <span class="mark">T</span>
+        <span class="mark"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="6" y1="11" x2="6" y2="17"></line><rect x="4.5" y="12" width="3" height="4" rx="1" stroke="none"></rect><line x1="12" y1="6" x2="12" y2="19"></line><rect x="10.5" y="8" width="3" height="8" rx="1" stroke="none"></rect><line x1="18" y1="3" x2="18" y2="15"></line><rect x="16.5" y="5" width="3" height="6" rx="1" stroke="none"></rect></g></svg></span>
         <span class="name">trade<span class="muted">.log</span></span>
       </a>
       <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
@@ -274,7 +274,7 @@
 
 <script src="js/utils.js"></script>
 <script src="js/config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="js/vendor/supabase.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/ui-modal.js"></script>
 <script src="js/chart-indicators.js"></script>
