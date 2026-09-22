@@ -474,6 +474,16 @@
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && loadFailed) loadAndRender(true);
   }, { signal });
+  // Separate from the failure-recovery listener above: this one covers
+  // the *successful*-but-stale case -- e.g. Live Trading synced in new
+  // trades while this tab sat in the background, or you edited a trade
+  // on trade.html in another tab. Net P&L and every other stat here are
+  // computed once from whatever `loadAndRender` last fetched, with
+  // nothing re-checking that in the background -- see the comment atop
+  // "Loading with automatic recovery" above for the failure case this
+  // doesn't cover. Throttled to once per 30s so flipping tabs rapidly
+  // doesn't refetch on every glance back.
+  window.refreshOnFocus(() => loadAndRender(true), { signal });
   App.retryLoad = () => loadAndRender(true);
 
   function renderAll(data, ledger) {

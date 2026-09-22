@@ -1825,18 +1825,31 @@ body::before {
 
 /* ===================================================================
    header-search.css — the ONE search control (global-search.js).
-   Desktop: a permanent pill input that lives in the header itself,
-   between the page title and the right-hand icons -- not an icon
-   that has to be clicked to reveal a search box. Typing live-filters
-   (debounced) into a small dropdown anchored under the box; Enter (or
-   "View all results") goes to a dedicated results page, search.html,
-   for the full list. Mobile: not enough header width for a permanent
-   box, so it collapses to a single icon-btn (reusing the existing
-   mobile-only .icon-btn convention) that expands the same box+dropdown
-   as a docked panel under the topbar.
+   A single icon-btn in the topbar (#hs-trigger) that expands into a
+   pill input + live-as-you-type dropdown (debounced, no Enter
+   needed), docked under the icon; Enter (or "View all results") goes
+   to a dedicated results page, search.html, for the full list. Same
+   collapsed-by-default behavior at every width -- narrow viewports
+   just get a full-width banner instead of a small anchored dropdown
+   (see the max-width:760px override below).
 =================================================================== */
 
-.header-search { position: relative; flex: 1 1 auto; min-width: 0; max-width: 420px; margin: 0 4px; }
+/* Collapsed by default at every width: an icon-btn trigger (see
+   global-search.js's #hs-trigger, now unconditional rather than
+   mobile-only) expands this into a docked dropdown -- see
+   .header-search.mobile-open below, which used to only apply under
+   the 760px breakpoint. */
+.header-search { position: static; flex: none; max-width: none; margin: 0; display: none; }
+.header-search.mobile-open {
+  display: block; position: absolute; top: calc(100% + 8px); right: 28px;
+  width: min(420px, calc(100vw - 24px)); z-index: 25;
+  background: var(--panel); border: 1px solid var(--border-soft); border-radius: var(--radius);
+  padding: 10px 14px; box-shadow: 0 14px 28px -18px rgba(0,0,0,0.55);
+}
+.header-search.mobile-open .header-search-box { height: 40px; }
+.header-search.mobile-open .header-search-close { display: flex; }
+.header-search.mobile-open .header-search-panel { position: static; border: none; box-shadow: none; margin-top: 8px; border-radius: 0; }
+.header-search-kbd { display: none; }
 
 .header-search-box {
   display: flex; align-items: center; gap: 8px;
@@ -1859,6 +1872,7 @@ body::before {
   background: var(--panel-3); border: none; color: var(--text-faint);
   display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
+.header-search-clear[hidden] { display: none; }
 .header-search-clear svg { width: 9px; height: 9px; }
 .header-search-clear:hover { color: var(--text); }
 
@@ -1908,16 +1922,13 @@ body::before {
 .header-search-viewall:hover { text-decoration: underline; }
 
 @media (max-width: 760px) {
-  .header-search { position: static; flex: none; max-width: none; margin: 0; display: none; }
+  /* Narrow viewports: the docked dropdown becomes a full-width banner
+     pinned under the topbar instead of a small anchored panel -- more
+     room is better than a floating box on a small screen. */
   .header-search.mobile-open {
-    display: block; position: fixed; top: var(--topbar-h); left: 0; right: 0; z-index: 25;
-    background: var(--panel); border-bottom: 1px solid var(--border-soft);
-    padding: 10px 14px; box-shadow: 0 14px 28px -18px rgba(0,0,0,0.55);
+    position: fixed; top: var(--topbar-h); left: 0; right: 0; width: auto;
+    border-radius: 0; border-left: none; border-right: none; border-top: none;
   }
-  .header-search.mobile-open .header-search-box { height: 40px; }
-  .header-search.mobile-open .header-search-close { display: flex; }
-  .header-search.mobile-open .header-search-panel { position: static; border: none; box-shadow: none; margin-top: 8px; border-radius: 0; }
-  .header-search-kbd { display: none; }
 }
 
 /* ===================================================================

@@ -4,14 +4,13 @@
 // one baked into common.js and a newer one in this file) that were
 // both self-mounting into every page at once -- hence two search
 // icons in the topbar doing slightly different things. There is now
-// exactly one: a permanent search box that lives in the header itself
-// on desktop (not an icon you have to click to reveal a box), with a
-// live-as-you-type dropdown (debounced, no need to press Enter) for a
-// quick glance, and Enter (or "View all results") taking you to a
-// dedicated full results page, search.html, for everything that
-// matched. On narrow/mobile widths there isn't room for a permanent
-// header box, so it collapses to a single icon button that expands
-// the same box + dropdown as a docked panel under the topbar.
+// exactly one: a single icon button in the topbar that expands into a
+// docked search box + dropdown (a live-as-you-type list, debounced,
+// no need to press Enter). Enter (or "View all results") takes you to
+// a dedicated full results page, search.html, for everything that
+// matched. Same collapsed-icon behavior at every width -- narrower
+// viewports just get a full-width banner instead of a small anchored
+// dropdown (see the max-width:760px override in common.css).
 //
 // Self-mounting: finds .topbar/.topbar-right on whatever page it's
 // loaded from and injects itself. Nothing else to add per-page beyond
@@ -70,7 +69,7 @@
   // so there's no separate breakpoint rule to keep in sync here.
   const trigger = document.createElement("button");
   trigger.type = "button";
-  trigger.className = "icon-btn";
+  trigger.className = "icon-btn icon-btn-visible";
   trigger.id = "hs-trigger";
   trigger.title = "Search";
   trigger.setAttribute("aria-label", "Search your trades");
@@ -104,8 +103,6 @@
   function openPanel() { panelEl.classList.add("open"); }
   function closePanel() { panelEl.classList.remove("open"); }
 
-  function isMobile() { return window.innerWidth <= 760; }
-
   function openMobile() {
     root.classList.add("mobile-open");
     loadTrades().catch(() => {});
@@ -124,7 +121,6 @@
   }
 
   trigger.addEventListener("click", () => {
-    if (!isMobile()) return; // hidden by CSS anyway above 760px
     root.classList.contains("mobile-open") ? closeMobile() : openMobile();
   });
   mobileCloseBtn.addEventListener("click", closeMobile);
@@ -137,7 +133,7 @@
   document.addEventListener("click", (ev) => {
     if (root.contains(ev.target) || ev.target === trigger) return;
     closePanel();
-    if (isMobile()) closeMobile();
+    closeMobile();
   });
 
   // ---- live results, debounced, no Enter required --------------------
@@ -212,10 +208,10 @@
       const tag = (document.activeElement && document.activeElement.tagName) || "";
       if (tag === "INPUT" || tag === "TEXTAREA" || (document.activeElement && document.activeElement.isContentEditable)) return;
       ev.preventDefault();
-      isMobile() ? openMobile() : inputEl.focus();
+      openMobile();
     } else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "k") {
       ev.preventDefault();
-      isMobile() ? openMobile() : inputEl.focus();
+      openMobile();
     }
   });
 })();

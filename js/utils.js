@@ -13,6 +13,33 @@
 // existing behavior, not an arbitrary new one -- see comments per
 // function for what drifted and why.
 
+// Re-runs `fn` when the tab regains visibility, if it's been at least
+// `minIntervalMs` (default 30s) since the last run -- so a read-only
+// data page (Dashboard, Edge Analysis, Practice Analytics) that's just
+// sitting open in a background tab picks up trades that landed while
+// you were away, instead of showing stale numbers until a manual
+// refresh. Deliberately opt-in per page rather than global: pages with
+// live in-progress state (an open chat, a practice quiz, a backtest
+// job, calculator inputs) would have that state clobbered by a re-fetch
+// firing underneath them, so this is only wired into pages that purely
+// display trade data with nothing to lose by re-rendering.
+// `opts.signal`: pass the page's own teardown AbortController signal
+// (e.g. app-shared.js's `App.signal`) on any page whose script re-runs
+// on SPA navigation -- otherwise each re-run stacks one more listener
+// on `document` that outlives the DOM it was meant for.
+window.refreshOnFocus = function refreshOnFocus(fn, opts) {
+  opts = opts || {};
+  const minInterval = opts.minIntervalMs || 30000;
+  let last = Date.now();
+  const listenerOpts = opts.signal ? { signal: opts.signal } : undefined;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    if (Date.now() - last < minInterval) return;
+    last = Date.now();
+    fn();
+  }, listenerOpts);
+};
+
 // Lightweight, non-blocking toast -- for background-failure notices
 // (KV.set()/KV.delete() failing silently in auth.js, where the UI
 // already updated optimistically before the network call even

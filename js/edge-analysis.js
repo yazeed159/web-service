@@ -22,11 +22,19 @@
   let decayRows = [];
   let decaySort = { key: "n", dir: -1 };
 
-  window.fetchTradesIndex()
-    .then((rows) => render(Array.isArray(rows) ? rows : []))
-    .catch((err) => {
-      content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
-    });
+  function load() {
+    window.fetchTradesIndex()
+      .then((rows) => render(Array.isArray(rows) ? rows : []))
+      .catch((err) => {
+        content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
+      });
+  }
+  load();
+  // Picks up trades that landed while this tab sat in the background
+  // (see app-shared.js's identical call for the full reasoning) --
+  // this page isn't an SPA page (see page-transition.js), so it only
+  // ever loads once and the listener never needs teardown.
+  window.refreshOnFocus(load);
 
   // See app.js's identical helper for why this exists: renderDecay /
   // renderVolume / renderSizing each own a totally different section of
