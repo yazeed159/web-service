@@ -148,11 +148,21 @@
 
   const content = document.getElementById("stats-content");
 
-  Promise.all([window.fetchTradesIndex(), window.fetchCapitalLedger()])
-    .then(([rows, ledger]) => render(Array.isArray(rows) ? rows : [], ledger || []))
-    .catch((err) => {
-      content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
-    });
+  function load() {
+    Promise.all([window.fetchTradesIndex(), window.fetchCapitalLedger()])
+      .then(([rows, ledger]) => render(Array.isArray(rows) ? rows : [], ledger || []))
+      .catch((err) => {
+        content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
+      });
+  }
+  load();
+  // Picks up trades that landed while this tab sat in the background --
+  // see app-shared.js's identical call for the full reasoning. This page
+  // isn't an SPA page (see page-transition.js), so it only ever loads
+  // once and the listener never needs teardown. Safe to re-run render()
+  // now that every chart it creates disposes its previous instance first
+  // (see disposeChart / the slippageTrendChart comment below).
+  window.refreshOnFocus(load);
 
   // escapeHtml() now in utils.js (loads first on every page).
   // fmtMoney() now in utils.js (loads first on every page).
@@ -930,9 +940,19 @@
     return typeof r.better_entry_price === "number" || typeof r.better_exit_price === "number";
   }
 
+  // Same leak this file's other charts guard against (see disposeChart
+  // above) -- this one just didn't have it yet, because until now
+  // render() only ever ran once per page load. Needed now that
+  // window.refreshOnFocus (below) can re-run it: without disposing the
+  // previous instance and its resize listener first, every tab refocus
+  // would stack another live chart + another resize listener on top of
+  // the last, invisibly, forever.
+  let slippageTrendChart = null;
   function renderSlippageTrend(sorted) {
     const el = document.getElementById("slippage-trend-chart");
     const flagged = sorted.filter(hasFlagged);
+    disposeChart(slippageTrendChart);
+    slippageTrendChart = null;
     if (!flagged.length) {
       el.innerHTML = `<div class="empty-state small">No better-entry/exit flags yet.</div>`;
       return;
@@ -960,7 +980,10 @@
     const data = Array.from(byDate.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([time, value]) => ({ time, value }));
     series.setData(data);
     chart.timeScale().fitContent();
-    window.addEventListener("resize", () => chart.applyOptions({ width: el.clientWidth }));
+    const onResize = () => chart.applyOptions({ width: el.clientWidth });
+    window.addEventListener("resize", onResize);
+    chart._onResize = onResize;
+    slippageTrendChart = chart;
   }
 
   function renderSlippageBySetup(sorted) {
