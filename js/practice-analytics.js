@@ -268,7 +268,7 @@
       </tr>`;
     }).join("");
 
-    els.symbolTable.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Chart</th><th>Trades</th><th>Win %</th><th>Avg hold</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
+    els.symbolTable.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Chart</th><th scope="col">Trades</th><th scope="col">Win %</th><th scope="col">Avg hold</th><th scope="col">Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
   }
 
   function renderTradesTable(closed, indexMap) {
@@ -287,7 +287,7 @@
         <td><span class="pill ${t.win ? "win" : "loss"}">${t.win ? "Win" : "Loss"}</span></td>
       </tr>`;
     }).join("");
-    els.tradesTable.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Symbol</th><th>Entry</th><th>Exit</th><th>Duration</th><th>Shares</th><th>Net P&amp;L</th><th>Result</th></tr></thead><tbody>${rows}</tbody></table></div>
+    els.tradesTable.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Symbol</th><th scope="col">Entry</th><th scope="col">Exit</th><th scope="col">Duration</th><th scope="col">Shares</th><th scope="col">Net P&amp;L</th><th scope="col">Result</th></tr></thead><tbody>${rows}</tbody></table></div>
       ${closed.length > 50 ? `<div class="pr-empty">Showing the most recent 50 of ${closed.length} trades.</div>` : ""}`;
   }
 

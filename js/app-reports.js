@@ -263,7 +263,7 @@
       return;
     }
     breakdownTableState.set(elId, { rowsHtml: entries.map(rowHtmlFn), shown: BREAKDOWN_PAGE_SIZE });
-    el.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>${colLabel}</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody id="${elId}-tbody"></tbody></table></div>`;
+    el.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">${colLabel}</th><th scope="col">Trades</th><th scope="col">Win %</th><th scope="col">Net P&amp;L</th></tr></thead><tbody id="${elId}-tbody"></tbody></table></div>`;
     renderBreakdownTablePage(elId);
   }
   function renderBreakdownTablePage(elId) {
@@ -717,7 +717,7 @@
     }).join("");
 
     const dowEl = document.getElementById("report-dow");
-    dowEl.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Day</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
+    dowEl.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Day</th><th scope="col">Trades</th><th scope="col">Win %</th><th scope="col">Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
     bindTradeToggles(dowEl);
   }
   // Buckets by ENTRY time, on the theory that when you got in is the
@@ -759,7 +759,7 @@
 
     const el = document.getElementById("report-timeofday");
     if (!rows) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
-    el.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Session</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    el.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Session</th><th scope="col">Trades</th><th scope="col">Win %</th><th scope="col">Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     bindTradeToggles(el);
   }
   const DURATION_BUCKETS = [
@@ -904,7 +904,7 @@
       </tr>
       <tr class="report-row-detail"><td colspan="3" style="padding:0; border-bottom:none;">${tradeListHtml(d.trades, uid)}</td></tr>`;
     }).join("");
-    return `<div class="table-scroll"><table class="report-table"><thead><tr><th>Date</th><th>Trades</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Date</th><th scope="col">Trades</th><th scope="col">Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
   function renderWinLossDays() {
     const map = dailyAgg();
@@ -1002,7 +1002,7 @@
         <td class="mono down">${fmtMoney(p.size)}</td>
         <td>${p.recover ? `<a href="trade.html?id=${encodeURIComponent(p.recover.id)}">${p.recover.trade_date}</a>` : `<span class="dim">Ongoing</span>`}</td>
       </tr>`).join("");
-    periodsEl.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Peak</th><th>Trough</th><th>Drawdown</th><th>Recovered</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    periodsEl.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Peak</th><th scope="col">Trough</th><th scope="col">Drawdown</th><th scope="col">Recovered</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
   function periodStats(startDate, endDate) {
     if (!startDate || !endDate) return null;
@@ -1132,10 +1132,10 @@
       </tr>`).join("");
     const note = (!a || !b) ? `<div class="dim" style="font-size:12px;margin-bottom:8px;">No trades in ${!a ? "Period A" : "Period B"}'s date range.</div>` : "";
     return `${note}<div class="table-scroll"><table class="report-table compare-table"><thead><tr>
-      <th>Metric</th>
-      <th class="num">Period A<span class="range">${escapeHtml(ranges.a)}</span></th>
-      <th class="num">Period B<span class="range">${escapeHtml(ranges.b)}</span></th>
-      <th class="num">Change (B vs A)</th>
+      <th scope="col">Metric</th>
+      <th scope="col" class="num">Period A<span class="range">${escapeHtml(ranges.a)}</span></th>
+      <th scope="col" class="num">Period B<span class="range">${escapeHtml(ranges.b)}</span></th>
+      <th scope="col" class="num">Change (B vs A)</th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
   }
   function updateCompare() {
@@ -1374,7 +1374,7 @@
       </tr>
       <tr class="report-row-detail"><td colspan="4" style="padding:0; border-bottom:none;">${tradeListHtml(b.trades, uid)}</td></tr>`;
     }).join("");
-    return `<div class="table-scroll"><table class="report-table"><thead><tr><th>${escapeHtml(labelHeader)}</th><th>Trades</th><th>Win %</th><th>Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    return `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">${escapeHtml(labelHeader)}</th><th scope="col">Trades</th><th scope="col">Win %</th><th scope="col">Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
   // bucketBreakdownTableHtml returns markup with the toggle rows baked in,
   // but the click handlers still need binding after each caller drops the
@@ -1911,8 +1911,8 @@
       const sizeB = insQuantileBuckets(both, "notional", k);
       const sizeName = (b, i) => `${i === 0 ? "Smallest" : i === sizeB.length - 1 ? "Largest" : "Mid"} \u00b7 ${insUsd(b.lo)}\u2013${insUsd(b.hi)}`;
       sizeTable = `<div class="table-scroll"><table class="report-table"><thead><tr>
-        <th>Position size</th><th class="num">Trades</th><th class="num">Avg hold</th><th class="num">Win rate</th>
-        <th class="num">Net P&amp;L</th><th class="num">Avg return</th><th class="num">$ per $1k-hour</th></tr></thead><tbody>
+        <th scope="col">Position size</th><th scope="col" class="num">Trades</th><th scope="col" class="num">Avg hold</th><th scope="col" class="num">Win rate</th>
+        <th scope="col" class="num">Net P&amp;L</th><th scope="col" class="num">Avg return</th><th scope="col" class="num">$ per $1k-hour</th></tr></thead><tbody>
         ${sizeB.map((b, i) => {
           const wr = (b.rows.filter((r) => r.win).length / b.rows.length) * 100;
           const net = insSum(b.rows, (r) => r.net);
@@ -1928,8 +1928,8 @@
       const holdB = insQuantileBuckets(both, "mins", k);
       const cells = sizeB.map((sb) => holdB.map((hb) => both.filter((r) => sb.rows.includes(r) && hb.rows.includes(r))));
       const maxAbs = cells.reduce((m, row) => row.reduce((mm, c) => Math.max(mm, Math.abs(insSum(c, (r) => r.net))), m), 0);
-      grid = `<div class="table-scroll"><table class="report-table ins-heat"><thead><tr><th>Size \u2193 / Hold \u2192</th>
-        ${holdB.map((hb) => `<th class="num">${insDur(hb.lo)}\u2013${insDur(hb.hi)}</th>`).join("")}</tr></thead><tbody>
+      grid = `<div class="table-scroll"><table class="report-table ins-heat"><thead><tr><th scope="col">Size \u2193 / Hold \u2192</th>
+        ${holdB.map((hb) => `<th scope="col" class="num">${insDur(hb.lo)}\u2013${insDur(hb.hi)}</th>`).join("")}</tr></thead><tbody>
         ${sizeB.map((sb, i) => `<tr><td>${sizeName(sb, i)}</td>${cells[i].map((c) => {
           if (!c.length) return `<td class="cell dim">\u00b7</td>`;
           const net = insSum(c, (r) => r.net), wr = (c.filter((r) => r.win).length / c.length) * 100;
@@ -1940,7 +1940,7 @@
 
     el.innerHTML = `
       ${notes.length || timeLine ? `<p class="ins-lead">${notes.concat(timeLine ? [timeLine] : []).join(" ")}</p>` : ""}
-      <div class="table-scroll"><table class="report-table"><thead><tr><th></th><th class="num">All</th><th class="num">Winners</th><th class="num">Losers</th></tr></thead><tbody>
+      <div class="table-scroll"><table class="report-table"><thead><tr><th scope="col"></th><th scope="col" class="num">All</th><th scope="col" class="num">Winners</th><th scope="col" class="num">Losers</th></tr></thead><tbody>
         ${line("Trades", (c) => c.n)}
         ${line("Avg position size", (c) => insUsd(c.size))}
         ${line("Avg hold time", (c) => insDur(c.hold))}
@@ -2000,7 +2000,7 @@
       const d = al.wr - aw.wr;
       if (Math.abs(d) >= 5) notes.push(`Your win rate is <b>${Math.abs(d).toFixed(0)} points ${d < 0 ? "lower" : "higher"}</b> after a loss than after a win.`);
     }
-    const behTable = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Situation</th><th class="num">Trades</th><th class="num">Avg size</th><th class="num">Win rate</th><th class="num">Avg P&amp;L</th><th class="num">Net P&amp;L</th></tr></thead><tbody>
+    const behTable = `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Situation</th><th scope="col" class="num">Trades</th><th scope="col" class="num">Avg size</th><th scope="col" class="num">Win rate</th><th scope="col" class="num">Avg P&amp;L</th><th scope="col" class="num">Net P&amp;L</th></tr></thead><tbody>
       ${groups.map(([label, s]) => `<tr><td>${label}</td><td class="mono num">${s.n}</td><td class="mono num">${insUsd(s.size)}</td>
         <td class="mono num ${s.wr >= 50 ? "up" : "down"}">${s.wr.toFixed(0)}%</td>
         <td class="mono num ${insCls(s.avg)}">${fmtMoney(s.avg)}</td><td class="mono num ${insCls(s.net)}">${fmtMoney(s.net)}</td></tr>`).join("")}
@@ -2008,7 +2008,7 @@
 
     // P&L by which trade of the day it was.
     const NTH = [[1, 1, "1st trade"], [2, 2, "2nd"], [3, 3, "3rd"], [4, 4, "4th"], [5, 5, "5th"], [6, 10, "6th\u201310th"], [11, Infinity, "11th +"]];
-    const nthTable = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Trade of the day</th><th class="num">Trades</th><th class="num">Win rate</th><th class="num">Avg P&amp;L</th><th class="num">Net P&amp;L</th></tr></thead><tbody>
+    const nthTable = `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Trade of the day</th><th scope="col" class="num">Trades</th><th scope="col" class="num">Win rate</th><th scope="col" class="num">Avg P&amp;L</th><th scope="col" class="num">Net P&amp;L</th></tr></thead><tbody>
       ${NTH.map(([lo, hi, label]) => {
         const arr = seq.filter((r) => r.nth >= lo && r.nth <= hi);
         if (!arr.length) return "";
@@ -2020,7 +2020,7 @@
     // Days grouped by how many trades were taken (overtrading check).
     const DAYB = [[1, 3, "1\u20133 trades"], [4, 6, "4\u20136 trades"], [7, 10, "7\u201310 trades"], [11, 20, "11\u201320 trades"], [21, Infinity, "21+ trades"]];
     const dayList = Array.from(byDay.values()).map((list) => ({ n: list.length, net: insSum(list, (r) => r.net) }));
-    const dayTable = `<div class="table-scroll"><table class="report-table"><thead><tr><th>Trades taken that day</th><th class="num">Days</th><th class="num">Winning days</th><th class="num">Avg day P&amp;L</th><th class="num">Avg per trade</th></tr></thead><tbody>
+    const dayTable = `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Trades taken that day</th><th scope="col" class="num">Days</th><th scope="col" class="num">Winning days</th><th scope="col" class="num">Avg day P&amp;L</th><th scope="col" class="num">Avg per trade</th></tr></thead><tbody>
       ${DAYB.map(([lo, hi, label]) => {
         const d = dayList.filter((x) => x.n >= lo && x.n <= hi);
         if (!d.length) return "";
@@ -2090,7 +2090,7 @@
     }
     el.innerHTML = `
       <p class="ins-lead">${read}</p>
-      <div class="table-scroll"><table class="report-table"><thead><tr><th>If you took out\u2026</th><th class="num">Their P&amp;L</th><th class="num">Net P&amp;L without them</th></tr></thead><tbody>
+      <div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">If you took out\u2026</th><th scope="col" class="num">Their P&amp;L</th><th scope="col" class="num">Net P&amp;L without them</th></tr></thead><tbody>
         <tr><td><b>Everything (as is)</b></td><td class="mono num dim">\u2014</td><td class="mono num ${insCls(total)}"><b>${fmtMoney(total)}</b></td></tr>
         ${rowsHtml}</tbody></table></div>
       <div class="ins-note">Across ${insPlural(rows.length, "trade", "trades")} on ${insPlural(dayMap.size, "trading day", "trading days")}. Days are net P&amp;L per calendar day.</div>`;
@@ -2134,8 +2134,8 @@
     const list = groups.map(([label, arr]) => [label, arr, insNetBreakeven(arr)]).filter(([, arr, s]) => arr.length >= 5 && s && s.be != null);
     if (!list.length) return "";
     return `<div class="ins-sub">${title}</div><div class="table-scroll"><table class="report-table"><thead><tr>
-      <th></th><th class="num">Trades</th><th class="num">Win rate</th><th class="num">Avg win</th><th class="num">Avg loss</th>
-      <th class="num">Needed</th><th class="num">Vs needed</th><th class="num">Net P&amp;L</th></tr></thead><tbody>
+      <th scope="col"></th><th scope="col" class="num">Trades</th><th scope="col" class="num">Win rate</th><th scope="col" class="num">Avg win</th><th scope="col" class="num">Avg loss</th>
+      <th scope="col" class="num">Needed</th><th scope="col" class="num">Vs needed</th><th scope="col" class="num">Net P&amp;L</th></tr></thead><tbody>
       ${list.map(([label, arr, s]) => `<tr><td>${label}</td><td class="mono num">${s.n}</td><td class="mono num">${s.winRate.toFixed(0)}%</td>
         <td class="mono num">${insUsd2(s.avgWin)}</td><td class="mono num">${insUsd2(s.avgLoss)}</td><td class="mono num">${s.be.toFixed(0)}%</td>
         <td class="mono num ${insCls(s.cushion)}">${insPts(s.cushion)}</td>
@@ -2171,7 +2171,7 @@
     };
     const pctFmt = (v) => v.toFixed(1) + "%";
     const levers = `<div class="ins-sub">What it would take to break even (change one thing, keep the others)</div>
-      <div class="table-scroll"><table class="report-table"><thead><tr><th></th><th class="num">Now</th><th class="num">Break-even</th><th class="num">Gap</th></tr></thead><tbody>
+      <div class="table-scroll"><table class="report-table"><thead><tr><th scope="col"></th><th scope="col" class="num">Now</th><th scope="col" class="num">Break-even</th><th scope="col" class="num">Gap</th></tr></thead><tbody>
         ${lever("Win rate", B.winRate, B.be, pctFmt, true, true)}
         ${lever("Average win", B.avgWin, B.needWin, insUsd2, true)}
         ${lever("Average loss (smaller is better)", B.avgLoss, B.maxLoss, insUsd2, false)}
@@ -2206,7 +2206,7 @@
         : `Commissions took <b>${insUsd2(commTotal)}</b> (${((commTotal / grossTotal) * 100).toFixed(0)}% of your gross profit of <b>${fmtMoney(grossTotal)}</b>).`;
       cost = `<div class="ins-sub">Cost drag \u2014 before vs after commissions</div>
         <p class="ins-lead">${read}</p>
-        <div class="table-scroll"><table class="report-table"><thead><tr><th></th><th class="num">Before commissions</th><th class="num">After commissions</th><th class="num">Change</th></tr></thead><tbody>
+        <div class="table-scroll"><table class="report-table"><thead><tr><th scope="col"></th><th scope="col" class="num">Before commissions</th><th scope="col" class="num">After commissions</th><th scope="col" class="num">Change</th></tr></thead><tbody>
           ${line("Total P&amp;L", fmtMoney(grossTotal), fmtMoney(netTotal), fmtMoney(netTotal - grossTotal), "down")}
           ${G && N ? line("Win rate", G.winRate.toFixed(1) + "%", N.winRate.toFixed(1) + "%", insPts(N.winRate - G.winRate), N.winRate < G.winRate ? "down" : "dim") : ""}
           ${G && N ? line("Average win", insUsd2(G.avgWin), insUsd2(N.avgWin), G.avgWin != null && N.avgWin != null ? fmtMoney(N.avgWin - G.avgWin) : "\u2014") : ""}
@@ -2274,8 +2274,8 @@
     }
     return `<p class="ins-lead">${notes.join(" ")}</p>
       <div class="table-scroll"><table class="report-table"><thead>
-        <tr><th rowspan="2">Time since the last trade closed</th><th class="num" colspan="3">After a loss</th><th class="num" colspan="3">After a win</th></tr>
-        <tr><th class="num">Trades</th><th class="num">Win rate</th><th class="num">Avg P&amp;L</th><th class="num">Trades</th><th class="num">Win rate</th><th class="num">Avg P&amp;L</th></tr>
+        <tr><th scope="col" rowspan="2">Time since the last trade closed</th><th scope="col" class="num" colspan="3">After a loss</th><th scope="col" class="num" colspan="3">After a win</th></tr>
+        <tr><th scope="col" class="num">Trades</th><th scope="col" class="num">Win rate</th><th scope="col" class="num">Avg P&amp;L</th><th scope="col" class="num">Trades</th><th scope="col" class="num">Win rate</th><th scope="col" class="num">Avg P&amp;L</th></tr>
       </thead><tbody>${rowsHtml}</tbody></table></div>
       <div class="ins-note">Measured from the previous trade's exit to this trade's entry, same day only. "While still in the last trade" means you entered before the previous one closed.</div>`;
   }
@@ -2368,7 +2368,7 @@
       <td class="mono num r-n"></td><td class="mono num r-days"></td><td class="mono num r-wr"></td><td class="mono num r-pnl"></td><td class="mono num r-chg"></td></tr>`).join("");
     el.innerHTML = `
       <p class="ins-lead" id="ins-rules-lead"></p>
-      <div class="table-scroll"><table class="report-table"><thead><tr><th>Rule</th><th>Value</th><th class="num">Trades skipped</th><th class="num">Days affected</th><th class="num">Skipped win rate</th><th class="num">P&amp;L with rule</th><th class="num">Change</th></tr></thead>
+      <div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Rule</th><th scope="col">Value</th><th scope="col" class="num">Trades skipped</th><th scope="col" class="num">Days affected</th><th scope="col" class="num">Skipped win rate</th><th scope="col" class="num">P&amp;L with rule</th><th scope="col" class="num">Change</th></tr></thead>
         <tbody>${rowsHtml}
         <tr class="dim"><td>Your actual results</td><td></td><td class="mono num">0</td><td class="mono num">0</td><td class="mono num">\u2014</td><td class="mono num"><span class="${insCls(insRuleTotal)}">${fmtMoney(insRuleTotal)}</span></td><td class="mono num">\u2014</td></tr></tbody></table></div>
       <div class="ins-note">Each rule is tested on its own against your real days, in the order you entered trades. It assumes the trades a rule would have skipped are simply not taken, and that the rest go exactly as they did \u2014 in reality you'd also trade differently after stopping, so treat this as a hint, not a forecast. Change the values to see how sensitive the result is: a rule that only helps at one exact number is probably fitting noise. The starting values are 3\u00d7 your average loss / win and a busy-day trade count, not tuned to your results.</div>`;

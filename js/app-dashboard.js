@@ -263,6 +263,7 @@
   let equityState = null;
   let equityBound = false;
   let equityRange = "all"; // "30" | "90" | "all" -- see bindEquityRangeToggle
+  let equityCompare = false; // overlay the previous equal-length period, dashed
   // Trailing-N-calendar-day slice of `trades`, anchored to the most
   // recent logged trade (not wall-clock "today", since the data itself
   // may be historical) -- so the 30D/90D toggle means "last N days of
@@ -275,6 +276,24 @@
     cutoff.setDate(cutoff.getDate() - days);
     const subset = App.state.trades.filter((t) => new Date(t.trade_date + "T12:00:00") >= cutoff);
     return subset.length ? subset : App.state.trades;
+  }
+  // The equal-length window immediately BEFORE the current 30D/90D
+  // window -- e.g. with 30D selected, this is days 31-60 back from the
+  // anchor. Only meaningful for a fixed-length range; "All" has no
+  // "previous period" to compare against, so this returns [] then and
+  // the compare toggle stays disabled.
+  function equityPreviousRangeSubset() {
+    if (equityRange === "all" || !App.state.trades.length) return [];
+    const days = parseInt(equityRange, 10);
+    const anchor = new Date(App.state.trades[App.state.trades.length - 1].trade_date + "T12:00:00");
+    const currentCutoff = new Date(anchor);
+    currentCutoff.setDate(currentCutoff.getDate() - days);
+    const prevCutoff = new Date(currentCutoff);
+    prevCutoff.setDate(prevCutoff.getDate() - days);
+    return App.state.trades.filter((t) => {
+      const d = new Date(t.trade_date + "T12:00:00");
+      return d >= prevCutoff && d < currentCutoff;
+    });
   }
   // Splits a polyline into pieces that never cross the threshold line --
   // used so the equity curve can color each stretch by whether IT sits
@@ -306,11 +325,19 @@
     if (!wrap || wrap.dataset.bound) return;
     wrap.dataset.bound = "1";
     wrap.addEventListener("click", (e) => {
-      const btn = e.target.closest("button[data-range]");
-      if (!btn) return;
-      equityRange = btn.dataset.range;
-      wrap.querySelectorAll("button").forEach((b) => b.classList.toggle("active", b === btn));
-      renderEquity();
+      const rangeBtn = e.target.closest("button[data-range]");
+      if (rangeBtn) {
+        equityRange = rangeBtn.dataset.range;
+        wrap.querySelectorAll("button[data-range]").forEach((b) => b.classList.toggle("active", b === rangeBtn));
+        if (equityRange === "all") equityCompare = false; // no "previous period" against All
+        renderEquity();
+        return;
+      }
+      const compareBtn = e.target.closest("#eq-compare-btn");
+      if (compareBtn && !compareBtn.disabled) {
+        equityCompare = !equityCompare;
+        renderEquity();
+      }
     }, { signal: App.signal });
   }
   function renderEquity() {
@@ -325,13 +352,45 @@
       ...ordered.map((t) => ({ e: t._balance, t })),
     ];
     const values = points.map((p) => p.e);
-    const min = Math.min(startBalance, ...values);
-    const max = Math.max(startBalance, ...values);
+
+    // Compare overlay: the previous equal-length window's own curve,
+    // normalized so it STARTS at the current window's startBalance --
+    // i.e. "if the previous period's run had started from today's
+    // balance, where would it have led". That's what makes it possible
+    // to overlay two periods with completely different account sizes on
+    // one shared y-axis and compare their shapes directly. Only offered
+    // for a fixed-length range (30D/90D) with enough prior history; the
+    // compare button itself is disabled otherwise (see below).
+    const prevOrdered = equityRange === "all" ? [] : equityPreviousRangeSubset();
+    let compareValues = [];
+    let comparePoints = [];
+    if (equityCompare && prevOrdered.length) {
+      const prevStart = prevOrdered[0]._balance - (prevOrdered[0].pnl_after_comm || 0);
+      comparePoints = [
+        { e: startBalance, t: null },
+        ...prevOrdered.map((t) => ({ e: startBalance + (t._balance - prevStart), t })),
+      ];
+      compareValues = comparePoints.map((p) => p.e);
+    }
+
+    const scaleValues = compareValues.length ? values.concat(compareValues) : values;
+    const min = Math.min(startBalance, ...scaleValues);
+    const max = Math.max(startBalance, ...scaleValues);
     const range = max - min || 1;
     const W = 1000, H = 140, PAD = 8;
 
     const coords = points.map((p, i) => {
       const x = points.length > 1 ? (i / (points.length - 1)) * W : 0;
+      const y = H - PAD - ((p.e - min) / range) * (H - PAD * 2);
+      return [x, y];
+    });
+    // Plotted by index fraction (same convention the main curve uses,
+    // not by real elapsed time), since the previous window usually has a
+    // different trade count than the current one -- this keeps both
+    // curves spanning the full chart width so their shapes line up
+    // side by side rather than one trailing off partway across.
+    const compareCoords = comparePoints.map((p, i) => {
+      const x = comparePoints.length > 1 ? (i / (comparePoints.length - 1)) * W : 0;
       const y = H - PAD - ((p.e - min) / range) * (H - PAD * 2);
       return [x, y];
     });
@@ -368,12 +427,16 @@
       ? segs.map((s) => `<path d="M${fmt1(s.x1)},${fmt1(s.y1)} L${fmt1(s.x2)},${fmt1(s.y2)}" class="equity-path ${s.positive ? "" : "neg"}" />`).join("")
       : `<path d="M${fmt1(coords[0][0])},${fmt1(coords[0][1])} L${fmt1(coords[0][0])},${fmt1(coords[0][1])}" class="equity-path ${finalPositive ? "" : "neg"}" />`;
     const fillMarkup = segs.map((s) => `<path d="M${fmt1(s.x1)},${fmt1(s.y1)} L${fmt1(s.x2)},${fmt1(s.y2)} L${fmt1(s.x2)},${fmt1(zeroY)} L${fmt1(s.x1)},${fmt1(zeroY)} Z" fill="${s.positive ? "url(#gGreen)" : "url(#gRed)"}" />`).join("");
+    const compareMarkup = compareCoords.length > 1
+      ? `<path d="${compareCoords.map((c, i) => (i === 0 ? "M" : "L") + fmt1(c[0]) + "," + fmt1(c[1])).join(" ")}" class="equity-path-compare" />`
+      : "";
     const svg = document.getElementById("equity-svg");
     svg.innerHTML = `
       <line x1="0" y1="${zeroY.toFixed(1)}" x2="${W}" y2="${zeroY.toFixed(1)}" class="equity-zero" />
       <line x1="0" y1="${allTimeHighY.toFixed(1)}" x2="${W}" y2="${allTimeHighY.toFixed(1)}" class="equity-ath" />
       ${fillMarkup}
       <path d="${ddPathD}" class="equity-drawdown" />
+      ${compareMarkup}
       ${strokeMarkup}
       <circle id="equity-hover-dot" r="4" fill="var(--panel)" stroke="${finalPositive ? "var(--green)" : "var(--red)"}" stroke-width="2" style="display:none;" />
       <defs>
@@ -389,6 +452,32 @@
     `;
     document.getElementById("equity-total").textContent = fmtBalance(values[values.length - 1]);
     document.getElementById("equity-total").className = "value mono " + (values[values.length - 1] >= 0 ? "up" : "down");
+
+    // Compare button: disabled outright on "All" (no fixed-length
+    // "previous period" to mirror), or when there's no trade history
+    // before the current window to draw one from. The legend below the
+    // chart only appears once the overlay is actually on and has data.
+    const compareBtn = document.getElementById("eq-compare-btn");
+    if (compareBtn) {
+      const canCompare = equityRange !== "all" && prevOrdered.length > 0;
+      compareBtn.disabled = !canCompare;
+      compareBtn.classList.toggle("active", equityCompare && canCompare);
+    }
+    const legendEl = document.getElementById("equity-compare-legend");
+    if (legendEl) {
+      if (equityCompare && comparePoints.length > 1) {
+        const currentNet = values[values.length - 1] - startBalance;
+        const prevNet = compareValues[compareValues.length - 1] - startBalance;
+        legendEl.style.display = "flex";
+        legendEl.innerHTML = `
+          <span><span class="sw" style="background:${finalPositive ? "var(--green)" : "var(--red)"};"></span>This period <b>${fmtMoney(currentNet)}</b></span>
+          <span><span class="sw prev"></span>Previous period <b>${fmtMoney(prevNet)}</b></span>
+        `;
+      } else {
+        legendEl.style.display = "none";
+        legendEl.innerHTML = "";
+      }
+    }
 
     const labelEl = document.getElementById("equity-label");
     const hintEl = document.getElementById("equity-hint");
@@ -456,6 +545,8 @@
     const svg = document.getElementById("equity-svg");
     const crosshair = document.getElementById("equity-crosshair");
     const tooltip = document.getElementById("equity-tooltip");
+    const yline = document.getElementById("equity-crosshair-yline");
+    const yvalLabel = document.getElementById("equity-yval-label");
     if (!wrap || !svg) return;
 
     function nearestIndex(clientX) {
@@ -467,14 +558,27 @@
 
     function showAt(clientX) {
       if (!equityState) return;
-      const { points, coords, values, startBalance, W } = equityState;
+      const { points, coords, values, startBalance, W, H } = equityState;
       const i = nearestIndex(clientX);
-      const [cx] = coords[i];
+      const [cx, cy] = coords[i];
       const rect = wrap.getBoundingClientRect();
       const pxX = (cx / W) * rect.width;
 
       crosshair.style.display = "block";
       crosshair.style.left = `${pxX}px`;
+
+      // Value-axis readout: a horizontal line at the hovered point's
+      // height plus a $ pill pinned to the left edge, same idea as a
+      // trading platform's price-axis crosshair label -- alongside, not
+      // instead of, the date/trade tooltip below.
+      if (yline && yvalLabel) {
+        const pxY = (cy / H) * rect.height;
+        yline.style.top = `${pxY}px`;
+        yline.style.display = "block";
+        yvalLabel.style.top = `${pxY}px`;
+        yvalLabel.textContent = fmtBalance(values[i]);
+        yvalLabel.style.display = "block";
+      }
 
       const dot = document.getElementById("equity-hover-dot");
       if (dot) {
@@ -505,6 +609,8 @@
     function hide() {
       crosshair.style.display = "none";
       tooltip.style.display = "none";
+      if (yline) yline.style.display = "none";
+      if (yvalLabel) yvalLabel.style.display = "none";
       const dot = document.getElementById("equity-hover-dot");
       if (dot) dot.style.display = "none";
     }

@@ -155,13 +155,14 @@
     // tear down whatever was there before building the new one.
     if (el._chart) { try { el._chart.remove(); } catch (e) {} }
     if (el._chartResizeHandler) { window.removeEventListener("resize", el._chartResizeHandler); }
+    const edgeCt = window.chartThemeColors ? window.chartThemeColors() : { text: "#8b8fa3", grid: "#1b1e26", border: "#262a34" };
     const chart = LightweightCharts.createChart(el, Object.assign({
       width: el.clientWidth,
       height,
-      layout: { background: { color: "transparent" }, textColor: "#8b8fa3" },
-      grid: { vertLines: { color: "#1b1e26" }, horzLines: { color: "#1b1e26" } },
-      rightPriceScale: { borderColor: "#262a34" },
-      timeScale: { borderColor: "#262a34" },
+      layout: { background: { color: "transparent" }, textColor: edgeCt.text },
+      grid: { vertLines: { color: edgeCt.grid }, horzLines: { color: edgeCt.grid } },
+      rightPriceScale: { borderColor: edgeCt.border },
+      timeScale: { borderColor: edgeCt.border },
     }, extraOpts || {}));
     const onResize = () => chart.applyOptions({ width: el.clientWidth });
     window.addEventListener("resize", onResize);
@@ -293,7 +294,11 @@
   // ---------- page shell ----------
   function render(rows) {
     if (!rows.length) {
-      content.innerHTML = `<div class="empty-state">No trades published yet.</div>`;
+      content.innerHTML = window.emptyStateHtml({
+        icon: "target",
+        title: "No trades yet",
+        message: "Edge analysis — decay, regret trades, sizing quality, and the rest — needs published trades to work from.",
+      });
       return;
     }
     allSorted = rows.slice().sort((a, b) => ((a.trade_date || "") + (a.entry_time || "")).localeCompare((b.trade_date || "") + (b.entry_time || "")));

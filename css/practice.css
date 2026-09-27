@@ -157,7 +157,14 @@
 
 .pp-size-mode-row { display: flex; gap: 6px; margin-bottom: 10px; }
 .pp-size-mode-btn {
-  flex: 1; background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim);
+  /* flex-shrink: 0 is a deliberate floor, not just the default -- this
+     button ripples (see common.js), which briefly sets overflow:hidden
+     on click. A flex item's automatic min-size collapses to 0 whenever
+     overflow isn't visible, so without this it could get squeezed away
+     under the same layout quirk the Reports tab strip hit. common.js
+     now restores overflow after the ripple too, but this is a cheap
+     second guard on a control worth not losing. */
+  flex: 1 0 auto; background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim);
   border-radius: var(--radius-sm); padding: 7px 10px; font-size: 12px; font-weight: 600;
   cursor: pointer; transition: all .12s ease;
 }
@@ -168,7 +175,10 @@
 
 .pp-order-btn-row { display: flex; gap: 10px; margin-bottom: 8px; }
 .pp-order-btn {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  /* flex-shrink: 0 guard -- see the comment on .pp-size-mode-btn above.
+     This one's the Buy/Sell button, so it's worth being extra sure it
+     never disappears under someone's thumb. */
+  flex: 1 0 auto; display: flex; align-items: center; justify-content: center; gap: 6px;
   padding: 13px 10px; border-radius: 9px; cursor: pointer;
   font-size: 14px; font-weight: 800; border: 1px solid transparent; color: #fff;
   transition: transform .12s cubic-bezier(.2,.9,.3,1.2), box-shadow .15s ease, filter .15s ease;

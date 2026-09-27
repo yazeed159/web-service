@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Journal — trade.log</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="css/common.css">
@@ -15,6 +16,7 @@
 <link rel="expect" href="#page-title" blocking="render">
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
+<link rel="stylesheet" href="css/ui-modal.css">
 </head>
 <body>
 <div id="page-progress-bar"></div>
@@ -136,6 +138,8 @@
         <label><input type="checkbox" id="f-flagged"> Has better entry/exit flagged</label>
       </div>
 
+      <div class="filter-presets" id="filter-presets"></div>
+
       <div id="journal-content">
         <div class="loading-line">Loading…</div>
       </div>
@@ -152,6 +156,7 @@
 <script src="js/grade.js"></script>
 <script src="js/trade-notes.js"></script>
 <script src="js/share-export.js"></script>
+<script src="js/ui-modal.js"></script>
 <script>
 (function () {
   "use strict";
@@ -164,6 +169,14 @@
   // many rows were scrolled into via "Load more" before they clicked
   // into a trade. Consumed once by the first renderTable() call below.
   let bootShown = null;
+
+  // Row multi-select (checkbox column) -- a plain in-memory Set of trade
+  // ids, not persisted across page loads. Survives filter/sort/re-render
+  // since it's keyed by id rather than row position.
+  let selectedIds = new Set();
+  // The last rows renderTable() sorted, so a selection/column change can
+  // redraw the table without re-filtering allRows from scratch.
+  let lastSortedRows = [];
 
   const els = {
     symbol: document.getElementById("f-symbol"),
@@ -184,6 +197,157 @@
     timeTo: document.getElementById("f-time-to"),
   };
   Object.values(els).forEach((el) => el.addEventListener("input", applyFilters));
+
+  // ------------------------------------------------------------------
+  // Column layout -- order + width -- and saved filter presets.
+  // Persisted the same way as trade-notes.js/grade.js: instant to
+  // localStorage, mirrored to the signed-in user's Supabase user_kv row
+  // via window.KV (private per user, RLS-scoped), so both follow the
+  // trader across devices instead of resetting on a new browser -- same
+  // idea as the sidebar's collapsed/expanded state, just synced further.
+  // ------------------------------------------------------------------
+  const COLS_KEY = "trade.log:journal_columns";
+  const PRESETS_KEY = "trade.log:journal_presets";
+
+  function readLocal(key, fallback) {
+    try { const raw = localStorage.getItem(key); return raw !== null ? JSON.parse(raw) : fallback; } catch (e) { return fallback; }
+  }
+  function writeLocal(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* ignore */ } }
+
+  // Tags cell -- the auto-computed lesson_tags pills, plus the trader's
+  // own mistake tags from trade-notes.js (writable, unlike lesson_tags),
+  // plus a small pencil affordance that opens the inline quick-edit.
+  function tagsCellHtml(r) {
+    const lessonTags = (r.lesson_tags || []).filter(Boolean);
+    const je = window.TradeNotes ? window.TradeNotes.get(r.id) : null;
+    const userTags = (je && je.mistakes) || [];
+    const pills = lessonTags.map((t) => `<span class="pill tagpill" style="${window.setupTagStyleAttr(t)}">${escapeHtml(t.replace(/_/g, " "))}</span>`)
+      .concat(userTags.map((t) => `<span class="pill tagpill user-tag" title="Your tag">${escapeHtml(t)}</span>`))
+      .join(" ");
+    return `<span class="tags-cell">
+        <span class="tags-cell-pills">${pills || `<span class="dim">—</span>`}</span>
+        <button type="button" class="tags-edit-btn" data-quick-edit="${escapeHtml(r.id)}" title="Quick edit tags &amp; note">&#9998;</button>
+      </span>`;
+  }
+
+  const ALL_COLUMNS = [
+    { id: "trade_date", label: "Date", sortable: true, width: 100, csv: (r) => r.trade_date, render: (r) => escapeHtml(r.trade_date) },
+    { id: "symbol", label: "Symbol", sortable: true, width: 90, csv: (r) => r.symbol, render: (r) => escapeHtml(r.symbol) },
+    { id: "setup_type", label: "Setup", sortable: true, width: 130, csv: (r) => r.setup_type || "", render: (r) => `${r.setup_type ? window.setupTagDot(r.setup_type) : ""}${escapeHtml((r.setup_type || "—").replace(/_/g, " "))}` },
+    { id: "entry_price", label: "Entry", sortable: true, width: 80, csv: (r) => Number(r.entry_price).toFixed(2), render: (r) => `$${Number(r.entry_price).toFixed(2)}` },
+    { id: "exit_price", label: "Exit", sortable: true, width: 80, csv: (r) => Number(r.exit_price).toFixed(2), render: (r) => `$${Number(r.exit_price).toFixed(2)}${r.fill_count > 1 ? `<span class="pill" title="Averaged across ${r.fill_count} fills -- open the trade for the breakdown" style="margin-left:5px; padding:1px 5px; font-size:10px; opacity:.75;">×${r.fill_count}</span>` : ""}` },
+    { id: "pnl_after_comm", label: "Net P&L", sortable: true, width: 100, csv: (r) => (r.pnl_after_comm || 0).toFixed(2), render: (r) => `<span class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</span>` },
+    { id: "win", label: "Result", sortable: true, width: 80, csv: (r) => (r.win ? "WIN" : "LOSS"), render: (r) => `<span class="pill ${r.win ? "win" : "loss"}">${r.win ? "WIN" : "LOSS"}</span>` },
+    { id: "grade", label: "Grade", sortable: true, width: 100, csv: (r) => (window.TradeGrade ? (window.TradeGrade.get(r) || "") : ""), render: (r) => (window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(r), { size: 12 }) : "—") },
+    { id: "tags", label: "Tags", sortable: false, width: 240,
+      csv: (r) => { const je = window.TradeNotes ? window.TradeNotes.get(r.id) : null; return (r.lesson_tags || []).concat((je && je.mistakes) || []).join("; "); },
+      render: tagsCellHtml },
+  ];
+  const DEFAULT_ORDER = ALL_COLUMNS.map((c) => c.id);
+  let colOrder = DEFAULT_ORDER.slice();
+  let colWidths = {};
+  ALL_COLUMNS.forEach((c) => { colWidths[c.id] = c.width; });
+  function colDefsByOrder() { return colOrder.map((id) => ALL_COLUMNS.find((c) => c.id === id)).filter(Boolean); }
+
+  function applyColumnPrefs(prefs) {
+    if (!prefs) return;
+    if (Array.isArray(prefs.order) && prefs.order.length) {
+      const valid = prefs.order.filter((id) => DEFAULT_ORDER.includes(id));
+      const missing = DEFAULT_ORDER.filter((id) => !valid.includes(id));
+      colOrder = valid.concat(missing);
+    }
+    if (prefs.widths) {
+      Object.keys(prefs.widths).forEach((id) => {
+        const w = prefs.widths[id];
+        if (colWidths[id] != null && typeof w === "number" && w >= 40) colWidths[id] = w;
+      });
+    }
+  }
+  function saveColumnPrefs() {
+    const prefs = { order: colOrder, widths: colWidths };
+    writeLocal(COLS_KEY, prefs);
+    if (window.KV) window.KV.set(COLS_KEY, prefs);
+  }
+  applyColumnPrefs(readLocal(COLS_KEY, null));
+  if (window.KV) window.KV.sync(COLS_KEY, (remote) => { applyColumnPrefs(remote); if (lastSortedRows.length) redrawTable(); });
+
+  // ---- Saved filter presets ("This month, losers only" chips) ---------
+  let presets = readLocal(PRESETS_KEY, []);
+  if (window.KV) window.KV.sync(PRESETS_KEY, (remote) => { presets = Array.isArray(remote) ? remote : presets; renderPresetChips(); });
+
+  function currentFilterState() {
+    return {
+      symbol: els.symbol.value.trim(), from: els.from.value, to: els.to.value,
+      setup: els.setup.value, result: els.result.value, rvol: els.rvol.value,
+      avgvol: els.avgvol.value, float: els.float.value, tag: els.tag.value,
+      mySetup: els.mySetup.value, myMistake: els.myMistake.value, myRules: els.myRules.value,
+      grade: els.grade.value, flagged: els.flagged.checked,
+      timeFrom: els.timeFrom.value, timeTo: els.timeTo.value,
+      sortKey, sortDir,
+    };
+  }
+  function applyFilterState(state) {
+    if (!state) return;
+    els.symbol.value = state.symbol || ""; els.from.value = state.from || ""; els.to.value = state.to || "";
+    if (state.setup) els.setup.value = state.setup;
+    els.result.value = state.result || "";
+    if (state.rvol) els.rvol.value = state.rvol;
+    if (state.avgvol) els.avgvol.value = state.avgvol;
+    if (state.float) els.float.value = state.float;
+    if (state.tag) els.tag.value = state.tag;
+    if (state.mySetup) els.mySetup.value = state.mySetup;
+    if (state.myMistake) els.myMistake.value = state.myMistake;
+    els.myRules.value = state.myRules || "";
+    els.grade.value = state.grade || "";
+    els.flagged.checked = !!state.flagged;
+    els.timeFrom.value = state.timeFrom || ""; els.timeTo.value = state.timeTo || "";
+    sortKey = state.sortKey || "trade_date"; sortDir = state.sortDir || "desc";
+    applyFilters();
+  }
+  function savePresets() {
+    writeLocal(PRESETS_KEY, presets);
+    if (window.KV) window.KV.set(PRESETS_KEY, presets);
+  }
+  function renderPresetChips() {
+    const wrap = document.getElementById("filter-presets");
+    if (!wrap) return;
+    wrap.innerHTML = presets.map((p, i) => `
+        <span class="preset-chip" data-preset-idx="${i}">
+          <span class="preset-chip-label">${escapeHtml(p.name)}</span>
+          <button type="button" class="preset-chip-x" data-preset-del="${i}" title="Delete preset" aria-label="Delete preset">&times;</button>
+        </span>`).join("") +
+      `<button type="button" class="filter-btn preset-save-btn" id="preset-save-btn" style="padding:5px 10px; font-size:12px;">+ Save current filters</button>`;
+    wrap.querySelectorAll("[data-preset-idx]").forEach((chip) => {
+      chip.addEventListener("click", (e) => {
+        if (e.target.closest("[data-preset-del]")) return;
+        applyFilterState(presets[Number(chip.getAttribute("data-preset-idx"))].state);
+      });
+    });
+    wrap.querySelectorAll("[data-preset-del]").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const idx = Number(btn.getAttribute("data-preset-del"));
+        const ok = window.UIModal ? await UIModal.confirm(`Delete the preset "${presets[idx].name}"?`, { tone: "danger", confirmLabel: "Delete" }) : confirm("Delete this preset?");
+        if (!ok) return;
+        presets.splice(idx, 1);
+        savePresets();
+        renderPresetChips();
+      });
+    });
+    const saveBtn = document.getElementById("preset-save-btn");
+    if (saveBtn) {
+      saveBtn.addEventListener("click", async () => {
+        const name = window.UIModal
+          ? await UIModal.prompt("Name this preset:", "", { title: "Save filter preset", confirmLabel: "Save" })
+          : prompt("Name this preset:", "");
+        if (!name || !name.trim()) return;
+        presets.push({ name: name.trim(), state: currentFilterState() });
+        savePresets();
+        renderPresetChips();
+      });
+    }
+  }
+  renderPresetChips();
 
   // "Fill missing floats" -- bulk on-demand float lookup for every trade
   // that doesn't have one yet (float_tag null or "float_unknown"), so
@@ -527,7 +691,14 @@
 
   function renderTable(rows) {
     if (!rows.length) {
-      content.innerHTML = `<div class="empty-state">No trades match these filters.</div>`;
+      content.innerHTML = allRows.length
+        ? `<div class="empty-state">No trades match these filters.</div>`
+        : window.emptyStateHtml({
+            icon: "journal",
+            title: "No trades yet",
+            message: "Once your pipeline publishes trades, they'll show up here — sortable, filterable, and ready to review.",
+          });
+      tableRows = []; lastSortedRows = [];
       return;
     }
     const sorted = rows.slice().sort((a, b) => {
@@ -539,133 +710,450 @@
       return sortDir === "asc" ? av - bv : bv - av;
     });
     tableRows = sorted;
+    lastSortedRows = sorted;
     tableShown = Math.min(bootShown != null ? bootShown : TABLE_PAGE_SIZE, sorted.length);
     bootShown = null; // one-time restore -- any later filter/sort change resets to a normal first page
     syncUrlState();
+    drawTable();
+  }
 
-    const totalPnl = rows.reduce((s, r) => s + (r.pnl_after_comm || 0), 0);
-    const cols = [
-      ["trade_date", "Date"],
-      ["symbol", "Symbol"],
-      ["setup_type", "Setup"],
-      ["entry_price", "Entry"],
-      ["exit_price", "Exit"],
-      ["pnl_after_comm", "Net P&L"],
-      ["win", "Result"],
-      ["grade", "Grade"],
-    ];
-    const GRID_COLS = "100px 90px 130px 80px 80px 100px 80px 100px 1fr";
+  // Redraws the table from the already-filtered/sorted tableRows, at the
+  // current scroll depth (tableShown) and selection, without re-filtering
+  // or resetting to page 1. Used after a quick-edit save, a bulk action,
+  // or a column-layout change (reorder/resize/KV sync).
+  function redrawTable() { if (tableRows.length) drawTable(); }
 
-    // The trader's own lesson tags (see lesson_tags on each row) -- the
-    // same field stats.html/patterns.html build their tag breakdowns
-    // from. This is what "Tags" actually means to a trader reviewing
-    // their journal, as opposed to the auto-computed volume/rvol/float
-    // classification (still filterable above, just not shown per-row).
-    function tagsPills(r) {
-      const tags = (r.lesson_tags || []).filter(Boolean);
-      if (!tags.length) return `<span class="dim">—</span>`;
-      return tags.map((t) => `<span class="pill tagpill" style="${window.setupTagStyleAttr(t)}">${escapeHtml(t.replace(/_/g, " "))}</span>`).join(" ");
-    }
+  function rowHtml(r) {
+    const colDefs = colDefsByOrder();
+    const rowLabel = `View trade — ${r.trade_date} ${r.symbol}, ${r.win ? "win" : "loss"}, ${fmtMoney(r.pnl_after_comm || 0)}`;
+    return `
+      <tr data-id="${escapeHtml(r.id)}" class="row-link" tabindex="0" role="link" aria-label="${escapeHtml(rowLabel)}">
+        <td class="checkbox-col"><input type="checkbox" class="row-cb" data-id="${escapeHtml(r.id)}" aria-label="Select trade" ${selectedIds.has(r.id) ? "checked" : ""}></td>
+        ${colDefs.map((c) => `<td class="col-${c.id}">${c.render(r)}</td>`).join("")}
+      </tr>`;
+  }
+  function loadMoreRowHtml() {
+    const remaining = tableRows.length - tableShown;
+    if (remaining <= 0) return "";
+    return `<tr id="table-load-more-row"><td colspan="${colDefsByOrder().length + 1}" style="padding:14px 10px; text-align:center;">
+      <button type="button" class="btn-load-more" id="table-load-more-btn">Load more (${remaining} left)</button>
+    </td></tr>`;
+  }
+  function colgroupHtml() {
+    return `<colgroup><col style="width:34px;">${colDefsByOrder().map((c) => `<col data-col-id="${c.id}" style="width:${colWidths[c.id]}px;">`).join("")}</colgroup>`;
+  }
+  function headerRowHtml() {
+    const defs = colDefsByOrder();
+    return `<tr>
+      <th class="checkbox-col" scope="col"><input type="checkbox" id="select-all-cb" aria-label="Select all loaded trades"></th>
+      ${defs.map((c, i) => {
+        const isSorted = sortKey === c.id;
+        const ariaSort = c.sortable ? ` aria-sort="${isSorted ? (sortDir === "asc" ? "ascending" : "descending") : "none"}"` : "";
+        const headcell = c.sortable
+          ? `<button type="button" class="headcell${isSorted ? " sorted " + sortDir : ""}" data-sort="${c.id}">${escapeHtml(c.label)}</button>`
+          : `<span class="headcell no-sort">${escapeHtml(c.label)}</span>`;
+        // Keyboard/screen-reader equivalent of the mouse-only drag-to-reorder
+        // and drag-to-resize handles: same colOrder/colWidths state, same
+        // persistence, just reachable without a pointer. Hidden until
+        // hovered/focused so it doesn't visually clutter every header for
+        // mouse users who already have drag.
+        const kbdActions = `
+          <div class="col-kbd-actions">
+            <button type="button" data-move="left" data-col-id="${c.id}" aria-label="Move ${escapeHtml(c.label)} column left"${i === 0 ? " disabled" : ""}>‹</button>
+            <button type="button" data-move="right" data-col-id="${c.id}" aria-label="Move ${escapeHtml(c.label)} column right"${i === defs.length - 1 ? " disabled" : ""}>›</button>
+            <button type="button" data-resize="narrower" data-col-id="${c.id}" aria-label="Make ${escapeHtml(c.label)} column narrower">−</button>
+            <button type="button" data-resize="wider" data-col-id="${c.id}" aria-label="Make ${escapeHtml(c.label)} column wider">+</button>
+          </div>`;
+        return `
+        <th data-col-id="${c.id}" draggable="true" class="col-th" title="Drag to reorder" scope="col"${ariaSort}>
+          ${headcell}
+          <span class="col-resize-handle" data-col-id="${c.id}" title="Drag to resize"></span>
+          ${kbdActions}
+        </th>`;
+      }).join("")}
+    </tr>`;
+  }
 
-    function rowHtml(r) {
-      return `
-        <tr>
-          <td colspan="9" style="padding:0;">
-            <a class="row-link" href="trade.html?id=${encodeURIComponent(r.id)}" style="display:grid; grid-template-columns: ${GRID_COLS}; align-items:center; padding:8px 10px; gap:6px;">
-              <span>${escapeHtml(r.trade_date)}</span>
-              <span>${escapeHtml(r.symbol)}</span>
-              <span>${r.setup_type ? window.setupTagDot(r.setup_type) : ""}${escapeHtml((r.setup_type || "—").replace(/_/g, " "))}</span>
-              <span>$${Number(r.entry_price).toFixed(2)}</span>
-              <span>$${Number(r.exit_price).toFixed(2)}${r.fill_count > 1 ? `<span class="pill" title="Averaged across ${r.fill_count} fills -- open the trade for the breakdown" style="margin-left:5px; padding:1px 5px; font-size:10px; opacity:.75;">×${r.fill_count}</span>` : ""}</span>
-              <span class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</span>
-              <span class="pill ${r.win ? "win" : "loss"}">${r.win ? "WIN" : "LOSS"}</span>
-              <span>${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(r), { size: 12 }) : "—"}</span>
-              <span style="display:flex; flex-wrap:wrap; gap:4px;">${tagsPills(r)}</span>
-            </a>
-          </td>
-        </tr>`;
-    }
-    function loadMoreRowHtml() {
-      const remaining = tableRows.length - tableShown;
-      if (remaining <= 0) return "";
-      return `<tr id="table-load-more-row"><td colspan="9" style="padding:14px 10px; text-align:center;">
-        <button type="button" class="btn-load-more" id="table-load-more-btn">Load more (${remaining} left)</button>
-      </td></tr>`;
-    }
-
+  function drawTable() {
+    const totalPnl = tableRows.reduce((s, r) => s + (r.pnl_after_comm || 0), 0);
     content.innerHTML = `
       <div class="panel-box" style="padding:0;">
         <div class="journal-table-head">
-          <span>${sorted.length} trade${sorted.length === 1 ? "" : "s"} · net <span class="${totalPnl >= 0 ? "up" : "down"}">${fmtMoney(totalPnl)}</span></span>
-          <button class="icon-btn icon-btn-visible" id="share-view-btn" title="Export this filtered set as a shareable static page" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
-            <span id="share-view-label">Share this view</span>
-          </button>
+          <span id="journal-result-summary" aria-live="polite" aria-atomic="true">${tableRows.length} trade${tableRows.length === 1 ? "" : "s"} · net <span class="${totalPnl >= 0 ? "up" : "down"}">${fmtMoney(totalPnl)}</span></span>
+          <span style="display:flex; gap:8px;">
+            <button class="icon-btn icon-btn-visible" id="csv-export-btn" title="Export this filtered set as CSV, with a column picker" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M5 21h14"></path></svg>
+              <span>Export CSV…</span>
+            </button>
+            <button class="icon-btn icon-btn-visible" id="share-view-btn" title="Export this filtered set as a shareable static page" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
+              <span id="share-view-label">Share this view</span>
+            </button>
+          </span>
+        </div>
+        <div class="bulk-toolbar" id="bulk-toolbar" style="display:none;">
+          <span id="bulk-count">0 selected</span>
+          <button type="button" class="filter-btn" id="bulk-tag-btn">Add tag…</button>
+          <button type="button" class="filter-btn" id="bulk-export-btn">Export selected…</button>
+          <button type="button" class="btn-danger" id="bulk-delete-btn" style="padding:6px 12px; font-size:12.5px;">Delete</button>
+          <button type="button" class="filter-btn" id="bulk-clear-btn">Clear</button>
         </div>
         <div class="table-scroll">
-        <table class="data-table">
-          <thead><tr>
-            <th colspan="9" style="padding:0;">
-              <div style="display:grid; grid-template-columns: ${GRID_COLS}; align-items:center; padding:8px 10px; gap:6px;">
-                ${cols.map(([key, label]) => `<span class="headcell${sortKey === key ? " sorted " + sortDir : ""}" data-sort="${key}">${label}</span>`).join("")}
-                <span class="headcell no-sort">Tags</span>
-              </div>
-            </th>
-          </tr></thead>
+        <table class="data-table journal-data-table" id="journal-table">
+          ${colgroupHtml()}
+          <thead>${headerRowHtml()}</thead>
           <tbody id="journal-tbody">
-            ${sorted.slice(0, tableShown).map(rowHtml).join("")}
+            ${tableRows.slice(0, tableShown).map(rowHtml).join("")}
             ${loadMoreRowHtml()}
           </tbody>
         </table>
         </div>
       </div>
     `;
+    updateBulkToolbar();
+  }
 
-    content.querySelectorAll(".headcell[data-sort]").forEach((th) => {
-      th.addEventListener("click", () => {
-        const key = th.getAttribute("data-sort");
-        if (sortKey === key) sortDir = sortDir === "asc" ? "desc" : "asc";
-        else { sortKey = key; sortDir = "desc"; }
-        applyFilters();
+  // ------------------------------------------------------------------
+  // Delegated event handling -- attached once to #journal-content, which
+  // is a stable DOM node across every drawTable() call (only its
+  // innerHTML is replaced), so this covers rows added later by "Load
+  // more" and quick-edit panels injected after the fact without ever
+  // needing to be re-wired.
+  // ------------------------------------------------------------------
+  content.addEventListener("click", (e) => {
+    const moveBtn = e.target.closest("[data-move]");
+    if (moveBtn) {
+      const id = moveBtn.getAttribute("data-col-id");
+      const dir = moveBtn.getAttribute("data-move");
+      const from = colOrder.indexOf(id);
+      const to = dir === "left" ? from - 1 : from + 1;
+      if (from === -1 || to < 0 || to >= colOrder.length) return;
+      colOrder.splice(from, 1);
+      colOrder.splice(to, 0, id);
+      saveColumnPrefs();
+      redrawTable();
+      // Redraw replaces the DOM, so the button that had focus is gone --
+      // put focus back on its replacement (or the opposite-direction one,
+      // if this move just landed the column at an edge) so a keyboard user
+      // doesn't lose their place after each move.
+      const restored = content.querySelector(`[data-move="${dir}"][data-col-id="${id}"]`)
+        || content.querySelector(`[data-col-id="${id}"] .headcell`);
+      if (restored) restored.focus();
+      return;
+    }
+    const resizeBtn = e.target.closest("[data-resize]");
+    if (resizeBtn) {
+      const id = resizeBtn.getAttribute("data-col-id");
+      const delta = resizeBtn.getAttribute("data-resize") === "wider" ? 20 : -20;
+      colWidths[id] = Math.max(50, (colWidths[id] || 100) + delta);
+      const colEl = content.querySelector(`col[data-col-id="${id}"]`);
+      if (colEl) colEl.style.width = colWidths[id] + "px";
+      saveColumnPrefs();
+      return;
+    }
+    const sortHead = e.target.closest(".headcell[data-sort]");
+    if (sortHead) {
+      const key = sortHead.getAttribute("data-sort");
+      if (sortKey === key) sortDir = sortDir === "asc" ? "desc" : "asc";
+      else { sortKey = key; sortDir = "desc"; }
+      applyFilters();
+      return;
+    }
+    if (e.target.closest("#table-load-more-btn")) {
+      const btn = e.target.closest("#table-load-more-btn");
+      const nextShown = Math.min(tableShown + TABLE_PAGE_SIZE, tableRows.length);
+      const newRowsHtml = tableRows.slice(tableShown, nextShown).map(rowHtml).join("");
+      tableShown = nextShown;
+      syncUrlState();
+      const moreRow = document.getElementById("table-load-more-row");
+      moreRow.insertAdjacentHTML("beforebegin", newRowsHtml);
+      if (tableShown < tableRows.length) btn.textContent = `Load more (${tableRows.length - tableShown} left)`;
+      else moreRow.remove();
+      updateBulkToolbar();
+      return;
+    }
+    if (e.target.closest("#share-view-btn")) {
+      if (!window.TradeLogShare) return;
+      const label = document.getElementById("share-view-label");
+      try {
+        const html = TradeLogShare.buildSetSharePage(tableRows, {
+          title: `${tableRows.length} trade${tableRows.length === 1 ? "" : "s"} — trade.log`,
+          filtersSummary: describeFilters(),
+        });
+        TradeLogShare.download(`trade-log-filtered-${new Date().toISOString().slice(0, 10)}.html`, html);
+        label.textContent = "Downloaded!";
+        setTimeout(() => (label.textContent = "Share this view"), 1600);
+      } catch (err) {
+        label.textContent = "Couldn't export";
+        setTimeout(() => (label.textContent = "Share this view"), 1600);
+      }
+      return;
+    }
+    if (e.target.closest("#csv-export-btn")) { openExportModal(tableRows); return; }
+    if (e.target.closest("#bulk-export-btn")) { openExportModal(tableRows.filter((r) => selectedIds.has(r.id))); return; }
+    if (e.target.closest("#bulk-clear-btn")) { selectedIds.clear(); redrawTable(); return; }
+    if (e.target.closest("#bulk-tag-btn")) { bulkAddTag(); return; }
+    if (e.target.closest("#bulk-delete-btn")) { bulkDelete(); return; }
+    const quickEditBtn = e.target.closest("[data-quick-edit]");
+    if (quickEditBtn) { openQuickEdit(quickEditBtn.getAttribute("data-quick-edit"), quickEditBtn.closest(".tags-cell")); return; }
+    if (e.target.closest(".quick-edit-panel")) return; // swallow, handled by its own buttons below
+    // Row navigation -- ignore clicks that landed on an interactive
+    // control (checkbox, quick-edit button/panel) inside the row.
+    const tr = e.target.closest("tr[data-id]");
+    if (tr && !e.target.closest("input, button, .quick-edit-panel")) {
+      window.location.href = `trade.html?id=${encodeURIComponent(tr.getAttribute("data-id"))}`;
+    }
+  });
+
+  // Rows carry role="link" + tabindex so they're keyboard-reachable (see
+  // rowHtml above); native <tr> elements don't fire "click" on Enter/Space
+  // the way a real link or button would, so that has to be wired by hand.
+  content.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const tr = e.target.closest("tr[data-id]");
+    if (tr && tr === e.target && !e.target.closest("input, button, .quick-edit-panel")) {
+      e.preventDefault();
+      window.location.href = `trade.html?id=${encodeURIComponent(tr.getAttribute("data-id"))}`;
+    }
+  });
+
+  content.addEventListener("change", (e) => {
+    if (e.target.matches(".row-cb")) {
+      const id = e.target.getAttribute("data-id");
+      if (e.target.checked) selectedIds.add(id); else selectedIds.delete(id);
+      updateBulkToolbar();
+      return;
+    }
+    if (e.target.matches("#select-all-cb")) {
+      const shownIds = tableRows.slice(0, tableShown).map((r) => r.id);
+      if (e.target.checked) shownIds.forEach((id) => selectedIds.add(id));
+      else shownIds.forEach((id) => selectedIds.delete(id));
+      content.querySelectorAll(".row-cb").forEach((cb) => { cb.checked = selectedIds.has(cb.getAttribute("data-id")); });
+      updateBulkToolbar();
+    }
+  });
+
+  // Column drag-to-reorder (native HTML5 DnD on the <th>s).
+  let dragColId = null;
+  content.addEventListener("dragstart", (e) => {
+    const th = e.target.closest("th[data-col-id]");
+    if (!th) return;
+    dragColId = th.getAttribute("data-col-id");
+    e.dataTransfer.effectAllowed = "move";
+    try { e.dataTransfer.setData("text/plain", dragColId); } catch (err) { /* ignore */ }
+  });
+  content.addEventListener("dragover", (e) => {
+    if (!dragColId) return;
+    const th = e.target.closest("th[data-col-id]");
+    if (th) e.preventDefault();
+  });
+  content.addEventListener("drop", (e) => {
+    const th = e.target.closest("th[data-col-id]");
+    if (!th || !dragColId) return;
+    e.preventDefault();
+    const targetId = th.getAttribute("data-col-id");
+    if (targetId === dragColId) { dragColId = null; return; }
+    const from = colOrder.indexOf(dragColId);
+    const to = colOrder.indexOf(targetId);
+    if (from === -1 || to === -1) { dragColId = null; return; }
+    colOrder.splice(from, 1);
+    colOrder.splice(to, 0, dragColId);
+    dragColId = null;
+    saveColumnPrefs();
+    redrawTable();
+  });
+
+  // Column resize (drag the handle on the right edge of a header cell).
+  // Adjusts just that column's <col> width live, and persists on mouseup
+  // -- matches the sidebar's "instant + persisted" collapse behaviour.
+  let resizing = null;
+  content.addEventListener("mousedown", (e) => {
+    const handle = e.target.closest(".col-resize-handle");
+    if (!handle) return;
+    e.preventDefault();
+    const id = handle.getAttribute("data-col-id");
+    resizing = { id, startX: e.clientX, startWidth: colWidths[id] };
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (!resizing) return;
+    const w = Math.max(50, resizing.startWidth + (e.clientX - resizing.startX));
+    colWidths[resizing.id] = w;
+    const colEl = content.querySelector(`col[data-col-id="${resizing.id}"]`);
+    if (colEl) colEl.style.width = w + "px";
+  });
+  document.addEventListener("mouseup", () => {
+    if (!resizing) return;
+    resizing = null;
+    saveColumnPrefs();
+  });
+
+  function updateBulkToolbar() {
+    const bar = document.getElementById("bulk-toolbar");
+    if (!bar) return;
+    const n = selectedIds.size;
+    bar.style.display = n ? "" : "none";
+    const countEl = document.getElementById("bulk-count");
+    if (countEl) countEl.textContent = `${n} selected`;
+    const selectAllCb = document.getElementById("select-all-cb");
+    if (selectAllCb) {
+      const shownIds = tableRows.slice(0, tableShown).map((r) => r.id);
+      const allChecked = shownIds.length > 0 && shownIds.every((id) => selectedIds.has(id));
+      selectAllCb.checked = allChecked;
+      selectAllCb.indeterminate = !allChecked && shownIds.some((id) => selectedIds.has(id));
+    }
+  }
+
+  // Inline quick-edit -- lets a trader add tags/a note to a trade right
+  // from the journal row, without opening the full trade page. Writes
+  // through trade-notes.js's existing per-trade entry (mistakes tags +
+  // notes), the same writable store the trade page itself edits, so
+  // nothing here bypasses or duplicates that data model.
+  function openQuickEdit(id, cellEl) {
+    if (!cellEl || !window.TradeNotes) return;
+    const entry = window.TradeNotes.get(id) || {};
+    const tagsStr = (entry.mistakes || []).join(", ");
+    cellEl.innerHTML = `
+      <span class="quick-edit-panel">
+        <input type="text" class="quick-edit-tags" placeholder="tags, comma separated" value="${escapeHtml(tagsStr)}">
+        <input type="text" class="quick-edit-note" placeholder="note" value="${escapeHtml(entry.notes || "")}">
+        <button type="button" class="quick-edit-save" title="Save">&#10003;</button>
+        <button type="button" class="quick-edit-cancel" title="Cancel">&#10005;</button>
+      </span>`;
+    const tagsInput = cellEl.querySelector(".quick-edit-tags");
+    tagsInput.focus();
+    tagsInput.setSelectionRange(tagsInput.value.length, tagsInput.value.length);
+    cellEl.querySelector(".quick-edit-save").addEventListener("click", () => {
+      const newTags = tagsInput.value.split(",").map((t) => t.trim()).filter(Boolean);
+      const newNote = cellEl.querySelector(".quick-edit-note").value;
+      window.TradeNotes.save(id, Object.assign({}, entry, { mistakes: newTags, notes: newNote }));
+      redrawTable();
+    });
+    cellEl.querySelector(".quick-edit-cancel").addEventListener("click", () => redrawTable());
+  }
+
+  // Bulk tag -- adds one tag to every selected trade's trade-notes entry
+  // (creating the entry if the trade doesn't have one yet).
+  async function bulkAddTag() {
+    if (!selectedIds.size || !window.TradeNotes) return;
+    const tag = window.UIModal
+      ? await UIModal.prompt(`Add a tag to ${selectedIds.size} selected trade${selectedIds.size === 1 ? "" : "s"}:`, "", { title: "Bulk tag", confirmLabel: "Add" })
+      : prompt("Tag to add:", "");
+    if (!tag || !tag.trim()) return;
+    const clean = tag.trim();
+    selectedIds.forEach((id) => {
+      const entry = window.TradeNotes.get(id) || {};
+      const mistakes = Array.from(new Set((entry.mistakes || []).concat([clean])));
+      window.TradeNotes.save(id, Object.assign({}, entry, { mistakes }));
+    });
+    redrawTable();
+  }
+
+  // Bulk delete -- removes the selected trades from Supabase directly
+  // (RLS already scopes `trades` to the signed-in user, same client used
+  // everywhere else on this page). Assumes trade_details cascades on
+  // trade_id -- if it doesn't in your schema, add that FK/ON DELETE
+  // CASCADE, or delete from trade_details here too before this call.
+  //
+  // Optimistic + undoable: the rows disappear from the table the instant
+  // you click Delete (no blocking "are you sure?" -- that's what the
+  // Undo toast is for), but the actual Supabase delete is deferred until
+  // the toast expires. Clicking Undo within that window just restores
+  // the rows locally and the server call never happens; letting it run
+  // out fires the real delete, with the old rollback-on-failure kept as
+  // a fallback for the rare case that call itself errors.
+  function bulkDelete() {
+    if (!selectedIds.size) return;
+    const n = selectedIds.size;
+    const ids = Array.from(selectedIds);
+    const removed = [];
+    ids.forEach((id) => {
+      const idx = allRows.findIndex((r) => r.id === id);
+      if (idx !== -1) removed.push({ row: allRows[idx], index: idx });
+    });
+    allRows = allRows.filter((r) => !selectedIds.has(r.id));
+    selectedIds.clear();
+    applyFilters();
+
+    const restore = () => {
+      removed.sort((a, b) => a.index - b.index).forEach(({ row, index }) => {
+        allRows.splice(Math.min(index, allRows.length), 0, row);
       });
+      applyFilters();
+    };
+
+    const label = `Deleted ${n} trade${n === 1 ? "" : "s"}`;
+    if (!window.showToast) {
+      // No toast support (shouldn't happen -- utils.js loads on every
+      // page) -- fall back to the old blocking confirm so a delete is
+      // never silently unrecoverable-and-un-warned-about.
+      if (!confirm(`Delete ${n} trade(s)? This can't be undone.`)) { restore(); return; }
+      commit();
+      return;
+    }
+    window.showToast(label + " — Undo", {
+      action: { label: "Undo", onClick: restore },
+      onExpire: commit,
     });
 
-    const loadMoreBtn = document.getElementById("table-load-more-btn");
-    if (loadMoreBtn) {
-      loadMoreBtn.addEventListener("click", () => {
-        const nextShown = Math.min(tableShown + TABLE_PAGE_SIZE, tableRows.length);
-        const newRowsHtml = tableRows.slice(tableShown, nextShown).map(rowHtml).join("");
-        tableShown = nextShown;
-        syncUrlState();
-        const moreRow = document.getElementById("table-load-more-row");
-        moreRow.insertAdjacentHTML("beforebegin", newRowsHtml);
-        if (tableShown < tableRows.length) {
-          loadMoreBtn.textContent = `Load more (${tableRows.length - tableShown} left)`;
-        } else {
-          moreRow.remove();
-        }
-      });
+    async function commit() {
+      try {
+        const res = await window.sb.from("trades").delete().in("id", ids);
+        if (res.error) throw new Error(res.error.message);
+      } catch (err) {
+        restore();
+        if (window.UIModal) UIModal.alert("Couldn't delete: " + err.message, { tone: "danger" });
+        else alert("Couldn't delete: " + err.message);
+      }
     }
+  }
 
-    const shareBtn = document.getElementById("share-view-btn");
-    if (shareBtn) {
-      shareBtn.addEventListener("click", () => {
-        if (!window.TradeLogShare) return;
-        const label = document.getElementById("share-view-label");
-        try {
-          const html = TradeLogShare.buildSetSharePage(sorted, {
-            title: `${sorted.length} trade${sorted.length === 1 ? "" : "s"} — trade.log`,
-            filtersSummary: describeFilters(),
-          });
-          TradeLogShare.download(`trade-log-filtered-${new Date().toISOString().slice(0, 10)}.html`, html);
-          label.textContent = "Downloaded!";
-          setTimeout(() => (label.textContent = "Share this view"), 1600);
-        } catch (e) {
-          label.textContent = "Couldn't export";
-          setTimeout(() => (label.textContent = "Share this view"), 1600);
-        }
-      });
-    }
+  // CSV export with a column picker -- replaces the old plain "whatever
+  // was there" export with an explicit choice of which columns to include,
+  // over either the current filtered view or just the selected rows.
+  function csvEscape(v) {
+    const s = String(v == null ? "" : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function buildCsv(rows, columnIds) {
+    const defs = columnIds.map((id) => ALL_COLUMNS.find((c) => c.id === id)).filter(Boolean);
+    const header = defs.map((d) => csvEscape(d.label)).join(",");
+    const lines = rows.map((r) => defs.map((d) => csvEscape(d.csv(r))).join(","));
+    return [header].concat(lines).join("\r\n");
+  }
+  function downloadCsv(filename, csv) {
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function openExportModal(rows) {
+    if (!rows.length) return;
+    const overlay = document.createElement("div");
+    overlay.className = "ui-modal-overlay";
+    overlay.innerHTML = `
+      <div class="ui-modal-box export-modal-box" role="dialog" aria-modal="true">
+        <div class="ui-modal-title">Export ${rows.length} trade${rows.length === 1 ? "" : "s"} to CSV</div>
+        <div class="export-col-picker">
+          ${ALL_COLUMNS.map((c) => `<label class="export-col-row"><input type="checkbox" value="${c.id}" checked> ${escapeHtml(c.label)}</label>`).join("")}
+        </div>
+        <div class="ui-modal-actions">
+          <button type="button" class="btn-advanced" data-act="cancel">Cancel</button>
+          <button type="button" class="btn-confirm" data-act="export">Export CSV</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add("open"));
+    function close() { overlay.classList.remove("open"); setTimeout(() => overlay.remove(), 160); }
+    overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('[data-act="cancel"]').addEventListener("click", close);
+    overlay.querySelector('[data-act="export"]').addEventListener("click", () => {
+      const ids = Array.from(overlay.querySelectorAll(".export-col-picker input:checked")).map((cb) => cb.value);
+      if (!ids.length) return;
+      downloadCsv(`trade-log-export-${new Date().toISOString().slice(0, 10)}.csv`, buildCsv(rows, ids));
+      close();
+    });
   }
 
   // Turns the active filter controls into a plain-English summary line for
@@ -693,5 +1181,6 @@
 </script>
 <script src="js/common.js"></script>
 <script src="js/global-search.js"></script>
+<script src="js/shortcuts-help.js"></script>
 </body>
 </html>

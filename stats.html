@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Performance — trade.log</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="css/common.css">
@@ -246,7 +247,11 @@
 
   function render(rows, ledger) {
     if (!rows.length) {
-      content.innerHTML = `<div class="empty-state">No trades published yet.</div>`;
+      content.innerHTML = window.emptyStateHtml({
+        icon: "chart",
+        title: "No trades yet",
+        message: "Performance stats — win rate, expectancy, drawdown, and the rest — will fill in as soon as you have trades published.",
+      });
       return;
     }
     const sorted = rows.slice().sort((a, b) => (a.trade_date + a.entry_time).localeCompare(b.trade_date + b.entry_time));
@@ -1210,5 +1215,6 @@
 </script>
 <script src="js/common.js"></script>
 <script src="js/global-search.js"></script>
+<script src="js/shortcuts-help.js"></script>
 </body>
 </html>

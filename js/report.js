@@ -214,13 +214,14 @@
     }
     box.style.display = "";
     if (!rptEquityChart) {
+      const eqCt = window.chartThemeColors ? window.chartThemeColors() : { text: "#8b8fa3", grid: "#1b1e26", border: "#262a34" };
       rptEquityChart = LightweightCharts.createChart(els.equityChart, {
         width: els.equityChart.clientWidth,
         height: els.equityChart.clientHeight || 220,
-        layout: { background: { color: "transparent" }, textColor: "#8b8fa3" },
-        grid: { vertLines: { color: "#1b1e26" }, horzLines: { color: "#1b1e26" } },
-        rightPriceScale: { borderColor: "#262a34" },
-        timeScale: { borderColor: "#262a34" },
+        layout: { background: { color: "transparent" }, textColor: eqCt.text },
+        grid: { vertLines: { color: eqCt.grid }, horzLines: { color: eqCt.grid } },
+        rightPriceScale: { borderColor: eqCt.border },
+        timeScale: { borderColor: eqCt.border },
       });
       window.addEventListener("resize", () => rptEquityChart && rptEquityChart.applyOptions({ width: els.equityChart.clientWidth }));
     }
@@ -665,9 +666,11 @@
 
   function renderReportTradesHead() {
     els.tradesHead.innerHTML = reportTradesCols.map(([key, label]) => {
-      if (key === "chart") return `<th>${label}</th>`;
-      const cls = reportSortKey === key ? ` sorted ${reportSortDir}` : "";
-      return `<th><span class="headcell${cls}" data-sort="${key}">${label}</span></th>`;
+      if (key === "chart") return `<th scope="col">${label}</th>`;
+      const isSorted = reportSortKey === key;
+      const cls = isSorted ? ` sorted ${reportSortDir}` : "";
+      const ariaSort = isSorted ? (reportSortDir === "asc" ? "ascending" : "descending") : "none";
+      return `<th scope="col" aria-sort="${ariaSort}"><button type="button" class="headcell${cls}" data-sort="${key}">${label}</button></th>`;
     }).join("");
   }
 
@@ -1075,11 +1078,12 @@
     // chart below -- kept as a small local literal for the MACD pane's
     // own series (histogram + 2 plain lines), which aren't part of the
     // standard-chart shape that helper builds.
+    const rptMacdCt = window.chartThemeColors ? window.chartThemeColors() : { text: "#8b98a5", grid: "#1c2127", border: "#232830" };
     const macdCommonOpts = {
-      layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
-      grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
-      rightPriceScale: { borderColor: "#232830", minimumWidth: 92 },
-      timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
+      layout: { background: { color: "transparent" }, textColor: rptMacdCt.text },
+      grid: { vertLines: { color: rptMacdCt.grid }, horzLines: { color: rptMacdCt.grid } },
+      rightPriceScale: { borderColor: rptMacdCt.border, minimumWidth: 92 },
+      timeScale: { borderColor: rptMacdCt.border, timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     };
 

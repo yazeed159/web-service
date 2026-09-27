@@ -209,11 +209,12 @@
     const ema20Data = bars.filter((b) => b.ema20 != null).map((b) => ({ time: toUnix(b.t), value: b.ema20 }));
     const ema200Data = bars.filter((b) => b.ema200 != null).map((b) => ({ time: toUnix(b.t), value: b.ema200 }));
 
+    const ct = window.chartThemeColors ? window.chartThemeColors() : { text: "#8b98a5", grid: "#1c2127", border: "#232830" };
     const commonOpts = {
-      layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
-      grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
-      rightPriceScale: { borderColor: "#232830", minimumWidth: opts.minimumWidth || 88 },
-      timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
+      layout: { background: { color: "transparent" }, textColor: ct.text },
+      grid: { vertLines: { color: ct.grid }, horzLines: { color: ct.grid } },
+      rightPriceScale: { borderColor: ct.border, minimumWidth: opts.minimumWidth || 88 },
+      timeScale: { borderColor: ct.border, timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     };
     const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: opts.height || 380 });

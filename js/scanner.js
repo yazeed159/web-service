@@ -137,17 +137,23 @@
     const needle = filterText.trim().toUpperCase();
     const filtered = needle ? lastRows.filter((r) => r.symbol.toUpperCase().indexOf(needle) !== -1) : lastRows;
 
+    const summary = document.getElementById("sc-result-summary");
+
     if (!filtered.length) {
       tbody.innerHTML = "";
       empty.classList.remove("hidden"); empty.style.display = "block";
       empty.textContent = lastRows.length
         ? `No symbols match "${filterText}".`
         : "No gappers found yet today.";
+      if (summary) summary.textContent = empty.textContent;
       return;
     }
     empty.classList.remove("hidden"); empty.style.display = "none";
 
     const rows = applySort(filtered);
+    // Live-region update so screen reader users hear the row count after a
+    // filter/sort/auto-refresh, since the table itself re-renders silently.
+    if (summary) summary.textContent = `${rows.length} gapper${rows.length === 1 ? "" : "s"} shown.`;
     tbody.innerHTML = rows.map((r) => {
       const stale = (Date.now() - new Date(r.updated_at).getTime()) > 5 * 60 * 1000;
       const enriched = r.vwap !== undefined && r.vwap !== null; // absent entirely if never enriched (past top N) or not landed yet
@@ -173,6 +179,8 @@
       const active = el.dataset.sort === sortKey;
       el.classList.toggle("sorted", active);
       el.classList.toggle("asc", active && sortAsc);
+      const th = el.closest("th");
+      if (th) th.setAttribute("aria-sort", active ? (sortAsc ? "ascending" : "descending") : "none");
     });
   }
 

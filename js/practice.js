@@ -362,7 +362,17 @@
     executeOrder(s.side, shares);
   }
 
+  function updatePageShortcuts() {
+    window.PAGE_SHORTCUTS = {
+      heading: "Practice mode",
+      items: shortcuts
+        .filter((s) => s.key)
+        .map((s) => ({ keys: [s.key.toUpperCase()], label: `${s.side === "buy" ? "Buy" : "Sell"}: ${s.label}` })),
+    };
+  }
+
   function renderShortcutsRow() {
+    updatePageShortcuts();
     if (!els.shortcutsRow) return;
     if (!state.trade) { els.shortcutsRow.innerHTML = ""; return; }
     els.shortcutsRow.innerHTML = shortcuts.map((s) => {

@@ -2520,6 +2520,19 @@
   // ---------------------------------------------------------------
   // keyboard shortcuts — ignored while typing in the stop input
   // ---------------------------------------------------------------
+  window.PAGE_SHORTCUTS = {
+    heading: "Rewind (during a trade)",
+    items: [
+      { keys: ["Y", "Enter"], label: "Entry stage: take the trade" },
+      { keys: ["N", "Esc"], label: "Entry stage: pass" },
+      { keys: ["E", "1"], label: "Watch stage: exit fully" },
+      { keys: ["2"], label: "Watch stage: sell 25%" },
+      { keys: ["3"], label: "Watch stage: sell 50%" },
+      { keys: ["S"], label: "Watch stage: move stop" },
+      { keys: ["A"], label: "Watch stage: add to position" },
+      { keys: ["Enter"], label: "Stop stage: confirm" },
+    ],
+  };
   document.addEventListener("keydown", (e) => {
     if (els.playScreen.style.display === "none") return;
     const c = state.current;

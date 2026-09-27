@@ -122,6 +122,70 @@
 })();
 
 
+// theme-toggle.js — light/dark switch, shared by every app-shell page.
+// The actual theme is applied as early as possible by a tiny inline
+// script at the very top of each page's <head> (reads THEME_KEY and
+// sets data-theme="light" on <html> before css/common.css's light-
+// theme block ever gets matched against the DOM, so there's no flash
+// of the wrong theme on load) -- this file just renders the button
+// that changes it and keeps the status-bar color (meta theme-color)
+// and other pages' tabs in sync.
+//
+// Switching reloads the page rather than live-patching every color in
+// place: several charts on this site (the candlestick chart, MACD,
+// equity curve) hand raw hex colors to a canvas-based charting library
+// at creation time, not CSS custom properties a stylesheet swap would
+// reach, so a reload is what actually guarantees every chart, gradient
+// and inline style on the page reflects the new theme correctly,
+// instead of some of them silently staying dark. A toggle is
+// infrequent enough that this is a fine trade.
+(function () {
+  "use strict";
+  const THEME_KEY = "trade.log:theme";
+  const topbarRight = document.querySelector(".topbar-right");
+  if (!topbarRight || document.getElementById("mobile-nav-btn") === null) return;
+
+  function currentTheme() {
+    return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  }
+  // Every page's <meta name="theme-color"> is hardcoded to the dark
+  // --bg value in its <head> (the inline early-theme script runs
+  // before that tag exists, so it can't fix this up itself) -- true it
+  // up here instead, once common.js runs. Mobile browsers use this to
+  // tint the address bar/status bar, so left dark it would visually
+  // clash with a light page.
+  function syncMetaThemeColor() {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", currentTheme() === "light" ? "#f5f6f9" : "#0a0b0f");
+  }
+  syncMetaThemeColor();
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "icon-btn icon-btn-visible theme-toggle-btn";
+  btn.id = "theme-toggle-btn";
+  btn.title = "Switch to light theme";
+  btn.setAttribute("aria-label", "Switch to light theme");
+  btn.innerHTML = `
+    <svg class="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"></circle><line x1="12" y1="2.5" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="21.5"></line><line x1="4.2" y1="4.2" x2="6" y2="6"></line><line x1="18" y1="18" x2="19.8" y2="19.8"></line><line x1="2.5" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="21.5" y2="12"></line><line x1="4.2" y1="19.8" x2="6" y2="18"></line><line x1="18" y1="6" x2="19.8" y2="4.2"></line></svg>
+    <svg class="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.2A8.5 8.5 0 1 1 9.8 3.5a7 7 0 0 0 10.7 10.7z"></path></svg>
+  `;
+  topbarRight.insertBefore(btn, document.getElementById("mobile-nav-btn"));
+
+  function updateTitle() {
+    const next = currentTheme() === "light" ? "dark" : "light";
+    btn.title = `Switch to ${next} theme`;
+    btn.setAttribute("aria-label", `Switch to ${next} theme`);
+  }
+  updateTitle();
+
+  btn.addEventListener("click", () => {
+    const next = currentTheme() === "light" ? "dark" : "light";
+    try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* ignore -- toggle just won't persist */ }
+    location.reload();
+  });
+})();
+
 // nav.js — shared sidebar/mobile-nav wiring for every page, plus a
 // shared URL-state helper (see NavState below).
 //
@@ -371,11 +435,31 @@ window.NavState = (function () {
       span.style.width = span.style.height = size + 'px';
       span.style.left = (x - radius) + 'px';
       span.style.top = (y - radius) + 'px';
+      // Both of these are only ever SET here, temporarily, to contain the
+      // ripple circle -- never restored, until now. That was silently
+      // breaking flex layouts: a flex item's automatic minimum width is
+      // its content width (it won't shrink below its own text) ONLY while
+      // overflow stays 'visible'. The moment overflow becomes 'hidden',
+      // that floor drops to 0, so any flex container short on space
+      // (a horizontally-scrolling tab strip on a phone, e.g. the Reports
+      // top tabs, being the tightest case) is then free to squeeze the
+      // clicked button down to nothing -- and since the style was never
+      // undone, it stayed that way forever after the first tap. Restore
+      // both once the ripple animation is done (and only once every
+      // ripple on this element has finished, in case of a fast double
+      // click) so the element goes back to its normal, protected sizing.
+      var addedPosition = false, addedOverflow = false;
       var prevPos = getComputedStyle(el).position;
-      if (prevPos === 'static') el.style.position = 'relative';
-      if (getComputedStyle(el).overflow === 'visible') el.style.overflow = 'hidden';
+      if (prevPos === 'static') { el.style.position = 'relative'; addedPosition = true; }
+      if (getComputedStyle(el).overflow === 'visible') { el.style.overflow = 'hidden'; addedOverflow = true; }
       el.appendChild(span);
-      span.addEventListener('animationend', function () { span.remove(); });
+      span.addEventListener('animationend', function () {
+        span.remove();
+        if (!el.querySelector('.ripple')) {
+          if (addedOverflow) el.style.overflow = '';
+          if (addedPosition) el.style.position = '';
+        }
+      });
     }, true);
   }
 

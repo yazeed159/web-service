@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Scanner — trade.log</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="css/common.css">
@@ -185,22 +186,23 @@
         </div>
         <div class="sc-refresh-note" id="sc-refresh-note"></div>
       </div>
+      <div class="sr-only" id="sc-result-summary" aria-live="polite" aria-atomic="true"></div>
       <div class="table-scroll">
         <table id="sc-table" class="data-table">
           <thead>
             <tr>
-              <th><span class="headcell" data-sort="symbol">Symbol</span></th>
-              <th><span class="headcell" data-sort="price">Price</span></th>
-              <th><span class="headcell sorted" data-sort="gap_pct">Gap %</span></th>
-              <th><span class="headcell" data-sort="premkt_volume">Premkt Vol</span></th>
-              <th><span class="headcell" data-sort="day_high">Day High</span></th>
-              <th><span class="headcell" data-sort="vwap">VWAP</span></th>
-              <th><span class="headcell" data-sort="ema9">EMA9</span></th>
-              <th><span class="headcell" data-sort="ema200">EMA200</span></th>
-              <th><span class="headcell" data-sort="float_shares">Float</span></th>
-              <th><span class="headcell" data-sort="relative_volume">RVol</span></th>
-              <th><span class="headcell no-sort">Badges</span></th>
-              <th><span class="headcell no-sort">Updated</span></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="symbol">Symbol</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="price">Price</button></th>
+              <th scope="col" aria-sort="descending"><button type="button" class="headcell sorted" data-sort="gap_pct">Gap %</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="premkt_volume">Premkt Vol</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="day_high">Day High</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="vwap">VWAP</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="ema9">EMA9</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="ema200">EMA200</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="float_shares">Float</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="relative_volume">RVol</button></th>
+              <th scope="col"><span class="headcell no-sort">Badges</span></th>
+              <th scope="col"><span class="headcell no-sort">Updated</span></th>
             </tr>
           </thead>
           <tbody id="sc-tbody"></tbody>
@@ -221,5 +223,6 @@
 <script src="js/scanner.js"></script>
 <script src="js/common.js"></script>
 <script src="js/global-search.js"></script>
+<script src="js/shortcuts-help.js"></script>
 </body>
 </html>

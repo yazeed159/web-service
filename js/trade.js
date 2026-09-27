@@ -261,8 +261,27 @@
       if (immediate) run(); else { statusEl.textContent = "Saving…"; timer = setTimeout(run, 500); }
     }
 
-    $("jn-stop").addEventListener("input", (e) => { entry.plan_stop = e.target.value === "" ? null : Number(e.target.value); paintMetrics(); persist(); });
-    $("jn-target").addEventListener("input", (e) => { entry.plan_target = e.target.value === "" ? null : Number(e.target.value); paintMetrics(); persist(); });
+    // Inline validation as you type -- negative stop/target used to save
+    // silently (min="0" on a number input doesn't actually block typed
+    // negatives) and just quietly break the risk/R:R math above. Flag it
+    // right on the field instead of leaving the metrics row to look
+    // wrong with no explanation; still lets you keep typing/save once
+    // corrected rather than blocking on a submit that doesn't exist here.
+    function validatePlanField(inputEl, value) {
+      const bad = value != null && value < 0;
+      if (window.setFieldError) window.setFieldError(inputEl, bad ? "Can't be negative." : "");
+      return !bad;
+    }
+    $("jn-stop").addEventListener("input", (e) => {
+      entry.plan_stop = e.target.value === "" ? null : Number(e.target.value);
+      validatePlanField(e.target, entry.plan_stop);
+      paintMetrics(); persist();
+    });
+    $("jn-target").addEventListener("input", (e) => {
+      entry.plan_target = e.target.value === "" ? null : Number(e.target.value);
+      validatePlanField(e.target, entry.plan_target);
+      paintMetrics(); persist();
+    });
     $("jn-notes").addEventListener("input", (e) => { entry.notes = e.target.value; persist(); });
 
     host.querySelectorAll("[data-rules]").forEach((b) => b.addEventListener("click", () => {
@@ -1182,11 +1201,12 @@
     // from chart-indicators.js, since the MACD pane's own series
     // (histogram + 2 plain lines, no candles/volume/VWAP/EMA) aren't part
     // of the standard-chart shape that helper builds.
+    const macdCt = window.chartThemeColors ? window.chartThemeColors() : { text: "#8b98a5", grid: "#1c2127", border: "#232830" };
     const macdCommonOpts = {
-      layout: { background: { color: "transparent" }, textColor: "#8b98a5" },
-      grid: { vertLines: { color: "#1c2127" }, horzLines: { color: "#1c2127" } },
-      rightPriceScale: { borderColor: "#232830", minimumWidth: 92 },
-      timeScale: { borderColor: "#232830", timeVisible: true, secondsVisible: false },
+      layout: { background: { color: "transparent" }, textColor: macdCt.text },
+      grid: { vertLines: { color: macdCt.grid }, horzLines: { color: macdCt.grid } },
+      rightPriceScale: { borderColor: macdCt.border, minimumWidth: 92 },
+      timeScale: { borderColor: macdCt.border, timeVisible: true, secondsVisible: false },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
     };
     const macdChart = LightweightCharts.createChart(macdEl, { ...macdCommonOpts, width: macdEl.clientWidth, height: 110 });

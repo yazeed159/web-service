@@ -321,7 +321,11 @@
     const luNo = document.getElementById("last-updated"); if (luNo) luNo.textContent = "No trades yet";
     statGrid.innerHTML = "";
     const heroEl = document.getElementById("dash-hero");
-    if (heroEl) heroEl.innerHTML = '<div class="empty-state small">No trades logged yet — once your pipeline publishes, your Net P&amp;L and recent form will show up here.</div>';
+    if (heroEl) heroEl.innerHTML = window.emptyStateHtml({
+      icon: "chart",
+      title: "No trades yet",
+      message: "Once your pipeline publishes trades, your Net P&amp;L, win rate, and equity curve will show up here.",
+    });
     document.getElementById("score-wrap").innerHTML = '<div class="empty-state small">No data yet.</div>';
     document.getElementById("mini-cal").innerHTML = '<div class="empty-state small">No data yet.</div>';
     document.getElementById("recent-trades").innerHTML = '<div class="empty-state small">No trades logged yet.</div>';

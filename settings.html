@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Settings — trade.log</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="css/common.css">
@@ -317,22 +318,29 @@
     }
   });
 
-  pwSaveBtn.addEventListener("click", async () => {
-    pwErrorEl.style.display = "none";
+  // Inline, as-you-type validation -- previously both checks only ran
+  // when the Save button was clicked, so a too-short or mismatched
+  // password looked fine right up until you tried to submit it.
+  function validatePassword(showError, isSubmit) {
     const pw = pwInputEl.value;
-    const confirm = pwConfirmEl.value;
-    if (pw.length < 8) {
-      pwErrorEl.textContent = "Password must be at least 8 characters.";
-      pwErrorEl.style.display = "block";
-      return;
+    const confirmVal = pwConfirmEl.value;
+    let msg = "";
+    if (isSubmit && !pw) msg = "Enter a new password.";
+    else if (pw && pw.length < 8) msg = "Password must be at least 8 characters.";
+    else if (confirmVal && pw !== confirmVal) msg = "Passwords don't match.";
+    if (showError) {
+      pwErrorEl.textContent = msg;
+      pwErrorEl.style.display = msg ? "block" : "none";
     }
-    if (pw !== confirm) {
-      pwErrorEl.textContent = "Passwords don't match.";
-      pwErrorEl.style.display = "block";
-      return;
-    }
+    return !msg && pw.length >= 8 && pw === confirmVal;
+  }
+  pwInputEl.addEventListener("input", () => validatePassword(true));
+  pwConfirmEl.addEventListener("input", () => validatePassword(true));
+
+  pwSaveBtn.addEventListener("click", async () => {
+    if (!validatePassword(true, true)) return;
     pwSaveBtn.disabled = true;
-    const { error } = await window.sb.auth.updateUser({ password: pw });
+    const { error } = await window.sb.auth.updateUser({ password: pwInputEl.value });
     pwSaveBtn.disabled = false;
     if (error) {
       pwErrorEl.textContent = error.message || "Couldn't update your password.";
@@ -390,7 +398,11 @@
     withdrawnEl.textContent = fmtPlain(withdrawn);
 
     if (!entries.length) {
-      listEl.innerHTML = `<div class="empty-state small">No deposits or withdrawals recorded yet.</div>`;
+      listEl.innerHTML = window.emptyStateHtml({
+        icon: "wallet",
+        title: "No deposits or withdrawals yet",
+        message: "Add your starting capital here to track real account balance instead of just cumulative P&amp;L.",
+      });
       return;
     }
     const sorted = entries.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
@@ -402,26 +414,60 @@
         <td><button type="button" class="btn-icon" data-del="${escapeHtml(e._id)}" title="Delete" aria-label="Delete">&times;</button></td>
       </tr>`).join("");
     listEl.innerHTML = `<div class="table-scroll"><table class="report-table">
-      <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th><th></th></tr></thead>
+      <thead><tr><th scope="col">Date</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Note</th><th scope="col"></th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>`;
 
     listEl.querySelectorAll("[data-del]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const ok = await UIModal.confirm("Delete this entry? This can't be undone.", { title: "Delete entry?", tone: "danger", confirmLabel: "Delete" });
-        if (!ok) return;
-        entries = entries.filter((e) => e._id !== btn.getAttribute("data-del"));
-        save();
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-del");
+        const idx = entries.findIndex((e) => e._id === id);
+        if (idx === -1) return;
+        const removedEntry = entries[idx];
+        // Optimistic + undoable, same pattern as journal.html's trade
+        // delete: remove it from the list right away, defer the actual
+        // KV save until the Undo toast expires so Undo is a true no-op
+        // rather than a re-save.
+        entries = entries.filter((e) => e._id !== id);
         render();
+        if (!window.showToast) { save(); return; }
+        window.showToast("Entry deleted — Undo", {
+          action: {
+            label: "Undo",
+            onClick: () => { entries.splice(idx, 0, removedEntry); render(); },
+          },
+          onExpire: save,
+        });
       });
     });
   }
 
+  // Inline validation -- checked as you type/blur (not just on submit,
+  // which used to silently refocus the bad field with no explanation).
+  // Returns the parsed amount when valid, or null (having already
+  // painted the relevant field-level error) when not.
+  function validateAmount(showError) {
+    const amt = parseAmount(amountEl.value);
+    const bad = amountEl.value.trim() !== "" && (!isFinite(amt) || amt <= 0);
+    if (showError) window.setFieldError(amountEl, bad ? "Enter an amount greater than $0." : "");
+    return bad || !isFinite(amt) || amt <= 0 ? null : amt;
+  }
+  function validateDate(showError) {
+    const ok = !!dateEl.value;
+    if (showError) window.setFieldError(dateEl, ok ? "" : "Pick a date for this entry.");
+    return ok;
+  }
+  amountEl.addEventListener("input", () => validateAmount(true));
+  amountEl.addEventListener("blur", () => validateAmount(true));
+  dateEl.addEventListener("input", () => validateDate(true));
+  dateEl.addEventListener("blur", () => validateDate(true));
+
   formEl.addEventListener("submit", (ev) => {
     ev.preventDefault();
-    const amt = parseAmount(amountEl.value);
-    if (!isFinite(amt) || amt <= 0) {
-      amountEl.focus();
+    const dateOk = validateDate(true);
+    const amt = validateAmount(true);
+    if (!dateOk || amt === null) {
+      (dateOk ? amountEl : dateEl).focus();
       return;
     }
     const signed = typeEl.value === "withdrawal" ? -amt : amt;
@@ -435,6 +481,7 @@
     render();
     amountEl.value = "";
     noteEl.value = "";
+    window.clearFieldError(amountEl);
   });
 
   window.AUTH_READY.then((session) => {
@@ -873,5 +920,6 @@
 <script src="js/ui-modal.js"></script>
 <script src="js/common.js"></script>
 <script src="js/global-search.js"></script>
+<script src="js/shortcuts-help.js"></script>
 </body>
 </html>

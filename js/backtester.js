@@ -835,7 +835,11 @@
       .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then((entries) => {
         if (!entries.length) {
-          els.history.innerHTML = `<div class="empty-state small">No runs yet — describe a strategy in the chat above and it'll show up here once it finishes.</div>`;
+          els.history.innerHTML = window.emptyStateHtml({
+            icon: "flask",
+            title: "No backtest runs yet",
+            message: "Describe a strategy in the chat above and it'll show up here once it finishes.",
+          });
           return;
         }
         els.history.innerHTML = `<div class="playbook-grid">${entries.map(historyCard).join("")}</div>`;

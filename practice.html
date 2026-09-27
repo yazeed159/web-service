@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Practice — trade.log</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="css/common.css">
@@ -300,7 +301,11 @@
         </div>
 
         <div id="pa-empty-state" class="panel-box hidden">
-          <div class="empty-state">No practice trades yet. Switch to the Practice tab, pick a chart, and place a few fills — your analytics will show up here, including how long you held each one.</div>
+          <div class="empty-state-hero">
+            <div class="empty-state-hero-icon"><svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19 6h10M20 6v13l-9.5 17a3 3 0 0 0 2.6 4.5h21.8a3 3 0 0 0 2.6-4.5L28 19V6" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M15.5 30h17" stroke="currentColor" stroke-width="2.2" opacity="0.6"/></svg></div>
+            <div class="empty-state-hero-title">No practice trades yet</div>
+            <div class="empty-state-hero-msg">Switch to the Practice tab, pick a chart, and place a few fills — your analytics will show up here, including how long you held each one.</div>
+          </div>
         </div>
 
         <div id="pa-body" class="hidden">
@@ -405,5 +410,6 @@
 </script>
 <script src="js/common.js"></script>
 <script src="js/global-search.js"></script>
+<script src="js/shortcuts-help.js"></script>
 </body>
 </html>

@@ -48,10 +48,24 @@ window.refreshOnFocus = function refreshOnFocus(fn, opts) {
 // click to dismiss. Lives here (not common.js) so it's defined before
 // auth.js runs, same reasoning as every other helper in this file.
 // Multiple toasts stack; each auto-dismisses unless hovered.
+//
+// opts.action: { label, onClick } -- renders a button inside the toast
+// (e.g. "Undo"). Clicking it dismisses immediately and fires onClick;
+// letting the toast run out on its own instead fires opts.onExpire.
+// This is what backs the delete-with-undo pattern (see bulkDelete() in
+// journal.html / the capital-ledger + preset delete handlers in
+// settings.html and journal.html): the row disappears from the UI
+// right away, but the actual server delete is deferred until the toast
+// expires, so "Undo" can cancel it outright instead of re-inserting
+// the row after the fact. Trade-off worth knowing: if the tab closes
+// or navigates away before the toast expires, onExpire never fires and
+// the delete never reaches the server -- the row will reappear next
+// load. Fine for a soft-delete UX (worst case the user deletes it
+// again); not appropriate for anything that must reliably happen.
 window.showToast = function showToast(message, opts) {
   opts = opts || {};
   const tone = opts.tone || "default";
-  const duration = opts.duration || 5000;
+  const duration = opts.duration || (opts.action ? 6000 : 5000);
   let container = document.getElementById("toast-container");
   if (!container) {
     container = document.createElement("div");
@@ -62,16 +76,71 @@ window.showToast = function showToast(message, opts) {
   const el = document.createElement("div");
   el.className = "toast" + (tone === "error" ? " error" : "");
   el.setAttribute("role", tone === "error" ? "alert" : "status");
-  el.textContent = message;
+
+  const textEl = document.createElement("span");
+  textEl.className = "toast-text";
+  textEl.textContent = message;
+  el.appendChild(textEl);
+
+  if (opts.action && opts.action.label) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "toast-action";
+    btn.textContent = opts.action.label;
+    btn.addEventListener("click", () => {
+      clearTimeout(timer);
+      expired = false;
+      dismiss();
+      if (opts.action.onClick) opts.action.onClick();
+    });
+    el.appendChild(btn);
+  }
+
   container.appendChild(el);
   requestAnimationFrame(() => el.classList.add("show"));
-  let timer = setTimeout(dismiss, duration);
+  let expired = false;
+  let timer = setTimeout(() => { expired = true; dismiss(); }, duration);
   el.addEventListener("mouseenter", () => clearTimeout(timer));
-  el.addEventListener("mouseleave", () => { timer = setTimeout(dismiss, duration); });
+  el.addEventListener("mouseleave", () => { timer = setTimeout(() => { expired = true; dismiss(); }, duration); });
   function dismiss() {
     el.classList.remove("show");
-    setTimeout(() => el.remove(), 200);
+    setTimeout(() => {
+      el.remove();
+      if (expired && opts.onExpire) opts.onExpire();
+    }, 200);
   }
+  return { dismiss: () => { clearTimeout(timer); expired = false; dismiss(); } };
+};
+
+// Small shared helpers for inline (as-you-type / on-blur) form
+// validation, replacing the old pattern of only discovering a bad
+// field when submit already failed (silently refocusing it, or
+// popping a blocking alert). Renders one message under the field the
+// first time it's called, and toggles an invalid outline on the input
+// itself; setFieldError("") / clearFieldError() both clear it.
+window.setFieldError = function setFieldError(inputEl, message) {
+  if (!inputEl) return;
+  let msgEl = inputEl.__fieldErrorEl;
+  if (!msgEl) {
+    msgEl = document.createElement("div");
+    msgEl.className = "field-error-msg";
+    inputEl.insertAdjacentElement("afterend", msgEl);
+    inputEl.__fieldErrorEl = msgEl;
+  }
+  if (message) {
+    msgEl.textContent = message;
+    msgEl.style.display = "block";
+    inputEl.classList.add("field-invalid");
+    inputEl.setAttribute("aria-invalid", "true");
+  } else {
+    msgEl.textContent = "";
+    msgEl.style.display = "none";
+    inputEl.classList.remove("field-invalid");
+    inputEl.removeAttribute("aria-invalid");
+  }
+};
+window.clearFieldError = function clearFieldError(inputEl) {
+  window.setFieldError(inputEl, "");
 };
 
 // Canonical form: null/undefined -> "" instead of the literal string
@@ -468,4 +537,52 @@ window.bindSwipe = function bindSwipe(el, opts) {
       opts.onSwipeRight();
     }
   }, listenerOpts);
+};
+
+
+// emptyStateHtml — a small shared set of illustrated "nothing here yet"
+// states (icon + heading + message + optional action link), used for
+// the one true first-run hero on each page (dashboard, journal, stats,
+// edge analysis, patterns, settings ledger, practice, backtester) --
+// NOT the dozens of small in-page "No data yet." fallbacks scattered
+// through report/edge-analysis/stats rendering, which stay as plain
+// text on purpose (illustrating every single one would be noisy, not
+// helpful, for a sub-widget that's empty only because of a filter).
+// Icons are a tiny inline SVG set (no external assets, no extra
+// request) that reuse the app's existing --primary/--text-faint theme
+// tokens, so they already adapt to the light/dark toggle.
+window.EMPTY_STATE_ICONS = {
+  chart: '<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="6" y="26" width="7" height="14" rx="1.5" fill="currentColor" opacity="0.35"/><rect x="20.5" y="16" width="7" height="24" rx="1.5" fill="currentColor" opacity="0.55"/><rect x="35" y="8" width="7" height="32" rx="1.5" fill="currentColor"/></svg>',
+  journal: '<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="9" y="6" width="26" height="36" rx="3" stroke="currentColor" stroke-width="2.2"/><path d="M16 16h14M16 24h14M16 32h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity="0.7"/></svg>',
+  target: '<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="16" stroke="currentColor" stroke-width="2.2"/><circle cx="24" cy="24" r="9.5" stroke="currentColor" stroke-width="2.2" opacity="0.7"/><circle cx="24" cy="24" r="3" fill="currentColor"/></svg>',
+  wallet: '<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="6" y="12" width="36" height="26" rx="4" stroke="currentColor" stroke-width="2.2"/><path d="M6 20h36" stroke="currentColor" stroke-width="2.2"/><circle cx="33" cy="29" r="2.5" fill="currentColor"/></svg>',
+  flask: '<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19 6h10M20 6v13l-9.5 17a3 3 0 0 0 2.6 4.5h21.8a3 3 0 0 0 2.6-4.5L28 19V6" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M15.5 30h17" stroke="currentColor" stroke-width="2.2" opacity="0.6"/></svg>',
+  puzzle: '<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M17 8h8a2.5 2.5 0 0 1 0 5 2.5 2.5 0 0 0 0 5h8v8a2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 0-5 0v8H8v-8a2.5 2.5 0 0 1 5 0 2.5 2.5 0 0 0 5 0v-8a2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 0-5 0V8h9Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
+};
+window.emptyStateHtml = function emptyStateHtml(opts) {
+  opts = opts || {};
+  const icon = window.EMPTY_STATE_ICONS[opts.icon] || window.EMPTY_STATE_ICONS.chart;
+  const title = opts.title ? `<div class="empty-state-hero-title">${opts.title}</div>` : "";
+  const message = opts.message ? `<div class="empty-state-hero-msg">${opts.message}</div>` : "";
+  const action = opts.actionHref
+    ? `<a class="empty-state-hero-action" href="${opts.actionHref}">${opts.actionLabel || "Get started"}</a>`
+    : "";
+  return `<div class="empty-state-hero"><div class="empty-state-hero-icon">${icon}</div>${title}${message}${action}</div>`;
+};
+
+// chartThemeColors — grid/axis/text colors for the lightweight-charts
+// instances (chart-indicators.js, trade.js's MACD pane, report.js's
+// equity + MACD charts, edge-analysis.js, share-export.js), so they
+// adapt to the light/dark toggle instead of staying hardcoded dark.
+// Chart colors are handed to the canvas library as raw hex at chart
+// creation time, not CSS custom properties, so this reads the same
+// tokens common.css defines for each theme and returns plain values a
+// createChart() call can use directly. Series colors (candles, EMAs,
+// P&L green/red) are intentionally left alone -- they're tuned to work
+// on either background and don't need to switch.
+window.chartThemeColors = function chartThemeColors() {
+  const light = document.documentElement.getAttribute("data-theme") === "light";
+  return light
+    ? { text: "#565a6b", grid: "#eceef3", border: "#dfe2ea" }
+    : { text: "#8b98a5", grid: "#1c2127", border: "#232830" };
 };
