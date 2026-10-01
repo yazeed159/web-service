@@ -11,6 +11,7 @@
 <meta name="theme-color" content="#0a0b0f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="expect" href="#page-title" blocking="render">
@@ -106,7 +107,10 @@
         <div id="fill-float-label">Starting…</div>
       </div>
 
-      <div class="filters">
+      <button type="button" class="filters-toggle" id="filters-toggle" aria-expanded="false" aria-controls="journal-filters">
+        <span>Filters</span><span class="filters-toggle-count" id="filters-toggle-count"></span><span class="filters-toggle-chev" aria-hidden="true">&#9662;</span>
+      </button>
+      <div class="filters" id="journal-filters">
         <input type="text" id="f-symbol" placeholder="Symbol…" aria-label="Symbol" style="width:110px;">
         <input type="date" id="f-from" title="From date" aria-label="From date">
         <input type="date" id="f-to" title="To date" aria-label="To date">
@@ -780,6 +784,11 @@
       <div class="panel-box" style="padding:0;">
         <div class="journal-table-head">
           <span id="journal-result-summary" aria-live="polite" aria-atomic="true">${tableRows.length} trade${tableRows.length === 1 ? "" : "s"} · net <span class="${totalPnl >= 0 ? "up" : "down"}">${fmtMoney(totalPnl)}</span></span>
+          <label class="mobile-sort"><span>Sort</span>
+            <select id="mobile-sort-select" class="select-clean" aria-label="Sort trades">
+              ${ALL_COLUMNS.filter((c) => c.sortable).map((c) => ["desc", "asc"].map((d) => `<option value="${c.id}:${d}"${sortKey === c.id && sortDir === d ? " selected" : ""}>${escapeHtml(c.label)} ${d === "desc" ? "&#8595;" : "&#8593;"}</option>`).join("")).join("")}
+            </select>
+          </label>
           <span style="display:flex; gap:8px;">
             <button class="icon-btn icon-btn-visible" id="csv-export-btn" title="Export this filtered set as CSV, with a column picker" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M5 21h14"></path></svg>
@@ -908,6 +917,33 @@
   // Rows carry role="link" + tabindex so they're keyboard-reachable (see
   // rowHtml above); native <tr> elements don't fire "click" on Enter/Space
   // the way a real link or button would, so that has to be wired by hand.
+  // Phones: the 13 filter controls live behind a "Filters" button so they
+  // don't push the trades a full screen down; the button shows how many
+  // are active so a hidden filter can't silently hide trades.
+  (function initMobileFilters() {
+    const box = document.getElementById("journal-filters");
+    const btn = document.getElementById("filters-toggle");
+    const count = document.getElementById("filters-toggle-count");
+    if (!box || !btn) return;
+    function refresh() {
+      let n = 0;
+      box.querySelectorAll("input, select").forEach((el) => {
+        if (el.id === "f-symbol") return; // symbol stays visible, doesn't need a badge
+        if (el.type === "checkbox" ? el.checked : !!el.value) n++;
+      });
+      count.textContent = n ? String(n) : "";
+      btn.classList.toggle("has-active", n > 0);
+    }
+    btn.addEventListener("click", () => {
+      const open = box.classList.toggle("open");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    box.addEventListener("input", refresh);
+    box.addEventListener("change", refresh);
+    refresh();
+    setTimeout(refresh, 600); // filters restored from the URL / saved state after load
+  })();
+
   content.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
     const tr = e.target.closest("tr[data-id]");
@@ -918,6 +954,12 @@
   });
 
   content.addEventListener("change", (e) => {
+    if (e.target.matches("#mobile-sort-select")) {
+      const [key, dir] = e.target.value.split(":");
+      sortKey = key; sortDir = dir;
+      applyFilters();
+      return;
+    }
     if (e.target.matches(".row-cb")) {
       const id = e.target.getAttribute("data-id");
       if (e.target.checked) selectedIds.add(id); else selectedIds.delete(id);

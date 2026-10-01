@@ -26,6 +26,150 @@
     );
   }
 
+  // ---- Phone / touch helpers ------------------------------------------
+  // lightweight-charts' default is to capture EVERY touch that starts on
+  // the canvas (vertTouchDrag), so on a phone a chart that fills most of
+  // the viewport becomes a scroll trap: you swipe down to keep reading and
+  // the chart pans/scales instead. On phones we hand vertical swipes back
+  // to the page (horizontal drag + pinch still work on the chart), and
+  // offer a fullscreen mode where the chart gets every gesture.
+  function isPhone() {
+    try { return window.matchMedia("(max-width: 760px)").matches; } catch (e) { return window.innerWidth <= 760; }
+  }
+  // Option fragment for ANY createChart() call (also used by the small
+  // equity / edge-analysis charts that don't go through buildStandardChart).
+  function touchChartOpts() {
+    return isPhone()
+      ? { handleScroll: { vertTouchDrag: false }, kineticScroll: { touch: true, mouse: false } }
+      : {};
+  }
+
+  // Fullscreen toggle (phones only). Pins the chart container over the
+  // whole viewport, gives it every gesture, and resizes the chart to the
+  // real viewport height (so landscape works too). A spacer holds the
+  // container's place in the page so the scroll position doesn't jump.
+  function attachFullscreen(el, chart, baseHeight) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chart-fs-btn";
+    btn.setAttribute("aria-label", "Expand chart to fullscreen");
+    btn.textContent = "\u2922";
+    el.appendChild(btn);
+    let spacer = null;
+    let on = false;
+    let pushed = false;   // did opening fullscreen add a history entry (so Back closes it)?
+    let freed = [];       // ancestors whose containing-block props we neutralised
+    // position:fixed is relative to the nearest ancestor with transform /
+    // filter / backdrop-filter / perspective / contain / will-change, NOT the
+    // viewport. Card panels here carry backdrop-filter and a reveal animation
+    // that leaves a transform behind, which pinned the "fullscreen" chart
+    // inside its own card. Neutralise those on the ancestors while fullscreen
+    // is open and put them back exactly afterwards.
+    function freeAncestors() {
+      freed = [];
+      for (let a = el.parentElement; a && a !== document.documentElement; a = a.parentElement) {
+        const cs = getComputedStyle(a);
+        // A running/forwards-filled transform *animation* also traps fixed
+        // descendants even if an !important rule forces transform:none.
+        const animated = cs.animationName && cs.animationName !== "none";
+        const traps = animated ||
+          (cs.transform && cs.transform !== "none") ||
+          (cs.filter && cs.filter !== "none") ||
+          (cs.backdropFilter && cs.backdropFilter !== "none") ||
+          (cs.perspective && cs.perspective !== "none") ||
+          (cs.willChange && /transform|filter|perspective|contain/.test(cs.willChange)) ||
+          (cs.contain && /paint|layout|strict|content/.test(cs.contain));
+        if (!traps) continue;
+        let spent = false;
+        try { const an = a.getAnimations(); spent = animated && an.length > 0 && an.every((x) => x.playState === "finished"); } catch (e) {}
+        freed.push({ a, css: a.getAttribute("style"), spent });
+        if (animated) {
+          // Freezing the animation at its end state: a "reveal" entrance ends at
+          // opacity 1 / no transform, so pin exactly that.
+          a.style.setProperty("animation", "none", "important");
+          a.style.setProperty("opacity", "1", "important");
+        }
+        a.style.setProperty("transform", "none", "important");
+        a.style.setProperty("filter", "none", "important");
+        a.style.setProperty("backdrop-filter", "none", "important");
+        a.style.setProperty("-webkit-backdrop-filter", "none", "important");
+        a.style.setProperty("perspective", "none", "important");
+        a.style.setProperty("will-change", "auto", "important");
+        a.style.setProperty("contain", "none", "important");
+      }
+    }
+    function restoreAncestors() {
+      freed.forEach(({ a, css, spent }) => {
+        if (css === null) a.removeAttribute("style"); else a.setAttribute("style", css);
+        // A finished entrance animation would replay (flash) if restored; its
+        // end state is opacity 1 / no transform, so leave that pinned.
+        if (spent) {
+          a.style.setProperty("animation", "none");
+          a.style.setProperty("opacity", "1");
+          a.style.setProperty("transform", "none");
+        }
+      });
+      freed = [];
+    }
+    function fit() {
+      try {
+        chart.applyOptions({
+          width: el.clientWidth,
+          height: on ? Math.max(200, el.clientHeight || window.innerHeight) : baseHeight,
+        });
+        if (on) chart.timeScale().fitContent();
+      } catch (e) {}
+    }
+    function setFs(next, fromPop) {
+      if (next === on) return;
+      on = next;
+      if (on) {
+        spacer = document.createElement("div");
+        spacer.style.height = el.offsetHeight + "px";
+        el.parentNode.insertBefore(spacer, el);
+        freeAncestors();
+        // Android/browser Back should close the chart, not leave the page.
+        try { history.pushState({ chartFs: 1 }, ""); pushed = true; } catch (e) { pushed = false; }
+        el.classList.add("chart-fs");
+        document.documentElement.classList.add("chart-fs-lock");
+        btn.textContent = "\u2715";
+        btn.setAttribute("aria-label", "Close fullscreen chart");
+        try { chart.applyOptions({ handleScroll: { vertTouchDrag: true } }); } catch (e) {}
+      } else {
+        el.classList.remove("chart-fs");
+        document.documentElement.classList.remove("chart-fs-lock");
+        restoreAncestors();
+        if (pushed && !fromPop) { pushed = false; try { history.back(); } catch (e) {} }
+        pushed = false;
+        if (spacer && spacer.parentNode) spacer.parentNode.removeChild(spacer);
+        spacer = null;
+        btn.textContent = "\u2922";
+        btn.setAttribute("aria-label", "Expand chart to fullscreen");
+        try { chart.applyOptions({ handleScroll: { vertTouchDrag: false } }); } catch (e) {}
+      }
+      fit();
+      requestAnimationFrame(fit); // viewport units settle a frame later on mobile Safari
+    }
+    btn.addEventListener("click", () => setFs(!on));
+    const onKey = (e) => { if (e.key === "Escape") setFs(false); };
+    const onPop = () => { if (on) setFs(false, true); };
+    const onRot = () => setTimeout(fit, 250);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("popstate", onPop);
+    window.addEventListener("orientationchange", onRot);
+    return {
+      fit,
+      isOn: () => on,
+      dispose() {
+        window.removeEventListener("keydown", onKey);
+        window.removeEventListener("popstate", onPop);
+        window.removeEventListener("orientationchange", onRot);
+        if (on) setFs(false);
+        if (btn.parentNode) btn.parentNode.removeChild(btn);
+      },
+    };
+  }
+
   // Standard recursive EMA, seeded with the first value (rather than an
   // n-bar SMA) so it's defined from bar 1 -- with only a session's worth
   // of 1-minute bars to resample from, a handful of 5m/15m/1h candles is
@@ -210,14 +354,21 @@
     const ema200Data = bars.filter((b) => b.ema200 != null).map((b) => ({ time: toUnix(b.t), value: b.ema200 }));
 
     const ct = window.chartThemeColors ? window.chartThemeColors() : { text: "#8b98a5", grid: "#1c2127", border: "#232830" };
+    // On a phone the 88-92px price-scale gutter eats ~25% of a 360-390px
+    // screen, and a fixed 380-420px canvas is most of the viewport height.
+    const phone = isPhone();
+    const minW = phone ? Math.min(opts.minimumWidth || 88, 60) : (opts.minimumWidth || 88);
+    const baseH = opts.height || 380;
+    const chartH = phone ? Math.min(baseH, Math.max(260, Math.round(window.innerHeight * 0.5))) : baseH;
     const commonOpts = {
-      layout: { background: { color: "transparent" }, textColor: ct.text },
+      layout: { background: { color: "transparent" }, textColor: ct.text, fontSize: phone ? 10 : 12 },
       grid: { vertLines: { color: ct.grid }, horzLines: { color: ct.grid } },
-      rightPriceScale: { borderColor: ct.border, minimumWidth: opts.minimumWidth || 88 },
-      timeScale: { borderColor: ct.border, timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: ct.border, minimumWidth: minW },
+      timeScale: { borderColor: ct.border, timeVisible: true, secondsVisible: false, rightOffset: phone ? 3 : 0 },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      ...touchChartOpts(),
     };
-    const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: opts.height || 380 });
+    const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: chartH });
     const series = chart.addCandlestickSeries({
       upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
       wickUpColor: "#2fd08a", wickDownColor: "#f2555a",
@@ -296,6 +447,7 @@
     });
 
     chart.timeScale().fitContent();
+    const fs = (phone && opts.fullscreen !== false) ? attachFullscreen(el, chart, chartH) : null;
     // A ResizeObserver tied to the container (rather than a page-level
     // window "resize" listener) disposes cleanly along with everything
     // else in teardownStandardChart() -- no separate "have I already
@@ -305,12 +457,15 @@
     let ro = null;
     if (window.ResizeObserver) {
       ro = new ResizeObserver(() => {
-        try { chart.applyOptions({ width: el.clientWidth }); } catch (e) {}
+        try {
+          if (fs && fs.isOn()) fs.fit();
+          else chart.applyOptions({ width: el.clientWidth });
+        } catch (e) {}
         if (typeof opts.onResize === "function") { try { opts.onResize(); } catch (e) {} }
       });
       ro.observe(el);
     }
-    return { chart, series, volSeries, vwapSeries, ema9Series, ema20Series, ema200Series, priceLineRefs, resizeObserver: ro, renderOverlay, handleState };
+    return { chart, series, volSeries, vwapSeries, ema9Series, ema20Series, ema200Series, priceLineRefs, resizeObserver: ro, renderOverlay, handleState, fullscreen: fs };
   }
 
   // Tears down a handle from buildStandardChart(). Callers that stash
@@ -324,6 +479,7 @@
     try { if (handle.resizeObserver) handle.resizeObserver.disconnect(); } catch (e) {}
     try { if (handle.pointerRo) handle.pointerRo.disconnect(); } catch (e) {}
     try { if (handle.eodRo) handle.eodRo.disconnect(); } catch (e) {}
+    try { if (handle.fullscreen) handle.fullscreen.dispose(); } catch (e) {}
     try { handle.chart.remove(); } catch (e) {}
   }
 
@@ -333,5 +489,7 @@
     buildTimeframeSwitcher,
     buildStandardChart,
     teardownStandardChart,
+    isPhone,
+    touchChartOpts,
   };
 })();

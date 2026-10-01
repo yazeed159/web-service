@@ -71,6 +71,7 @@
 <meta name="theme-color" content="#0a0b0f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="expect" href="#page-title" blocking="render">
@@ -184,6 +185,14 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
           <input id="sc-filter" type="text" placeholder="Filter symbol…" autocomplete="off">
         </div>
+        <label class="sc-mobile-sort"><span>Sort</span>
+          <select id="sc-mobile-sort" class="select-clean" aria-label="Sort gappers">
+            <option value="gap_pct">Gap %</option><option value="premkt_volume">Premkt vol</option>
+            <option value="relative_volume">RVol</option><option value="float_shares">Float</option>
+            <option value="price">Price</option><option value="symbol">Symbol</option>
+          </select>
+          <button type="button" class="filter-btn" id="sc-mobile-dir" aria-label="Reverse sort direction">&#8645;</button>
+        </label>
         <div class="sc-refresh-note" id="sc-refresh-note"></div>
       </div>
       <div class="sr-only" id="sc-result-summary" aria-live="polite" aria-atomic="true"></div>

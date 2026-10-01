@@ -660,7 +660,7 @@
     const recent = App.state.trades.slice(-5).reverse();
     const rows = recent.map(tradeRowHtml).join("");
     const el = document.getElementById("recent-trades");
-    el.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Date</th><th>Entry</th><th>Price</th><th>Shares</th><th>Net P&amp;L</th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    el.innerHTML = `<div class="table-scroll"><table class="trade-table tt-recent"><thead><tr><th>Symbol</th><th>Date</th><th>Entry</th><th>Price</th><th>Shares</th><th>Net P&amp;L</th><th>Grade</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     App.bindTradeRows(el);
   }
 

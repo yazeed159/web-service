@@ -163,7 +163,7 @@
       grid: { vertLines: { color: edgeCt.grid }, horzLines: { color: edgeCt.grid } },
       rightPriceScale: { borderColor: edgeCt.border },
       timeScale: { borderColor: edgeCt.border },
-    }, extraOpts || {}));
+    }, (window.ChartIndicators ? window.ChartIndicators.touchChartOpts() : {}), extraOpts || {}));
     const onResize = () => chart.applyOptions({ width: el.clientWidth });
     window.addEventListener("resize", onResize);
     el._chart = chart;

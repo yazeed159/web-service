@@ -371,8 +371,8 @@
             <span class="legend-item"><span class="legend-swatch" style="background:#8b7cf6"></span>better entry</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#ec6cad"></span>better exit</span>
           </div>
-          <div style="display:flex; align-items:center; gap:12px;" id="chart-controls">
-            <span>Scroll to zoom · drag to pan</span>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; row-gap:8px;" id="chart-controls">
+            <span class="chart-hint">Scroll to zoom · drag to pan</span>
             <a class="icon-btn icon-btn-visible" id="replay-btn" title="Rewind this trade" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px; text-decoration:none;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
               Rewind

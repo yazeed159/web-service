@@ -2511,6 +2511,48 @@ body::before {
 html:active-view-transition #page-loader-overlay,
 html:active-view-transition #page-progress-bar { display: none !important; }
 
+/* ======================================================================
+   PHONE PASS 2 (<=760px). Desktop is untouched.
+   - Tap targets: small inline controls get an invisible hit-area (::after)
+     so they're easy to hit WITHOUT changing the layout; form controls that
+     can't take a pseudo-element (checkbox, file, stepper) are sized up.
+   - Toasts sit above the tab bar instead of underneath/over it.
+   - Fullscreen chart gets a solid backdrop behind the notch / home bar.
+====================================================================== */
+@media (max-width: 760px) {
+  :where(.link, .edge-explain-toggle, .calc-balance-edit, #calc-use-actual-winrate, .dn-more-toggle,
+         .rw-progress-reset, .eq-compare-btn, .back-link, .trade-nav-link, .rpt-back, .pill, .tagpill,
+         .eq-range-toggle button, .equity-stats a, td > a, .sub > a, p > a, summary, .pr-view-tab) {
+    position: relative;
+  }
+  :where(.link, .edge-explain-toggle, .calc-balance-edit, #calc-use-actual-winrate, .dn-more-toggle,
+         .rw-progress-reset, .eq-compare-btn, .back-link, .trade-nav-link, .rpt-back, .pill, .tagpill,
+         .eq-range-toggle button, .equity-stats a, td > a, .sub > a, p > a, summary, .pr-view-tab)::after {
+    content: ""; position: absolute; inset: -9px -5px;
+  }
+  /* Neighbouring pills: don't let the hit-areas overlap and steal each other's taps. */
+  .pill::after, .tagpill::after, .eq-range-toggle button::after { inset: -6px -2px; }
+  .pr-view-tab { min-height: 36px; }
+
+  /* Controls that can't take ::after */
+  input[type="checkbox"], input[type="radio"] { width: 22px; height: 22px; flex: none; }
+  input[type="file"]::file-selector-button { min-height: 36px; padding: 0 12px; margin-right: 10px; }
+  table.journal-data-table .checkbox-col input[type="checkbox"], .bulk-toolbar input[type="checkbox"] { width: 24px; height: 24px; }
+  input[type="checkbox"], input[type="radio"] { min-width: 24px; min-height: 24px; }
+  .chat-chip, .chat-chip-more { min-height: 36px; }
+  .chatw-icon-action { min-width: 36px; min-height: 36px; }
+  .calc-input-wrap .filter-input { min-height: 44px; padding-right: 44px; }
+  .calc-stepper button { width: 36px; font-size: 11px; }
+
+  /* Toasts: clear the tab bar (56px + inset) */
+  .toast-container { bottom: calc(68px + var(--safe-bottom)); max-width: calc(100vw - 24px); }
+  /* "Scroll to zoom" is a mouse hint; on touch it's wrong and costs a row. */
+  .chart-hint { display: none; }
+
+  /* Solid cover for the notch / home-bar strips around a fullscreen chart */
+  .chart-fs { box-shadow: 0 -60px 0 var(--bg), 0 60px 0 var(--bg); }
+}
+
 /* ===================================================================
    Print -- a dark UI printed as-is floods the page with black ink and
    drags a sidebar/topbar/floating chat widget onto paper where none of
@@ -2648,3 +2690,288 @@ table.journal-data-table td.col-tags { white-space: normal; }
 }
 .export-col-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); cursor: pointer; padding: 3px 0; }
 .export-col-row input { accent-color: var(--primary); }
+
+/* ---------- Mobile chart usability ----------
+   Fullscreen toggle button + fullscreen state (see attachFullscreen() in
+   js/chart-indicators.js). Position/inset use !important because callers
+   set el.style.position = "relative" inline for the info overlay. */
+.chart-fs-btn { display: none; }
+@media (max-width: 760px) {
+  .chart-fs-btn {
+    display: flex; align-items: center; justify-content: center;
+    position: absolute; top: 6px; right: 6px; z-index: 4;
+    width: 36px; height: 36px; padding: 0;
+    font-size: 18px; line-height: 1; color: var(--text-dim);
+    background: color-mix(in srgb, var(--panel) 82%, transparent);
+    border: 1px solid var(--border-soft); border-radius: 8px; cursor: pointer;
+  }
+  .chart-fs-btn:active { color: var(--text); }
+  /* Info overlay: smaller, with a backing so candles behind it stay readable. */
+  .chart-info-overlay {
+    font-size: 10px; line-height: 1.35; top: 6px; left: 6px;
+    padding: 3px 5px; border-radius: 5px;
+    background: color-mix(in srgb, var(--panel) 70%, transparent);
+  }
+  /* Bigger tap targets for timeframe pills (44px is the usual minimum;
+     36px keeps four of them on one row on a 360px screen). */
+  .tf-btn { min-height: 36px; min-width: 40px; font-size: 12px; padding: 0 10px; }
+  .tf-switcher { overflow-x: auto; max-width: 100%; }
+}
+.chart-fs {
+  position: fixed !important;
+  top: var(--safe-top) !important; right: 0 !important;
+  bottom: var(--safe-bottom) !important; left: 0 !important;
+  width: auto !important; height: auto !important;
+  z-index: 1000; background: var(--bg);
+  touch-action: none;
+}
+.chart-fs .chart-fs-btn { top: 10px; right: 10px; width: 44px; height: 44px; }
+html.chart-fs-lock, html.chart-fs-lock body { overflow: hidden; }
+/* Nothing floats over (or peeks out around) a fullscreen chart. */
+html.chart-fs-lock .bottom-nav, html.chart-fs-lock .chatw-launcher, html.chart-fs-lock .toast-container { visibility: hidden; }
+
+/* ---------- Journal on phones ----------
+   Desktop: unchanged. <=760px: the wide 9-column table becomes a list of
+   tap-sized cards (same markup, so selection / quick-edit / row-click keep
+   working), filters collapse behind a button, sorting moves to a dropdown
+   (the header row is hidden), and the bulk toolbar sticks to the bottom. */
+.filters-toggle, .mobile-sort { display: none; }
+@media (max-width: 760px) {
+  .filters-toggle {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    min-height: 44px; padding: 0 14px; margin-bottom: 10px;
+    font: inherit; font-size: 14px; font-weight: 600; color: var(--text);
+    background: var(--panel); border: 1px solid var(--border-soft); border-radius: 10px; cursor: pointer;
+  }
+  .filters-toggle.has-active { border-color: var(--primary); }
+  .filters-toggle-count:not(:empty) {
+    min-width: 20px; padding: 1px 6px; border-radius: 10px; text-align: center;
+    font-size: 11.5px; color: var(--primary); background: var(--primary-soft);
+  }
+  .filters-toggle-chev { margin-left: auto; transition: transform .15s; }
+  .filters-toggle[aria-expanded="true"] .filters-toggle-chev { transform: rotate(180deg); }
+  #journal-filters { display: none; }
+  #journal-filters.open { display: flex; }
+  /* Two-up filter grid instead of one control per row. */
+  #journal-filters.open { flex-direction: row; flex-wrap: wrap; }
+  #journal-filters input, #journal-filters select { width: calc(50% - 5px); flex: 1 1 calc(50% - 5px); min-height: 44px; }
+  #journal-filters #f-symbol { width: 100% !important; flex-basis: 100%; }
+  #journal-filters label { flex: 1 1 100%; flex-wrap: wrap; }
+  #journal-filters label input[type="time"] { flex: 1 1 40%; width: auto !important; }
+  #journal-filters label input[type="checkbox"] { width: 22px; min-height: 22px; flex: none; }
+
+  .mobile-sort { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+  .mobile-sort select { min-height: 40px; max-width: 160px; }
+  .journal-table-head { padding: 12px; }
+
+  /* Table -> cards */
+  .journal-data-table, .journal-data-table tbody { display: block; width: 100%; }
+  .journal-data-table colgroup, .journal-data-table thead { display: none; }
+  .journal-data-table tbody tr[data-id] {
+    display: grid; align-items: center; gap: 4px 10px;
+    grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas:
+      "cb sym   sym   pnl"
+      "cb date  setup res"
+      "cb entry exit  grade"
+      "cb tags  tags  tags";
+    padding: 12px 12px 10px 4px; border-bottom: 1px solid var(--border-soft);
+  }
+  .journal-data-table tbody tr[data-id]:active { background: var(--panel-2); }
+  .journal-data-table tbody td { display: block; padding: 0; border: 0; min-width: 0; }
+  .journal-data-table td.checkbox-col { grid-area: cb; align-self: stretch; display: flex; align-items: center; justify-content: center; }
+  .journal-data-table td.checkbox-col input { width: 22px; height: 22px; }
+  .journal-data-table td.col-symbol { grid-area: sym; font-size: 16px; font-weight: 700; }
+  .journal-data-table td.col-pnl_after_comm { grid-area: pnl; font-size: 16px; font-weight: 700; text-align: right; }
+  .journal-data-table td.col-trade_date { grid-area: date; font-size: 12px; color: var(--text-faint); }
+  .journal-data-table td.col-setup_type { grid-area: setup; font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .journal-data-table td.col-win { grid-area: res; justify-self: end; }
+  .journal-data-table td.col-entry_price { grid-area: entry; font-size: 12px; color: var(--text-dim); }
+  .journal-data-table td.col-exit_price { grid-area: exit; font-size: 12px; color: var(--text-dim); }
+  .journal-data-table td.col-entry_price::before { content: "In "; color: var(--text-faint); }
+  .journal-data-table td.col-exit_price::before { content: "Out "; color: var(--text-faint); }
+  .journal-data-table td.col-grade { grid-area: grade; justify-self: end; }
+  .journal-data-table td.col-tags { grid-area: tags; }
+  .journal-data-table td.col-tags:has(.dim:only-child) { display: none; } /* no tags -> no empty row */
+  .tags-cell { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .tags-edit-btn { min-width: 36px; min-height: 36px; }
+
+  /* Load more row */
+  .journal-data-table tbody tr#table-load-more-row, .journal-data-table tbody tr#table-load-more-row td { display: block; width: 100%; }
+  .btn-load-more { width: 100%; min-height: 46px; }
+
+  /* Bulk toolbar sticks to the bottom so it's reachable mid-list. */
+  .bulk-toolbar {
+    position: sticky; bottom: calc(10px + var(--safe-bottom)); z-index: 20;
+    flex-wrap: wrap; gap: 8px; margin: 0 8px 8px;
+    padding: 10px; border-radius: 12px; background: var(--panel-3);
+    box-shadow: 0 6px 24px rgba(0,0,0,.45);
+  }
+  .bulk-toolbar .filter-btn, .bulk-toolbar .btn-danger { min-height: 40px; }
+}
+
+/* ======================================================================
+   SITEWIDE MOBILE PASS (<=760px). Desktop is untouched.
+   Found by rendering every page at 390px: content clipped off the right
+   edge (grid items refusing to shrink), a crowded top bar that pushed the
+   account button out of view, a floating chat button covering content,
+   and a two-tap drawer as the only navigation.
+====================================================================== */
+.bottom-nav { display: none; }
+@media (max-width: 760px) {
+  /* -- Bottom tab bar -- */
+  .bottom-nav {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 300;
+    padding: 0 4px var(--safe-bottom);
+    background: color-mix(in srgb, var(--panel) 94%, transparent);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border-top: 1px solid var(--border-soft);
+  }
+  .bn-item {
+    flex: 1 1 0; min-width: 0; min-height: 56px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 3px;
+    font: inherit; font-size: 10.5px; font-weight: 600; color: var(--text-faint);
+    background: none; border: 0; text-decoration: none; cursor: pointer;
+  }
+  .bn-item svg { width: 22px; height: 22px; }
+  .bn-item.active { color: var(--primary); }
+  .bn-item:active { background: var(--panel-2); }
+  /* Room for the bar under every page, and keep floating bits above it. */
+  .content { padding-bottom: calc(96px + var(--safe-bottom)); }
+  .chatw-launcher {
+    width: 44px; height: 44px;
+    right: calc(12px + var(--safe-right));
+    bottom: calc(68px + var(--safe-bottom));
+    opacity: .92;
+  }
+  .chatw-launcher svg { width: 20px; height: 20px; }
+  .bulk-toolbar { bottom: calc(66px + var(--safe-bottom)) !important; }
+
+  /* -- Top bar: title shrinks and truncates instead of pushing the account button off-screen -- */
+  .topbar { gap: 8px; }
+  .topbar-left { flex: 1 1 auto; min-width: 0; }
+  .topbar-left h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .topbar-right { gap: 6px; }
+  .topbar-right .icon-btn { width: 38px; height: 38px; min-height: 38px; }
+  .account-chevron { display: none; }
+  .account-trigger { padding: 3px; }
+
+  /* -- Grids that refused to shrink (min-content blowout) -- */
+  .quiz-setup-grid, .lt-form-grid, .lt-params-grid, .calc-grid, .report-grid, .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .quiz-setup-grid > *, .lt-form-grid > *, .lt-params-grid > *, .calc-grid > *, .report-grid > *, .detail-grid > *,
+  .lt-field, .panel-box, .card { min-width: 0; max-width: 100%; }
+  .lt-field input, .lt-field select { min-width: 0; width: 100%; box-sizing: border-box; }
+  .lt-detail-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .drop { flex-wrap: wrap; gap: 10px; }
+  .drop .btn-confirm { width: 100%; }
+  input[type="file"] { max-width: 100%; }
+  .quiz-mode-row { gap: 6px; }
+  .quiz-mode-btn { flex: 1 1 calc(50% - 6px); min-height: 44px; }
+
+  /* -- Dashboard week calendar: 6 columns at 390px, so shrink the chrome -- */
+  .cal-grid { gap: 4px; }
+  .cal-dow { font-size: 9.5px; letter-spacing: 0; }
+  .cal-week-box { min-height: 0; padding: 6px 3px; }
+  .cal-week-box .week-label { font-size: 8.5px; letter-spacing: 0; }
+  .cal-week-box .week-pnl { font-size: 11.5px; }
+  .cal-week-box .week-count, .cal-week-box .week-subline { display: none; }
+
+  /* -- Tables that stay tables: first column sticks while the rest scrolls sideways -- */
+  .table-scroll table th:first-child, .table-scroll table td:first-child {
+    position: sticky; left: 0; z-index: 1; background: var(--panel);
+  }
+  .journal-data-table td:first-child, .journal-data-table th:first-child { position: static; }
+
+  /* -- Touch targets (WCAG 2.5.8 floor is 24px, Apple/Material ask for ~44px) -- */
+  .calc-chip, .tf-btn, .pill-btn { min-height: 36px; }
+  .sidebar-toggle { min-width: 44px; }
+  .brand { min-height: 40px; display: inline-flex; align-items: center; }
+  .headcell { min-height: 36px; display: inline-flex; align-items: center; }
+  a.link, .panel-box a { padding: 2px 0; }
+  button.icon-x, .x-btn, .row-del { min-width: 36px; min-height: 36px; }
+}
+
+@media (max-width: 760px) {
+  /* 1fr tracks have min-content as their floor, so a day cell's number+P&L
+     was forcing the grid ~28px wider than the screen and clipping the
+     week-total column. minmax(0, ...) lets the tracks actually shrink. */
+  .cal-grid { grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 0.8fr); }
+  .cal-cell { min-height: 64px; padding: 6px 4px; min-width: 0; overflow: hidden; }
+  .cal-cell .date-num { font-size: 12px; }
+  .cal-cell .cell-pnl { font-size: 11px; margin-top: 4px; letter-spacing: -0.02em; }
+  .cal-cell .cell-count { font-size: 10px; }
+}
+
+/* ---------- Phone cards for the remaining wide tables ---------- */
+.sc-mobile-sort { display: none; }
+@media (max-width: 760px) {
+  .sc-mobile-sort { display: flex; align-items: center; gap: 8px; font-size: 12.5px; width: 100%; }
+  .sc-mobile-sort select { flex: 1; min-height: 44px; }
+  .sc-mobile-sort .filter-btn { min-width: 44px; }
+  .sc-toolbar { flex-wrap: wrap; gap: 10px; }
+  .sc-search { flex: 1 1 100%; }
+
+  /* shared: table -> block, header hidden, rows become grid cards */
+  #sc-table, #sc-table tbody, .trade-table.tt-recent, .trade-table.tt-recent tbody,
+  .trade-table.tt-day, .trade-table.tt-day tbody { display: block; width: 100%; }
+  #sc-table thead, .trade-table.tt-recent thead, .trade-table.tt-day thead { display: none; }
+  #sc-table td, .trade-table.tt-recent td, .trade-table.tt-day td { display: block; padding: 0; border: 0; min-width: 0; position: static; background: none; }
+  .table-scroll table.tt-recent td:first-child, .table-scroll table.tt-day td:first-child { position: static; }
+  #sc-table tbody tr, .trade-table.tt-recent tbody tr, .trade-table.tt-day tbody tr {
+    display: grid; gap: 4px 10px; align-items: center; padding: 12px 8px; border-bottom: 1px solid var(--border-soft);
+  }
+  .trade-table.tt-recent tbody tr, .trade-table.tt-day tbody tr { cursor: pointer; }
+  #sc-table tbody tr:active, .trade-table tbody tr:active { background: var(--panel-2); }
+
+  /* Dashboard "Recent trades": 1 sym, 2 date, 3 time, 4 price, 5 shares, 6 net, 7 grade */
+  .tt-recent tbody tr { grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto;
+    grid-template-areas: "sym sym net" "date time grade" "price price shares"; }
+  .tt-recent td:nth-child(1) { grid-area: sym; font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tt-recent td:nth-child(2) { grid-area: date; font-size: 12px; }
+  .tt-recent td:nth-child(3) { grid-area: time; font-size: 12px; }
+  .tt-recent td:nth-child(4) { grid-area: price; font-size: 12.5px; }
+  .tt-recent td:nth-child(5) { grid-area: shares; justify-self: end; font-size: 12px; }
+  .tt-recent td:nth-child(5)::after { content: " sh"; color: var(--text-faint); }
+  .tt-recent td:nth-child(6) { grid-area: net; justify-self: end; font-size: 15px; font-weight: 700; }
+  .tt-recent td:nth-child(7) { grid-area: grade; justify-self: end; }
+
+  /* Day view: 1 sym, 2 price, 3 c/share, 4 shares, 5 hold, 6 gross, 7 comm, 8 net, 9 in/out */
+  .tt-day tbody tr { grid-template-columns: repeat(3, minmax(0,1fr));
+    grid-template-areas: "sym sym net" "price shares hold" "gross comm cps" "io io io"; }
+  .tt-day td:nth-child(1) { grid-area: sym; font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tt-day td:nth-child(2) { grid-area: price; } .tt-day td:nth-child(4) { grid-area: shares; }
+  .tt-day td:nth-child(5) { grid-area: hold; } .tt-day td:nth-child(6) { grid-area: gross; }
+  .tt-day td:nth-child(7) { grid-area: comm; } .tt-day td:nth-child(3) { grid-area: cps; }
+  .tt-day td:nth-child(8) { grid-area: net; justify-self: end; font-size: 15px; font-weight: 700; }
+  .tt-day td:nth-child(9) { grid-area: io; }
+  .tt-day td:nth-child(n+2):not(:nth-child(8)):not(:nth-child(9)) { font-size: 12px; }
+  .tt-day td:nth-child(2)::before { content: "Price "; } .tt-day td:nth-child(4)::before { content: "Sh "; }
+  .tt-day td:nth-child(5)::before { content: "Hold "; } .tt-day td:nth-child(6)::before { content: "Gross "; }
+  .tt-day td:nth-child(7)::before { content: "Comm "; } .tt-day td:nth-child(3)::before { content: "C/sh "; }
+  .tt-day td:nth-child(n+2)::before { color: var(--text-faint); font-family: var(--sans); }
+
+  /* Scanner: 1 sym, 2 price, 3 gap, 4 premkt vol, 5 day hi, 6 vwap, 7 ema9, 8 ema200, 9 float, 10 rvol, 11 badges, 12 updated */
+  #sc-table tbody tr { grid-template-columns: repeat(3, minmax(0,1fr));
+    grid-template-areas: "sym price gap" "vol rvol float" "hi vwap e9" "e200 upd upd" "badges badges badges"; }
+  #sc-table td:nth-child(1) { grid-area: sym; font-size: 16px; }
+  #sc-table td:nth-child(2) { grid-area: price; font-size: 14px; font-weight: 600; }
+  #sc-table td:nth-child(3) { grid-area: gap; justify-self: end; }
+  #sc-table td:nth-child(4) { grid-area: vol; } #sc-table td:nth-child(10) { grid-area: rvol; }
+  #sc-table td:nth-child(9) { grid-area: float; } #sc-table td:nth-child(5) { grid-area: hi; }
+  #sc-table td:nth-child(6) { grid-area: vwap; } #sc-table td:nth-child(7) { grid-area: e9; }
+  #sc-table td:nth-child(8) { grid-area: e200; } #sc-table td:nth-child(12) { grid-area: upd; justify-self: end; }
+  #sc-table td:nth-child(11) { grid-area: badges; } #sc-table td:nth-child(11):empty { display: none; }
+  #sc-table td:nth-child(n+4):not(:nth-child(11)) { font-size: 11.5px; color: var(--text-dim); }
+  #sc-table td:nth-child(4)::before { content: "Vol "; } #sc-table td:nth-child(10)::before { content: "RVol "; }
+  #sc-table td:nth-child(9)::before { content: "Float "; } #sc-table td:nth-child(5)::before { content: "Hi "; }
+  #sc-table td:nth-child(6)::before { content: "VWAP "; } #sc-table td:nth-child(7)::before { content: "EMA9 "; }
+  #sc-table td:nth-child(8)::before { content: "EMA200 "; }
+  #sc-table td:nth-child(n+4)::before { color: var(--text-faint); font-family: var(--sans); }
+
+  /* Daily page: checklist delete buttons were 22px */
+  #dn-checklist .dn-check { padding: 2px 0; min-height: 44px; }
+  #dn-checklist .dn-check input[type="checkbox"] { width: 22px; height: 22px; flex: none; }
+  #dn-checklist button[data-del] { min-width: 44px; min-height: 44px; font-size: 15px; }
+}

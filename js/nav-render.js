@@ -258,7 +258,46 @@
   });
   } // end renderNav()
 
+  // ---- Phone bottom tab bar ------------------------------------------
+  // The sidebar is a hidden drawer on phones, so every page change cost
+  // two taps (hamburger, then link). This is a thumb-reach tab bar with the
+  // four most-used pages plus "More", which opens that same drawer. It's
+  // hidden above 760px by CSS (.bottom-nav), so desktop is unchanged.
+  const BOTTOM_ITEMS = [
+    { href: "index.html", file: "index", label: "Home", icon: '<rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect>' },
+    { href: "journal.html", file: "journal", label: "Journal", icon: '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path><line x1="9" y1="9" x2="15" y2="9"></line><line x1="9" y1="13" x2="15" y2="13"></line>' },
+    { href: "daily.html", file: "daily", label: "Daily", icon: '<rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line>' },
+    { href: "practice.html", file: "practice", label: "Practice", icon: '<polyline points="3 17 9 11 13 15 21 7"></polyline><polyline points="15 7 21 7 21 13"></polyline>' },
+  ];
+  function bottomNav() {
+    if (!document.getElementById("sidebar")) return; // not an app-shell page (login etc.)
+    let nav = document.getElementById("bottom-nav");
+    if (!nav) {
+      nav = document.createElement("nav");
+      nav.id = "bottom-nav";
+      nav.className = "bottom-nav";
+      nav.setAttribute("aria-label", "Primary");
+      nav.innerHTML = BOTTOM_ITEMS.map((i) =>
+        `<a class="bn-item" data-file="${i.file}" href="${i.href}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${i.icon}</svg><span>${i.label}</span></a>`
+      ).join("") +
+        `<button type="button" class="bn-item" id="bn-more" aria-label="More pages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="17" x2="20" y2="17"></line></svg><span>More</span></button>`;
+      document.body.appendChild(nav);
+      nav.querySelector("#bn-more").addEventListener("click", () => {
+        const btn = document.getElementById("mobile-nav-btn");
+        if (btn) btn.click();
+      });
+    }
+    let cur = "";
+    try { cur = decodeURIComponent(location.pathname.split("/").pop() || "index").toLowerCase().replace(/\.html$/, "") || "index"; } catch (e) {}
+    nav.querySelectorAll("a.bn-item").forEach((a) => {
+      const on = a.getAttribute("data-file") === cur;
+      a.classList.toggle("active", on);
+      if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
+  }
+
   // Exposed for the SPA router to call after an in-place content swap.
-  window.__renderSidebarNav = renderNav;
+  window.__renderSidebarNav = function () { renderNav(); bottomNav(); };
   renderNav();
+  bottomNav();
 })();

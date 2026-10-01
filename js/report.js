@@ -222,6 +222,7 @@
         grid: { vertLines: { color: eqCt.grid }, horzLines: { color: eqCt.grid } },
         rightPriceScale: { borderColor: eqCt.border },
         timeScale: { borderColor: eqCt.border },
+        ...(window.ChartIndicators ? window.ChartIndicators.touchChartOpts() : {}),
       });
       window.addEventListener("resize", () => rptEquityChart && rptEquityChart.applyOptions({ width: els.equityChart.clientWidth }));
     }

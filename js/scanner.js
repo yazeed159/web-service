@@ -227,6 +227,19 @@
     });
     updateSortHeaders();
 
+    // Phones hide the table header (rows become cards), so sorting goes
+    // through these two controls; they just click the real header button so
+    // there is one sort implementation.
+    const mSel = document.getElementById("sc-mobile-sort");
+    const mDir = document.getElementById("sc-mobile-dir");
+    function headBtn(key) { return document.querySelector('#sc-table .headcell[data-sort="' + key + '"]'); }
+    if (mSel) mSel.addEventListener("change", () => {
+      const key = mSel.value;
+      if (sortKey === key) return;
+      const b = headBtn(key); if (b) b.click();
+    });
+    if (mDir) mDir.addEventListener("click", () => { const b = headBtn(sortKey); if (b) b.click(); });
+
     document.getElementById("sc-filter").addEventListener("input", (e) => {
       filterText = e.target.value;
       renderRows();

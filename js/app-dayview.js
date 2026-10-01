@@ -115,7 +115,7 @@
       }
     }).join("");
     const body = document.getElementById("day-detail-body");
-    body.innerHTML = `<div class="table-scroll"><table class="trade-table"><thead><tr><th>Symbol</th><th>Price</th><th>C/Share</th><th>Shares</th><th>Hold</th><th>Gross</th><th>Comm</th><th>Net P&amp;L</th><th>Entry/Exit</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    body.innerHTML = `<div class="table-scroll"><table class="trade-table tt-day"><thead><tr><th>Symbol</th><th>Price</th><th>C/Share</th><th>Shares</th><th>Hold</th><th>Gross</th><th>Comm</th><th>Net P&amp;L</th><th>Entry/Exit</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     App.bindTradeRows(body);
     panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
