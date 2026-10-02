@@ -82,7 +82,7 @@
         if (!traps) continue;
         let spent = false;
         try { const an = a.getAnimations(); spent = animated && an.length > 0 && an.every((x) => x.playState === "finished"); } catch (e) {}
-        freed.push({ a, css: a.getAttribute("style"), spent });
+        freed.push({ a, css: a.getAttribute("style"), spent: animated });
         if (animated) {
           // Freezing the animation at its end state: a "reveal" entrance ends at
           // opacity 1 / no transform, so pin exactly that.

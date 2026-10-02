@@ -797,6 +797,7 @@ html[data-theme="light"] .theme-toggle-btn .theme-icon-moon { display: block; }
 .cal-cell .date-num { font-size: 15px; color: var(--text-dim); font-weight: 600; margin-bottom: auto; }
 .cal-cell.win .date-num, .cal-cell.loss .date-num { color: var(--text); }
 .cal-cell .cell-pnl { font-family: var(--mono); font-size: 17px; font-weight: 700; margin-top: 8px; }
+.cal-cell .pnl-short { display: none; }
 .cal-cell .cell-count { font-size: 13px; color: var(--text-faint); margin-top: 2px; }
 .cal-cell .cell-subline { display: block; font-size: 12px; color: var(--text-faint); margin-top: 3px; line-height: 1.35; }
 .cal-cell .cell-subline .up, .cal-cell .cell-subline .down { font-weight: 600; }
@@ -2541,11 +2542,25 @@ html:active-view-transition #page-progress-bar { display: none !important; }
   input[type="checkbox"], input[type="radio"] { min-width: 24px; min-height: 24px; }
   .chat-chip, .chat-chip-more { min-height: 36px; }
   .chatw-icon-action { min-width: 36px; min-height: 36px; }
-  .calc-input-wrap .filter-input { min-height: 44px; padding-right: 44px; }
-  .calc-stepper button { width: 36px; font-size: 11px; }
+  /* Side-by-side ▼ ▲ so each is a full-height 40x40 target instead of two 36x20 slivers. */
+  .calc-input-wrap .filter-input { min-height: 44px; padding-right: 86px; }
+  .calc-stepper { flex-direction: row; }
+  .calc-stepper button { width: 40px; font-size: 12px; }
+  .calc-stepper button[data-dir="-1"] { order: -1; }
 
   /* Toasts: clear the tab bar (56px + inset) */
   .toast-container { bottom: calc(68px + var(--safe-bottom)); max-width: calc(100vw - 24px); }
+  /* live-trading.html's inline 4-column rule loads after common.css and wins; raise specificity. */
+  div.lt-detail-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Daily: keep Prev / date / Next / Today on fewer lines; keep rollup day labels on one line. */
+  div.dn-datebar { flex-wrap: nowrap; gap: 6px; }
+  div.dn-datebar input#dn-date { flex: 1 1 0; min-width: 104px; }
+  div.dn-datebar .dn-status:empty { display: none; }
+  .dn-datebar .icon-btn { flex: none; }
+  table.dn-week td:first-child, table.dn-week th:first-child { white-space: nowrap; }
+  /* Label + long hint side by side leaves the hint a narrow sliver; stack them. */
+  .section-label-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .section-label-row > .hint-text { max-width: none; width: 100%; }
   /* "Scroll to zoom" is a mouse hint; on touch it's wrong and costs a row. */
   .chart-hint { display: none; }
 
@@ -2902,6 +2917,8 @@ html.chart-fs-lock .bottom-nav, html.chart-fs-lock .chatw-launcher, html.chart-f
   .cal-cell .date-num { font-size: 12px; }
   .cal-cell .cell-pnl { font-size: 11px; margin-top: 4px; letter-spacing: -0.02em; }
   .cal-cell .cell-count { font-size: 10px; }
+  .cal-cell .pnl-full { display: none; }
+  .cal-cell .pnl-short { display: inline; }
 }
 
 /* ---------- Phone cards for the remaining wide tables ---------- */

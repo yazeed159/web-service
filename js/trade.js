@@ -324,8 +324,8 @@
           <span class="verdict-badge ${win ? "up" : "down"}">${win ? "WIN" : "LOSS"} · ${fmtMoney(trade.pnl_after_comm)}</span>
         </h1>
         <div class="trade-meta">
-          ${trade.trade_date} &nbsp;·&nbsp; entry ${trade.entry_time} @ $${trade.entry_price.toFixed(2)}
-          &nbsp;→&nbsp; exit ${trade.exit_time} @ $${trade.exit_price.toFixed(2)}
+          ${trade.trade_date} &nbsp;·&nbsp; entry ${trade.entry_time ? trade.entry_time + " " : ""}@ $${trade.entry_price.toFixed(2)}
+          &nbsp;→&nbsp; exit ${trade.exit_time ? trade.exit_time + " " : ""}@ $${trade.exit_price.toFixed(2)}
           &nbsp;·&nbsp; <span class="meta-standout">${trade.shares} sh</span> &nbsp;·&nbsp; held <span class="meta-standout">${trade.time_in_trade || "—"}</span>
           ${trade.fill_count > 1 ? `&nbsp;·&nbsp; <span class="pill" title="Entry/Exit Price above are quantity-weighted averages across these fills" style="opacity:.85;">${trade.fill_count} fills</span>` : ""}
         </div>

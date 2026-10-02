@@ -150,6 +150,17 @@
   // renders the exact same cells read-only. `opts.compact` drops the
   // gross/commission sublines so each cell/week-box only shows net P&L +
   // trade count -- paired with the .cal-mini CSS class for a smaller grid.
+  // Phone-width calendar cells are ~44px wide, so "+$3483.17" can't fit.
+  // Compact form: whole dollars under $1k, then 3.5k / 12k.
+  function shortMoney(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return "—";
+    const a = Math.abs(n), sign = n >= 0 ? "+" : "-";
+    if (a >= 10000) return sign + "$" + Math.round(a / 1000) + "k";
+    if (a >= 1000) return sign + "$" + (a / 1000).toFixed(1).replace(/\.0$/, "") + "k";
+    return sign + "$" + Math.round(a);
+  }
+
   function buildMonthGridHtml(y, m, opts) {
     opts = opts || {};
     const map = pnlByDay();
@@ -214,7 +225,7 @@
           const dayStyle = entry ? ` style="--pnl-i:${dayIntensity(entry.net)}"` : "";
           rowHtml += `<div class="${cls}"${dayAttr}${dayStyle}>
             <span class="date-num">${cur.getDate()}</span>
-            ${entry ? `<span class="cell-pnl">${fmtMoney(entry.net)}</span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span>${opts.compact ? "" : `<span class="cell-subline">Gross <span class="${entry.gross >= 0 ? "up" : "down"}">${fmtMoney(entry.gross)}</span></span><span class="cell-subline">Comm $${entry.comm.toFixed(2)}</span>`}` : ""}
+            ${entry ? `<span class="cell-pnl" title="${fmtMoney(entry.net)}"><span class="pnl-full">${fmtMoney(entry.net)}</span><span class="pnl-short">${shortMoney(entry.net)}</span></span><span class="cell-count">${entry.count} trade${entry.count === 1 ? "" : "s"}</span>${opts.compact ? "" : `<span class="cell-subline">Gross <span class="${entry.gross >= 0 ? "up" : "down"}">${fmtMoney(entry.gross)}</span></span><span class="cell-subline">Comm $${entry.comm.toFixed(2)}</span>`}` : ""}
           </div>`;
         }
         cur.setDate(cur.getDate() + 1);
