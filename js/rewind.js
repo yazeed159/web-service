@@ -828,7 +828,7 @@
     }
   })();
 
-  window.fetchTradesIndex()
+  (window.fetchTradesIndexRaw || window.fetchTradesIndex)()
     .then((rows) => {
       state.index = Array.isArray(rows) ? rows : [];
       populateSetupOptions();

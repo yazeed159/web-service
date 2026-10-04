@@ -15,7 +15,18 @@
   // in localStorage so it's there next time you open the tab.
   // ==================================================================
 
-  const ACCOUNT_KEY = "practice:account:v2";
+  // Each paper "attempt" is its own account row (see accounts.js) with its own
+  // blob here, keyed by the attempt's id. The active attempt id is mirrored in
+  // localStorage so the right blob is picked synchronously at page load; the
+  // old single-slot key is only used until accounts.js has migrated it.
+  const LEGACY_ACCOUNT_KEY = "practice:account:v2";
+  let ACCOUNT_KEY = (function () {
+    try {
+      const id = localStorage.getItem("practice:active_account:v1");
+      if (id) return "practice:account:v3:" + id;
+    } catch (e) { /* fall through */ }
+    return LEGACY_ACCOUNT_KEY;
+  })();
   const DEFAULT_STARTING_BALANCE = 25000;
 
   // Set of trade/chart ids (object map id -> true) already run through a
@@ -243,6 +254,41 @@
       try { localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account)); } catch (e) { /* ignore */ }
       if (typeof renderAccountPanel === "function") renderAccountPanel();
     });
+  }
+
+  // Once accounts.js knows which paper attempt is active (creating / migrating
+  // attempt 1 on first run), make sure this page is reading that attempt's
+  // blob. If not (first run after the upgrade, or another device switched
+  // attempts), reload once -- sessionStorage guards against a reload loop.
+  function renderAttemptBar(activeId) {
+    const row = document.querySelector(".pr-reset-row");
+    if (!row || !window.Accounts) return;
+    let sel = document.getElementById("pr-attempt-select");
+    if (!sel) {
+      sel = document.createElement("select");
+      sel.id = "pr-attempt-select";
+      sel.className = "filter-input";
+      sel.title = "Switch between your paper-trading attempts";
+      sel.style.marginRight = "8px";
+      row.insertBefore(sel, row.firstChild);
+      sel.addEventListener("change", () => {
+        window.Accounts.paperApi.switchTo(sel.value).then(() => window.location.reload());
+      });
+    }
+    const list = window.Accounts.paper().slice().reverse();
+    sel.innerHTML = list.map((a) => `<option value="${escapeHtml(a.id)}"${a.id === activeId ? " selected" : ""}>${escapeHtml(a.name)}${a.status === "archived" ? " (archived)" : ""}</option>`).join("");
+  }
+  if (window.Accounts) {
+    window.Accounts.paperApi.ensureActive({ startingBalance: DEFAULT_STARTING_BALANCE, blob: defaultAccount() }).then((id) => {
+      if (!id) return;
+      const wantKey = window.Accounts.paperApi.key(id);
+      if (wantKey === ACCOUNT_KEY) { renderAttemptBar(id); return; }
+      let guard = null;
+      try { guard = sessionStorage.getItem("practice:reconcile"); } catch (e) { /* ignore */ }
+      if (guard === wantKey) return;
+      try { sessionStorage.setItem("practice:reconcile", wantKey); } catch (e) { /* ignore */ }
+      window.location.reload();
+    }).catch(() => {});
   }
 
   // ---------------------------------------------------------------
@@ -607,15 +653,34 @@
   }
 
   async function resetAccount() {
-    const ok = await UIModal.confirm("Reset your practice account? This clears your balance, fill history, and equity curve. This can't be undone.", { title: "Reset account?", tone: "danger", confirmLabel: "Reset account" });
+    const hasAttempts = window.Accounts && window.Accounts.isAvailable();
+    const ok = await UIModal.confirm(
+      hasAttempts
+        ? "Start a new attempt? Your current one is kept (archived) with its full history and stats -- you can switch back to it any time from the attempt list."
+        : "Reset your practice account? This clears your balance, fill history, and equity curve. This can't be undone.",
+      { title: hasAttempts ? "New attempt?" : "Reset account?", tone: hasAttempts ? undefined : "danger", confirmLabel: hasAttempts ? "Continue" : "Reset account" });
     if (!ok) return;
-    const input = await UIModal.prompt("Starting balance for the new account:", String(account.startingBalance || DEFAULT_STARTING_BALANCE), { title: "New starting balance", inputType: "number", confirmLabel: "Create account" });
+    const input = await UIModal.prompt("Starting balance for the new account:", String(account.startingBalance || DEFAULT_STARTING_BALANCE), { title: "New starting balance", inputType: "number", confirmLabel: hasAttempts ? "Next" : "Create account" });
     if (input === null) return;
     const amt = Number(String(input).replace(/[^0-9.]/g, ""));
     const startingBalance = Number.isFinite(amt) && amt > 0 ? amt : DEFAULT_STARTING_BALANCE;
-    account = defaultAccount();
-    account.startingBalance = startingBalance;
-    account.balance = startingBalance;
+    const fresh = defaultAccount();
+    fresh.startingBalance = startingBalance;
+    fresh.balance = startingBalance;
+    fresh.sizeMode = account.sizeMode;
+
+    if (hasAttempts) {
+      const name = await UIModal.prompt("Name this attempt (e.g. what you're testing):", window.Accounts.paperApi.nextName(startingBalance), { title: "Attempt name", confirmLabel: "Start attempt" });
+      if (name === null) return;
+      try {
+        await window.Accounts.paperApi.newAttempt({ name: name, startingBalance: startingBalance, blob: fresh });
+        window.location.reload();
+      } catch (e) {
+        if (window.showToast) window.showToast("Couldn't start a new attempt: " + (e && e.message ? e.message : e), { tone: "error" });
+      }
+      return;
+    }
+    account = fresh;
     saveAccount();
     renderAccountPanel();
   }
@@ -1900,7 +1965,7 @@
   // ---------------------------------------------------------------
   // boot
   // ---------------------------------------------------------------
-  window.fetchTradesIndex()
+  (window.fetchTradesIndexRaw || window.fetchTradesIndex)()
     .then((rows) => {
       state.index = Array.isArray(rows) ? rows : [];
       renderAccountPanel();

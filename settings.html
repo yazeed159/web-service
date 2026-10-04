@@ -165,53 +165,13 @@
       <div class="panel-box mb-16">
         <div class="panel-box-head">
           <span class="title">Account Capital</span>
+          <a class="link" href="accounts.html">Open Trading accounts &rarr;</a>
         </div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px; margin-bottom:16px;">
-          Record deposits and withdrawals for your real trading account. This is what lets the
-          Dashboard's equity curve and drawdown numbers show your actual account balance instead
-          of just cumulative trade P&amp;L — add nothing here and everything behaves exactly like
-          it did before.
+        <p style="color:var(--text-faint); font-size:12px; margin:0;">
+          Deposits, withdrawals, periods and multiple real / paper accounts now live on the
+          <a href="accounts.html" style="color:var(--primary)">Trading accounts</a> page.
+          Your existing entries moved over automatically.
         </p>
-
-        <div class="stat-grid" id="capital-summary" style="margin-bottom:20px;">
-          <div class="stat">
-            <div class="label-row"><span class="label">Current Balance</span></div>
-            <div class="value" id="cap-balance">—</div>
-          </div>
-          <div class="stat">
-            <div class="label-row"><span class="label">Total Deposited</span></div>
-            <div class="value" id="cap-deposited">—</div>
-          </div>
-          <div class="stat">
-            <div class="label-row"><span class="label">Total Withdrawn</span></div>
-            <div class="value" id="cap-withdrawn">—</div>
-          </div>
-        </div>
-
-        <form id="cap-form" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:18px;">
-          <div>
-            <label for="cap-date" style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Date</label>
-            <input type="date" class="filter-input" id="cap-date" required>
-          </div>
-          <div>
-            <label for="cap-type" style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Type</label>
-            <select class="filter-input" id="cap-type">
-              <option value="deposit">Deposit</option>
-              <option value="withdrawal">Withdrawal</option>
-            </select>
-          </div>
-          <div>
-            <label for="cap-amount" style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Amount</label>
-            <input type="text" inputmode="decimal" class="filter-input" id="cap-amount" placeholder="$0.00" required style="max-width:140px;">
-          </div>
-          <div style="flex:1; min-width:160px;">
-            <label for="cap-note" style="display:block; font-size:11px; color:var(--text-faint); margin-bottom:4px;">Note (optional)</label>
-            <input type="text" class="filter-input" id="cap-note" placeholder="e.g. initial funding" style="width:100%;">
-          </div>
-          <button type="submit" class="btn-confirm" id="cap-add-btn">Add</button>
-        </form>
-
-        <div id="cap-list"></div>
       </div>
 
       <div class="panel-box mb-16">
@@ -236,6 +196,7 @@
 <script src="js/config.js"></script>
 <script src="js/vendor/supabase.js"></script>
 <script src="js/auth.js"></script>
+<script src="js/accounts.js"></script>
 <script>
 (function () {
   "use strict";
@@ -351,153 +312,6 @@
     pwInputEl.value = "";
     pwConfirmEl.value = "";
     flashSaved(pwSavedNote);
-  });
-})();
-</script>
-
-<script>
-(function () {
-  "use strict";
-
-  const KEY = "capital_ledger";
-  // fmtMoney() now in utils.js (loads first on every page) -- this
-  // local copy used a unicode minus sign ("\u2212") instead of a plain
-  // hyphen for negative amounts, a third distinct visual style beyond
-  // the two already reconciled elsewhere.
-  const fmtPlain = (v) => "$" + Math.abs(v).toFixed(2);
-
-  // escapeHtml() now in utils.js (loads first on every page).
-
-  const dateEl = document.getElementById("cap-date");
-  const typeEl = document.getElementById("cap-type");
-  const amountEl = document.getElementById("cap-amount");
-  const noteEl = document.getElementById("cap-note");
-  const formEl = document.getElementById("cap-form");
-  const listEl = document.getElementById("cap-list");
-  const balanceEl = document.getElementById("cap-balance");
-  const depositedEl = document.getElementById("cap-deposited");
-  const withdrawnEl = document.getElementById("cap-withdrawn");
-
-  dateEl.value = new Date().toISOString().slice(0, 10);
-
-  let entries = [];
-
-  function parseAmount(str) {
-    const cleaned = String(str || "").replace(/[^0-9.]/g, "");
-    return cleaned === "" ? NaN : parseFloat(cleaned);
-  }
-
-  function save() {
-    if (window.KV) window.KV.set(KEY, entries);
-  }
-
-  function render() {
-    const deposited = entries.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0);
-    const withdrawn = entries.filter((e) => e.amount < 0).reduce((s, e) => s + Math.abs(e.amount), 0);
-    balanceEl.textContent = fmtPlain(deposited - withdrawn);
-    depositedEl.textContent = fmtPlain(deposited);
-    withdrawnEl.textContent = fmtPlain(withdrawn);
-
-    if (!entries.length) {
-      listEl.innerHTML = window.emptyStateHtml({
-        icon: "wallet",
-        title: "No deposits or withdrawals yet",
-        message: "Add your starting capital here to track real account balance instead of just cumulative P&amp;L.",
-      });
-      return;
-    }
-    const sorted = entries.slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-    const rows = sorted.map((e) => `<tr>
-        <td>${escapeHtml(e.date)}</td>
-        <td>${e.amount >= 0 ? "Deposit" : "Withdrawal"}</td>
-        <td class="mono ${e.amount >= 0 ? "up" : "down"}">${fmtMoney(e.amount)}</td>
-        <td>${e.note ? escapeHtml(e.note) : '<span class="dim">—</span>'}</td>
-        <td><button type="button" class="btn-icon" data-del="${escapeHtml(e._id)}" title="Delete" aria-label="Delete">&times;</button></td>
-      </tr>`).join("");
-    listEl.innerHTML = `<div class="table-scroll"><table class="report-table">
-      <thead><tr><th scope="col">Date</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Note</th><th scope="col"></th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>`;
-
-    listEl.querySelectorAll("[data-del]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = btn.getAttribute("data-del");
-        const idx = entries.findIndex((e) => e._id === id);
-        if (idx === -1) return;
-        const removedEntry = entries[idx];
-        // Optimistic + undoable, same pattern as journal.html's trade
-        // delete: remove it from the list right away, defer the actual
-        // KV save until the Undo toast expires so Undo is a true no-op
-        // rather than a re-save.
-        entries = entries.filter((e) => e._id !== id);
-        render();
-        if (!window.showToast) { save(); return; }
-        window.showToast("Entry deleted — Undo", {
-          action: {
-            label: "Undo",
-            onClick: () => { entries.splice(idx, 0, removedEntry); render(); },
-          },
-          onExpire: save,
-        });
-      });
-    });
-  }
-
-  // Inline validation -- checked as you type/blur (not just on submit,
-  // which used to silently refocus the bad field with no explanation).
-  // Returns the parsed amount when valid, or null (having already
-  // painted the relevant field-level error) when not.
-  function validateAmount(showError) {
-    const amt = parseAmount(amountEl.value);
-    const bad = amountEl.value.trim() !== "" && (!isFinite(amt) || amt <= 0);
-    if (showError) window.setFieldError(amountEl, bad ? "Enter an amount greater than $0." : "");
-    return bad || !isFinite(amt) || amt <= 0 ? null : amt;
-  }
-  function validateDate(showError) {
-    const ok = !!dateEl.value;
-    if (showError) window.setFieldError(dateEl, ok ? "" : "Pick a date for this entry.");
-    return ok;
-  }
-  amountEl.addEventListener("input", () => validateAmount(true));
-  amountEl.addEventListener("blur", () => validateAmount(true));
-  dateEl.addEventListener("input", () => validateDate(true));
-  dateEl.addEventListener("blur", () => validateDate(true));
-
-  formEl.addEventListener("submit", (ev) => {
-    ev.preventDefault();
-    const dateOk = validateDate(true);
-    const amt = validateAmount(true);
-    if (!dateOk || amt === null) {
-      (dateOk ? amountEl : dateEl).focus();
-      return;
-    }
-    const signed = typeEl.value === "withdrawal" ? -amt : amt;
-    entries.push({
-      _id: (Date.now().toString(36) + Math.random().toString(36).slice(2, 8)),
-      date: dateEl.value || new Date().toISOString().slice(0, 10),
-      amount: signed,
-      note: noteEl.value.trim(),
-    });
-    save();
-    render();
-    amountEl.value = "";
-    noteEl.value = "";
-    window.clearFieldError(amountEl);
-  });
-
-  window.AUTH_READY.then((session) => {
-    if (!session) {
-      listEl.innerHTML = `<div class="empty-state small">Sign in to manage your account capital.</div>`;
-      formEl.querySelectorAll("input,select,button").forEach((el) => (el.disabled = true));
-      return;
-    }
-    return window.KV.ready.then(() => {
-      const remote = window.KV.get(KEY);
-      entries = Array.isArray(remote) ? remote.filter((e) => e && e.date && isFinite(e.amount)) : [];
-      // Backfill an _id for entries saved before delete support existed.
-      entries.forEach((e) => { if (!e._id) e._id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8); });
-      render();
-    });
   });
 })();
 </script>

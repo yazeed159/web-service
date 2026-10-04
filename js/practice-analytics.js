@@ -17,7 +17,17 @@
   // this grouping is safe to do purely by walking the array in order.
   // ==================================================================
 
-  const ACCOUNT_KEY = "practice:account:v2";
+  // Which paper attempt is being analysed: ?acct=<id> (from the Accounts page)
+  // if given, else the active attempt, else the pre-accounts single slot.
+  const LEGACY_ACCOUNT_KEY = "practice:account:v2";
+  let viewedId = (function () {
+    try {
+      const q = new URLSearchParams(window.location.search).get("acct");
+      if (q) return q;
+      return localStorage.getItem("practice:active_account:v1");
+    } catch (e) { return null; }
+  })();
+  let ACCOUNT_KEY = viewedId ? "practice:account:v3:" + viewedId : LEGACY_ACCOUNT_KEY;
 
   // ---------------- shared formatting helpers (same conventions as
   // practice.js / app.js) ----------------
@@ -310,11 +320,36 @@
     renderTradesTable(closed, indexMap);
   }
 
+  // Attempt picker above the analytics: view any paper attempt (or all of them combined is on the Accounts page).
+  function renderAttemptPicker() {
+    const host = document.querySelector("#pr-analytics-screen .panel-head");
+    if (!host || document.getElementById("pa-attempt-select") || !window.Accounts) return;
+    const list = window.Accounts.paper().slice().reverse();
+    if (list.length < 2) return;
+    const sel = document.createElement("select");
+    sel.id = "pa-attempt-select";
+    sel.className = "filter-input";
+    sel.style.marginTop = "8px";
+    sel.innerHTML = list.map((a) => `<option value="${escapeHtml(a.id)}"${a.id === viewedId ? " selected" : ""}>${escapeHtml(a.name)}${a.status === "archived" ? " (archived)" : ""}</option>`).join("");
+    sel.addEventListener("change", () => {
+      const u = new URL(window.location.href);
+      u.searchParams.set("acct", sel.value);
+      u.searchParams.set("tab", "analytics");
+      window.location.href = u.toString();
+    });
+    host.appendChild(sel);
+  }
+
   // ---------------- boot ----------------
   // Wait on KV (see auth.js) so a fills history logged in practice.js on
   // another browser/device is reconciled into localStorage before we
   // read it -- otherwise this page would only ever see whatever's local.
-  (window.KV ? window.KV.ready : Promise.resolve(null)).then(() => {
+  (window.Accounts ? window.Accounts.ready : Promise.resolve(null)).then(() => (window.KV ? window.KV.ready : null)).then(() => {
+    if (window.Accounts && window.Accounts.isAvailable()) {
+      const a = viewedId && window.Accounts.byId(viewedId) ? viewedId : window.Accounts.paperApi.activeId();
+      if (a) { viewedId = a; ACCOUNT_KEY = window.Accounts.paperApi.key(a); }
+      renderAttemptPicker();
+    }
     const account = loadAccount();
     const indexMap = new Map();
 
@@ -327,7 +362,7 @@
     // real symbol/trade_date so tables can show something more useful
     // than a raw id and link into the real trade. Analytics still
     // render fine (just with bare chart ids) if this fetch fails.
-    window.fetchTradesIndex()
+    (window.fetchTradesIndexRaw || window.fetchTradesIndex)()
       .catch(() => [])
       .then((rows) => {
         (Array.isArray(rows) ? rows : []).forEach((row) => indexMap.set(row.id, row));

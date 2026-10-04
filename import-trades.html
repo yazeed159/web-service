@@ -151,6 +151,10 @@
           </p>
         </div>
 
+        <div id="import-account-row" style="display:none; margin-bottom:14px;">
+          <label for="import-account">Import into account</label>
+          <select id="import-account" class="filter-input" style="width:100%; max-width:320px;"></select>
+        </div>
         <label for="csv-file">Trade CSV</label>
         <div class="drop">
           <input type="file" id="csv-file" accept=".csv">
@@ -214,6 +218,7 @@
 <script src="js/config.js"></script>
 <script src="js/vendor/supabase.js"></script>
 <script src="js/auth.js"></script>
+<script src="js/accounts.js"></script>
   <script>
     (function () {
       "use strict";
@@ -351,6 +356,8 @@
 
           var formData = new FormData();
           formData.append("trade_csv", file);
+          var acctSel = document.getElementById("import-account");
+          if (acctSel && acctSel.value) formData.append("account_id", acctSel.value);
 
           fetch(base + "/import-trades", {
             method: "POST",
@@ -384,6 +391,22 @@
       }
 
       runBtn.addEventListener("click", function () { startImport(fileEl.files[0]); });
+
+      // Which real account new trades land in (only shown when there's more than one).
+      if (window.Accounts) {
+        window.Accounts.ready.then(function () {
+          if (!window.Accounts.isAvailable()) return;
+          var active = window.Accounts.live().filter(function (a) { return a.status === "active"; });
+          if (active.length < 2) return;
+          var sc = window.Accounts.getScope();
+          var preferred = sc.ids.length === 1 ? sc.ids[0] : (window.Accounts.defaultLive() || {}).id;
+          var sel = document.getElementById("import-account");
+          sel.innerHTML = active.map(function (a) {
+            return '<option value="' + escapeHtml(a.id) + '"' + (a.id === preferred ? " selected" : "") + ">" + escapeHtml(a.name) + "</option>";
+          }).join("");
+          document.getElementById("import-account-row").style.display = "block";
+        });
+      }
 
       // ---- Add one trade by hand (a missed trade / a broker outage) ----
       // Builds a two-row execution CSV (entry fill + exit fill) and pushes it

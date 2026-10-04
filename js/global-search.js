@@ -131,7 +131,7 @@
   let tradesPromise = null;
   function loadTrades() {
     if (!tradesPromise) {
-      tradesPromise = window.fetchTradesIndex().then((rows) => {
+      tradesPromise = (window.fetchTradesIndexRaw || window.fetchTradesIndex)().then((rows) => {
         trades = Array.isArray(rows) ? rows : [];
         return trades;
       });

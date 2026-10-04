@@ -13,18 +13,18 @@
 //    tunnel, POSTs) is never touched -- it goes straight to the network.
 //
 // Bump CACHE_VERSION only if you ever want to force-purge every cached file.
-var CACHE_VERSION = "v4";
+var CACHE_VERSION = "v5";
 var CACHE = "tradelog-shell-" + CACHE_VERSION;
 
 var SHELL = [
   "/", "index.html", "journal.html", "stats.html", "edge-analysis.html", "patterns.html",
   "calculator.html", "daily.html", "backtester.html", "rewind.html", "practice.html", "settings.html",
   "trade.html", "report.html", "scanner.html", "search.html", "import-trades.html",
-  "live-trading.html", "login.html", "favicon.svg", "manifest.json",
+  "live-trading.html", "accounts.html", "login.html", "favicon.svg", "manifest.json",
   "icons/icon-192.png", "icons/icon-512.png",
   "js/vendor/supabase.js", "js/vendor/lightweight-charts.js", "css/common.css", "css/buttons.css", "css/dashboard.css", "css/rewind.css", "css/practice.css",
   "css/quiz-shared.css", "css/report.css", "css/ui-modal.css", "css/search.css",
-  "js/utils.js", "js/config.js", "js/auth.js", "js/page-transition.js", "js/nav-render.js",
+  "js/utils.js", "js/config.js", "js/auth.js", "js/accounts.js", "js/page-transition.js", "js/nav-render.js",
   "js/global-search.js", "js/common.js", "js/pwa-register.js", "js/grade.js", "js/trade-notes.js", "js/daily-notes.js", "js/discipline.js", "js/ui-modal.js",
   "js/chart-indicators.js", "js/strategy-presets.js", "js/share-export.js",
   "js/app-shared.js", "js/app-dashboard.js", "js/app-dayview.js", "js/app-reports.js",

@@ -44,6 +44,8 @@ there's no session) → the page's own script.
 - **`rewind.html`** — chart-reading practice replaying your own logged trades, not graded
 - **`practice.html`** — paper-trade a logged chart bar-by-bar; its Analytics tab used to be `practice-analytics.html`
 - **`daily.html`** — daily plan (max loss, goal, checklist) and end-of-day review, plus a weekly table and discipline score
+- **`accounts.html`** ("Trading accounts") — real accounts, deposits/withdrawals, **periods**, and paper-trading attempts (see "Accounts, periods & paper attempts" below)
+
 - **`settings.html`** — capital ledger (deposits/withdrawals), account prefs
 
 **Per-trade / support:**
@@ -149,3 +151,27 @@ The site is an installable PWA and is meant to be wrapped as an Android APK
 - `js/auth.js` retries transient data failures (network blips, 5xx/429, expired JWT with a session refresh, clock skew, hung requests) before any page sees an error; the dashboard/reports page then shows a banner with a Retry button and retries on its own (backoff, `online`, tab refocus).
 - `supabase-js` and `lightweight-charts` are self-hosted in `js/vendor/` (no CDN dependency). Bump `CACHE_VERSION` in `sw.js` when you update them.
 - `tests/browser-harness/flaky_test.py` injects failures against the real pages.
+
+## Accounts, periods & paper attempts
+
+Run `001_accounts.sql` (shipped alongside this repo, not inside it) once in the
+Supabase SQL editor. Until it runs, the site behaves exactly as before.
+
+- **Accounts** (`accounts` table): `kind = 'live'` for real accounts, `'paper'` for
+  practice attempts. `trades.account_id` says which real account a trade belongs to;
+  `broker_accounts.account_id` says which account the daily IBKR sync feeds.
+- **Scope**: `js/accounts.js` (loaded right after `auth.js` everywhere) wraps
+  `fetchTradesIndex()` / `fetchCapitalLedger()` so every page automatically shows only
+  the accounts (and optional period) picked in the top-bar switcher. `equity_after` is
+  recomputed over the filtered set. `fetchTradesIndexRaw()` is the unfiltered version
+  (used by Practice/Rewind/search so their chart pool doesn't shrink).
+- **Periods**: not a table. A period starts at a capital-ledger entry with
+  `period: true` (deposits default to starting one unless `period: false`) and runs
+  until the next one. Name/reflection live on that same ledger entry in `user_kv`.
+- **Paper attempts**: one `accounts` row each; fills in `user_kv` key
+  `practice:account:v3:<id>`. "Reset" on the Practice tab archives the old attempt and
+  starts a new one. The old `practice:account:v2` slot is migrated into "Attempt 1" on
+  first load (and left untouched as a backup).
+- Backend (`chart-service`): `/import-trades` accepts an optional `account_id` form
+  field (validated against the caller); `publish.py` recomputes `equity_after` per
+  account.

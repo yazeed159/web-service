@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Trading accounts — trade.log</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/ui-modal.css">
+<style>
+  .int-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); margin-bottom: 10px; overflow: hidden; }
+  .int-card:last-child { margin-bottom: 0; }
+  .int-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; }
+  .int-icon { flex: none; width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: var(--panel-3); color: var(--text-dim); }
+  .int-main { flex: 1; min-width: 0; }
+  .int-main .int-name { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .int-main .int-desc { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+  .int-status-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); }
+  .int-status-dot.on { background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+  .int-chevron { flex: none; color: var(--text-faint); transition: transform 0.15s var(--ease); }
+  .int-card.open .int-chevron { transform: rotate(90deg); }
+  .int-body { display: none; padding: 0 16px 18px; border-top: 1px solid var(--border-soft); }
+  .int-card.open .int-body { display: block; }
+  .int-field { margin-top: 14px; }
+  .int-field label { display: block; font-size: 11px; color: var(--text-faint); margin-bottom: 4px; }
+  .int-field-row { display: flex; gap: 6px; }
+  .int-field-row input { flex: 1; min-width: 0; }
+  .int-help { font-size: 11.5px; margin-top: 10px; }
+  .int-help a { color: var(--primary); text-decoration: none; }
+  .int-help a:hover { text-decoration: underline; }
+  .int-actions { display: flex; gap: 8px; margin-top: 14px; align-items: center; }
+  .int-actions .btn-confirm { padding: 7px 16px; font-size: 12.5px; }
+  .int-disconnect { font-size: 12px; color: var(--red); background: none; border: none; cursor: pointer; margin-left: auto; padding: 4px; }
+  .int-disconnect:hover { text-decoration: underline; }
+  .int-saved-note { font-size: 11.5px; color: var(--green); margin-left: 4px; opacity: 0; transition: opacity 0.2s; }
+  .int-saved-note.show { opacity: 1; }
+  .pill.int-progress-full { background: var(--green-soft); color: var(--green); border-color: rgba(47,208,138,0.3); }
+  .pill.int-progress-partial { background: var(--amber-soft); color: var(--amber); border-color: rgba(232,169,76,0.3); }
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0b0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="trade.log">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="expect" href="#page-title" blocking="render">
+<script src="js/pwa-register.js" defer></script>
+<link rel="stylesheet" href="css/buttons.css">
+</head>
+<body>
+<div id="page-progress-bar"></div>
+<div id="page-loader-overlay" aria-hidden="true">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="page-loader-ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#8b7cf6"/>
+        <stop offset="100%" stop-color="#22d3ee"/>
+      </linearGradient>
+    </defs>
+  </svg>
+  <div class="page-loader-mark">
+    <span><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="6" y1="11" x2="6" y2="17"></line><rect x="4.5" y="12" width="3" height="4" rx="1" stroke="none"></rect><line x1="12" y1="6" x2="12" y2="19"></line><rect x="10.5" y="8" width="3" height="8" rx="1" stroke="none"></rect><line x1="18" y1="3" x2="18" y2="15"></line><rect x="16.5" y="5" width="3" height="6" rx="1" stroke="none"></rect></g></svg></span>
+    <svg class="page-loader-ring" viewBox="0 0 78 78"><circle cx="39" cy="39" r="31"></circle></svg>
+  </div>
+</div>
+<script src="js/page-transition.js"></script>
+
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <a href="index.html" class="brand">
+        <span class="mark"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="6" y1="11" x2="6" y2="17"></line><rect x="4.5" y="12" width="3" height="4" rx="1" stroke="none"></rect><line x1="12" y1="6" x2="12" y2="19"></line><rect x="10.5" y="8" width="3" height="8" rx="1" stroke="none"></rect><line x1="18" y1="3" x2="18" y2="15"></line><rect x="16.5" y="5" width="3" height="6" rx="1" stroke="none"></rect></g></svg></span>
+        <span class="name">trade<span class="muted">.log</span></span>
+      </a>
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div id="sidebar-main-section"></div>
+
+
+      <div id="sidebar-more-section"></div>
+
+
+      <div id="sidebar-wip-section"></div>
+<script src="js/nav-render.js"></script>
+</nav>
+
+    <div class="sidebar-bottom">
+      <div class="pipeline-status"><span class="dot"></span><span>Accounts</span></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 id="page-title">Trading accounts</h1>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <div class="panel-box mb-16" id="acc-live-box">
+        <div class="panel-box-head">
+          <span class="title">Real accounts</span>
+          <button type="button" class="btn-confirm" id="acc-new-live">+ New real account</button>
+        </div>
+        <p class="acc-help">Each real account keeps its own trades, deposits and equity curve. The switcher in the top bar (or <b>View</b> below) decides what every page shows &mdash; one account, a few, or all of them combined.</p>
+        <div id="acc-live-grid" class="acc-grid"></div>
+      </div>
+
+      <div class="panel-box mb-16" id="acc-money-box">
+        <div class="panel-box-head">
+          <span class="title">Money in &amp; out, and periods</span>
+          <select class="filter-input" id="acc-pick" aria-label="Account"></select>
+        </div>
+        <p class="acc-help">A <b>period</b> starts whenever you add money after a break (or any time you choose) and runs until the next one starts. Each period can be viewed on its own across the whole site, and has a place for what you reflected on.</p>
+
+        <div id="acc-period-list"></div>
+
+        <form id="acc-form" class="acc-form">
+          <div><label for="acc-date">Date</label><input type="date" class="filter-input" id="acc-date" required></div>
+          <div><label for="acc-type">Type</label>
+            <select class="filter-input" id="acc-type"><option value="deposit">Deposit</option><option value="withdrawal">Withdrawal</option></select></div>
+          <div><label for="acc-amount">Amount</label><input type="text" inputmode="decimal" class="filter-input" id="acc-amount" placeholder="$0.00" style="max-width:140px"></div>
+          <div style="flex:1;min-width:160px"><label for="acc-note">Note (optional)</label><input type="text" class="filter-input" id="acc-note" placeholder="e.g. topped up after a break" style="width:100%"></div>
+          <div class="acc-form-row">
+            <label class="acc-check"><input type="checkbox" id="acc-newperiod" checked> Start a new period here</label>
+            <input type="text" class="filter-input" id="acc-pname" placeholder="Period name (optional)" style="min-width:200px">
+          </div>
+          <div class="acc-form-row" id="acc-reflect-row">
+            <textarea class="filter-input" id="acc-reflect" rows="2" placeholder="Reflection: what changed while you were away? What will you do differently this time? (optional)" style="width:100%"></textarea>
+          </div>
+          <button type="submit" class="btn-confirm">Add</button>
+        </form>
+
+        <div id="acc-ledger-list"></div>
+      </div>
+
+      <div class="panel-box mb-16" id="acc-paper-box">
+        <div class="panel-box-head">
+          <span class="title">Paper trading attempts</span>
+          <button type="button" class="btn-confirm" id="acc-new-paper">+ New attempt</button>
+        </div>
+        <p class="acc-help">Every reset on the Practice tab is saved as its own attempt, so you can compare experiments. Paper results never touch your real accounts&rsquo; numbers.</p>
+        <div id="acc-paper-list"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="js/utils.js"></script>
+<script src="js/config.js"></script>
+<script src="js/vendor/supabase.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/accounts.js"></script>
+
+<style>
+  .acc-help{color:var(--text-faint);font-size:12px;margin:-8px 0 16px;line-height:1.5}
+  .acc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+  .acc-card{background:var(--panel-2);border:1px solid var(--border-soft);border-radius:var(--radius);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+  .acc-card.combined{border-color:var(--primary);background:var(--primary-soft)}
+  .acc-card.archived{opacity:.65}
+  .acc-card-h{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}
+  .acc-dot{width:10px;height:10px;border-radius:50%;flex:none}
+  .acc-balance{font:600 22px var(--mono);letter-spacing:-.01em}
+  .acc-meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px;color:var(--text-faint)}
+  .acc-meta b{display:block;color:var(--text);font:500 13px var(--mono)}
+  .acc-actions{display:flex;flex-wrap:wrap;gap:6px}
+  .acc-actions button{font-size:12px;padding:6px 10px}
+  .acc-form{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:20px 0 18px;padding-top:18px;border-top:1px solid var(--border-soft)}
+  .acc-form label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:4px}
+  .acc-form-row{flex-basis:100%;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .acc-check{display:inline-flex!important;align-items:center;gap:7px;font-size:13px!important;color:var(--text)!important;margin:0!important}
+  .acc-period{border:1px solid var(--border-soft);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;background:var(--panel-2)}
+  .acc-period-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .acc-period-h .nm{font-weight:600;font-size:14px}
+  .acc-period-h .rng{font-size:12px;color:var(--text-faint)}
+  .acc-period-stats{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0;font-size:12px;color:var(--text-faint)}
+  .acc-period-stats b{color:var(--text);font:500 13px var(--mono);margin-left:4px}
+  .acc-reflection{width:100%;margin-top:6px}
+  .acc-empty{color:var(--text-faint);font-size:13px;padding:10px 2px}
+  .up{color:var(--green)}.down{color:var(--red)}
+</style>
+
+<script src="js/ui-modal.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const num = (s) => { const c = String(s || "").replace(/[^0-9.]/g, ""); return c === "" ? NaN : parseFloat(c); };
+  const today = () => new Date().toISOString().slice(0, 10);
+  const sign = (v) => (v >= 0 ? "up" : "down");
+  const toast = (m, tone) => { if (window.showToast) window.showToast(m, tone ? { tone } : undefined); };
+
+  let allTrades = [];
+  let ledger = [];
+  let pickedId = null;
+
+  $("acc-date").value = today();
+
+  function saveLedger() { return window.Accounts.setLedger(ledger); }
+  function tradesOf(id) { return allTrades.filter((t) => t.account_id === id); }
+  function ledgerOf(id) { return ledger.filter((e) => window.Accounts.ledgerAccountId(e) === id); }
+  function net(entries) { return entries.reduce((s, e) => s + e.amount, 0); }
+  function pnl(trades) { return trades.reduce((s, t) => s + (t.pnl_after_comm || 0), 0); }
+  function winRate(trades) { return trades.length ? Math.round((trades.filter((t) => (t.pnl_after_comm || 0) > 0).length / trades.length) * 100) + "%" : "\u2014"; }
+
+  // ---------------- real accounts ----------------
+  function cardHtml(a, trades, entries, opts) {
+    const p = pnl(trades), bal = net(entries) + p;
+    const last = trades.length ? trades[trades.length - 1].trade_date : "\u2014";
+    const acts = opts.combined
+      ? '<button type="button" class="filter-btn" data-act="view-all">View combined</button>'
+      : '<button type="button" class="filter-btn" data-act="view" data-id="' + escapeHtml(a.id) + '">View</button>' +
+        '<button type="button" class="filter-btn" data-act="money" data-id="' + escapeHtml(a.id) + '">Deposits &amp; periods</button>' +
+        '<button type="button" class="filter-btn" data-act="rename" data-id="' + escapeHtml(a.id) + '">Rename</button>' +
+        '<button type="button" class="filter-btn" data-act="archive" data-id="' + escapeHtml(a.id) + '">' + (a.status === "archived" ? "Restore" : "Archive") + "</button>" +
+        (trades.length === 0 ? '<button type="button" class="filter-btn" data-act="delete" data-id="' + escapeHtml(a.id) + '">Delete</button>' : "");
+    return '<div class="acc-card' + (opts.combined ? " combined" : "") + (a && a.status === "archived" ? " archived" : "") + '">' +
+      '<div class="acc-card-h"><span class="acc-dot" style="background:' + (opts.combined ? "var(--primary)" : escapeHtml(a.color || "#8b7cf6")) + '"></span>' +
+      escapeHtml(opts.combined ? "All real accounts" : a.name) + (a && a.status === "archived" ? ' <span class="pill">archived</span>' : "") + "</div>" +
+      '<div class="acc-balance">' + fmtUsd(bal) + "</div>" +
+      '<div class="acc-meta"><div>Trading P&amp;L<b class="' + sign(p) + '">' + fmtMoney(p) + "</b></div>" +
+      "<div>Net deposited<b>" + fmtUsd(net(entries)) + "</b></div>" +
+      "<div>Trades<b>" + trades.length + "</b></div><div>Win rate<b>" + winRate(trades) + "</b></div>" +
+      "<div>Last trade<b>" + escapeHtml(last) + "</b></div></div>" +
+      '<div class="acc-actions">' + acts + "</div></div>";
+  }
+
+  function renderLive() {
+    const live = window.Accounts.live();
+    const parts = [];
+    if (live.length > 1) parts.push(cardHtml(null, allTrades, ledger, { combined: true }));
+    live.forEach((a) => parts.push(cardHtml(a, tradesOf(a.id), ledgerOf(a.id), {})));
+    $("acc-live-grid").innerHTML = parts.join("");
+  }
+
+  $("acc-live-grid").addEventListener("click", async (ev) => {
+    const btn = ev.target.closest("button[data-act]");
+    if (!btn) return;
+    const id = btn.getAttribute("data-id");
+    const A = window.Accounts;
+    const act = btn.getAttribute("data-act");
+    try {
+      if (act === "view-all") { A.setScope({ ids: [] }, { reload: false }); window.location.href = "index.html"; }
+      else if (act === "view") { A.setScope({ ids: [id] }, { reload: false }); window.location.href = "index.html"; }
+      else if (act === "money") { pickedId = id; $("acc-pick").value = id; renderMoney(); $("acc-money-box").scrollIntoView({ behavior: "smooth" }); }
+      else if (act === "rename") {
+        const a = A.byId(id);
+        const name = await UIModal.prompt("New name:", a.name, { title: "Rename account", confirmLabel: "Save" });
+        if (name === null || !name.trim()) return;
+        await A.update(id, { name: name.trim() });
+        refreshAll();
+      } else if (act === "archive") {
+        const a = A.byId(id);
+        if (a.status !== "archived" && A.live().filter((x) => x.status === "active").length <= 1) {
+          toast("Keep at least one active real account.", "error"); return;
+        }
+        await A.setStatus(id, a.status === "archived" ? "active" : "archived");
+        refreshAll();
+      } else if (act === "delete") {
+        const ok = await UIModal.confirm("Delete this empty account? Its deposits/withdrawals will be removed too.", { title: "Delete account?", tone: "danger", confirmLabel: "Delete" });
+        if (!ok) return;
+        await A.remove(id);
+        ledger = ledger.filter((e) => A.ledgerAccountId(e) !== id);
+        saveLedger();
+        if (pickedId === id) pickedId = null;
+        refreshAll();
+      }
+    } catch (e) { toast(e.message || String(e), "error"); }
+  });
+
+  $("acc-new-live").addEventListener("click", async () => {
+    const name = await UIModal.prompt("Name for the new real account (e.g. the broker, or \"Fresh start 2027\"):", "", { title: "New real account", confirmLabel: "Create" });
+    if (name === null) return;
+    try { const a = await window.Accounts.create({ name, kind: "live" }); pickedId = a.id; refreshAll(); toast("Account created. Import trades into it from Import Trades."); }
+    catch (e) { toast(e.message || String(e), "error"); }
+  });
+
+  // ---------------- money + periods ----------------
+  function renderPicker() {
+    const live = window.Accounts.live();
+    if (!pickedId || !live.some((a) => a.id === pickedId)) pickedId = (window.Accounts.defaultLive() || live[0] || {}).id;
+    $("acc-pick").innerHTML = live.map((a) => '<option value="' + escapeHtml(a.id) + '"' + (a.id === pickedId ? " selected" : "") + ">" + escapeHtml(a.name) + (a.status === "archived" ? " (archived)" : "") + "</option>").join("");
+  }
+  $("acc-pick").addEventListener("change", () => { pickedId = $("acc-pick").value; renderMoney(); });
+
+  function renderMoney() {
+    const A = window.Accounts;
+    if (!pickedId) { $("acc-period-list").innerHTML = ""; $("acc-ledger-list").innerHTML = ""; return; }
+    const trades = tradesOf(pickedId);
+    const entries = ledgerOf(pickedId).slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    const periods = A.periodsFor(pickedId);
+
+    if (!periods.length) {
+      $("acc-period-list").innerHTML = '<div class="acc-empty">No periods yet. Add a deposit below (with &ldquo;Start a new period here&rdquo; ticked) to begin the first one.</div>';
+    } else {
+      $("acc-period-list").innerHTML = periods.slice().reverse().map((p) => {
+        const pt = trades.filter((t) => A.inRange(t.trade_date, p));
+        const pe = entries.filter((e) => A.inRange(e.date, p));
+        const through = trades.filter((t) => p.end === null || t.trade_date < p.end);
+        const endBal = net(entries.filter((e) => p.end === null || e.date < p.end)) + pnl(through);
+        const rangeTxt = p.start + (p.end === null ? " \u2192 now" : " \u2192 " + p.end);
+        return '<div class="acc-period" data-pid="' + escapeHtml(p.id) + '">' +
+          '<div class="acc-period-h"><span class="nm">' + escapeHtml(p.name) + '</span><span class="rng">' + escapeHtml(rangeTxt) + "</span>" +
+          '<span style="margin-left:auto;display:flex;gap:6px"><button type="button" class="filter-btn" data-pact="view">View this period</button><button type="button" class="filter-btn" data-pact="rename">Rename</button></span></div>' +
+          '<div class="acc-period-stats"><span>Added<b>' + fmtUsd(net(pe)) + '</b></span><span>P&amp;L<b class="' + sign(pnl(pt)) + '">' + fmtMoney(pnl(pt)) + "</b></span><span>Trades<b>" + pt.length + "</b></span><span>Win rate<b>" + winRate(pt) + "</b></span><span>Balance at end<b>" + fmtUsd(endBal) + "</b></span></div>" +
+          '<textarea class="filter-input acc-reflection" rows="2" data-refl placeholder="Reflection for this period\u2026">' + escapeHtml(p.reflection) + "</textarea>" +
+          '<div style="margin-top:6px"><button type="button" class="filter-btn" data-pact="save-refl">Save reflection</button></div></div>';
+      }).join("");
+    }
+
+    if (!entries.length) {
+      $("acc-ledger-list").innerHTML = "";
+    } else {
+      const rows = entries.slice().reverse().map((e) => '<tr><td>' + escapeHtml(e.date) + "</td><td>" + (e.amount >= 0 ? "Deposit" : "Withdrawal") + '</td><td class="mono ' + sign(e.amount) + '">' + fmtMoney(e.amount) + "</td><td>" + (e.note ? escapeHtml(e.note) : '<span class="dim">\u2014</span>') + '</td>' +
+        '<td><label class="acc-check" style="font-size:12px!important"><input type="checkbox" data-startp="' + escapeHtml(e._id) + '"' + (A.startsPeriod(e) ? " checked" : "") + "> starts period</label></td>" +
+        '<td><button type="button" class="btn-icon" data-del="' + escapeHtml(e._id) + '" title="Delete" aria-label="Delete">&times;</button></td></tr>').join("");
+      $("acc-ledger-list").innerHTML = '<div class="table-scroll"><table class="report-table"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th><th></th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>";
+    }
+  }
+
+  $("acc-period-list").addEventListener("click", async (ev) => {
+    const btn = ev.target.closest("button[data-pact]");
+    if (!btn) return;
+    const card = btn.closest("[data-pid]");
+    const pid = card.getAttribute("data-pid");
+    const act = btn.getAttribute("data-pact");
+    const entry = ledger.find((e) => e._id === pid);
+    if (!entry) return;
+    if (act === "view") {
+      window.Accounts.setScope({ ids: [pickedId], period: pid }, { reload: false });
+      window.location.href = "stats.html";
+    } else if (act === "rename") {
+      const name = await UIModal.prompt("Name this period:", entry.period_name || "", { title: "Rename period", confirmLabel: "Save" });
+      if (name === null) return;
+      entry.period_name = name.trim();
+      saveLedger(); renderMoney();
+    } else if (act === "save-refl") {
+      entry.reflection = card.querySelector("[data-refl]").value.trim();
+      saveLedger(); toast("Reflection saved.");
+    }
+  });
+
+  $("acc-ledger-list").addEventListener("click", (ev) => {
+    const del = ev.target.closest("button[data-del]");
+    if (del) {
+      const id = del.getAttribute("data-del");
+      const idx = ledger.findIndex((e) => e._id === id);
+      if (idx === -1) return;
+      const removed = ledger[idx];
+      ledger = ledger.filter((e) => e._id !== id);
+      renderMoney(); renderLive();
+      if (!window.showToast) { saveLedger(); return; }
+      window.showToast("Entry deleted \u2014 Undo", { action: { label: "Undo", onClick: () => { ledger.splice(idx, 0, removed); renderMoney(); renderLive(); } }, onExpire: saveLedger });
+    }
+  });
+  $("acc-ledger-list").addEventListener("change", (ev) => {
+    const cb = ev.target.closest("input[data-startp]");
+    if (!cb) return;
+    const e = ledger.find((x) => x._id === cb.getAttribute("data-startp"));
+    if (!e) return;
+    e.period = cb.checked;
+    saveLedger(); renderMoney();
+  });
+
+  $("acc-type").addEventListener("change", () => { $("acc-newperiod").checked = $("acc-type").value === "deposit"; });
+
+  $("acc-form").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    if (!pickedId) return;
+    const startsNew = $("acc-newperiod").checked;
+    let amt = num($("acc-amount").value);
+    if (!isFinite(amt)) amt = 0;
+    if (amt <= 0 && !startsNew) { toast("Enter an amount greater than $0.", "error"); $("acc-amount").focus(); return; }
+    const entry = {
+      _id: window.Accounts.newId(),
+      account_id: pickedId,
+      date: $("acc-date").value || today(),
+      amount: $("acc-type").value === "withdrawal" ? -amt : amt,
+      note: $("acc-note").value.trim(),
+      period: startsNew,
+    };
+    if (startsNew) {
+      if ($("acc-pname").value.trim()) entry.period_name = $("acc-pname").value.trim();
+      if ($("acc-reflect").value.trim()) entry.reflection = $("acc-reflect").value.trim();
+    }
+    ledger.push(entry);
+    saveLedger();
+    ["acc-amount", "acc-note", "acc-pname", "acc-reflect"].forEach((id) => { $(id).value = ""; });
+    refreshAll();
+  });
+
+  // ---------------- paper attempts ----------------
+  function paperStats(a) {
+    const blob = window.Accounts.paperApi.load(a.id);
+    if (!blob) return { balance: a.starting_balance, start: a.starting_balance, pnl: 0, closes: 0, wins: 0, fills: 0 };
+    const closes = (blob.fills || []).filter((f) => f.realizedPnl !== null && f.realizedPnl !== undefined);
+    return {
+      balance: blob.balance, start: blob.startingBalance != null ? blob.startingBalance : a.starting_balance,
+      pnl: closes.reduce((s, f) => s + (f.realizedPnl || 0), 0), closes: closes.length,
+      wins: closes.filter((f) => f.realizedPnl > 0).length, fills: (blob.fills || []).length,
+    };
+  }
+
+  function renderPaper() {
+    const A = window.Accounts;
+    const list = A.paper().slice().reverse();
+    if (!list.length) { $("acc-paper-list").innerHTML = '<div class="acc-empty">No paper attempts yet. Open the Practice tab, or start one here.</div>'; return; }
+    const active = A.paperApi.activeId();
+    let totPnl = 0, totClose = 0;
+    const rows = list.map((a) => {
+      const st = paperStats(a);
+      totPnl += st.pnl; totClose += st.closes;
+      const ret = st.start ? ((st.balance - st.start) / st.start) * 100 : null;
+      return '<tr><td><span class="acc-dot" style="display:inline-block;background:' + escapeHtml(a.color || "#22d3ee") + ';margin-right:8px"></span>' + escapeHtml(a.name) +
+        (a.id === active ? ' <span class="pill win">current</span>' : "") + (a.status === "archived" ? ' <span class="pill">archived</span>' : "") + "</td>" +
+        '<td class="mono">' + (st.start != null ? fmtUsd(st.start) : "\u2014") + '</td><td class="mono">' + (st.balance != null ? fmtUsd(st.balance) : "\u2014") + "</td>" +
+        '<td class="mono ' + sign(st.pnl) + '">' + fmtMoney(st.pnl) + (ret === null ? "" : " (" + (ret >= 0 ? "+" : "") + ret.toFixed(1) + "%)") + "</td>" +
+        '<td class="mono">' + st.closes + "</td><td class=\"mono\">" + (st.closes ? Math.round((st.wins / st.closes) * 100) + "%" : "\u2014") + "</td>" +
+        '<td style="white-space:nowrap"><button type="button" class="filter-btn" data-p="stats" data-id="' + escapeHtml(a.id) + '">Stats</button> ' +
+        '<button type="button" class="filter-btn" data-p="use" data-id="' + escapeHtml(a.id) + '">Trade it</button> ' +
+        '<button type="button" class="filter-btn" data-p="rename" data-id="' + escapeHtml(a.id) + '">Rename</button> ' +
+        '<button type="button" class="filter-btn" data-p="delete" data-id="' + escapeHtml(a.id) + '">Delete</button></td></tr>';
+    }).join("");
+    $("acc-paper-list").innerHTML = '<div class="table-scroll"><table class="report-table"><thead><tr><th>Attempt</th><th>Started with</th><th>Balance</th><th>Realized P&amp;L</th><th>Closes</th><th>Win rate</th><th></th></tr></thead><tbody>' + rows +
+      '</tbody></table></div><div class="acc-help" style="margin:10px 0 0">All attempts combined: <b class="' + sign(totPnl) + '">' + fmtMoney(totPnl) + "</b> across " + totClose + " closes.</div>";
+  }
+
+  $("acc-paper-list").addEventListener("click", async (ev) => {
+    const btn = ev.target.closest("button[data-p]");
+    if (!btn) return;
+    const id = btn.getAttribute("data-id"), act = btn.getAttribute("data-p"), A = window.Accounts;
+    try {
+      if (act === "stats") window.location.href = "practice.html?tab=analytics&acct=" + encodeURIComponent(id);
+      else if (act === "use") { await A.paperApi.switchTo(id); window.location.href = "practice.html"; }
+      else if (act === "rename") {
+        const name = await UIModal.prompt("New name:", A.byId(id).name, { title: "Rename attempt", confirmLabel: "Save" });
+        if (name === null || !name.trim()) return;
+        await A.update(id, { name: name.trim() }); renderPaper();
+      } else if (act === "delete") {
+        const ok = await UIModal.confirm("Permanently delete this attempt and all its fills? This can't be undone.", { title: "Delete attempt?", tone: "danger", confirmLabel: "Delete" });
+        if (!ok) return;
+        await A.paperApi.remove(id); renderPaper();
+      }
+    } catch (e) { toast(e.message || String(e), "error"); }
+  });
+
+  $("acc-new-paper").addEventListener("click", async () => {
+    const A = window.Accounts;
+    const bal = await UIModal.prompt("Starting balance for the new attempt:", "25000", { title: "New paper attempt", inputType: "number", confirmLabel: "Next" });
+    if (bal === null) return;
+    const amt = num(bal);
+    if (!isFinite(amt) || amt <= 0) { toast("Enter a starting balance above $0.", "error"); return; }
+    const name = await UIModal.prompt("Name it (what are you testing?):", A.paperApi.nextName(amt), { title: "Attempt name", confirmLabel: "Start" });
+    if (name === null) return;
+    try {
+      await A.paperApi.newAttempt({ name, startingBalance: amt, blob: { v: 2, balance: amt, startingBalance: amt, createdAt: new Date().toISOString(), fills: [], session: null, sizeMode: "shares" } });
+      window.location.href = "practice.html";
+    } catch (e) { toast(e.message || String(e), "error"); }
+  });
+
+  // ---------------- boot ----------------
+  function refreshAll() { renderLive(); renderPicker(); renderMoney(); renderPaper(); }
+
+  window.AUTH_READY.then((session) => {
+    if (!session) return;
+    return window.Accounts.ready.then(() => {
+      if (!window.Accounts.isAvailable()) {
+        document.querySelector(".content").insertAdjacentHTML("afterbegin", '<div class="panel-box mb-16"><div class="empty-state small">Accounts aren\u2019t set up in your database yet. Run <b>001_accounts.sql</b> in the Supabase SQL editor, then reload.</div></div>');
+        return;
+      }
+      return window.Accounts.fetchAllTrades().then((rows) => {
+        allTrades = rows;
+        ledger = window.Accounts.getLedger();
+        refreshAll();
+      });
+    });
+  }).catch((e) => toast("Couldn't load accounts: " + (e && e.message ? e.message : e), "error"));
+})();
+</script>
+
+<script src="js/common.js"></script>
+<script src="js/global-search.js"></script>
+<script src="js/shortcuts-help.js"></script>
+</body>
+</html>
