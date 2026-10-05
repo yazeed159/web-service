@@ -46,22 +46,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="apple-touch-startup-image" href="icons/splash/1320x2868.png" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/1206x2622.png" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/1242x2208.png" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/1640x2360.png" media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/1668x2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/1536x2048.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/2048x2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
-<link rel="apple-touch-startup-image" href="icons/splash/1668x2224.png" media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
 <link rel="expect" href="#page-title" blocking="render">
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
@@ -132,8 +116,17 @@
           <span class="title">Real accounts</span>
           <button type="button" class="btn-confirm" id="acc-new-live">+ New real account</button>
         </div>
-        <p class="acc-help">Broker accounts only. Each real account keeps its own trades, deposits and equity curve. The switcher in the top bar (or <b>View</b> below) decides what every page shows &mdash; one account, a few, or all of them combined.</p>
+        <p class="acc-help">Real-money broker accounts only. Each real account keeps its own trades, deposits and equity curve. The switcher in the top bar (or <b>View</b> below) decides what every page shows &mdash; one account, a few, or all of them combined.</p>
         <div id="acc-live-grid" class="acc-grid"></div>
+      </div>
+
+      <div class="panel-box mb-16" id="acc-paper-box">
+        <div class="panel-box-head">
+          <span class="title">Paper accounts (from your broker)</span>
+          <button type="button" class="btn-confirm" id="acc-new-paper">+ New paper account</button>
+        </div>
+        <p class="acc-help">Your broker&rsquo;s paper-trading account, tracked on its own. It&rsquo;s left out of &ldquo;All real accounts&rdquo; everywhere &mdash; pick it in the top-bar switcher (or <b>View</b> below) when you want to look at it. This is separate from the Practice simulator on this site.</p>
+        <div id="acc-paper-grid" class="acc-grid"></div>
       </div>
 
       <div class="panel-box mb-16" id="acc-money-box">
@@ -264,7 +257,7 @@
         (trades.length === 0 ? '<button type="button" class="filter-btn" data-act="delete" data-id="' + escapeHtml(a.id) + '">Delete</button>' : "");
     return '<div class="acc-card' + (opts.combined ? " combined" : "") + (a && a.status === "archived" ? " archived" : "") + '">' +
       '<div class="acc-card-h"><span class="acc-dot" style="background:' + (opts.combined ? "var(--primary)" : escapeHtml(a.color || "#8b7cf6")) + '"></span>' +
-      escapeHtml(opts.combined ? "All real accounts" : a.name) + (a && a.status === "archived" ? ' <span class="pill">archived</span>' : "") + "</div>" +
+      escapeHtml(opts.combined ? "All real accounts" : a.name) + (a && opts.paper ? ' <span class="pill">paper</span>' : "") + (a && a.status === "archived" ? ' <span class="pill">archived</span>' : "") + "</div>" +
       '<div class="acc-balance">' + fmtUsd(bal) + "</div>" +
       '<div class="acc-meta"><div>Trading P&amp;L<b class="' + sign(p) + '">' + fmtMoney(p) + "</b></div>" +
       "<div>Net deposited<b>" + fmtUsd(net(entries)) + "</b></div>" +
@@ -274,14 +267,23 @@
   }
 
   function renderLive() {
-    const live = window.Accounts.live();
+    const A = window.Accounts;
+    const live = A.live();
     const parts = [];
-    if (live.length > 1) parts.push(cardHtml(null, allTrades, ledger, { combined: true }));
+    if (live.length > 1) {
+      const ids = live.map((a) => a.id);
+      parts.push(cardHtml(null, allTrades.filter((t) => ids.indexOf(t.account_id) !== -1), ledger.filter((e) => ids.indexOf(A.ledgerAccountId(e)) !== -1), { combined: true }));
+    }
     live.forEach((a) => parts.push(cardHtml(a, tradesOf(a.id), ledgerOf(a.id), {})));
     $("acc-live-grid").innerHTML = parts.join("");
+
+    const paper = A.brokerPaper();
+    $("acc-paper-grid").innerHTML = paper.length
+      ? paper.map((a) => cardHtml(a, tradesOf(a.id), ledgerOf(a.id), { paper: true })).join("")
+      : '<div class="acc-empty">No paper accounts yet. Add one, then import its trades from Import Trades (pick it as the account).</div>';
   }
 
-  $("acc-live-grid").addEventListener("click", async (ev) => {
+  async function onCardClick(ev) {
     const btn = ev.target.closest("button[data-act]");
     if (!btn) return;
     const id = btn.getAttribute("data-id");
@@ -299,7 +301,7 @@
         refreshAll();
       } else if (act === "archive") {
         const a = A.byId(id);
-        if (a.status !== "archived" && A.live().filter((x) => x.status === "active").length <= 1) {
+        if (!A.isBrokerPaper(a) && a.status !== "archived" && A.live().filter((x) => x.status === "active").length <= 1) {
           toast("Keep at least one active real account.", "error"); return;
         }
         await A.setStatus(id, a.status === "archived" ? "active" : "archived");
@@ -314,6 +316,15 @@
         refreshAll();
       }
     } catch (e) { toast(e.message || String(e), "error"); }
+  }
+  $("acc-live-grid").addEventListener("click", onCardClick);
+  $("acc-paper-grid").addEventListener("click", onCardClick);
+
+  $("acc-new-paper").addEventListener("click", async () => {
+    const name = await UIModal.prompt("Name for the paper account (e.g. \"IBKR paper\"):", "", { title: "New paper account", confirmLabel: "Create" });
+    if (name === null) return;
+    try { const a = await window.Accounts.create({ name, kind: "live", brokerPaper: true }); pickedId = a.id; refreshAll(); toast("Paper account created. Import its trades from Import Trades and pick it as the account."); }
+    catch (e) { toast(e.message || String(e), "error"); }
   });
 
   $("acc-new-live").addEventListener("click", async () => {
@@ -325,9 +336,9 @@
 
   // ---------------- money + periods ----------------
   function renderPicker() {
-    const live = window.Accounts.live();
+    const live = window.Accounts.liveAll();
     if (!pickedId || !live.some((a) => a.id === pickedId)) pickedId = (window.Accounts.defaultLive() || live[0] || {}).id;
-    $("acc-pick").innerHTML = live.map((a) => '<option value="' + escapeHtml(a.id) + '"' + (a.id === pickedId ? " selected" : "") + ">" + escapeHtml(a.name) + (a.status === "archived" ? " (archived)" : "") + "</option>").join("");
+    $("acc-pick").innerHTML = live.map((a) => '<option value="' + escapeHtml(a.id) + '"' + (a.id === pickedId ? " selected" : "") + ">" + escapeHtml(a.name) + (window.Accounts.isBrokerPaper(a) ? " (paper)" : "") + (a.status === "archived" ? " (archived)" : "") + "</option>").join("");
   }
   $("acc-pick").addEventListener("change", () => { pickedId = $("acc-pick").value; renderMoney(); });
 

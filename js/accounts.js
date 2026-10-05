@@ -40,6 +40,7 @@
   var PAPER_ACTIVE_KEY = "practice:active_account:v1"; // localStorage + user_kv
   var LEGACY_PAPER_KEY = "practice:account:v2";
   var PAPER_KEY_PREFIX = "practice:account:v3:";
+  var BROKER_PAPER_KEY = "broker_paper_ids"; // user_kv: ids of live-structured accounts that are broker PAPER accounts
   var PALETTE = ["#8b7cf6", "#22d3ee", "#2fd08a", "#e8a94c", "#f2555a", "#5b93f0", "#e879c9", "#a3e635"];
 
   var accounts = [];
@@ -56,7 +57,15 @@
   // ------------------------------------------------------------------
   // registry
   // ------------------------------------------------------------------
-  function live() { return accounts.filter(function (a) { return a.kind === "live"; }); }
+  // A "broker paper" account is a paper-trading account at the user's own broker. It is stored
+  // exactly like a real account (kind='live': trades.account_id, imports, deposits, periods) and
+  // flagged by id in user_kv, so no schema change is needed. live() is REAL accounts only, so the
+  // default "All real accounts" view never mixes paper results in; liveAll() includes both.
+  function paperIds() { var v = window.KV.get(BROKER_PAPER_KEY); return Array.isArray(v) ? v : []; }
+  function isBrokerPaper(a) { return !!a && a.kind === "live" && paperIds().indexOf(a.id) !== -1; }
+  function liveAll() { return accounts.filter(function (a) { return a.kind === "live"; }); }
+  function live() { return accounts.filter(function (a) { return a.kind === "live" && !isBrokerPaper(a); }); }
+  function brokerPaper() { return accounts.filter(isBrokerPaper); }
   function paper() { return accounts.filter(function (a) { return a.kind === "paper"; }); }
   function byId(id) { for (var i = 0; i < accounts.length; i++) if (accounts[i].id === id) return accounts[i]; return null; }
   function defaultLive() {
@@ -91,6 +100,11 @@
       color: o.color || pickColor(),
       starting_balance: o.startingBalance != null ? o.startingBalance : null,
       note: o.note || null,
+    }).then(function (acc) {
+      if (!o.brokerPaper || acc.kind !== "live") return acc;
+      var ids = paperIds().slice();
+      ids.push(acc.id);
+      return Promise.resolve(window.KV.set(BROKER_PAPER_KEY, ids)).then(function () { return acc; });
     });
   }
 
@@ -116,6 +130,7 @@
         throw new Error(m);
       }
       accounts = accounts.filter(function (a) { return a.id !== id; });
+      if (paperIds().indexOf(id) !== -1) window.KV.set(BROKER_PAPER_KEY, paperIds().filter(function (x) { return x !== id; }));
     });
   }
 
@@ -172,7 +187,7 @@
     });
   }
   function findPeriod(periodId) {
-    var l = live();
+    var l = liveAll();
     for (var i = 0; i < l.length; i++) {
       var ps = periodsFor(l[i].id);
       for (var j = 0; j < ps.length; j++) if (ps[j].id === periodId) return ps[j];
@@ -187,10 +202,13 @@
   function getScope() {
     var raw = null;
     try { raw = JSON.parse(lsGet(SCOPE_KEY) || "null"); } catch (e) { /* ignore */ }
-    var liveIds = live().map(function (a) { return a.id; });
-    var ids = raw && Array.isArray(raw.ids) ? raw.ids.filter(function (id) { return liveIds.indexOf(id) !== -1; }) : [];
-    var all = ids.length === 0 || ids.length === liveIds.length;
-    if (all) ids = liveIds;
+    var allIds = liveAll().map(function (a) { return a.id; });
+    var realIds = live().map(function (a) { return a.id; });
+    var ids = raw && Array.isArray(raw.ids) ? raw.ids.filter(function (id) { return allIds.indexOf(id) !== -1; }) : [];
+    // "all" = every REAL account (broker paper accounts only show when picked on purpose)
+    var sameAsReal = ids.length === realIds.length && realIds.every(function (id) { return ids.indexOf(id) !== -1; });
+    var all = ids.length === 0 || sameAsReal;
+    if (all) ids = realIds;
     var period = null;
     if (!all && ids.length === 1 && raw && raw.period) {
       var p = periodsFor(ids[0]).filter(function (x) { return x.id === raw.period; })[0];
@@ -215,6 +233,7 @@
     if (sc.ids.length === 1) {
       var a = byId(sc.ids[0]);
       var label = a ? a.name : "Account";
+      if (isBrokerPaper(a) && !/paper/i.test(label)) label += " (paper)";
       if (sc.period) { var p = findPeriod(sc.period); if (p) label += " \u00b7 " + p.name; }
       return label;
     }
@@ -415,7 +434,7 @@
     var bar = document.querySelector(".topbar-right");
     if (!bar) return;
     // One real account and no periods -> nothing to switch between; stay out of the way.
-    var onlyOne = live().length <= 1 && live().every(function (a) { return periodsFor(a.id).length <= 1; });
+    var onlyOne = liveAll().length <= 1 && liveAll().every(function (a) { return periodsFor(a.id).length <= 1; });
     if (onlyOne) return;
 
     var style = document.createElement("style");
@@ -443,19 +462,22 @@
 
     function renderPanel() {
       var cur = getScope();
-      var rows = live().map(function (a) {
+      function rowHtml(a, paperRow) {
         var checked = cur.ids.indexOf(a.id) !== -1;
-        return '<label class="scope-row"><input type="checkbox" data-acc="' + esc(a.id) + '"' + (checked ? " checked" : "") + ">" +
+        return '<label class="scope-row"><input type="checkbox" data-acc="' + esc(a.id) + '"' + (paperRow ? " data-paper" : "") + (checked ? " checked" : "") + ">" +
           '<span class="scope-dot" style="background:' + esc(a.color || PALETTE[0]) + '"></span><span>' + esc(a.name) + "</span>" +
           (a.status === "archived" ? '<span class="tag">archived</span>' : "") + "</label>";
-      }).join("");
+      }
+      var rows = live().map(function (a) { return rowHtml(a, false); }).join("");
+      var bp = brokerPaper();
+      if (bp.length) rows += '<div class="scope-h" style="margin-top:12px">Paper accounts (broker)</div>' + bp.map(function (a) { return rowHtml(a, true); }).join("");
       panel.innerHTML =
         '<div class="scope-h">Showing trades from</div>' +
         '<label class="scope-row"><input type="checkbox" data-all' + (cur.all ? " checked" : "") + '><span style="font-weight:600">All real accounts</span></label>' +
         rows +
         '<div class="scope-sub" id="scope-period-wrap" style="display:none"><label for="scope-period">Period</label><select id="scope-period" class="filter-input"></select></div>' +
         '<button type="button" class="btn-confirm scope-apply">Apply</button>' +
-        '<div class="scope-links"><a href="accounts.html">Manage accounts &amp; periods</a><a href="practice.html?tab=analytics">Paper trading attempts</a></div>';
+        '<div class="scope-links"><a href="accounts.html">Manage accounts &amp; periods</a><a href="practice.html?tab=analytics">Practice simulator attempts</a></div>';
 
       var boxes = panel.querySelectorAll("input[data-acc]");
       var allBox = panel.querySelector("input[data-all]");
@@ -473,20 +495,24 @@
         }).join("");
         pWrap.style.display = "block";
       }
+      var realBoxes = Array.prototype.filter.call(boxes, function (b) { return !b.hasAttribute("data-paper"); });
+      function onlyRealChecked() {
+        return realBoxes.length > 0 && Array.prototype.every.call(boxes, function (b) { return b.checked === !b.hasAttribute("data-paper"); });
+      }
       allBox.addEventListener("change", function () {
-        Array.prototype.forEach.call(boxes, function (b) { b.checked = allBox.checked; });
+        Array.prototype.forEach.call(boxes, function (b) { b.checked = b.hasAttribute("data-paper") ? false : allBox.checked; });
         refreshPeriod();
       });
       Array.prototype.forEach.call(boxes, function (b) {
         b.addEventListener("change", function () {
-          allBox.checked = checkedIds().length === boxes.length;
+          allBox.checked = onlyRealChecked();
           refreshPeriod();
         });
       });
       panel.querySelector(".scope-apply").addEventListener("click", function () {
         var ids = checkedIds();
         if (!ids.length) { if (window.showToast) window.showToast("Pick at least one account.", { tone: "error" }); return; }
-        setScope({ ids: ids.length === boxes.length ? [] : ids, period: ids.length === 1 ? (pSel.value || null) : null });
+        setScope({ ids: onlyRealChecked() ? [] : ids, period: ids.length === 1 ? (pSel.value || null) : null });
         panel.classList.remove("open");
       });
       refreshPeriod();
@@ -513,6 +539,9 @@
     isAvailable: function () { return available; },
     all: function () { return accounts.slice(); },
     live: live,
+    liveAll: liveAll,
+    brokerPaper: brokerPaper,
+    isBrokerPaper: isBrokerPaper,
     paper: paper,
     byId: byId,
     defaultLive: defaultLive,
