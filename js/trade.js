@@ -849,7 +849,8 @@
       priceScaleMargins: { top: 0.14, bottom: 0.18 }, // headroom for pointer markers at any zoom level
       volScaleMargins: { top: 0.82, bottom: 0 },
       showLastValueLine: false, // entry/exit/S-R lines are all drawn explicitly below; the built-in one is redundant noise
-      fullscreenHost: document.getElementById("chart-stack"), // phones: candle + MACD go fullscreen together
+      fullscreenHost: document.getElementById("chart-stack"), // candle + MACD go fullscreen together
+      drawKey: trade && trade.symbol ? trade.symbol + ":" + (trade.trade_date || "") : null, // saved drawings (support lines etc.) per symbol + day
       onFullscreenFit: () => {
         const m = document.getElementById("macd-chart");
         if (currentMacdChart && m) currentMacdChart.applyOptions({ width: m.clientWidth, height: m.clientHeight || 110 });

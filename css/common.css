@@ -2745,17 +2745,19 @@ table.journal-data-table td.col-tags { white-space: normal; }
    Fullscreen toggle button + fullscreen state (see attachFullscreen() in
    js/chart-indicators.js). Position/inset use !important because callers
    set el.style.position = "relative" inline for the info overlay. */
-.chart-fs-btn { display: none; }
+/* Fullscreen button: every screen size now (it used to be phone-only). */
+.chart-fs-btn {
+  display: flex; align-items: center; justify-content: center;
+  position: absolute; top: 8px; right: 8px; z-index: 4;
+  width: 30px; height: 30px; padding: 0;
+  font-size: 16px; line-height: 1; color: var(--text-dim);
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  border: 1px solid var(--border-soft); border-radius: 8px; cursor: pointer;
+  opacity: .75; transition: opacity .15s, color .15s;
+}
+.chart-fs-btn:hover, .chart-fs-btn:active { color: var(--text); opacity: 1; }
 @media (max-width: 760px), (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
-  .chart-fs-btn {
-    display: flex; align-items: center; justify-content: center;
-    position: absolute; top: 6px; right: 6px; z-index: 4;
-    width: 36px; height: 36px; padding: 0;
-    font-size: 18px; line-height: 1; color: var(--text-dim);
-    background: color-mix(in srgb, var(--panel) 82%, transparent);
-    border: 1px solid var(--border-soft); border-radius: 8px; cursor: pointer;
-  }
-  .chart-fs-btn:active { color: var(--text); }
+  .chart-fs-btn { top: 6px; right: 6px; width: 36px; height: 36px; font-size: 18px; opacity: 1; }
   /* Info overlay: smaller, with a backing so candles behind it stay readable. */
   .chart-info-overlay {
     font-size: 10px; line-height: 1.35; top: 6px; left: 6px;
@@ -2814,7 +2816,50 @@ html.chart-fs-lock .bottom-nav, html.chart-fs-lock .chatw-launcher, html.chart-f
 .chart-touch-capture { overscroll-behavior: contain; }
 /* Timeframe pills inside fullscreen, left of the close button. */
 .chart-fs .chart-fs-only { display: flex; position: absolute; top: 10px; right: 62px; z-index: 4; }
-.chart-fs .chart-zoom-tools { bottom: 36px; }
+.chart-fs .chart-zoom-tools { display: flex; left: 58px; bottom: 36px; }
+.chart-fs .chart-zoom-btn { width: 32px; height: 32px; font-size: 16px; color: var(--text-dim);
+  background: color-mix(in srgb, var(--panel) 82%, transparent); border: 1px solid var(--border-soft); border-radius: 8px; cursor: pointer; }
+.chart-fs .chart-zoom-btn:hover { color: var(--text); }
+
+/* ---------- Chart drawing tools (js/chart-draw.js) ----------
+   Toolbar only exists visually while the chart is fullscreen. Drawings
+   themselves stay visible on the normal chart. */
+.chart-draw-bar, .cd-pop { display: none; }
+.chart-fs .chart-draw-bar {
+  display: flex; flex-direction: column; gap: 4px;
+  position: absolute; left: 8px; top: 8px; bottom: 78px; z-index: 5;
+  width: 40px; padding: 4px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
+  background: color-mix(in srgb, var(--panel) 90%, transparent);
+  border: 1px solid var(--border-soft); border-radius: 10px;
+  touch-action: pan-y;
+}
+.chart-fs .chart-draw-bar::-webkit-scrollbar { display: none; }
+.cd-btn {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0; color: var(--text-dim);
+  background: transparent; border: 1px solid transparent; border-radius: 7px; cursor: pointer;
+}
+.cd-btn:hover:not(:disabled) { color: var(--text); background: var(--panel-2); }
+.cd-btn.on { color: var(--primary); background: var(--primary-soft); border-color: color-mix(in srgb, var(--primary) 50%, transparent); }
+.cd-btn:disabled { opacity: .35; cursor: default; }
+.cd-sep { flex: none; height: 1px; margin: 3px 4px; background: var(--border-soft); }
+.cd-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--border); }
+.chart-fs .cd-pop.open {
+  display: grid; grid-template-columns: repeat(3, 28px); gap: 6px; padding: 8px;
+  position: absolute; left: 56px; top: 8px; z-index: 6;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 10px 24px -10px rgba(0,0,0,.6);
+}
+.cd-swatch { width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--border); cursor: pointer; }
+/* Keep the OHLC / indicator readout clear of the toolbar while fullscreen. */
+.chart-fs .chart-info-overlay { left: 58px; }
+@media (max-width: 760px), (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+  .chart-fs .chart-draw-bar { width: 44px; }
+  .chart-fs .cd-btn { width: 36px; height: 36px; }
+  .chart-fs .chart-info-overlay { left: 62px; }
+  .chart-fs .chart-zoom-tools { left: 62px; }
+  .chart-fs .cd-pop.open { left: 62px; }
+}
 
 /* ---------- Journal on phones ----------
    Desktop: unchanged. <=760px: the wide 9-column table becomes a list of

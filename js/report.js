@@ -1089,6 +1089,7 @@
     };
 
     const rptChartHandleLocal = window.ChartIndicators.buildStandardChart(candleEl, initialDisplayBars, {
+      drawKey: trade && trade.symbol ? trade.symbol + ":" + (trade.trade_date || trade.date || "") : null, // same key as the Trade page, so drawings carry over
       height: candleEl.clientHeight || 380,
       minimumWidth: 92,
       priceScaleMargins: { top: 0.14, bottom: 0.18 },

@@ -69,7 +69,8 @@
     };
   }
 
-  // Fullscreen toggle (phones only). Pins the chart container over the
+  // Fullscreen toggle (every screen size; drawing tools live in fullscreen --
+  // see chart-draw.js). Pins the chart container over the
   // whole viewport, gives it every gesture, and resizes the chart to the
   // real viewport height (so landscape works too). A spacer holds the
   // container's place in the page so the scroll position doesn't jump.
@@ -204,7 +205,9 @@
         btn.textContent = "\u2715";
         btn.setAttribute("aria-label", "Close fullscreen chart");
         try { chart.applyOptions({ handleScroll: { vertTouchDrag: true } }); } catch (e) {}
+        if (fsOpts.draw) { try { fsOpts.draw.setActive(true); } catch (e) {} }
       } else {
+        if (fsOpts.draw) { try { fsOpts.draw.setActive(false); } catch (e) {} }
         host.classList.remove("chart-fs");
         document.documentElement.classList.remove("chart-fs-lock");
         restoreAncestors();
@@ -220,7 +223,12 @@
       requestAnimationFrame(fit); // viewport units settle a frame later on mobile Safari
     }
     btn.addEventListener("click", () => setFs(!on));
-    const onKey = (e) => { if (e.key === "Escape") setFs(false); };
+    const onKey = (e) => {
+      if (e.key !== "Escape" || !on) return;
+      // First Esc backs out of a drawing tool / selection; the next one closes fullscreen.
+      if (fsOpts.draw) { try { if (fsOpts.draw.escape()) return; } catch (err) {} }
+      setFs(false);
+    };
     const onPop = () => { if (on) setFs(false, true); };
     const onRot = () => setTimeout(fit, 250);
     // Turning the phone sideways while this chart is on screen opens it
@@ -567,9 +575,16 @@
     });
 
     chart.timeScale().fitContent();
-    const fs = (phone && opts.fullscreen !== false) ? attachFullscreen(el, chart, chartH, {
+    // Fullscreen + drawing tools on every screen size (fullscreen used to be
+    // phone-only). The draw layer is created first so fullscreen can hand it
+    // Esc / open / close; it asks `fs` lazily whether fullscreen is on.
+    let fs = null;
+    const draw = (opts.fullscreen !== false && window.ChartDraw)
+      ? window.ChartDraw.attach({ chart, series, el, drawKey: opts.drawKey, isFs: () => !!(fs && fs.isOn()) })
+      : null;
+    fs = (opts.fullscreen !== false) ? attachFullscreen(el, chart, chartH, {
       host: opts.fullscreenHost, onFit: opts.onFullscreenFit, onFocus: opts.onFocus,
-      autoLandscape: opts.autoLandscape,
+      autoLandscape: opts.autoLandscape, draw,
     }) : null;
     // A ResizeObserver tied to the container (rather than a page-level
     // window "resize" listener) disposes cleanly along with everything
@@ -588,7 +603,7 @@
       });
       ro.observe(el);
     }
-    return { chart, series, volSeries, vwapSeries, ema9Series, ema20Series, ema200Series, priceLineRefs, resizeObserver: ro, renderOverlay, handleState, fullscreen: fs };
+    return { chart, series, volSeries, vwapSeries, ema9Series, ema20Series, ema200Series, priceLineRefs, resizeObserver: ro, renderOverlay, handleState, fullscreen: fs, draw };
   }
 
   // Tears down a handle from buildStandardChart(). Callers that stash
@@ -603,6 +618,7 @@
     try { if (handle.pointerRo) handle.pointerRo.disconnect(); } catch (e) {}
     try { if (handle.eodRo) handle.eodRo.disconnect(); } catch (e) {}
     try { if (handle.fullscreen) handle.fullscreen.dispose(); } catch (e) {}
+    try { if (handle.draw) handle.draw.dispose(); } catch (e) {}
     try { handle.chart.remove(); } catch (e) {}
   }
 
