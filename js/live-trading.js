@@ -633,6 +633,7 @@
     // above for live mode), so leaving it clickable while the request is
     // still in flight risks a double-click or slow response firing
     // /api/live/start twice and starting two runs instead of one.
+    if (window.Haptics) window.Haptics.play("tap");
     const origStartBtnText = startBtn.textContent;
     startBtn.disabled = true;
     startBtn.textContent = "Starting…";

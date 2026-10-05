@@ -839,6 +839,13 @@
             icon: "flask",
             title: "No backtest runs yet",
             message: "Describe a strategy in the chat above and it'll show up here once it finishes.",
+            actionId: "bt-empty-start", actionLabel: "Describe a strategy",
+          });
+          const go = document.getElementById("bt-empty-start");
+          if (go) go.addEventListener("click", () => {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            const ta = document.querySelector(".main textarea, .main input[type=text]");
+            if (ta) setTimeout(() => ta.focus(), 350);
           });
           return;
         }

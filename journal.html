@@ -9,11 +9,28 @@
 <link rel="stylesheet" href="css/common.css">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0b0f">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light"){var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#f5f6f9");}}catch(e){}})();</script>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="apple-touch-startup-image" href="icons/splash/1320x2868.png" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1206x2622.png" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1242x2208.png" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1640x2360.png" media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1668x2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1536x2048.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/2048x2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1668x2224.png" media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
 <link rel="expect" href="#page-title" blocking="render">
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
@@ -110,6 +127,12 @@
       <button type="button" class="filters-toggle" id="filters-toggle" aria-expanded="false" aria-controls="journal-filters">
         <span>Filters</span><span class="filters-toggle-count" id="filters-toggle-count"></span><span class="filters-toggle-chev" aria-hidden="true">&#9662;</span>
       </button>
+      <div class="date-chips" id="date-chips" role="group" aria-label="Quick date range">
+        <button type="button" class="date-chip" data-range="today">Today</button>
+        <button type="button" class="date-chip" data-range="yesterday">Yesterday</button>
+        <button type="button" class="date-chip" data-range="week">This week</button>
+        <button type="button" class="date-chip" data-range="month">This month</button>
+      </div>
       <div class="filters" id="journal-filters">
         <input type="text" id="f-symbol" placeholder="Symbol…" aria-label="Symbol" style="width:110px;">
         <input type="date" id="f-from" title="From date" aria-label="From date">
@@ -145,7 +168,7 @@
       <div class="filter-presets" id="filter-presets"></div>
 
       <div id="journal-content">
-        <div class="loading-line">Loading…</div>
+        <div class="loading-line skel-cards" role="status" aria-busy="true" aria-label="Loading"><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div></div>
       </div>
     </div>
 
@@ -154,6 +177,7 @@
 </div>
 
 <script src="js/utils.js"></script>
+<script src="js/mobile-extras.js"></script>
 <script src="js/config.js"></script>
 <script src="js/vendor/supabase.js"></script>
 <script src="js/auth.js"></script>
@@ -166,6 +190,17 @@
 (function () {
   "use strict";
   const content = document.getElementById("journal-content");
+  // Back from a trade: restore scroll offset too (js/mobile-extras.js). Taken now,
+  // before the SPA router's scroll-to-top; finished after the first table draw.
+  const smSnap = window.ScrollMemory ? window.ScrollMemory.begin("journal") : null;
+  // The Journal view you last had open this session (filters / sort / how far down
+  // you'd loaded), read now because the first draw overwrites it. Used for the
+  // "Resume your last view" chip when you reach a bare Journal from the tab bar.
+  let lastView = null;
+  try {
+    const u = sessionStorage.getItem("tl:journal:url"), at = Number(sessionStorage.getItem("tl:journal:url-at")) || 0;
+    if (u && u.indexOf("?") !== -1 && Date.now() - at < 6 * 3600 * 1000) lastView = u;
+  } catch (e) { /* ignore */ }
   let allRows = [];
   let sortKey = "trade_date";
   let sortDir = "desc"; // desc = newest first
@@ -471,7 +506,7 @@
           // Re-pull from Supabase (rather than patching allRows by hand)
           // so the table reflects exactly what a fresh page load would
           // show, then just re-render with the filters already in place.
-          window.fetchTradesIndex().then((rows) => {
+          window.swrFetch("trades", window.fetchTradesIndex).then((rows) => {
             allRows = Array.isArray(rows) ? rows : allRows;
             applyFilters();
           }).catch(() => { /* table just keeps showing pre-update data */ });
@@ -505,9 +540,17 @@
     return TAG_LABELS[tag] || String(tag).replace(/_/g, " ");
   }
 
-  window.fetchTradesIndex()
-    .then((rows) => {
+  // Paints from the on-device snapshot first (instant), then swaps in the fresh
+  // Supabase rows. boot() runs once per source, so everything in it has to be safe
+  // to run twice: the dropdowns are rebuilt (keeping the current selection) and
+  // the URL-state restore only happens on the very first pass.
+  let booted = false;
+  function boot(rows) {
       allRows = Array.isArray(rows) ? rows : [];
+      const prevSel = booted ? {
+        setup: els.setup.value, avgvol: els.avgvol.value, rvol: els.rvol.value, float: els.float.value, tag: els.tag.value,
+      } : null;
+      [els.setup, els.avgvol, els.rvol, els.float, els.tag].forEach((sel) => { while (sel.options.length > 1) sel.remove(1); });
       const setups = Array.from(new Set(allRows.map((r) => r.setup_type).filter(Boolean))).sort();
       for (const s of setups) {
         const opt = document.createElement("option");
@@ -540,47 +583,59 @@
         opt.textContent = t.replace(/_/g, " ");
         els.tag.appendChild(opt);
       });
-      // Restore filters/sort/scroll-depth from the URL -- either a deep
-      // link from stats.html's setup breakdown (or Rewind's own
-      // "setups to review" list), which only ever set `setup`, or this
-      // page's own state mirrored back into the URL by syncUrlState()
-      // below so that hitting Back from trade.html lands you right
-      // back where you were instead of resetting to a blank table.
-      const setupParam = NavState.get("setup");
-      if (setupParam && setups.includes(setupParam)) els.setup.value = setupParam;
-      const rvolParam = NavState.get("rvol");
-      if (rvolParam && Array.from(els.rvol.options).some((o) => o.value === rvolParam)) els.rvol.value = rvolParam;
-      const avgvolParam = NavState.get("avgvol");
-      if (avgvolParam && Array.from(els.avgvol.options).some((o) => o.value === avgvolParam)) els.avgvol.value = avgvolParam;
-      const floatParam = NavState.get("float");
-      if (floatParam && Array.from(els.float.options).some((o) => o.value === floatParam)) els.float.value = floatParam;
-      const tagParam = NavState.get("tag");
-      if (tagParam && Array.from(els.tag.options).some((o) => o.value === tagParam)) els.tag.value = tagParam;
+      if (!booted) {
+        // Restore filters/sort/scroll-depth from the URL -- either a deep
+        // link from stats.html's setup breakdown (or Rewind's own
+        // "setups to review" list), which only ever set `setup`, or this
+        // page's own state mirrored back into the URL by syncUrlState()
+        // below so that hitting Back from trade.html lands you right
+        // back where you were instead of resetting to a blank table.
+        const setupParam = NavState.get("setup");
+        if (setupParam && setups.includes(setupParam)) els.setup.value = setupParam;
+        const rvolParam = NavState.get("rvol");
+        if (rvolParam && Array.from(els.rvol.options).some((o) => o.value === rvolParam)) els.rvol.value = rvolParam;
+        const avgvolParam = NavState.get("avgvol");
+        if (avgvolParam && Array.from(els.avgvol.options).some((o) => o.value === avgvolParam)) els.avgvol.value = avgvolParam;
+        const floatParam = NavState.get("float");
+        if (floatParam && Array.from(els.float.options).some((o) => o.value === floatParam)) els.float.value = floatParam;
+        const tagParam = NavState.get("tag");
+        if (tagParam && Array.from(els.tag.options).some((o) => o.value === tagParam)) els.tag.value = tagParam;
 
-      const symbolParam = NavState.get("symbol");
-      if (symbolParam) els.symbol.value = symbolParam;
-      const fromParam = NavState.get("from");
-      if (fromParam) els.from.value = fromParam;
-      const toParam = NavState.get("to");
-      if (toParam) els.to.value = toParam;
-      const resultParam = NavState.get("result");
-      if (resultParam) els.result.value = resultParam;
-      const gradeParam = NavState.get("grade");
-      if (gradeParam) els.grade.value = gradeParam;
-      if (NavState.get("flagged") === "1") els.flagged.checked = true;
-      const tFromParam = NavState.get("tfrom");
-      if (tFromParam) els.timeFrom.value = tFromParam;
-      const tToParam = NavState.get("tto");
-      if (tToParam) els.timeTo.value = tToParam;
+        const symbolParam = NavState.get("symbol");
+        if (symbolParam) els.symbol.value = symbolParam;
+        const fromParam = NavState.get("from");
+        if (fromParam) els.from.value = fromParam;
+        const toParam = NavState.get("to");
+        if (toParam) els.to.value = toParam;
+        const resultParam = NavState.get("result");
+        if (resultParam) els.result.value = resultParam;
+        const gradeParam = NavState.get("grade");
+        if (gradeParam) els.grade.value = gradeParam;
+        if (NavState.get("flagged") === "1") els.flagged.checked = true;
+        const tFromParam = NavState.get("tfrom");
+        if (tFromParam) els.timeFrom.value = tFromParam;
+        const tToParam = NavState.get("tto");
+        if (tToParam) els.timeTo.value = tToParam;
 
-      sortKey = NavState.get("sort", sortKey);
-      sortDir = NavState.get("dir", sortDir);
-      const nParam = parseInt(NavState.get("n"), 10);
-      if (Number.isInteger(nParam) && nParam > TABLE_PAGE_SIZE) bootShown = nParam;
+        sortKey = NavState.get("sort", sortKey);
+        sortDir = NavState.get("dir", sortDir);
+        const nParam = parseInt(NavState.get("n"), 10);
+        if (Number.isInteger(nParam) && nParam > TABLE_PAGE_SIZE) bootShown = nParam;
+
+      } else {
+        // Refresh pass: keep whatever the user has selected, and keep how far down they loaded.
+        const pairs = [[els.setup, prevSel.setup], [els.avgvol, prevSel.avgvol], [els.rvol, prevSel.rvol], [els.float, prevSel.float], [els.tag, prevSel.tag]];
+        pairs.forEach(([sel, v]) => { if (v && Array.from(sel.options).some((o) => o.value === v)) sel.value = v; });
+        bootShown = tableShown || null;
+      }
+      booted = true;
 
       applyFilters();
-    })
+  }
+  window.swrFetch("trades", window.fetchTradesIndex, boot)
+    .then(boot)
     .catch((err) => {
+      if (booted) return; // snapshot is already on screen; keep it
       content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
     });
 
@@ -605,7 +660,41 @@
   populateJournalFilters();
   if (window.KV) window.KV.ready.then(() => { populateJournalFilters(); });
 
+  // Quick date chips: Today / Yesterday / This week (Mon-today) / This month.
+  // They just fill the From/To inputs and fire the normal "input" path, so
+  // URL sync, the filter-count badge and presets all keep working. Tapping
+  // the active chip again clears the range.
+  const dateChipBox = document.getElementById("date-chips");
+  function isoLocal(d) {
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function chipRange(kind) {
+    const t = new Date(); t.setHours(12, 0, 0, 0);
+    if (kind === "today") return [isoLocal(t), isoLocal(t)];
+    if (kind === "yesterday") { const y = new Date(t); y.setDate(y.getDate() - 1); return [isoLocal(y), isoLocal(y)]; }
+    if (kind === "week") { const m = new Date(t); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return [isoLocal(m), isoLocal(t)]; }
+    if (kind === "month") { const f = new Date(t.getFullYear(), t.getMonth(), 1, 12); return [isoLocal(f), isoLocal(t)]; }
+    return ["", ""];
+  }
+  function refreshDateChips() {
+    if (!dateChipBox) return;
+    dateChipBox.querySelectorAll(".date-chip").forEach((b) => {
+      const [f, t] = chipRange(b.dataset.range);
+      const on = els.from.value === f && els.to.value === t;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+  if (dateChipBox) dateChipBox.addEventListener("click", (e) => {
+    const b = e.target.closest(".date-chip");
+    if (!b) return;
+    const [f, t] = b.classList.contains("active") ? ["", ""] : chipRange(b.dataset.range);
+    els.from.value = f; els.to.value = t;
+    els.from.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+
   function applyFilters() {
+    refreshDateChips();
     const symbol = els.symbol.value.trim().toUpperCase();
     const from = els.from.value;
     const to = els.to.value;
@@ -692,16 +781,27 @@
       dir: sortDir !== "desc" ? sortDir : null,
       n: tableShown > TABLE_PAGE_SIZE ? tableShown : null,
     });
+    // trade.html's "All trades" link returns to this exact view (see mobile-extras.js).
+    try {
+      sessionStorage.setItem("tl:journal:url", "journal.html" + location.search);
+      sessionStorage.setItem("tl:journal:url-at", String(Date.now()));
+    } catch (e) { /* ignore */ }
   }
 
   function renderTable(rows) {
     if (!rows.length) {
       content.innerHTML = allRows.length
-        ? `<div class="empty-state">No trades match these filters.</div>`
+        ? window.emptyStateHtml({
+            icon: "journal",
+            title: "No trades match",
+            message: "Nothing fits the filters you've set. Loosen them to see your trades again.",
+            actionId: "empty-clear-filters", actionLabel: "Clear filters",
+          })
         : window.emptyStateHtml({
             icon: "journal",
             title: "No trades yet",
-            message: "Once your pipeline publishes trades, they'll show up here — sortable, filterable, and ready to review.",
+            message: "Import a broker CSV, or wait for your next daily sync — your trades land here, sortable, filterable and ready to review.",
+            actionHref: "import-trades.html", actionLabel: "Import trades",
           });
       tableRows = []; lastSortedRows = [];
       return;
@@ -720,6 +820,7 @@
     bootShown = null; // one-time restore -- any later filter/sort change resets to a normal first page
     syncUrlState();
     drawTable();
+    if (smSnap && window.ScrollMemory) window.ScrollMemory.finish(smSnap); // no-op after the first draw
   }
 
   // Redraws the table from the already-filtered/sorted tableRows, at the
@@ -781,10 +882,12 @@
 
   function drawTable() {
     const totalPnl = tableRows.reduce((s, r) => s + (r.pnl_after_comm || 0), 0);
+    const summaryInner = `${tableRows.length} trade${tableRows.length === 1 ? "" : "s"} · net <span class="${totalPnl >= 0 ? "up" : "down"}">${fmtMoney(totalPnl)}</span>`;
     content.innerHTML = `
+      <div class="journal-sticky-bar" id="journal-sticky-bar" aria-hidden="true">${summaryInner}</div>
       <div class="panel-box" style="padding:0;">
         <div class="journal-table-head">
-          <span id="journal-result-summary" aria-live="polite" aria-atomic="true">${tableRows.length} trade${tableRows.length === 1 ? "" : "s"} · net <span class="${totalPnl >= 0 ? "up" : "down"}">${fmtMoney(totalPnl)}</span></span>
+          <span id="journal-result-summary" aria-live="polite" aria-atomic="true">${summaryInner}</span>
           <label class="mobile-sort"><span>Sort</span>
             <select id="mobile-sort-select" class="select-clean" aria-label="Sort trades">
               ${ALL_COLUMNS.filter((c) => c.sortable).map((c) => ["desc", "asc"].map((d) => `<option value="${c.id}:${d}"${sortKey === c.id && sortDir === d ? " selected" : ""}>${escapeHtml(c.label)} ${d === "desc" ? "&#8595;" : "&#8593;"}</option>`).join("")).join("")}
@@ -882,6 +985,12 @@
       updateBulkToolbar();
       return;
     }
+    if (e.target.closest("#empty-clear-filters")) {
+      Object.values(els).forEach((el) => { if (el.type === "checkbox") el.checked = false; else el.value = ""; });
+      document.getElementById("journal-filters").dispatchEvent(new Event("change")); // refresh the Filters badge
+      applyFilters();
+      return;
+    }
     if (e.target.closest("#share-view-btn")) {
       if (!window.TradeLogShare) return;
       const label = document.getElementById("share-view-label");
@@ -911,9 +1020,67 @@
     // control (checkbox, quick-edit button/panel) inside the row.
     const tr = e.target.closest("tr[data-id]");
     if (tr && !e.target.closest("input, button, .quick-edit-panel")) {
+      if (window.ScrollMemory) window.ScrollMemory.saveNow();
       window.location.href = `trade.html?id=${encodeURIComponent(tr.getAttribute("data-id"))}`;
     }
   });
+
+  // Swipe actions on a card (js/mobile-extras.js reports the intent; this page owns
+  // what each one does): right swipe = Note, left swipe = Tag / Delete.
+  content.addEventListener("journal:swipe", (e) => {
+    const { id, action } = e.detail || {};
+    if (!id) return;
+    if (action === "delete") deleteIds([id]);
+    else if (window.QuickAdd) window.QuickAdd.open({ mode: "trade", tradeId: id, focus: action === "tag" ? "tags" : null });
+  });
+  // A note/tag saved from the quick sheet shows up in the Tags column right away.
+  const onNoteSaved = () => {
+    if (!content.isConnected) { window.removeEventListener("tradelog:note-saved", onNoteSaved); return; }
+    if (typeof populateJournalFilters === "function") populateJournalFilters();
+    redrawTable();
+  };
+  window.addEventListener("tradelog:note-saved", onNoteSaved);
+
+  // Reached a bare Journal (tab bar / drawer) while a filtered view from earlier
+  // this session exists: offer to pick it back up instead of silently resetting it.
+  // A chip rather than auto-applying, so a fresh visit never hides trades by surprise.
+  (function resumeChip() {
+    if (!lastView || location.search || (smSnap && smSnap.back)) return;
+    if (!window.matchMedia || !window.matchMedia("(max-width: 760px)").matches) return;
+    let q;
+    try { q = new URLSearchParams(lastView.split("?")[1] || ""); } catch (e) { return; }
+    const filters = ["symbol", "from", "to", "setup", "result", "rvol", "avgvol", "float", "tag", "grade", "flagged", "tfrom", "tto"]
+      .filter((k) => q.get(k)).length;
+    const sorted = !!(q.get("sort") || q.get("dir"));
+    if (!filters && !sorted) return;
+    const bits = [];
+    if (filters) bits.push(filters + " filter" + (filters === 1 ? "" : "s"));
+    if (sorted) bits.push("custom sort");
+    const bar = document.createElement("div");
+    bar.className = "journal-resume";
+    bar.setAttribute("role", "status");
+    bar.innerHTML = '<button type="button" class="jr-go">Resume your last view<span> · ' + bits.join(", ") + '</span></button>' +
+      '<button type="button" class="jr-x" aria-label="Dismiss">\u2715</button>';
+    content.parentNode.insertBefore(bar, content);
+    const drop = () => { if (bar.parentNode) bar.parentNode.removeChild(bar); };
+    bar.querySelector(".jr-x").addEventListener("click", drop);
+    bar.querySelector(".jr-go").addEventListener("click", () => {
+      if (window.ScrollMemory) window.ScrollMemory.markReturn("journal"); // also restores your scroll offset
+      window.location.href = lastView;
+    });
+    const box = document.getElementById("journal-filters");
+    if (box) { box.addEventListener("input", drop, { once: true }); box.addEventListener("change", drop, { once: true }); }
+  })();
+
+  // Pull down at the top to re-fetch trades in place -- filters, sort, and how far
+  // down you'd loaded all stay as they are.
+  if (window.PullRefresh) {
+    window.PullRefresh.set(() => window.swrFetch("trades", window.fetchTradesIndex).then((rows) => {
+      allRows = Array.isArray(rows) ? rows : [];
+      bootShown = tableShown || null;
+      applyFilters();
+    }));
+  }
 
   // Rows carry role="link" + tabindex so they're keyboard-reachable (see
   // rowHtml above); native <tr> elements don't fire "click" on Enter/Space
@@ -935,10 +1102,14 @@
       count.textContent = n ? String(n) : "";
       btn.classList.toggle("has-active", n > 0);
     }
-    btn.addEventListener("click", () => {
-      const open = box.classList.toggle("open");
+    function setOpen(open) {
+      box.classList.toggle("open", open);
       btn.setAttribute("aria-expanded", open ? "true" : "false");
-    });
+      try { sessionStorage.setItem("tl:journal:filters-open", open ? "1" : "0"); } catch (e) { /* ignore */ }
+    }
+    btn.addEventListener("click", () => setOpen(!box.classList.contains("open")));
+    // Coming back from a trade? Keep the panel the way it was left.
+    try { if (smSnap && smSnap.back && sessionStorage.getItem("tl:journal:filters-open") === "1") setOpen(true); } catch (e) { /* ignore */ }
     box.addEventListener("input", refresh);
     box.addEventListener("change", refresh);
     refresh();
@@ -950,6 +1121,7 @@
     const tr = e.target.closest("tr[data-id]");
     if (tr && tr === e.target && !e.target.closest("input, button, .quick-edit-panel")) {
       e.preventDefault();
+      if (window.ScrollMemory) window.ScrollMemory.saveNow();
       window.location.href = `trade.html?id=${encodeURIComponent(tr.getAttribute("data-id"))}`;
     }
   });
@@ -1069,6 +1241,7 @@
       const newTags = tagsInput.value.split(",").map((t) => t.trim()).filter(Boolean);
       const newNote = cellEl.querySelector(".quick-edit-note").value;
       window.TradeNotes.save(id, Object.assign({}, entry, { mistakes: newTags, notes: newNote }));
+      if (window.Haptics) window.Haptics.play("success");
       redrawTable();
     });
     cellEl.querySelector(".quick-edit-cancel").addEventListener("click", () => redrawTable());
@@ -1106,21 +1279,29 @@
   // a fallback for the rare case that call itself errors.
   function bulkDelete() {
     if (!selectedIds.size) return;
-    const n = selectedIds.size;
-    const ids = Array.from(selectedIds);
+    deleteIds(Array.from(selectedIds));
+  }
+  // Shared by the bulk toolbar and the swipe-left "Delete" on a card.
+  function deleteIds(ids) {
+    if (!ids.length) return;
+    const n = ids.length;
+    const idSet = new Set(ids);
     const removed = [];
     ids.forEach((id) => {
       const idx = allRows.findIndex((r) => r.id === id);
       if (idx !== -1) removed.push({ row: allRows[idx], index: idx });
     });
-    allRows = allRows.filter((r) => !selectedIds.has(r.id));
-    selectedIds.clear();
+    if (window.Haptics) window.Haptics.play("warn");
+    allRows = allRows.filter((r) => !idSet.has(r.id));
+    ids.forEach((id) => selectedIds.delete(id));
+    bootShown = tableShown || null; // keep the list as far down as it was
     applyFilters();
 
     const restore = () => {
       removed.sort((a, b) => a.index - b.index).forEach(({ row, index }) => {
         allRows.splice(Math.min(index, allRows.length), 0, row);
       });
+      bootShown = tableShown || null;
       applyFilters();
     };
 
@@ -1223,6 +1404,7 @@
 })();
 </script>
 <script src="js/common.js"></script>
+<script src="js/mobile-tables.js"></script>
 <script src="js/global-search.js"></script>
 <script src="js/shortcuts-help.js"></script>
 </body>

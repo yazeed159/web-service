@@ -41,11 +41,28 @@
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0b0f">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light"){var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#f5f6f9");}}catch(e){}})();</script>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="apple-touch-startup-image" href="icons/splash/1320x2868.png" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1206x2622.png" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1242x2208.png" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1640x2360.png" media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1668x2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1536x2048.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/2048x2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1668x2224.png" media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
 <link rel="expect" href="#page-title" blocking="render">
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
@@ -138,6 +155,11 @@
           <div class="dn-stats" id="dn-summary"><span style="color:var(--text-faint);">Loading…</span></div>
         </div>
 
+        <div class="card" id="dn-thoughts-card" style="display:none;">
+          <div style="font-weight:600;margin-bottom:8px;">Quick notes <span style="font-weight:400;color:var(--text-faint);font-size:12px;">— jotted from your phone during the day</span></div>
+          <div id="dn-thoughts"></div>
+        </div>
+
         <div class="card">
           <div style="font-weight:600;margin-bottom:12px;">Plan <span style="font-weight:400;color:var(--text-faint);font-size:12px;">— fill in before the open</span> <span class="dn-badge dn-streak" id="dn-streak" style="float:right;"></span></div>
           <div class="dn-hint" id="dn-watchfor"></div>
@@ -209,6 +231,8 @@
 <script src="js/global-search.js"></script>
 <script src="js/shortcuts-help.js"></script>
 <script src="js/common.js"></script>
+<script src="js/mobile-tables.js"></script>
+<script src="js/mobile-extras.js"></script>
 <script>
 (function () {
   "use strict";
@@ -228,9 +252,10 @@
   function load() {
     day = Object.assign(
       { plan: "", max_loss: null, goal: null, checks: {}, went_well: "", to_fix: "",
-        went_well_tags: [], to_fix_tags: [], followed_plan: null, tomorrow: "" },
+        went_well_tags: [], to_fix_tags: [], followed_plan: null, tomorrow: "", thoughts: [] },
       window.DailyNotes.get(date) || {}
     );
+    day.thoughts = (day.thoughts || []).slice();
     day.checks = Object.assign({}, day.checks);
     day.went_well_tags = (day.went_well_tags || []).slice();
     day.to_fix_tags = (day.to_fix_tags || []).slice();
@@ -302,7 +327,7 @@
     const rowsHtml = days.map((dd) => {
       const s = dayStats(dd);
       const n = dd === date ? day : notes[dd];
-      const hasNote = !!(n && (n.plan || n.went_well || n.to_fix || n.tomorrow ||
+      const hasNote = !!(n && (n.plan || n.went_well || n.to_fix || n.tomorrow || (n.thoughts && n.thoughts.length) ||
         (n.went_well_tags && n.went_well_tags.length) || (n.to_fix_tags && n.to_fix_tags.length)));
       const breached = n && n.max_loss != null && s.n && -s.worst > n.max_loss;
       if (n && n.max_loss != null) tPlanned++;
@@ -330,6 +355,32 @@
       : "No trades this week.";
   }
 
+  // Timestamped one-liners added through the phone quick-note sheet (mobile-extras.js).
+  function renderThoughts() {
+    const list = day.thoughts || [];
+    $("dn-thoughts-card").style.display = list.length ? "" : "none";
+    $("dn-thoughts").innerHTML = list.map((t, i) => {
+      const d = t.t ? new Date(t.t) : null;
+      const hm = d && !isNaN(d) ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : "";
+      return `<div style="display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-top:${i ? "1px solid var(--border-soft)" : "0"};">
+        <span style="flex:none;font-family:var(--mono);font-size:12px;color:var(--text-faint);padding-top:2px;">${hm}</span>
+        <span style="flex:1;font-size:14px;line-height:1.4;white-space:pre-wrap;">${escapeHtml(t.text)}</span>
+        <button type="button" data-del-thought="${i}" title="Delete note" aria-label="Delete note" style="flex:none;min-width:36px;min-height:36px;background:none;border:0;color:var(--text-faint);cursor:pointer;">✕</button></div>`;
+    }).join("");
+    $("dn-thoughts").querySelectorAll("[data-del-thought]").forEach((b) => b.addEventListener("click", () => {
+      day.thoughts = (day.thoughts || []).filter((_, i) => i !== Number(b.dataset.delThought));
+      persist(); renderThoughts();
+    }));
+  }
+  // A note added from the quick sheet (the "+" in the bottom nav) while this page is open:
+  // pull it into the in-memory day so the next autosave here doesn't wipe it.
+  window.addEventListener("tradelog:note-saved", (e) => {
+    if (!e.detail || e.detail.day !== date) return;
+    const stored = window.DailyNotes.get(date);
+    day.thoughts = ((stored && stored.thoughts) || []).slice();
+    renderThoughts();
+  });
+
   function renderForm() {
     $("dn-date").value = date;
     $("dn-maxloss").value = day.max_loss ?? "";
@@ -339,6 +390,7 @@
     $("dn-fix").value = day.to_fix;
     $("dn-tomorrow").value = day.tomorrow;
     $("dn-extra").classList.toggle("open", !!(day.went_well || day.to_fix));
+    renderThoughts();
     renderChecklist();
     renderFollowed();
     renderChips();

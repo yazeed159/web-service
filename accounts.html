@@ -40,11 +40,28 @@
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0b0f">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light"){var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#f5f6f9");}}catch(e){}})();</script>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="apple-touch-startup-image" href="icons/splash/1320x2868.png" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1206x2622.png" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1242x2208.png" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1640x2360.png" media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1668x2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1536x2048.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/2048x2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1668x2224.png" media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
 <link rel="expect" href="#page-title" blocking="render">
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
@@ -115,7 +132,7 @@
           <span class="title">Real accounts</span>
           <button type="button" class="btn-confirm" id="acc-new-live">+ New real account</button>
         </div>
-        <p class="acc-help">Each real account keeps its own trades, deposits and equity curve. The switcher in the top bar (or <b>View</b> below) decides what every page shows &mdash; one account, a few, or all of them combined.</p>
+        <p class="acc-help">Broker accounts only. Each real account keeps its own trades, deposits and equity curve. The switcher in the top bar (or <b>View</b> below) decides what every page shows &mdash; one account, a few, or all of them combined.</p>
         <div id="acc-live-grid" class="acc-grid"></div>
       </div>
 
@@ -147,15 +164,6 @@
         <div id="acc-ledger-list"></div>
       </div>
 
-      <div class="panel-box mb-16" id="acc-paper-box">
-        <div class="panel-box-head">
-          <span class="title">Paper trading attempts</span>
-          <button type="button" class="btn-confirm" id="acc-new-paper">+ New attempt</button>
-        </div>
-        <p class="acc-help">Every reset on the Practice tab is saved as its own attempt, so you can compare experiments. Paper results never touch your real accounts&rsquo; numbers.</p>
-        <div id="acc-paper-list"></div>
-      </div>
-
     </div>
   </div>
 </div>
@@ -167,9 +175,34 @@
 <script src="js/accounts.js"></script>
 
 <style>
-  .acc-help{color:var(--text-faint);font-size:12px;margin:-8px 0 16px;line-height:1.5}
+  .acc-help{color:var(--text-dim);font-size:12.5px;margin:-8px 0 16px;line-height:1.55}
+  /* Tables: the generic .report-table is tuned for a plain panel (faint 10px
+     headers, near-invisible dividers, sticky header). On these cards it read as
+     washed-out, and the sticky header could sit over the first row. */
+  .acc-table-wrap{border:1px solid var(--border);border-radius:var(--radius);background:var(--panel-2);margin-top:6px}
+  .acc-table{border-collapse:separate;border-spacing:0}
+  .acc-table thead th{position:static;background:var(--panel-3);color:var(--text-dim);font-size:11px;font-weight:600;padding:11px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+  .acc-table td{padding:13px 14px;font-size:13.5px;color:var(--text);border-bottom:1px solid var(--border);vertical-align:middle}
+  .acc-table tbody tr:last-child td{border-bottom:none}
+  .acc-table tbody tr:hover td{background:var(--panel-3)}
+  .acc-table td.mono{font-size:13px}
+  @media (min-width:761px){.acc-table thead th{position:static!important}}
+  /* Phone: account cards - big balance, one primary action, the rest in a tidy 2-up grid */
+  @media (max-width:760px){
+    .acc-balance{font-size:26px}
+    .acc-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .acc-actions button{width:100%;font-size:13px}
+    .acc-actions button:first-child{grid-column:1/-1;background:var(--primary-soft);border-color:var(--primary);color:var(--text);font-weight:600}
+  }
+  /* Phone: the ledger becomes one card per entry (js/mobile-tables.js adds .mt-stack) */
+  @media (max-width:760px){
+    .acc-table-wrap:has(> .mt-stack){border:0;background:none;border-radius:0}
+    .acc-table.mt-stack td:first-child{padding-right:48px!important;font-weight:600}
+    .acc-table.mt-stack td:last-child{position:absolute!important;top:6px;right:6px;grid-column:auto}
+    .acc-table.mt-stack td:nth-child(4){grid-column:1/-1}
+  }
   .acc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
-  .acc-card{background:var(--panel-2);border:1px solid var(--border-soft);border-radius:var(--radius);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+  .acc-card{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
   .acc-card.combined{border-color:var(--primary);background:var(--primary-soft)}
   .acc-card.archived{opacity:.65}
   .acc-card-h{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}
@@ -183,11 +216,11 @@
   .acc-form label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:4px}
   .acc-form-row{flex-basis:100%;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .acc-check{display:inline-flex!important;align-items:center;gap:7px;font-size:13px!important;color:var(--text)!important;margin:0!important}
-  .acc-period{border:1px solid var(--border-soft);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;background:var(--panel-2)}
+  .acc-period{border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;background:var(--panel-2)}
   .acc-period-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
   .acc-period-h .nm{font-weight:600;font-size:14px}
   .acc-period-h .rng{font-size:12px;color:var(--text-faint)}
-  .acc-period-stats{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0;font-size:12px;color:var(--text-faint)}
+  .acc-period-stats{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0;font-size:12.5px;color:var(--text-dim)}
   .acc-period-stats b{color:var(--text);font:500 13px var(--mono);margin-left:4px}
   .acc-reflection{width:100%;margin-top:6px}
   .acc-empty{color:var(--text-faint);font-size:13px;padding:10px 2px}
@@ -329,7 +362,7 @@
       const rows = entries.slice().reverse().map((e) => '<tr><td>' + escapeHtml(e.date) + "</td><td>" + (e.amount >= 0 ? "Deposit" : "Withdrawal") + '</td><td class="mono ' + sign(e.amount) + '">' + fmtMoney(e.amount) + "</td><td>" + (e.note ? escapeHtml(e.note) : '<span class="dim">\u2014</span>') + '</td>' +
         '<td><label class="acc-check" style="font-size:12px!important"><input type="checkbox" data-startp="' + escapeHtml(e._id) + '"' + (A.startsPeriod(e) ? " checked" : "") + "> starts period</label></td>" +
         '<td><button type="button" class="btn-icon" data-del="' + escapeHtml(e._id) + '" title="Delete" aria-label="Delete">&times;</button></td></tr>').join("");
-      $("acc-ledger-list").innerHTML = '<div class="table-scroll"><table class="report-table"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th><th></th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>";
+      $("acc-ledger-list").innerHTML = '<div class="table-scroll acc-table-wrap"><table class="report-table acc-table"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th><th></th><th></th></tr></thead><tbody>' + rows + "</tbody></table></div>";
     }
   }
 
@@ -404,77 +437,8 @@
     refreshAll();
   });
 
-  // ---------------- paper attempts ----------------
-  function paperStats(a) {
-    const blob = window.Accounts.paperApi.load(a.id);
-    if (!blob) return { balance: a.starting_balance, start: a.starting_balance, pnl: 0, closes: 0, wins: 0, fills: 0 };
-    const closes = (blob.fills || []).filter((f) => f.realizedPnl !== null && f.realizedPnl !== undefined);
-    return {
-      balance: blob.balance, start: blob.startingBalance != null ? blob.startingBalance : a.starting_balance,
-      pnl: closes.reduce((s, f) => s + (f.realizedPnl || 0), 0), closes: closes.length,
-      wins: closes.filter((f) => f.realizedPnl > 0).length, fills: (blob.fills || []).length,
-    };
-  }
-
-  function renderPaper() {
-    const A = window.Accounts;
-    const list = A.paper().slice().reverse();
-    if (!list.length) { $("acc-paper-list").innerHTML = '<div class="acc-empty">No paper attempts yet. Open the Practice tab, or start one here.</div>'; return; }
-    const active = A.paperApi.activeId();
-    let totPnl = 0, totClose = 0;
-    const rows = list.map((a) => {
-      const st = paperStats(a);
-      totPnl += st.pnl; totClose += st.closes;
-      const ret = st.start ? ((st.balance - st.start) / st.start) * 100 : null;
-      return '<tr><td><span class="acc-dot" style="display:inline-block;background:' + escapeHtml(a.color || "#22d3ee") + ';margin-right:8px"></span>' + escapeHtml(a.name) +
-        (a.id === active ? ' <span class="pill win">current</span>' : "") + (a.status === "archived" ? ' <span class="pill">archived</span>' : "") + "</td>" +
-        '<td class="mono">' + (st.start != null ? fmtUsd(st.start) : "\u2014") + '</td><td class="mono">' + (st.balance != null ? fmtUsd(st.balance) : "\u2014") + "</td>" +
-        '<td class="mono ' + sign(st.pnl) + '">' + fmtMoney(st.pnl) + (ret === null ? "" : " (" + (ret >= 0 ? "+" : "") + ret.toFixed(1) + "%)") + "</td>" +
-        '<td class="mono">' + st.closes + "</td><td class=\"mono\">" + (st.closes ? Math.round((st.wins / st.closes) * 100) + "%" : "\u2014") + "</td>" +
-        '<td style="white-space:nowrap"><button type="button" class="filter-btn" data-p="stats" data-id="' + escapeHtml(a.id) + '">Stats</button> ' +
-        '<button type="button" class="filter-btn" data-p="use" data-id="' + escapeHtml(a.id) + '">Trade it</button> ' +
-        '<button type="button" class="filter-btn" data-p="rename" data-id="' + escapeHtml(a.id) + '">Rename</button> ' +
-        '<button type="button" class="filter-btn" data-p="delete" data-id="' + escapeHtml(a.id) + '">Delete</button></td></tr>';
-    }).join("");
-    $("acc-paper-list").innerHTML = '<div class="table-scroll"><table class="report-table"><thead><tr><th>Attempt</th><th>Started with</th><th>Balance</th><th>Realized P&amp;L</th><th>Closes</th><th>Win rate</th><th></th></tr></thead><tbody>' + rows +
-      '</tbody></table></div><div class="acc-help" style="margin:10px 0 0">All attempts combined: <b class="' + sign(totPnl) + '">' + fmtMoney(totPnl) + "</b> across " + totClose + " closes.</div>";
-  }
-
-  $("acc-paper-list").addEventListener("click", async (ev) => {
-    const btn = ev.target.closest("button[data-p]");
-    if (!btn) return;
-    const id = btn.getAttribute("data-id"), act = btn.getAttribute("data-p"), A = window.Accounts;
-    try {
-      if (act === "stats") window.location.href = "practice.html?tab=analytics&acct=" + encodeURIComponent(id);
-      else if (act === "use") { await A.paperApi.switchTo(id); window.location.href = "practice.html"; }
-      else if (act === "rename") {
-        const name = await UIModal.prompt("New name:", A.byId(id).name, { title: "Rename attempt", confirmLabel: "Save" });
-        if (name === null || !name.trim()) return;
-        await A.update(id, { name: name.trim() }); renderPaper();
-      } else if (act === "delete") {
-        const ok = await UIModal.confirm("Permanently delete this attempt and all its fills? This can't be undone.", { title: "Delete attempt?", tone: "danger", confirmLabel: "Delete" });
-        if (!ok) return;
-        await A.paperApi.remove(id); renderPaper();
-      }
-    } catch (e) { toast(e.message || String(e), "error"); }
-  });
-
-  $("acc-new-paper").addEventListener("click", async () => {
-    const A = window.Accounts;
-    const bal = await UIModal.prompt("Starting balance for the new attempt:", "25000", { title: "New paper attempt", inputType: "number", confirmLabel: "Next" });
-    if (bal === null) return;
-    const amt = num(bal);
-    if (!isFinite(amt) || amt <= 0) { toast("Enter a starting balance above $0.", "error"); return; }
-    const name = await UIModal.prompt("Name it (what are you testing?):", A.paperApi.nextName(amt), { title: "Attempt name", confirmLabel: "Start" });
-    if (name === null) return;
-    try {
-      await A.paperApi.newAttempt({ name, startingBalance: amt, blob: { v: 2, balance: amt, startingBalance: amt, createdAt: new Date().toISOString(), fills: [], session: null, sizeMode: "shares" } });
-      window.location.href = "practice.html";
-    } catch (e) { toast(e.message || String(e), "error"); }
-  });
-
   // ---------------- boot ----------------
-  function refreshAll() { renderLive(); renderPicker(); renderMoney(); renderPaper(); }
+  function refreshAll() { renderLive(); renderPicker(); renderMoney(); }
 
   window.AUTH_READY.then((session) => {
     if (!session) return;
@@ -494,6 +458,8 @@
 </script>
 
 <script src="js/common.js"></script>
+<script src="js/mobile-tables.js"></script>
+<script src="js/mobile-extras.js"></script>
 <script src="js/global-search.js"></script>
 <script src="js/shortcuts-help.js"></script>
 </body>

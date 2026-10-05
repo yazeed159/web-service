@@ -121,6 +121,14 @@ this project. (The one-time `import-legacy.html` tool that moved data
 from that era into Supabase has since been removed, now that every
 account's history is confirmed migrated.)
 
+## Phone navigation (<=760px)
+
+Built in `js/nav-render.js` (+ `js/global-search.js`, styles at the end of `css/common.css`). None of it shows on desktop.
+
+- **Editable tab bar** -- the bar is four pages of your choosing, a centre "+" quick note, Search, and More. Press and hold any tab, or use "Customize tab bar" at the foot of the drawer, to pick four pages (the order you tap them is the order on the bar; Reset restores Home / Journal / Daily / Practice). Stored per device in `localStorage["trade.log:bottom-tabs"]`. The choices come from the sidebar item lists, so a page added there is selectable automatically; long names get a short form on the bar via `BAR_SHORT`.
+- **Search in the bar** -- the top-right search icon is hidden on phones. The Search tab opens the same control (`window.GlobalSearch.open/close/toggle`) as a sheet docked to the bottom edge and lifted above the keyboard. While open it is moved to `<body>`, because the topbar's `backdrop-filter` would otherwise make it the containing block for `position: fixed`.
+- **Recent pages** -- the last pages visited (`localStorage["trade.log:recent-pages"]`) are listed above the drawer's scrolling list. Pages that already have a tab, and the page you are on, are left out.
+
 ## Installable app + seamless page transitions
 
 The site is an installable PWA and is meant to be wrapped as an Android APK
@@ -175,3 +183,31 @@ Supabase SQL editor. Until it runs, the site behaves exactly as before.
 - Backend (`chart-service`): `/import-trades` accepts an optional `account_id` form
   field (validated against the caller); `publish.py` recomputes `equity_after` per
   account.
+
+## Phone daily-use features
+
+- **`js/mobile-extras.js`** (loaded on every app page): quick-note sheet (`QuickAdd`, opened by the bottom-nav "+", the `?quick=trade|note` home-screen shortcuts, and Journal swipes), pull-to-refresh (`PullRefresh.set(fn)` — dashboard + Journal opt in), scroll memory (`ScrollMemory`), and Journal card swipe gestures (left: Tag/Delete, right: Note).
+- **`js/today-strip.js`**: the dashboard "Today" card (Today / Yesterday / This week / Last week).
+- Quick day notes are stored in `DailyNotes` as `thoughts: [{t, text}]` and listed on `daily.html`.
+- Trades are not created by hand in the app (they come from the IBKR sync / CSV import), so "log a trade" = a note/tags on a trade.
+
+## Phone helpers (PWA)
+
+- **Share a CSV into the app** -- `manifest.json` declares a `share_target`; `sw.js` answers the POST to `/share-target`, parks the file in the `tradelog-share` cache and redirects to `import-trades.html?shared=1`, which loads it into the file field (you still tap Import). Android Chrome only, and only once the app is installed.
+- **Keypads** -- `js/mobile-extras.js` gives every `type="number"` field with `min >= 0` a numeric (whole numbers) or decimal keypad automatically; the calculator's text price fields set `inputmode` by hand.
+- **Skeletons** -- `.skel-cards` / `.skel-stack` placeholders (css/common.css) on Journal, Patterns, Performance and Edge Analysis.
+- **Offline** -- `TradeCache` + `swrFetch` (js/auth.js) keep the last loaded trades on the device; Journal falls back to them and shows "Offline - data from ...".
+- **Haptics** -- `Haptics.play("tap"|"select"|"success"|"warn"|"buy"|"sell")` or `data-haptic="..."` on a button. Off switch: `localStorage["trade.log:haptics"] = "off"`.
+
+## Phone charts & Practice (portrait + landscape)
+
+- **Chart gestures** (`touchChartOpts()` / `buildStandardChart()` in `js/chart-indicators.js`, rules at `.chart-touch*` in `css/common.css`). Every price chart on a phone: pinch zooms, horizontal drag pans, a long press (~0.25 s) drops the crosshair and dragging moves it; lifting your finger clears it (so the OHLC/indicator readout never freezes). The browser's long-press menu is suppressed on the chart. Trade/Report charts still hand a *vertical* swipe back to the page; **Practice** passes `touchMode: "capture"`, so one finger owns the chart (`touch-action: none`) and the page doesn't scroll under it -- scroll from the transport row or anywhere outside the chart.
+- **Landscape charts**: "phone" now also means a short touch screen (`(orientation: landscape) and (max-height: 500px) and (pointer: coarse)`), so the fullscreen / zoom buttons show sideways too. Turning the phone to landscape while a Trade/Report chart is on screen opens it fullscreen; turning back closes it (only if the rotation opened it).
+- **Practice order dock** (`js/practice-mobile.js`, styles at the end of `css/practice.css`). On phones the order ticket is re-parented into a body-level `#pp-dock`: your shortcut buttons (key badges hidden -- no keyboard) and big BUY / SELL stay pinned above the tab bar; tap the price/size handle (or the dim background) to slide the full ticket up -- size, % presets, position, fills, the shortcuts gear. Order feedback floats above the dock so buttons never shift under your thumb. On desktop widths nothing changes and the ticket goes back to its column.
+- **Practice landscape**: `html.pp-landscape` makes the play screen full-screen -- slim header, chart filling the middle, transport row, and the dock as one strip (size - shortcuts - BUY - SELL) with the same slide-up sheet. `practice.js` only calls `PracticeMobile.sync()` / `onChartBuilt()` and tags the chart handle as `window.__ppChart`; all order logic is unchanged.
+
+## Phone daily-use: shortcut icons & resume-last-view
+
+- **Home-screen shortcuts** now have icons (`icons/shortcut-*.png`, 96x96, declared per shortcut in `manifest.json`): long-press the installed app for Trade note, Day note, Journal, Daily plan. Android launchers show only the first four, so keep the best four first. After changing the manifest, reinstall the app (or clear its data) -- Android caches shortcuts at install time.
+- **Resume your last view** (`journal.html`, phones only): opening a bare Journal from the tab bar while a filtered/sorted view from earlier in the session exists (`sessionStorage["tl:journal:url"]`, under 6 h old) shows a chip at the top. Tap it to restore the filters, sort, depth and scroll; tap the x or change any filter to dismiss. It never auto-applies, so a fresh visit can't hide trades by surprise. Back from a trade still restores everything with no chip, as before.
+

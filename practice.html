@@ -14,11 +14,28 @@
 <script src="js/vendor/lightweight-charts.js" defer></script>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0b0f">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light"){var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#f5f6f9");}}catch(e){}})();</script>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="apple-touch-startup-image" href="icons/splash/1320x2868.png" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1206x2622.png" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1242x2208.png" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1640x2360.png" media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1668x2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1536x2048.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/2048x2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1668x2224.png" media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
 <link rel="expect" href="#page-title" blocking="render">
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
@@ -250,7 +267,7 @@
               </div>
               <div class="pp-size-row">
                 <button type="button" class="pp-stepper-btn" id="pp-qty-dec" aria-label="Decrease quantity" tabindex="-1">−</button>
-                <input type="number" id="pp-shares-input" min="1" step="1" value="100" aria-label="Order size in shares">
+                <input type="number" id="pp-shares-input" inputmode="numeric" min="1" step="1" value="100" aria-label="Order size in shares">
                 <button type="button" class="pp-stepper-btn" id="pp-qty-inc" aria-label="Increase quantity" tabindex="-1">+</button>
                 <span class="unit" id="pp-size-unit">shares</span>
               </div>
@@ -306,6 +323,7 @@
             <div class="empty-state-hero-icon"><svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19 6h10M20 6v13l-9.5 17a3 3 0 0 0 2.6 4.5h21.8a3 3 0 0 0 2.6-4.5L28 19V6" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M15.5 30h17" stroke="currentColor" stroke-width="2.2" opacity="0.6"/></svg></div>
             <div class="empty-state-hero-title">No practice trades yet</div>
             <div class="empty-state-hero-msg">Switch to the Practice tab, pick a chart, and place a few fills — your analytics will show up here, including how long you held each one.</div>
+            <div class="empty-state-hero-actions"><a class="empty-state-hero-action" href="practice.html">Start practicing</a></div>
           </div>
         </div>
 
@@ -367,6 +385,7 @@
 <script src="js/ui-modal.js"></script>
 <script src="js/chart-indicators.js"></script>
 <script src="js/practice.js"></script>
+<script src="js/practice-mobile.js"></script>
 <script src="js/practice-analytics.js"></script>
 <script>
 (function () {
@@ -395,6 +414,7 @@
       practiceView.style.display = "";
       if (shortcutsBtn) shortcutsBtn.style.display = "";
     }
+    if (window.PracticeMobile) window.PracticeMobile.sync();
   }
 
   tabs.addEventListener("click", function (e) {
@@ -411,6 +431,8 @@
 })();
 </script>
 <script src="js/common.js"></script>
+<script src="js/mobile-tables.js"></script>
+<script src="js/mobile-extras.js"></script>
 <script src="js/global-search.js"></script>
 <script src="js/shortcuts-help.js"></script>
 </body>

@@ -255,6 +255,7 @@
       clearTimeout(timer);
       const run = () => {
         window.TradeNotes.save(trade.id, entry);
+        if (immediate && window.Haptics) window.Haptics.play("success");
         statusEl.textContent = "Saved";
         setTimeout(() => { if (statusEl.textContent === "Saved") statusEl.textContent = ""; }, 1500);
       };
@@ -391,8 +392,10 @@
             </button>
           </div>
         </div>
-        <div id="candle-chart"></div>
-        <div id="macd-chart"></div>
+        <div class="chart-stack" id="chart-stack">
+          <div id="candle-chart"></div>
+          <div id="macd-chart"></div>
+        </div>
       </div>
 
       <div class="detail-grid">
@@ -846,6 +849,13 @@
       priceScaleMargins: { top: 0.14, bottom: 0.18 }, // headroom for pointer markers at any zoom level
       volScaleMargins: { top: 0.82, bottom: 0 },
       showLastValueLine: false, // entry/exit/S-R lines are all drawn explicitly below; the built-in one is redundant noise
+      fullscreenHost: document.getElementById("chart-stack"), // phones: candle + MACD go fullscreen together
+      onFullscreenFit: () => {
+        const m = document.getElementById("macd-chart");
+        if (currentMacdChart && m) currentMacdChart.applyOptions({ width: m.clientWidth, height: m.clientHeight || 110 });
+        if (pointersResizeHandler) pointersResizeHandler();
+      },
+      onFocus: () => zoomToTrade(),
       floatLabel: floatShares ? fmtShares(floatShares) : null,
       onResize: () => {
         const macdElNow = document.getElementById("macd-chart");
@@ -1202,14 +1212,23 @@
     // (histogram + 2 plain lines, no candles/volume/VWAP/EMA) aren't part
     // of the standard-chart shape that helper builds.
     const macdCt = window.chartThemeColors ? window.chartThemeColors() : { text: "#8b98a5", grid: "#1c2127", border: "#232830" };
+    // Must mirror the candle chart's phone sizing: the price-scale gutter
+    // width decides where the plot area starts, and the two panes only line
+    // up bar-for-bar (they're range-synced) if both gutters are the same. It
+    // also needs the same touch handling, or the MACD pane swallows vertical
+    // swipes and the page can't be scrolled past it.
+    const macdPhone = window.ChartIndicators.isPhone();
     const macdCommonOpts = {
-      layout: { background: { color: "transparent" }, textColor: macdCt.text },
+      layout: { background: { color: "transparent" }, textColor: macdCt.text, fontSize: macdPhone ? 10 : 12 },
       grid: { vertLines: { color: macdCt.grid }, horzLines: { color: macdCt.grid } },
-      rightPriceScale: { borderColor: macdCt.border, minimumWidth: 92 },
-      timeScale: { borderColor: macdCt.border, timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: macdCt.border, minimumWidth: macdPhone ? 60 : 92 },
+      timeScale: { borderColor: macdCt.border, timeVisible: true, secondsVisible: false, rightOffset: macdPhone ? 3 : 0 },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      ...window.ChartIndicators.touchChartOpts(),
     };
-    const macdChart = LightweightCharts.createChart(macdEl, { ...macdCommonOpts, width: macdEl.clientWidth, height: 110 });
+    // Use the container's real (CSS) height -- 80px on phones -- not a
+    // hard-coded 110, which overflowed the box and clipped the bottom axis.
+    const macdChart = LightweightCharts.createChart(macdEl, { ...macdCommonOpts, width: macdEl.clientWidth, height: macdEl.clientHeight || 110 });
     currentMacdChart = macdChart;
     const macdHistSeries = macdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } });
     macdHistSeries.setData(histData);
@@ -1218,8 +1237,47 @@
     const macdSignalLineSeries = macdChart.addLineSeries({ color: "#e8a94c", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     macdSignalLineSeries.setData(signalData);
 
-    candleChart.timeScale().subscribeVisibleLogicalRangeChange((range) => { if (range) macdChart.timeScale().setVisibleLogicalRange(range); });
-    macdChart.timeScale().subscribeVisibleLogicalRangeChange((range) => { if (range) candleChart.timeScale().setVisibleLogicalRange(range); });
+    // Two-way range sync. The old version had each chart set the other's
+    // range from its own change handler with no guard, so every pan/pinch
+    // bounced between the panes (visible jitter on touch). The flag plus the
+    // "already equal" check stops the echo.
+    let rangeSyncing = false;
+    function linkRanges(src, dst) {
+      src.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+        if (!range || rangeSyncing) return;
+        const cur = dst.timeScale().getVisibleLogicalRange();
+        if (cur && Math.abs(cur.from - range.from) < 0.01 && Math.abs(cur.to - range.to) < 0.01) return;
+        rangeSyncing = true;
+        try { dst.timeScale().setVisibleLogicalRange(range); } finally { rangeSyncing = false; }
+      });
+    }
+    linkRanges(candleChart, macdChart);
+    linkRanges(macdChart, candleChart);
+
+    // Mirror the candle crosshair onto the MACD pane so scrubbing the price
+    // chart shows the same moment's MACD reading.
+    let xhairSyncing = false;
+    candleChart.subscribeCrosshairMove((param) => {
+      if (xhairSyncing) return;
+      xhairSyncing = true;
+      try {
+        if (param && param.time !== undefined && param.point) macdChart.setCrosshairPosition(0, param.time, macdLineSeries);
+        else macdChart.clearCrosshairPosition();
+      } catch (e) {} finally { xhairSyncing = false; }
+    });
+
+    // Zoom the view to the entry->exit window (with some context either
+    // side). Wired to the fullscreen/zoom toolbar's target button.
+    function zoomToTrade() {
+      try {
+        if (!trade.entry_time || !trade.exit_time) { candleChart.timeScale().fitContent(); return; }
+        const a = toUnix(`${trade.trade_date} ${trade.entry_time}`);
+        const b = toUnix(`${trade.trade_date} ${trade.exit_time}`);
+        const lo = Math.min(a, b), hi = Math.max(a, b);
+        const pad = Math.max(8 * currentInterval * 60, (hi - lo) * 0.75);
+        candleChart.timeScale().setVisibleRange({ from: lo - pad, to: hi + pad });
+      } catch (e) { try { candleChart.timeScale().fitContent(); } catch (e2) {} }
+    }
 
     candleChart.timeScale().fitContent();
     macdChart.timeScale().fitContent();
@@ -1232,6 +1290,7 @@
     // unchanged at any timeframe.
     function applyInterval(minutes) {
       currentInterval = minutes;
+      if (window.ChartIndicators.syncTimeframeSwitchers) window.ChartIndicators.syncTimeframeSwitchers(minutes);
       const displayBars = minutes === 1 ? bars : window.ChartIndicators.resampleBars(bars, minutes);
       currentSeriesData = seriesDataFor(displayBars);
       candleSeries.setData(currentSeriesData.candleData);
@@ -1270,6 +1329,11 @@
         onSelect: applyInterval,
       });
       chartControls.insertBefore(switcher, chartControls.firstChild);
+    }
+    // Phones: the inline switcher is scrolled out of reach while the chart is
+    // fullscreen, so put a second one inside it (kept in sync by applyInterval).
+    if (handle.fullscreen) {
+      handle.fullscreen.addFsTool(window.ChartIndicators.buildTimeframeSwitcher({ active: currentInterval, onSelect: applyInterval }));
     }
 
     const exportBtn = document.getElementById("export-chart-btn");

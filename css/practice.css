@@ -363,3 +363,147 @@
 .pp-partial-label { font-size: 11px; color: var(--text-faint); margin-right: 2px; }
 .pp-partial-btn { display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.15; padding: 6px 10px; }
 .pp-partial-btn .dim { font-size: 10px; }
+
+
+/* ======================================================================
+   Phone: order dock + slide-up ticket, landscape full-screen chart
+   (see js/practice-mobile.js, which re-parents .pp-order-panel into
+   #pp-dock and toggles html.pp-playing / html.pp-landscape)
+   ====================================================================== */
+.pp-dock { display: none; }
+
+@media (max-width: 760px), (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+  /* ---- the dock (portrait: above the tab bar; landscape: bottom strip) ---- */
+  html.pp-playing .pp-dock {
+    display: block; position: fixed; inset: 0; z-index: 1100; pointer-events: none;
+  }
+  .pp-dock-scrim { display: none; position: absolute; inset: 0; background: rgba(0,0,0,.5); pointer-events: auto; }
+  .pp-dock.open .pp-dock-scrim { display: block; }
+
+  .pp-dock .pp-order-panel {
+    position: absolute; left: 0; right: 0; bottom: calc(56px + var(--safe-bottom));
+    pointer-events: auto; display: flex; flex-direction: column;
+    margin: 0; padding: 0; max-height: min(78dvh, 640px);
+    background: var(--panel); -webkit-backdrop-filter: none; backdrop-filter: none;
+    border: 1px solid var(--border-soft); border-bottom: 0; border-radius: 16px 16px 0 0;
+    box-shadow: 0 -10px 30px rgba(0,0,0,.35);
+  }
+
+  /* handle: live price + order size, tap to slide the full ticket up */
+  .pp-dock-handle {
+    position: relative; display: flex; align-items: center; gap: 12px; width: 100%;
+    min-height: 48px; padding: 16px 14px 6px; flex: 0 0 auto;
+    background: none; border: 0; color: var(--text); font: inherit; text-align: left; cursor: pointer;
+  }
+  .pp-dock-grip { position: absolute; top: 6px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--border); }
+  .pp-dock-price { font-family: var(--mono); font-weight: 800; font-size: 16px; }
+  .pp-dock-size { flex: 1 1 auto; font-family: var(--mono); font-size: 13px; color: var(--text-dim); }
+  .pp-dock-chev { font-size: 16px; color: var(--text-faint); transition: transform .2s ease; }
+  .pp-dock.open .pp-dock-chev { transform: rotate(180deg); }
+
+  /* sheet body: size, presets, position, fills (hidden until opened) */
+  .pp-dock-body {
+    display: none; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 14px 12px;
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  }
+  .pp-dock.open .pp-dock-body { display: block; }
+  .pp-dock-body .pp-ticket-head { margin-bottom: 10px; }
+  .pp-dock-body .pp-size-mode-btn { min-height: 40px; font-size: 13px; }
+  .pp-dock-body .pp-stepper-btn { min-width: 48px; min-height: 48px; }
+  .pp-dock-body .pp-size-row input[type="number"] { min-height: 48px; font-size: 18px; flex: 1 1 auto; width: auto; min-width: 0; }
+
+  /* foot: shortcut buttons + big BUY / SELL, always visible */
+  .pp-dock-foot { flex: 0 0 auto; padding: 4px 12px 10px; }
+  .pp-dock-foot .pp-shortcuts-block { margin: 0 0 8px; padding: 0; border-top: 0; }
+  .pp-dock-foot .pp-shortcuts-label { display: none; }
+  .pp-dock-foot .pp-shortcuts-row { flex-wrap: nowrap; overflow-x: auto; gap: 8px; padding-bottom: 2px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .pp-dock-foot .pp-shortcuts-row::-webkit-scrollbar { display: none; }
+  .pp-dock-foot .pp-shortcut-btn { flex: 0 0 auto; min-height: 44px; padding: 0 16px; font-size: 14px; border-radius: 10px; white-space: nowrap; }
+  .pp-dock-foot .pp-shortcut-key { display: none; } /* a phone has no keyboard */
+  .pp-dock-foot .pp-order-btn-row { margin: 0; gap: 10px; }
+  .pp-dock-foot .pp-order-btn { flex: 1 1 0; min-height: 60px; font-size: 18px; letter-spacing: .02em; border-radius: 12px; }
+  .pp-dock-foot .pp-order-btn svg { width: 20px; height: 20px; }
+  .pp-dock .pp-order-btn:hover, .pp-dock .pp-shortcut-btn:hover:not(:disabled) { transform: none; filter: none; }
+  .pp-dock .pp-order-btn:active { transform: scale(.97); }
+
+  /* order feedback floats above the panel so it never moves the buttons */
+  .pp-dock .pp-order-msg {
+    position: absolute; left: 12px; right: 12px; bottom: calc(100% + 8px); margin: 0;
+    padding: 8px 12px; font-size: 13px; border-radius: 10px; pointer-events: none;
+    background: var(--panel-3); border: 1px solid var(--border);
+  }
+  .pp-dock .pp-order-msg:empty { display: none; }
+  .pp-dock .pp-order-msg.err { border-color: rgba(242,85,90,.55); }
+
+  /* ---- portrait page: room under the dock, bigger transport controls ---- */
+  html.pp-playing .content { padding-bottom: calc(var(--pp-dock-h, 150px) + 56px + var(--safe-bottom) + 16px); }
+  html.pp-playing .chatw-launcher { bottom: calc(var(--pp-dock-h, 150px) + 56px + var(--safe-bottom) + 10px); }
+  html.pp-playing:not(.pp-landscape) .pp-transport .btn-advanced { min-height: 44px; font-size: 13px; }
+  html.pp-playing:not(.pp-landscape) .pp-progress-block { min-width: 100%; }
+  html.pp-playing:not(.pp-landscape) .pp-progress-track { height: 8px; }
+  html.pp-playing:not(.pp-landscape) #pp-progress-slider { inset: -16px 0; height: 40px; }
+  html.pp-playing:not(.pp-landscape) .pp-head-actions .btn-advanced { min-height: 40px; }
+
+  /* portrait: with the ticket in the dock, the quote strip (bid / ask / spread)
+     rides above the chart as one swipeable row instead of dangling at the bottom */
+  html.pp-playing:not(.pp-landscape) .pp-body-grid { display: flex; flex-direction: column; gap: 10px; }
+  html.pp-playing:not(.pp-landscape) .pp-body-grid > div:last-child { order: -1; }
+  html.pp-playing:not(.pp-landscape) .pp-quote-strip { flex-wrap: nowrap; overflow-x: auto; margin: 0; scrollbar-width: none; }
+  html.pp-playing:not(.pp-landscape) .pp-quote-strip::-webkit-scrollbar { display: none; }
+  html.pp-playing:not(.pp-landscape) .pp-quote-strip > * { flex: 0 0 auto; }
+
+  /* portrait "expand chart": the dock stays on top, the chart stops above it */
+  html.pp-playing.chart-fs-lock .pp-dock .pp-order-panel { bottom: var(--safe-bottom); }
+  html.pp-playing.chart-fs-lock .chart-fs { bottom: calc(var(--safe-bottom) + var(--pp-dock-h, 150px)) !important; }
+}
+
+/* ---- landscape phone: full-screen chart, slim dock strip, slide-up sheet ---- */
+@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+  html.pp-landscape, html.pp-landscape body { overflow: hidden; }
+  html.pp-landscape .chatw-launcher, html.pp-landscape .bottom-nav, html.pp-landscape .toast-container { visibility: hidden; }
+
+  html.pp-landscape #pr-play-screen {
+    position: fixed !important; inset: 0; z-index: 900; background: var(--bg); overflow-y: auto;
+    padding: var(--safe-top) calc(8px + env(safe-area-inset-right, 0px)) calc(var(--pp-dock-h, 58px) + 6px) calc(8px + env(safe-area-inset-left, 0px));
+    -webkit-overflow-scrolling: touch;
+  }
+  /* one slim header row */
+  html.pp-landscape .pp-head { flex-wrap: nowrap; height: 38px; margin: 0; gap: 8px; }
+  html.pp-landscape .pp-head-left { flex-direction: row; align-items: baseline; gap: 10px; min-width: 0; }
+  html.pp-landscape #pp-symbol-line { font-size: 15px; }
+  html.pp-landscape #pp-date-line { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  html.pp-landscape .pp-head-actions { flex-wrap: nowrap; gap: 6px; flex: 0 0 auto; }
+  html.pp-landscape .pp-head-actions .btn-advanced { min-height: 32px; padding: 0 10px; font-size: 12px; }
+
+  /* chart takes everything between the header and the transport row */
+  html.pp-landscape .pp-body-grid { display: block; }
+  html.pp-landscape .pp-body-grid > div:last-child { display: none; } /* quote strip: price lives in the dock handle */
+  html.pp-landscape .pp-chart-wrap {
+    height: calc(100dvh - var(--safe-top) - 38px - 48px - var(--pp-dock-h, 58px) - 14px);
+    min-height: 140px; margin: 0 0 4px; overflow: hidden;
+  }
+  html.pp-landscape .chart-fs-btn { display: none; }
+  html.pp-landscape .pp-transport { flex-wrap: nowrap; overflow-x: auto; height: 44px; padding: 4px 8px; margin: 0; scrollbar-width: none; }
+  html.pp-landscape .pp-transport::-webkit-scrollbar { display: none; }
+  html.pp-landscape .pp-transport .btn-advanced { flex: 0 0 auto; min-height: 34px; padding: 0 12px; font-size: 12.5px; white-space: nowrap; }
+  html.pp-landscape .pp-progress-block { min-width: 180px; flex: 1 0 180px; }
+  html.pp-landscape #pp-progress-slider { inset: -12px 0; height: 32px; }
+
+  /* dock: one row -- size - shortcuts - BUY - SELL; sheet opens above it */
+  html.pp-landscape .pp-dock .pp-order-panel {
+    bottom: 0; flex-direction: row; flex-wrap: wrap; align-items: center;
+    max-height: 84dvh; border-radius: 12px 12px 0 0;
+    padding: 0 env(safe-area-inset-right, 0px) var(--safe-bottom) env(safe-area-inset-left, 0px);
+  }
+  html.pp-landscape .pp-dock-body { order: 0; flex: 0 0 100%; max-height: calc(84dvh - 70px); }
+  html.pp-landscape .pp-dock.open .pp-dock-body { column-count: 2; column-gap: 24px; }
+  html.pp-landscape .pp-dock-body > * { break-inside: avoid; }
+  html.pp-landscape .pp-dock-handle { order: 1; flex: 0 0 auto; width: auto; min-height: 54px; padding: 8px 6px 8px 14px; gap: 10px; }
+  html.pp-landscape .pp-dock-grip { display: none; }
+  html.pp-landscape .pp-dock-size { flex: 0 0 auto; }
+  html.pp-landscape .pp-dock-foot { order: 2; flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 4px; }
+  html.pp-landscape .pp-dock-foot .pp-shortcuts-block { flex: 1 1 0; min-width: 0; margin: 0; }
+  html.pp-landscape .pp-dock-foot .pp-shortcut-btn { min-height: 42px; }
+  html.pp-landscape .pp-dock-foot .pp-order-btn-row { flex: 0 0 auto; }
+  html.pp-landscape .pp-dock-foot .pp-order-btn { flex: 0 0 auto; width: 112px; min-height: 46px; font-size: 16px; }
+}

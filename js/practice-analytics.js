@@ -320,7 +320,7 @@
     renderTradesTable(closed, indexMap);
   }
 
-  // Attempt picker above the analytics: view any paper attempt (or all of them combined is on the Accounts page).
+  // Attempt picker above the analytics: view any paper attempt .
   function renderAttemptPicker() {
     const host = document.querySelector("#pr-analytics-screen .panel-head");
     if (!host || document.getElementById("pa-attempt-select") || !window.Accounts) return;

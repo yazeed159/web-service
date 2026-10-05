@@ -401,7 +401,7 @@
     ".scope-links{margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft);display:flex;flex-direction:column;gap:2px}" +
     ".scope-links a{font-size:12.5px;color:var(--text-dim);text-decoration:none;padding:6px 8px;border-radius:var(--radius-sm)}" +
     ".scope-links a:hover{background:var(--panel-2);color:var(--text)}" +
-    "@media(max-width:640px){.scope-label{display:none}.scope-btn{padding:0 10px}}";
+    "@media(max-width:640px){.scope-label{display:none}.scope-btn{padding:0 10px;height:38px}.scope-panel{position:fixed;left:12px;right:12px;top:calc(var(--topbar-h) + var(--safe-top) + 6px);width:auto;max-height:calc(100dvh - var(--topbar-h) - var(--safe-top) - 90px);overflow-y:auto;z-index:400}.scope-h{font-size:12px}.scope-row{min-height:44px;font-size:14px}.scope-links a{min-height:44px;display:flex;align-items:center;font-size:14px}}";
 
   function dotColor() {
     var sc = getScope();

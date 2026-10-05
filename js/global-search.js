@@ -144,7 +144,13 @@
   function openPanel() { panelEl.classList.add("open"); }
   function closePanel() { panelEl.classList.remove("open"); }
 
+  // The topbar has a backdrop-filter, which makes it the containing block for
+  // any position:fixed descendant -- so the phone's bottom-docked sheet would
+  // anchor to the topbar instead of the screen. While it is open on a phone,
+  // move it to <body>; closeMobile() puts it back where desktop CSS expects it.
+  const phoneMq = window.matchMedia ? window.matchMedia("(max-width: 760px)") : { matches: false };
   function openMobile() {
+    if (phoneMq.matches && root.parentNode !== document.body) document.body.appendChild(root);
     root.classList.add("mobile-open");
     loadTrades().catch(() => {});
     // Focus after layout settles so the on-screen keyboard doesn't
@@ -154,6 +160,9 @@
   }
   function closeMobile() {
     root.classList.remove("mobile-open");
+    root.style.removeProperty("--hs-kb");
+    root.style.removeProperty("--hs-vvh");
+    if (root.parentNode !== topbar) topbar.insertBefore(root, topbarRight);
     closePanel();
     document.removeEventListener("keydown", onEsc, true);
   }
@@ -161,9 +170,28 @@
     if (ev.key === "Escape") { closeMobile(); trigger.focus(); }
   }
 
-  trigger.addEventListener("click", () => {
+  function toggleMobile() {
     root.classList.contains("mobile-open") ? closeMobile() : openMobile();
-  });
+  }
+  trigger.addEventListener("click", toggleMobile);
+  // The phone's bottom tab bar has a Search button (js/nav-render.js) that
+  // drives this same control; the topbar icon is hidden at phone widths.
+  window.GlobalSearch = { open: openMobile, close: closeMobile, toggle: toggleMobile };
+
+  // On a phone the open search is a sheet docked to the bottom edge (see the
+  // max-width:760px block in common.css), so lift it above the on-screen
+  // keyboard the same way the quick-note sheet does.
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    const fitToKeyboard = () => {
+      if (!root.classList.contains("mobile-open")) return;
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      root.style.setProperty("--hs-kb", kb + "px");
+      root.style.setProperty("--hs-vvh", vv.height + "px");
+    };
+    vv.addEventListener("resize", fitToKeyboard);
+    vv.addEventListener("scroll", fitToKeyboard);
+  }
   mobileCloseBtn.addEventListener("click", closeMobile);
 
   inputEl.addEventListener("focus", () => {
@@ -182,8 +210,15 @@
 
   document.addEventListener("click", (ev) => {
     if (root.contains(ev.target) || ev.target === trigger) return;
+    if (ev.target.closest && ev.target.closest("#bn-search")) return; // the bottom-bar button toggles it itself
     closePanel();
     closeMobile();
+  });
+
+  // Following a result closes the sheet: an in-place SPA navigation would
+  // otherwise leave it sitting open over the new page.
+  resultsEl.addEventListener("click", (ev) => {
+    if (ev.target.closest && ev.target.closest("a")) setTimeout(closeMobile, 0);
   });
 
   // ---- live results, debounced, no Enter required --------------------

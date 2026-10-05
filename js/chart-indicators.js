@@ -33,28 +33,96 @@
   // the chart pans/scales instead. On phones we hand vertical swipes back
   // to the page (horizontal drag + pinch still work on the chart), and
   // offer a fullscreen mode where the chart gets every gesture.
+  // "Phone" = a narrow portrait screen OR a short touch screen (a phone
+  // turned sideways is wider than 760px but only ~360-430px tall, and
+  // still needs the phone chart treatment).
+  const LANDSCAPE_PHONE_MQ = "(orientation: landscape) and (max-height: 500px) and (pointer: coarse)";
+  function isLandscapePhone() {
+    try { return window.matchMedia(LANDSCAPE_PHONE_MQ).matches; } catch (e) { return false; }
+  }
   function isPhone() {
-    try { return window.matchMedia("(max-width: 760px)").matches; } catch (e) { return window.innerWidth <= 760; }
+    try { return window.matchMedia("(max-width: 760px)").matches || isLandscapePhone(); } catch (e) { return window.innerWidth <= 760; }
+  }
+  // Same sizing buildStandardChart uses for a phone-sized chart.
+  function phoneChartHeight(baseH) {
+    return Math.min(baseH || 380, Math.max(260, Math.round(window.innerHeight * 0.5)));
   }
   // Option fragment for ANY createChart() call (also used by the small
   // equity / edge-analysis charts that don't go through buildStandardChart).
-  function touchChartOpts() {
-    return isPhone()
-      ? { handleScroll: { vertTouchDrag: false }, kineticScroll: { touch: true, mouse: false } }
-      : {};
+  //   - default: horizontal drag pans the chart, a vertical swipe goes back
+  //     to the page (so a tall chart is never a scroll trap).
+  //   - capture (Practice's live tape): one finger owns the chart, the page
+  //     does not scroll underneath it. Pair with the .chart-touch-capture
+  //     class (touch-action: none) that buildStandardChart adds.
+  // Both: pinch zooms; a long press (~0.25s) drops the crosshair and
+  // dragging moves it; lifting the finger clears it, so a stale crosshair
+  // never freezes the OHLC/indicator readout while the tape keeps playing.
+  function touchChartOpts(mode) {
+    if (!isPhone()) return {};
+    const exit = (window.LightweightCharts && LightweightCharts.TrackingModeExitMode &&
+      LightweightCharts.TrackingModeExitMode.OnTouchEnd);
+    return {
+      handleScroll: { horzTouchDrag: true, vertTouchDrag: false, pressedMouseMove: true },
+      handleScale: { pinch: true, axisPressedMouseMove: { time: true, price: true } },
+      kineticScroll: { touch: mode !== "capture", mouse: false },
+      trackingMode: { exitMode: typeof exit === "number" ? exit : 0 },
+    };
   }
 
   // Fullscreen toggle (phones only). Pins the chart container over the
   // whole viewport, gives it every gesture, and resizes the chart to the
   // real viewport height (so landscape works too). A spacer holds the
   // container's place in the page so the scroll position doesn't jump.
-  function attachFullscreen(el, chart, baseHeight) {
+  function attachFullscreen(el, chart, baseHeight, fsOpts) {
+    fsOpts = fsOpts || {};
+    // `host` is the element that actually gets pinned over the viewport. By
+    // default that's the chart itself, but trade.js passes a wrapper holding
+    // the candle chart AND the MACD pane under it, so the whole stack goes
+    // fullscreen together instead of the MACD pane being left behind/covered.
+    const host = fsOpts.host || el;
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "chart-fs-btn";
     btn.setAttribute("aria-label", "Expand chart to fullscreen");
     btn.textContent = "\u2922";
     el.appendChild(btn);
+
+    // Zoom / fit / jump-to-trade buttons. Pinch-zooming a 280px chart with a
+    // thumb is fiddly, so these give one-tap control (phones only; CSS hides
+    // them on desktop where the wheel works).
+    const zoomBar = document.createElement("div");
+    zoomBar.className = "chart-zoom-tools";
+    function zoomBtn(label, aria, onClick) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "chart-zoom-btn";
+      b.setAttribute("aria-label", aria); b.textContent = label;
+      b.addEventListener("click", (e) => { e.stopPropagation(); try { onClick(); } catch (err) {} });
+      zoomBar.appendChild(b);
+      return b;
+    }
+    function zoomBy(f) {
+      const ts = chart.timeScale();
+      const r = ts.getVisibleLogicalRange();
+      if (!r) return;
+      const mid = (r.from + r.to) / 2;
+      const half = ((r.to - r.from) / 2) * f;
+      if (half < 2.5 && f < 1) return; // don't zoom in past ~5 bars
+      ts.setVisibleLogicalRange({ from: mid - half, to: mid + half });
+    }
+    zoomBtn("\u2212", "Zoom out", () => zoomBy(1 / 0.6));
+    zoomBtn("+", "Zoom in", () => zoomBy(0.6));
+    zoomBtn("\u21BA", "Reset zoom", () => {
+      chart.priceScale("right").applyOptions({ autoScale: true });
+      chart.timeScale().fitContent();
+    });
+    if (typeof fsOpts.onFocus === "function") zoomBtn("\u25CE", "Zoom to this trade", fsOpts.onFocus);
+    el.appendChild(zoomBar);
+
+    // Extra controls that only show while fullscreen (e.g. timeframe pills,
+    // which otherwise live outside the pinned chart and become unreachable).
+    const fsOnlyBar = document.createElement("div");
+    fsOnlyBar.className = "chart-fs-only";
+    el.appendChild(fsOnlyBar);
     let spacer = null;
     let on = false;
     let pushed = false;   // did opening fullscreen add a history entry (so Back closes it)?
@@ -67,7 +135,7 @@
     // is open and put them back exactly afterwards.
     function freeAncestors() {
       freed = [];
-      for (let a = el.parentElement; a && a !== document.documentElement; a = a.parentElement) {
+      for (let a = host.parentElement; a && a !== document.documentElement; a = a.parentElement) {
         const cs = getComputedStyle(a);
         // A running/forwards-filled transform *animation* also traps fixed
         // descendants even if an !important rule forces transform:none.
@@ -119,24 +187,25 @@
         });
         if (on) chart.timeScale().fitContent();
       } catch (e) {}
+      if (typeof fsOpts.onFit === "function") { try { fsOpts.onFit(on); } catch (e) {} }
     }
     function setFs(next, fromPop) {
       if (next === on) return;
       on = next;
       if (on) {
         spacer = document.createElement("div");
-        spacer.style.height = el.offsetHeight + "px";
-        el.parentNode.insertBefore(spacer, el);
+        spacer.style.height = host.offsetHeight + "px";
+        host.parentNode.insertBefore(spacer, host);
         freeAncestors();
         // Android/browser Back should close the chart, not leave the page.
         try { history.pushState({ chartFs: 1 }, ""); pushed = true; } catch (e) { pushed = false; }
-        el.classList.add("chart-fs");
+        host.classList.add("chart-fs");
         document.documentElement.classList.add("chart-fs-lock");
         btn.textContent = "\u2715";
         btn.setAttribute("aria-label", "Close fullscreen chart");
         try { chart.applyOptions({ handleScroll: { vertTouchDrag: true } }); } catch (e) {}
       } else {
-        el.classList.remove("chart-fs");
+        host.classList.remove("chart-fs");
         document.documentElement.classList.remove("chart-fs-lock");
         restoreAncestors();
         if (pushed && !fromPop) { pushed = false; try { history.back(); } catch (e) {} }
@@ -154,18 +223,49 @@
     const onKey = (e) => { if (e.key === "Escape") setFs(false); };
     const onPop = () => { if (on) setFs(false, true); };
     const onRot = () => setTimeout(fit, 250);
+    // Turning the phone sideways while this chart is on screen opens it
+    // fullscreen (a 280px-tall strip is useless in landscape); turning back
+    // closes it again -- but only if the rotation opened it, so a chart the
+    // person opened themselves stays open.
+    let autoFs = false;
+    let lsMq = null;
+    const onLandscape = () => {
+      if (fsOpts.autoLandscape === false) return;
+      if (isLandscapePhone()) {
+        if (on) return;
+        const r = host.getBoundingClientRect();
+        const vis = Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0);
+        if (r.height > 0 && vis > r.height * 0.4 && document.documentElement.contains(host)) { autoFs = true; setFs(true); }
+      } else {
+        if (autoFs && on) setFs(false);
+        autoFs = false;
+      }
+    };
+    try {
+      lsMq = window.matchMedia(LANDSCAPE_PHONE_MQ);
+      if (lsMq.addEventListener) lsMq.addEventListener("change", onLandscape);
+      else if (lsMq.addListener) lsMq.addListener(onLandscape);
+    } catch (e) {}
     window.addEventListener("keydown", onKey);
     window.addEventListener("popstate", onPop);
     window.addEventListener("orientationchange", onRot);
     return {
       fit,
       isOn: () => on,
+      exit() { if (on) setFs(false); },
+      addFsTool(node) { fsOnlyBar.appendChild(node); },
       dispose() {
         window.removeEventListener("keydown", onKey);
         window.removeEventListener("popstate", onPop);
         window.removeEventListener("orientationchange", onRot);
+        try {
+          if (lsMq && lsMq.removeEventListener) lsMq.removeEventListener("change", onLandscape);
+          else if (lsMq && lsMq.removeListener) lsMq.removeListener(onLandscape);
+        } catch (e) {}
         if (on) setFs(false);
         if (btn.parentNode) btn.parentNode.removeChild(btn);
+        if (zoomBar.parentNode) zoomBar.parentNode.removeChild(zoomBar);
+        if (fsOnlyBar.parentNode) fsOnlyBar.parentNode.removeChild(fsOnlyBar);
       },
     };
   }
@@ -275,6 +375,7 @@
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "tf-btn" + (minutes === active ? " active" : "");
+      btn.dataset.minutes = String(minutes);
       btn.textContent = label;
       btn.addEventListener("click", () => {
         wrap.querySelectorAll(".tf-btn").forEach((b) => b.classList.remove("active"));
@@ -284,6 +385,14 @@
       wrap.appendChild(btn);
     });
     return wrap;
+  }
+
+  // Keeps every timeframe switcher on the page (the inline one and the one
+  // inside fullscreen) showing the same active interval.
+  function syncTimeframeSwitchers(minutes) {
+    document.querySelectorAll(".tf-switcher .tf-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.minutes === String(minutes));
+    });
   }
 
   // Builds the standard candles + volume + VWAP/EMA9/EMA20/EMA200 chart
@@ -359,15 +468,26 @@
     const phone = isPhone();
     const minW = phone ? Math.min(opts.minimumWidth || 88, 60) : (opts.minimumWidth || 88);
     const baseH = opts.height || 380;
-    const chartH = phone ? Math.min(baseH, Math.max(260, Math.round(window.innerHeight * 0.5))) : baseH;
+    const chartH = phone ? phoneChartHeight(baseH) : baseH;
     const commonOpts = {
       layout: { background: { color: "transparent" }, textColor: ct.text, fontSize: phone ? 10 : 12 },
       grid: { vertLines: { color: ct.grid }, horzLines: { color: ct.grid } },
       rightPriceScale: { borderColor: ct.border, minimumWidth: minW },
       timeScale: { borderColor: ct.border, timeVisible: true, secondsVisible: false, rightOffset: phone ? 3 : 0 },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-      ...touchChartOpts(),
+      ...touchChartOpts(opts.touchMode),
     };
+    // Pin the container to the height the chart is actually created at. On
+    // phones chartH is ~half the screen but CSS capped the container at 280px,
+    // so the canvas overflowed and its bottom (time axis) was covered by the
+    // pane underneath.
+    el.style.height = chartH + "px";
+    if (phone) {
+      // Long-press must not open the browser's text-selection / image menu.
+      el.classList.add("chart-touch");
+      if (opts.touchMode === "capture") el.classList.add("chart-touch-capture");
+      el.addEventListener("contextmenu", (e) => e.preventDefault());
+    }
     const chart = LightweightCharts.createChart(el, { ...commonOpts, width: el.clientWidth, height: chartH });
     const series = chart.addCandlestickSeries({
       upColor: "#2fd08a", downColor: "#f2555a", borderVisible: false,
@@ -447,7 +567,10 @@
     });
 
     chart.timeScale().fitContent();
-    const fs = (phone && opts.fullscreen !== false) ? attachFullscreen(el, chart, chartH) : null;
+    const fs = (phone && opts.fullscreen !== false) ? attachFullscreen(el, chart, chartH, {
+      host: opts.fullscreenHost, onFit: opts.onFullscreenFit, onFocus: opts.onFocus,
+      autoLandscape: opts.autoLandscape,
+    }) : null;
     // A ResizeObserver tied to the container (rather than a page-level
     // window "resize" listener) disposes cleanly along with everything
     // else in teardownStandardChart() -- no separate "have I already
@@ -487,9 +610,12 @@
     resampleBars,
     indicatorRowsHtml,
     buildTimeframeSwitcher,
+    syncTimeframeSwitchers,
     buildStandardChart,
     teardownStandardChart,
     isPhone,
+    isLandscapePhone,
+    phoneChartHeight,
     touchChartOpts,
   };
 })();

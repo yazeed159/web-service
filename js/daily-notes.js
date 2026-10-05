@@ -6,7 +6,9 @@
 // One KV key, { days: { "YYYY-MM-DD": Day }, checklist: string[] }
 //   Day = { plan, max_loss, goal, checks: { [item]: bool },
 //           went_well, to_fix, went_well_tags: string[], to_fix_tags: string[],
-//           followed_plan: true|false|null, tomorrow, updated }
+//           followed_plan: true|false|null, tomorrow,
+//           thoughts: [{ t: ISO string, text }],   <- phone quick-notes (mobile-extras.js)
+//           updated }
 //
 // went_well_tags / to_fix_tags are the tap-to-toggle chip versions of the
 // old went_well/to_fix free-text fields (kept around as an optional
@@ -53,7 +55,13 @@
     return d.max_loss == null && d.goal == null && !(d.plan || "").trim() &&
       !Object.values(d.checks || {}).some(Boolean) && !(d.went_well || "").trim() &&
       !(d.to_fix || "").trim() && !d.went_well_tags.length && !d.to_fix_tags.length &&
-      d.followed_plan == null && !(d.tomorrow || "").trim();
+      d.followed_plan == null && !(d.tomorrow || "").trim() && !(d.thoughts && d.thoughts.length);
+  }
+  function cleanThoughts(v) {
+    return Array.isArray(v)
+      ? v.filter((x) => x && typeof x.text === "string" && x.text.trim())
+          .map((x) => ({ t: String(x.t || ""), text: x.text.trim() }))
+      : [];
   }
 
   function getChecklist() { return readStore().checklist || DEFAULT_CHECKLIST.slice(); }
@@ -78,10 +86,30 @@
       to_fix_tags: tags(day.to_fix_tags),
       followed_plan: day.followed_plan === true ? true : day.followed_plan === false ? false : null,
       tomorrow: day.tomorrow || "",
+      thoughts: cleanThoughts(day.thoughts),
       updated: new Date().toISOString(),
     };
     if (isEmpty(clean)) delete store.days[date]; else store.days[date] = clean;
     writeStore(store);
+  }
+
+  // Quick timestamped one-liners ("the jot you make on your phone right after
+  // a trade") for a day. Read-modify-write against the stored day so it never
+  // clobbers a plan/review the person is editing on another screen.
+  function addThought(date, text) {
+    text = (text || "").trim();
+    if (!date || !text) return false;
+    const cur = readStore().days[date] || {};
+    const thoughts = cleanThoughts(cur.thoughts).concat([{ t: new Date().toISOString(), text }]);
+    save(date, Object.assign({}, cur, { thoughts }));
+    return true;
+  }
+  // Flip one pre-market checklist item for a day (used by the dashboard's Today strip).
+  function setCheck(date, item, on) {
+    if (!date || !item) return;
+    const cur = readStore().days[date] || {};
+    const checks = Object.assign({}, cur.checks || {}, { [item]: !!on });
+    save(date, Object.assign({}, cur, { checks }));
   }
 
   // Every went-well / to-fix tag the trader has actually used, merged with
@@ -131,7 +159,7 @@
   }
 
   window.DailyNotes = {
-    get, allDays, save, getChecklist, setChecklist, DEFAULT_CHECKLIST,
+    get, allDays, save, addThought, setCheck, getChecklist, setChecklist, DEFAULT_CHECKLIST,
     knownTags, lastPlanned, priorFocus, streak, DEFAULT_WENT_WELL,
   };
 })();

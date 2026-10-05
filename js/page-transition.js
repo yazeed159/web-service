@@ -95,7 +95,9 @@
     // each needs a fresh re-run against the freshly-swapped DOM, and this
     // array's order is load order -- app-shared.js MUST come first, since
     // it builds window.App and the other three register onto it.
-    index: { shared: ["js/grade.js"], owned: ["js/app-shared.js", "js/app-dashboard.js", "js/app-dayview.js", "js/app-reports.js"] },
+    // today-strip.js (dashboard "Today" card) sits between shared and dashboard so
+    // App.tabs.dashboard.renderToday exists before the first data render.
+    index: { shared: ["js/grade.js", "js/trade-notes.js", "js/daily-notes.js"], owned: ["js/app-shared.js", "js/today-strip.js", "js/app-dashboard.js", "js/app-dayview.js"] },
     journal: { shared: ["js/grade.js"], owned: ["js/share-export.js"] },
     patterns: { shared: [], owned: [] },
     calculator: { shared: [], owned: ["js/calculator.js"] },
@@ -193,9 +195,33 @@
   // once, on first load. Replacing the whole topbar element on every
   // navigation would take that search box with it, since it's DOM
   // that script injected, not markup that exists in the raw HTML.
+  // Page-specific <style> blocks live in each page's <head>, which a swap
+  // never touches -- so arriving at Settings/Calculator via the sidebar left
+  // their inline CSS behind and the page rendered completely unstyled (every
+  // .int-card expanded, no layout) until a hard refresh. Sync them here:
+  // drop styles a previous swap injected, then add the destination's own
+  // unless an identical block is already in the document.
+  function syncPageStyles(newDoc) {
+    Array.prototype.slice.call(document.head.querySelectorAll("style[data-spa-style]")).forEach(function (el) {
+      el.remove();
+    });
+    Array.prototype.slice.call(newDoc.head.querySelectorAll("style")).forEach(function (st) {
+      var css = st.textContent;
+      var exists = Array.prototype.some.call(document.head.querySelectorAll("style"), function (el) {
+        return el.textContent === css;
+      });
+      if (exists) return;
+      var copy = document.createElement("style");
+      copy.setAttribute("data-spa-style", "");
+      copy.textContent = css;
+      document.head.appendChild(copy);
+    });
+  }
+
   function swapContent(newDoc) {
     var curMain = document.querySelector(".main");
     var newMain = newDoc.querySelector(".main");
+    syncPageStyles(newDoc);
     if (!curMain || !newMain) throw new Error("no .main to swap");
 
     var curTopbar = curMain.querySelector(".topbar");
@@ -339,6 +365,10 @@
         function apply() {
           if (push) history.pushState({ spa: true }, "", url.href);
           currentPath = url.pathname;
+          // mobile-extras.js: ScrollMemory only restores on Back/Forward arrivals,
+          // and a pull-to-refresh handler belongs to the page that's leaving.
+          window.__navKind = push ? "push" : "pop";
+          if (window.PullRefresh) window.PullRefresh.set(null);
           document.title = newDoc.title || document.title;
           swapContent(newDoc);
           swapSidebarMain(newDoc);

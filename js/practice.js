@@ -277,6 +277,36 @@
     }
     const list = window.Accounts.paper().slice().reverse();
     sel.innerHTML = list.map((a) => `<option value="${escapeHtml(a.id)}"${a.id === activeId ? " selected" : ""}>${escapeHtml(a.name)}${a.status === "archived" ? " (archived)" : ""}</option>`).join("");
+    // Rename / delete live here now (they used to be on the Accounts page,
+    // which is broker-only). Both act on the attempt currently selected.
+    if (!document.getElementById("pr-attempt-rename")) {
+      const mk = (id, label, danger) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.id = id; b.className = "btn-advanced";
+        b.textContent = label; b.style.marginRight = "8px";
+        if (danger) b.style.color = "var(--red)";
+        return b;
+      };
+      const ren = mk("pr-attempt-rename", "Rename", false);
+      const del = mk("pr-attempt-delete", "Delete", true);
+      sel.insertAdjacentElement("afterend", del);
+      sel.insertAdjacentElement("afterend", ren);
+      ren.addEventListener("click", async () => {
+        const A = window.Accounts, id = sel.value, acc = A.byId(id);
+        if (!acc) return;
+        const name = await UIModal.prompt("New name:", acc.name, { title: "Rename attempt", confirmLabel: "Save" });
+        if (name === null || !name.trim()) return;
+        try { await A.update(id, { name: name.trim() }); renderAttemptBar(activeId); sel.value = id; }
+        catch (e) { if (window.showToast) window.showToast(e.message || String(e), { tone: "error" }); }
+      });
+      del.addEventListener("click", async () => {
+        const A = window.Accounts, id = sel.value;
+        const ok = await UIModal.confirm("Permanently delete this attempt and all its fills? This can't be undone.", { title: "Delete attempt?", tone: "danger", confirmLabel: "Delete" });
+        if (!ok) return;
+        try { await A.paperApi.remove(id); window.location.reload(); }
+        catch (e) { if (window.showToast) window.showToast(e.message || String(e), { tone: "error" }); }
+      });
+    }
   }
   if (window.Accounts) {
     window.Accounts.paperApi.ensureActive({ startingBalance: DEFAULT_STARTING_BALANCE, blob: defaultAccount() }).then((id) => {
@@ -959,6 +989,7 @@
 
     els.setupScreen.style.display = "none";
     els.playScreen.style.display = "";
+    if (window.PracticeMobile) window.PracticeMobile.sync();
     els.recapBox.innerHTML = "";
     els.recapBox.style.display = "none";
     buildPlayChart();
@@ -1174,8 +1205,16 @@
     // feed into via handle.series/.volSeries/etc.
     const handle = window.ChartIndicators.buildStandardChart(el, [], {
       floatLabel: floatShares ? fmtShares(floatShares) : null,
+      // Phones: one finger owns the live chart (pan / pinch / long-press
+      // crosshair) and the page doesn't scroll under it. Rotating is handled
+      // by js/practice-mobile.js (full-screen layout), not the generic
+      // fullscreen auto-open.
+      touchMode: "capture",
+      autoLandscape: false,
     });
     state.chartHandle = handle;
+    window.__ppChart = handle;
+    if (window.PracticeMobile) window.PracticeMobile.onChartBuilt(handle);
     const { chart, series, volSeries } = handle;
 
     // seed with every bar fully closed up to (not including) barIndex
@@ -1634,6 +1673,7 @@
     };
     state.fills.push(fill);
     account.fills.push(fill);
+    if (!silent && window.Haptics) window.Haptics.play(sideStr === "buy" ? "buy" : "sell");
     state.markers.push(fillToMarker(fill));
     state.chartHandle.series.setMarkers(state.markers);
 
@@ -1831,6 +1871,7 @@
     state.chartHandle = null;
     els.playScreen.style.display = "none";
     els.setupScreen.style.display = "";
+    if (window.PracticeMobile) window.PracticeMobile.sync();
     renderAccountPanel();
     updateCandidateCount();
     renderProgressPanel();

@@ -3,40 +3,43 @@
 // Goal: make every page-to-page navigation come out of the device instead of
 // the network, so a navigation is limited by rendering, not by latency.
 //
-//  * On install, the whole static shell (pages, css, js, icons) is pre-cached.
+//  * On install, the core shell (pages, css, shared js, icons) is pre-cached. The big
+//    single-page scripts (Reports, Rewind, Practice, Backtester, Live Trading, Edge
+//    Analysis, report.js, the charts library) are NOT -- they're cached the first time
+//    you open them, so a fresh install on mobile data doesn't pull what you haven't asked for.
 //  * Same-origin GETs are served stale-while-revalidate: instant from cache,
 //    quietly refreshed in the background, so a deploy shows up one navigation
 //    later without anyone bumping a version number.
 //  * The two CDN scripts every page loads (supabase-js, lightweight-charts) are
 //    cached the same way, so they stop being a per-navigation network hop.
+//  * Share target: the manifest registers this app to receive a shared CSV (a broker
+//    export shared from the Files / Gmail / Drive share sheet). That arrives as a POST
+//    to /share-target, which is answered here: the file is parked in its own cache
+//    (survives the shell purge below) and the browser is redirected to the Import page,
+//    which picks it up. Nothing is uploaded until you tap Import.
 //  * Everything else (Supabase API calls, the Render API, the live-trading
 //    tunnel, POSTs) is never touched -- it goes straight to the network.
 //
 // Bump CACHE_VERSION only if you ever want to force-purge every cached file.
-var CACHE_VERSION = "v5";
+var CACHE_VERSION = "v14";
 var CACHE = "tradelog-shell-" + CACHE_VERSION;
 
 var SHELL = [
-  "/", "index.html", "journal.html", "stats.html", "edge-analysis.html", "patterns.html",
-  "calculator.html", "daily.html", "backtester.html", "rewind.html", "practice.html", "settings.html",
-  "trade.html", "report.html", "scanner.html", "search.html", "import-trades.html",
-  "live-trading.html", "accounts.html", "login.html", "favicon.svg", "manifest.json",
-  "icons/icon-192.png", "icons/icon-512.png",
-  "js/vendor/supabase.js", "js/vendor/lightweight-charts.js", "css/common.css", "css/buttons.css", "css/dashboard.css", "css/rewind.css", "css/practice.css",
-  "css/quiz-shared.css", "css/report.css", "css/ui-modal.css", "css/search.css",
-  "js/utils.js", "js/config.js", "js/auth.js", "js/accounts.js", "js/page-transition.js", "js/nav-render.js",
-  "js/global-search.js", "js/common.js", "js/pwa-register.js", "js/grade.js", "js/trade-notes.js", "js/daily-notes.js", "js/discipline.js", "js/ui-modal.js",
-  "js/chart-indicators.js", "js/strategy-presets.js", "js/share-export.js",
-  "js/app-shared.js", "js/app-dashboard.js", "js/app-dayview.js", "js/app-reports.js",
-  "js/calculator.js", "js/trade.js", "js/scanner.js", "js/rewind.js", "js/report.js",
-  "js/practice.js", "js/practice-analytics.js", "js/live-trading.js", "js/edge-analysis.js", "js/edge-stats.js",
-  "js/backtester.js", "js/backtester-ai.js"
+  "/", "index.html", "journal.html", "stats.html", "edge-analysis.html", "patterns.html", "calculator.html", "daily.html", "backtester.html",
+  "rewind.html", "practice.html", "settings.html", "trade.html", "report.html", "scanner.html", "search.html", "import-trades.html",
+  "live-trading.html", "accounts.html", "login.html", "favicon.svg", "manifest.json", "icons/icon-192.png", "icons/icon-512.png", "icons/shortcut-trade-note.png", "icons/shortcut-day-note.png", "icons/shortcut-journal.png", "icons/shortcut-daily-plan.png",
+  "js/vendor/supabase.js", "css/common.css", "css/buttons.css", "css/dashboard.css", "css/rewind.css", "css/practice.css", "css/quiz-shared.css",
+  "css/report.css", "css/ui-modal.css", "css/search.css", "js/utils.js", "js/mobile-extras.js", "js/today-strip.js", "js/config.js",
+  "js/auth.js", "js/accounts.js", "js/page-transition.js", "js/nav-render.js", "js/global-search.js", "js/common.js", "js/mobile-tables.js",
+  "js/pwa-register.js", "js/grade.js", "js/trade-notes.js", "js/daily-notes.js", "js/discipline.js", "js/ui-modal.js", "js/chart-indicators.js", "js/practice-mobile.js",
+  "js/strategy-presets.js", "js/share-export.js", "js/app-shared.js", "js/app-dashboard.js", "js/app-dayview.js", "js/calculator.js",
+  "js/trade.js", "js/scanner.js", "js/edge-stats.js"
 ];
 
-var CDN = [
-  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js",
-  "https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"
-];
+// The pages load supabase-js and lightweight-charts from js/vendor/, so the old
+// CDN copies were being downloaded on install and never used. Empty on purpose;
+// the fetch handler below still supports entries if you ever add one back.
+var CDN = [];
 
 // A response that followed a redirect can't be handed back for a navigation
 // request, so rebuild it as a plain response before storing it.
@@ -114,8 +117,43 @@ self.addEventListener("activate", function (event) {
   );
 });
 
+
+// ---- Share target (see manifest.json "share_target") ----
+var SHARE_CACHE = "tradelog-share"; // deliberately NOT prefixed "tradelog-shell-", so activate() never purges it
+var SHARE_KEY = "/__shared-csv__";
+
+function handleShare(event) {
+  event.respondWith((async function () {
+    var dest = new URL("/import-trades.html?shared=1", self.location.origin).href;
+    try {
+      var form = await event.request.formData();
+      var file = form.get("csv");
+      if (!file || typeof file === "string") {
+        // Some apps share the CSV as plain text instead of a file part.
+        var text = form.get("text");
+        if (typeof text === "string" && text.indexOf(",") !== -1 && text.indexOf("\n") !== -1) {
+          file = new File([text], "shared.csv", { type: "text/csv" });
+        } else {
+          return Response.redirect(dest.replace("shared=1", "shared=none"), 303);
+        }
+      }
+      var cache = await caches.open(SHARE_CACHE);
+      await cache.put(new URL(SHARE_KEY, self.location.origin).href, new Response(file, {
+        headers: {
+          "Content-Type": file.type || "text/csv",
+          "X-File-Name": encodeURIComponent(file.name || "shared.csv"),
+        },
+      }));
+    } catch (err) {
+      return Response.redirect(dest.replace("shared=1", "shared=error"), 303);
+    }
+    return Response.redirect(dest, 303);
+  })());
+}
+
 self.addEventListener("fetch", function (event) {
   var req = event.request;
+  if (req.method === "POST" && new URL(req.url).pathname === "/share-target") { handleShare(event); return; }
   if (req.method !== "GET") return;
 
   var url = new URL(req.url);

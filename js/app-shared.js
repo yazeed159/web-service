@@ -37,6 +37,9 @@
   // `cancelled` stops this copy's in-flight fetch/render work from
   // touching the DOM if it resolves after that teardown.
   if (window.__appTeardown) window.__appTeardown();
+  // Back from a trade lands at the same scroll offset (js/mobile-extras.js).
+  // Snapshotted here, before the router's scroll-to-top, finished after the first render.
+  const smSnap = window.ScrollMemory ? window.ScrollMemory.begin("index") : null;
   const abortController = new AbortController();
   const signal = abortController.signal;
   let cancelled = false;
@@ -96,6 +99,9 @@
   // the person staring at a spinner that will never resolve.
   function clearStrandedLoadingStates() {
     document.querySelectorAll(".loading-line").forEach((el) => {
+      // The Reports tab renders on demand (see loadReportsModule below), so
+      // its placeholders are still waiting, not stranded.
+      if (reportsStale && el.closest("#tab-reports")) return;
       const container = el.parentElement || el;
       container.innerHTML = '<div class="empty-state small">Couldn\'t load this section — check the console for details.</div>';
     });
@@ -335,7 +341,9 @@
     if (heroEl) heroEl.innerHTML = window.emptyStateHtml({
       icon: "chart",
       title: "No trades yet",
-      message: "Once your pipeline publishes trades, your Net P&amp;L, win rate, and equity curve will show up here.",
+      message: "Import a broker CSV, or wait for your next daily sync. Your Net P&amp;L, win rate and equity curve will show up here.",
+      actionHref: "import-trades.html", actionLabel: "Import trades",
+      secondaryHref: "daily.html", secondaryLabel: "Plan today",
     });
     document.getElementById("score-wrap").innerHTML = '<div class="empty-state small">No data yet.</div>';
     document.getElementById("mini-cal").innerHTML = '<div class="empty-state small">No data yet.</div>';
@@ -411,6 +419,7 @@
   let loadTries = 0;
   let retryTimer = null;
   let loadInFlight = false;
+  let reportsStale = false;
   let loadFailed = false;
   const MAX_AUTO_RETRIES = 6;
 
@@ -466,20 +475,96 @@
     clearStrandedLoadingStates();
   }
 
+  // Returns a promise that settles when this load attempt has been rendered (or failed),
+  // so pull-to-refresh can keep its spinner up for exactly as long as the work takes.
+  // Reports is ~145 KB of script that only the Reports tab needs, so it's no
+  // longer in index.html: it's fetched (from the service-worker cache after the
+  // first time) when that tab is open at load or first opened. `reportsStale`
+  // means "the Reports panel hasn't been drawn with the latest data yet".
+  let reportsLoad = null;
+  function reportsTabActive() {
+    const panel = document.getElementById("tab-reports");
+    return !!(panel && panel.classList.contains("active"));
+  }
+  function loadReportsModule() {
+    if (App.tabs.reports.applyReportFiltersAndRender) return Promise.resolve();
+    if (!reportsLoad) {
+      reportsLoad = new Promise((resolve) => {
+        const el = document.createElement("script");
+        el.src = "js/app-reports.js";
+        el.onload = el.onerror = () => resolve();
+        document.body.appendChild(el);
+      });
+    }
+    return reportsLoad;
+  }
+  function renderReportsIfNeeded() {
+    if (!reportsStale || !state.trades.length) return;
+    // Drawn now if the tab is showing (or its code is already here); otherwise
+    // left for setTab() to do the moment it's opened.
+    if (!reportsTabActive() && !App.tabs.reports.applyReportFiltersAndRender) return;
+    reportsStale = false;
+    loadReportsModule().then(() => {
+      if (cancelled) return;
+      if (!App.tabs.reports.applyReportFiltersAndRender) {
+        reportsStale = true;
+        reportsLoad = null; // let the next open try again
+        const panel = document.getElementById("tab-reports");
+        if (panel) panel.querySelectorAll(".loading-line").forEach((el) => { (el.parentElement || el).innerHTML = '<div class="empty-state small">Couldn\'t load Reports \u2014 check your connection and reopen this tab.</div>'; });
+        return;
+      }
+      safeRender(App.tabs.reports.initReportFilters, "initReportFilters");
+      safeRender(App.tabs.reports.applyReportFiltersAndRender, "applyReportFiltersAndRender");
+      clearStrandedLoadingStates();
+    });
+  }
+
+  // The first paint comes from the on-device snapshot of the last successful
+  // load (instant, even offline); the network result then replaces it.
+  let renderedFresh = false;
+  let snapshotAt = null;
+  function paintFromSnapshot() {
+    if (!window.TradeCache) return;
+    Promise.all([window.TradeCache.get("trades"), window.TradeCache.get("ledger")]).then(([t, l]) => {
+      if (cancelled || renderedFresh || snapshotAt || !t || !Array.isArray(t.value) || !t.value.length) return;
+      snapshotAt = t.at;
+      const draw = () => {
+        if (cancelled || renderedFresh) return; // network answered first
+        if (window.announceData) window.announceData("cached", t.at);
+        try { renderAll(t.value, l && Array.isArray(l.value) ? l.value : []); } catch (err) { console.error("[app.js] snapshot render failed:", err); }
+      };
+      // common.js (NavState etc.) loads after this file, and on an in-app (SPA)
+      // navigation app-dashboard.js / app-dayview.js are still being fetched one by
+      // one -- so wait for the parser AND for the tab modules to have registered.
+      const modulesReady = () => !!(App.tabs.dashboard.renderStats && App.tabs.dayview.renderCalendar);
+      const whenReady = (tries) => {
+        if (cancelled || renderedFresh) return;
+        if (modulesReady() || tries > 80) { draw(); return; }
+        setTimeout(() => whenReady(tries + 1), 50);
+      };
+      if (window.afterParse) window.afterParse(() => whenReady(0)); else whenReady(0);
+    });
+  }
+
   function loadAndRender(manual) {
-    if (cancelled || loadInFlight) return;
+    if (cancelled || loadInFlight) return Promise.resolve();
     loadInFlight = true;
     clearTimeout(retryTimer);
     if (manual) loadTries = 0; else loadTries++;
-    Promise.all([window.fetchTradesIndex(), window.fetchCapitalLedger()]).then((results) => {
+    if (!renderedFresh && !snapshotAt) paintFromSnapshot();
+    return Promise.all([window.fetchTradesIndex(), window.fetchCapitalLedger()]).then((results) => {
       loadInFlight = false;
       if (cancelled) return;
       loadFailed = false;
+      renderedFresh = true;
       hideLoadBanner();
+      if (window.TradeCache) { window.TradeCache.set("trades", results[0]); window.TradeCache.set("ledger", results[1]); }
+      if (window.announceData) window.announceData("fresh", Date.now());
       try { renderAll(results[0], results[1]); } catch (err) { onRenderFailed(err); }
     }, (err) => {
       loadInFlight = false;
       if (cancelled) return;
+      if (snapshotAt && window.announceData) window.announceData("offline", snapshotAt);
       onLoadFailed(err);
     });
   }
@@ -500,6 +585,8 @@
   // doesn't refetch on every glance back.
   window.refreshOnFocus(() => loadAndRender(true), { signal });
   App.retryLoad = () => loadAndRender(true);
+  // Pull down at the top of the dashboard -> re-fetch + re-render in place.
+  if (window.PullRefresh) window.PullRefresh.set(() => loadAndRender(true).then(() => { if (loadFailed) throw new Error("refresh failed"); }));
 
   function renderAll(data, ledger) {
       // (A newer copy of this script loaded by a later SPA navigation may
@@ -507,6 +594,8 @@
       state.trades = data.slice().sort((a, b) => (a.trade_date + a.entry_time).localeCompare(b.trade_date + b.entry_time));
       if (!state.trades.length) {
         renderEmptyEverywhere();
+        // The Today strip is still useful with no trades yet (plan + checklist).
+        safeRender(() => App.tabs.dashboard.renderToday && App.tabs.dashboard.renderToday(), "renderToday");
         return;
       }
       // Real account-balance figure per trade (starting capital/deposits
@@ -539,6 +628,7 @@
       }
       state.selectedDay = NavState.get("day", null);
 
+      safeRender(() => App.tabs.dashboard.renderToday && App.tabs.dashboard.renderToday(), "renderToday");
       safeRender(App.tabs.dashboard.renderStats, "renderStats");
       safeRender(App.tabs.dashboard.renderScore, "renderScore");
       safeRender(App.tabs.dashboard.renderMiniCal, "renderMiniCal");
@@ -550,9 +640,10 @@
         if (entry) safeRender(() => App.tabs.dayview.showDayDetail(state.selectedDay, entry), "showDayDetail (restored)");
         else state.selectedDay = null; // stale/invalid day from an old URL -- nothing to show
       }
-      safeRender(App.tabs.reports.initReportFilters, "initReportFilters");
-      safeRender(App.tabs.reports.applyReportFiltersAndRender, "applyReportFiltersAndRender");
+      reportsStale = true;
+      renderReportsIfNeeded();
       clearStrandedLoadingStates();
+      if (smSnap && window.ScrollMemory) window.ScrollMemory.finish(smSnap);
   }
   loadAndRender(true);
 
@@ -570,6 +661,7 @@
     });
     document.getElementById("page-title").textContent = TAB_TITLES[tab] || "Dashboard";
     document.getElementById("sidebar").classList.remove("mobile-open");
+    if (tab === "reports") renderReportsIfNeeded();
   }
 
   // Clicking a tab used to call setTab() directly without touching the URL,

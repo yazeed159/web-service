@@ -59,11 +59,28 @@
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0b0f">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light"){var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#f5f6f9");}}catch(e){}})();</script>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="apple-touch-startup-image" href="icons/splash/1320x2868.png" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1206x2622.png" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1242x2208.png" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1640x2360.png" media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1668x2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1536x2048.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/2048x2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
+<link rel="apple-touch-startup-image" href="icons/splash/1668x2224.png" media="(device-width: 834px) and (device-height: 1112px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)">
 <link rel="expect" href="#page-title" blocking="render">
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
@@ -195,7 +212,7 @@
           </p>
         </div>
         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:12px;">
-          <div><label for="m-symbol">Symbol</label><input id="m-symbol" type="text" placeholder="AAPL" autocapitalize="characters"></div>
+          <div><label for="m-symbol">Symbol</label><input id="m-symbol" type="text" placeholder="AAPL" autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false"></div>
           <div><label for="m-date">Date</label><input id="m-date" type="date"></div>
           <div><label for="m-side">Side</label><select id="m-side"><option value="long">Long</option><option value="short">Short</option></select></div>
           <div><label for="m-shares">Shares</label><input id="m-shares" type="number" min="1" step="1" inputmode="numeric"></div>
@@ -238,6 +255,37 @@
       fileEl.addEventListener("change", function () {
         runBtn.disabled = !fileEl.files.length;
       });
+
+      // A CSV shared to the installed app (Android share sheet -> trade.log) is parked
+      // by sw.js; pick it up here and load it into the file field. It is NOT imported
+      // automatically -- you still tap Import (and can pick the account first).
+      (function takeSharedFile() {
+        var q = new URLSearchParams(location.search).get("shared");
+        if (q === "none" || q === "error") {
+          setStatus(q === "none" ? "That share didn't contain a CSV file." : "Couldn't receive the shared file. Pick it with the file button instead.", "err");
+          return;
+        }
+        if (!window.caches) return;
+        var key = location.origin + "/__shared-csv__";
+        caches.open("tradelog-share").then(function (cache) {
+          return cache.match(key).then(function (res) {
+            if (!res) return null;
+            return res.blob().then(function (blob) {
+              var name = "shared.csv";
+              try { name = decodeURIComponent(res.headers.get("X-File-Name") || name); } catch (e) { /* keep default */ }
+              return cache.delete(key).then(function () { return new File([blob], name, { type: blob.type || "text/csv" }); });
+            });
+          });
+        }).then(function (file) {
+          if (!file) return;
+          var dt = new DataTransfer();
+          dt.items.add(file);
+          fileEl.files = dt.files;
+          runBtn.disabled = false;
+          setStatus("Shared file ready: " + file.name + ". Tap Import to start.", "");
+          if (q) { try { history.replaceState(null, "", location.pathname); } catch (e) { /* ignore */ } }
+        }).catch(function () { /* no shared file, or storage blocked: normal page */ });
+      })();
 
       function setStatus(msg, cls) {
         statusEl.textContent = msg;
@@ -286,6 +334,7 @@
 
       function finishJob(body, matchedTrades, wasCancelled) {
         clearInterval(pollTimer);
+        if (window.Haptics && !wasCancelled) window.Haptics.play((body.publish_results || []).some(function (r) { return r.status === "failed"; }) ? "warn" : "success");
         hideProgress();
         var publishById = {};
         (body.publish_results || []).forEach(function (r) { publishById[r.id] = r; });
@@ -443,6 +492,8 @@
   </script>
 
 <script src="js/common.js"></script>
+<script src="js/mobile-tables.js"></script>
+<script src="js/mobile-extras.js"></script>
 <script src="js/global-search.js"></script>
 <script src="js/shortcuts-help.js"></script>
 </body>

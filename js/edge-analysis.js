@@ -298,6 +298,7 @@
         icon: "target",
         title: "No trades yet",
         message: "Edge analysis — decay, regret trades, sizing quality, and the rest — needs published trades to work from.",
+        actionHref: "import-trades.html", actionLabel: "Import trades",
       });
       return;
     }

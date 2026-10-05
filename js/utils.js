@@ -564,10 +564,18 @@ window.emptyStateHtml = function emptyStateHtml(opts) {
   const icon = window.EMPTY_STATE_ICONS[opts.icon] || window.EMPTY_STATE_ICONS.chart;
   const title = opts.title ? `<div class="empty-state-hero-title">${opts.title}</div>` : "";
   const message = opts.message ? `<div class="empty-state-hero-msg">${opts.message}</div>` : "";
-  const action = opts.actionHref
+  // Primary action is a link (actionHref) or a button the page wires up itself (actionId);
+  // an optional secondary link sits beside it. On phones they stack full-width.
+  const btn = opts.actionHref
     ? `<a class="empty-state-hero-action" href="${opts.actionHref}">${opts.actionLabel || "Get started"}</a>`
+    : opts.actionId
+      ? `<button type="button" class="empty-state-hero-action" id="${opts.actionId}">${opts.actionLabel || "Get started"}</button>`
+      : "";
+  const second = opts.secondaryHref
+    ? `<a class="empty-state-hero-action secondary" href="${opts.secondaryHref}">${opts.secondaryLabel || "Learn more"}</a>`
     : "";
-  return `<div class="empty-state-hero"><div class="empty-state-hero-icon">${icon}</div>${title}${message}${action}</div>`;
+  const actions = btn || second ? `<div class="empty-state-hero-actions">${btn}${second}</div>` : "";
+  return `<div class="empty-state-hero"><div class="empty-state-hero-icon">${icon}</div>${title}${message}${actions}</div>`;
 };
 
 // chartThemeColors — grid/axis/text colors for the lightweight-charts

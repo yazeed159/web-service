@@ -34,6 +34,148 @@
     return out;
   };
 
+  // ------------------------------------------------------------------
+  // TradeCache + swrFetch -- a per-user, on-device snapshot of the data
+  // the Journal and Reports draw from, so reopening the app paints from
+  // the device instantly and Supabase only has to *refresh* it.
+  //
+  //   TradeCache.get(name)        -> Promise<{value, at}|null>
+  //   TradeCache.set(name, value) -> Promise (best-effort, never rejects)
+  //   TradeCache.clear()          -> wipes everything (called on sign-out)
+  //   swrFetch(name, fetcher, onCached)
+  //        Calls onCached(value, at) right away if a snapshot exists, runs
+  //        fetcher() against the network, stores + returns the fresh value.
+  //        If the network fails but a snapshot was shown, it resolves with
+  //        that snapshot (and announces "offline") instead of rejecting.
+  //
+  // Stored in IndexedDB (the trades index can outgrow localStorage's ~5 MB).
+  // Keys are <user id>|<account scope>|<name>, so another login on the
+  // same device -- or a different account scope -- never sees these rows.
+  // Defined before the guards below so it exists even if Supabase can't load.
+  // Everything announces itself on window as "tradelog:data" events
+  // ({state: "cached" | "fresh" | "offline", at: ms}), which mobile-extras.js
+  // renders as the "Updated 2 min ago" label.
+  // ------------------------------------------------------------------
+  (function () {
+    var DB_NAME = "tradelog-data", STORE = "snap", UID_KEY = "tl:cache:uid";
+    var dbPromise = null;
+
+    function openDb() {
+      if (dbPromise) return dbPromise;
+      dbPromise = new Promise(function (resolve) {
+        try {
+          if (!window.indexedDB) { resolve(null); return; }
+          var req = indexedDB.open(DB_NAME, 1);
+          req.onupgradeneeded = function () { req.result.createObjectStore(STORE); };
+          req.onsuccess = function () { resolve(req.result); };
+          req.onerror = function () { resolve(null); };
+          req.onblocked = function () { resolve(null); };
+        } catch (e) { resolve(null); }
+      });
+      return dbPromise;
+    }
+    function scopeSig() {
+      try { return localStorage.getItem("scope:v1") || ""; } catch (e) { return ""; }
+    }
+    // The signed-in user's id. If the session can't be confirmed right now
+    // (offline with an expired token) fall back to the last id seen on this
+    // device so the app can still open from its snapshot.
+    function userId() {
+      var ready = window.AUTH_READY || Promise.resolve(null);
+      return ready.then(function (session) {
+        var id = session && session.user && session.user.id;
+        try {
+          if (id) localStorage.setItem(UID_KEY, id);
+          else if (window.AUTH_ERROR) id = localStorage.getItem(UID_KEY);
+        } catch (e) { /* ignore */ }
+        return id || null;
+      }, function () { return null; });
+    }
+    function keyFor(uid, name) { return uid + "|" + scopeSig() + "|" + name; }
+
+    function idb(mode, fn) {
+      return openDb().then(function (db) {
+        if (!db) return null;
+        return new Promise(function (resolve) {
+          try {
+            var tx = db.transaction(STORE, mode);
+            var out = fn(tx.objectStore(STORE));
+            tx.oncomplete = function () { resolve(out && "result" in out ? out.result : null); };
+            tx.onerror = tx.onabort = function () { resolve(null); };
+          } catch (e) { resolve(null); }
+        });
+      });
+    }
+
+    var TradeCache = {
+      get: function (name) {
+        return userId().then(function (uid) {
+          if (!uid) return null;
+          return idb("readonly", function (st) { return st.get(keyFor(uid, name)); });
+        }).then(function (rec) { return rec && rec.at ? rec : null; }, function () { return null; });
+      },
+      set: function (name, value) {
+        return userId().then(function (uid) {
+          if (!uid) return null;
+          return idb("readwrite", function (st) { return st.put({ value: value, at: Date.now() }, keyFor(uid, name)); });
+        }).then(function () {}, function () {});
+      },
+      clear: function () {
+        try { localStorage.removeItem(UID_KEY); } catch (e) { /* ignore */ }
+        return idb("readwrite", function (st) { return st.clear(); }).then(function () {}, function () {});
+      },
+    };
+    window.TradeCache = TradeCache;
+
+    function announce(state, at) {
+      try { window.dispatchEvent(new CustomEvent("tradelog:data", { detail: { state: state, at: at || Date.now(), path: location.pathname } })); } catch (e) { /* ignore */ }
+    }
+    window.announceData = announce;
+
+    // A snapshot can come back from IndexedDB before the page's later <script>
+    // tags (common.js defines NavState, etc.) have run, so painting from it waits
+    // for the document to finish parsing. No-op on SPA swaps, where it's already done.
+    function afterParse(fn) {
+      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn, { once: true });
+      else fn();
+    }
+    window.afterParse = afterParse;
+
+    window.swrFetch = function (name, fetcher, onCached) {
+      var settled = false, shown = null;
+      if (typeof onCached === "function") {
+        TradeCache.get(name).then(function (rec) {
+          // Never let an old snapshot overwrite a fresher network result, and
+          // don't flash an empty state from a snapshot taken before any trades.
+          if (settled || !rec || (Array.isArray(rec.value) && !rec.value.length)) return;
+          shown = rec;
+          afterParse(function () {
+            if (settled) return; // the network answered while we waited for the parser
+            announce("cached", rec.at);
+            try { onCached(rec.value, rec.at); } catch (e) { console.error("swrFetch onCached failed:", e); }
+          });
+        });
+      }
+      return Promise.resolve().then(fetcher).then(function (value) {
+        settled = true;
+        TradeCache.set(name, value);
+        announce("fresh", Date.now());
+        return value;
+      }, function (err) {
+        settled = true;
+        // onCached may not have run yet (IndexedDB read still pending) -- wait for it.
+        return TradeCache.get(name).then(function (rec) {
+          if (shown || (rec && !(Array.isArray(rec.value) && !rec.value.length))) {
+            var r = shown || rec;
+            announce("offline", r.at);
+            return r.value;
+          }
+          throw err;
+        });
+      });
+    };
+  })();
+
   // Installs safe fallback stubs for the rest of this file's public API
   // (window.AUTH_READY / window.KV / window.fetchTradesIndex / etc.) when
   // either guard below trips and the file has to bail out early.
@@ -174,13 +316,23 @@
     var menu = document.createElement("div");
     menu.className = "account-menu";
 
-    var settingsLink = document.createElement("a");
-    settingsLink.href = "settings.html#account-section";
-    settingsLink.className = "account-menu-item";
-    settingsLink.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>' +
-      "Account settings";
-    menu.appendChild(settingsLink);
+    function menuLink(href, label, iconPaths) {
+      var a = document.createElement("a");
+      a.href = href;
+      a.className = "account-menu-item";
+      a.innerHTML =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + iconPaths + "</svg>" + label;
+      return a;
+    }
+    var ICON_WALLET = '<path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h14a2 2 0 0 1 2 2v3"></path><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3"></path><path d="M17 14h4v4h-4a2 2 0 0 1 0-4z"></path>';
+    var ICON_COG = '<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>';
+    var ICON_USER = '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>';
+
+    // Three distinct destinations: your trading accounts (balances,
+    // deposits, paper attempts), app settings, and your own login profile.
+    menu.appendChild(menuLink("accounts.html", "Trading accounts", ICON_WALLET));
+    menu.appendChild(menuLink("settings.html", "Settings", ICON_COG));
+    menu.appendChild(menuLink("settings.html#account-section", "Profile &amp; security", ICON_USER));
 
     var divider = document.createElement("div");
     divider.className = "account-menu-divider";
@@ -195,6 +347,8 @@
       "Log out";
     logoutBtn.addEventListener("click", function () {
       window.sb.auth.signOut().then(function () {
+        return window.TradeCache ? window.TradeCache.clear() : null;
+      }).then(function () {
         window.location.href = "login";
       });
     });
@@ -285,7 +439,10 @@
 
   // Keep behavior in sync if the session changes in another tab, or
   // expires mid-visit.
-  window.sb.auth.onAuthStateChange(function (_event, session) {
+  window.sb.auth.onAuthStateChange(function (event, session) {
+    // A real sign-out (not just an unconfirmed session) must not leave trade
+    // data behind on the device.
+    if (event === "SIGNED_OUT" && window.TradeCache) window.TradeCache.clear();
     if (!session && !isLoginPage) window.location.href = "login";
   });
 
