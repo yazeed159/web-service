@@ -923,7 +923,7 @@ html[data-theme="light"] .theme-toggle-btn .theme-icon-moon { display: block; }
 .legend-item { display: flex; align-items: center; gap: 6px; }
 .legend-swatch { width: 10px; height: 2px; display: inline-block; }
 #candle-chart { width: 100%; height: 420px; }
-#macd-chart { width: 100%; height: 110px; }
+#macd-chart { width: 100%; height: 90px; }
 
 .detail-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; }
 @media (max-width: 800px) { .detail-grid { grid-template-columns: 1fr; } }
@@ -1127,7 +1127,7 @@ body:has(.sidebar.mobile-open) { overflow: hidden; }
 
   /* Charts: shorter so they don't dominate a phone screen */
   #candle-chart { height: 280px; }
-  #macd-chart { height: 80px; }
+  #macd-chart { height: 64px; }
   .equity-panel #equity-svg { height: 110px; }
 
   /* Cut down the empty vertical space in the day calendar cells */
@@ -2788,7 +2788,14 @@ html.chart-fs-lock .bottom-nav, html.chart-fs-lock .chatw-launcher, html.chart-f
 .chart-stack { position: relative; }
 .chart-stack.chart-fs { display: flex; flex-direction: column; }
 .chart-stack.chart-fs #candle-chart { flex: 1 1 0; min-height: 0; height: auto !important; }
-.chart-stack.chart-fs #macd-chart { flex: 0 0 26%; min-height: 84px; height: auto !important; border-top: 1px solid var(--border-soft); }
+.chart-stack.chart-fs #macd-chart { flex: 0 0 15%; min-height: 50px; height: auto !important; }
+/* Drag handle between candle + MACD panes. */
+#macd-resizer { position: relative; height: 8px; margin: -4px 0; z-index: 6; cursor: row-resize; touch-action: none; display: flex; align-items: center; justify-content: center; }
+#macd-resizer span { display: block; width: 100%; height: 1px; background: var(--border-soft); transition: background .15s, height .15s; }
+#macd-resizer:hover span, #macd-resizer.dragging span { height: 3px; background: var(--primary); }
+.chart-stack.chart-fs #macd-resizer { flex: none; }
+/* Candle pane's floating buttons (zoom, draw tools, fullscreen) must paint above the MACD canvas below. */
+.chart-stack #candle-chart { position: relative; z-index: 3; }
 /* Zoom / fit / jump-to-trade toolbar (phones only; the wheel covers desktop). */
 .chart-zoom-tools, .chart-fs-only { display: none; }
 @media (max-width: 760px), (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
@@ -2816,7 +2823,7 @@ html.chart-fs-lock .bottom-nav, html.chart-fs-lock .chatw-launcher, html.chart-f
 .chart-touch-capture { overscroll-behavior: contain; }
 /* Timeframe pills inside fullscreen, left of the close button. */
 .chart-fs .chart-fs-only { display: flex; position: absolute; top: 10px; right: 62px; z-index: 4; }
-.chart-fs .chart-zoom-tools { display: flex; left: 58px; bottom: 36px; }
+.chart-fs .chart-zoom-tools { display: flex; left: 58px; bottom: 40px; z-index: 7; }
 .chart-fs .chart-zoom-btn { width: 32px; height: 32px; font-size: 16px; color: var(--text-dim);
   background: color-mix(in srgb, var(--panel) 82%, transparent); border: 1px solid var(--border-soft); border-radius: 8px; cursor: pointer; }
 .chart-fs .chart-zoom-btn:hover { color: var(--text); }

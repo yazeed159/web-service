@@ -421,6 +421,7 @@
         </div>
         <div class="chart-stack" id="chart-stack">
           <div id="candle-chart"></div>
+          <div id="macd-resizer" title="Drag to resize the MACD pane (double-click to reset)" role="separator" aria-orientation="horizontal"><span></span></div>
           <div id="macd-chart"></div>
         </div>
       </div>
@@ -773,6 +774,29 @@
     });
     const list = [...agg.values()].sort((a, b) =>
       a.time < b.time ? -1 : a.time > b.time ? 1 : (a.kind === b.kind ? 0 : a.kind === "entry" ? -1 : 1));
+    // Partial fills of ONE order (same side, a few seconds apart, usually at
+    // slightly different prices) are a single action, not several. Fold them
+    // into one execution at the quantity-weighted average price, so a pointer
+    // means "I added" / "I reduced" -- not "the market gave me another price".
+    const secs = (t) => { const m = String(t).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/); return m ? (+m[1]) * 3600 + (+m[2]) * 60 + (+(m[3] || 0)) : NaN; };
+    const ORDER_GAP_S = 5;
+    const merged = [];
+    list.forEach((e) => {
+      const prev = merged[merged.length - 1];
+      if (prev && prev.kind === e.kind && secs(e.time) - prev._lastSecs <= ORDER_GAP_S) {
+        prev._cost += e.price * e.qty;
+        prev.qty += e.qty;
+        prev.price = prev.qty ? prev._cost / prev.qty : prev.price;
+        prev.fillCount += 1;
+        prev.minPrice = Math.min(prev.minPrice, e.price);
+        prev.maxPrice = Math.max(prev.maxPrice, e.price);
+        prev._lastSecs = secs(e.time);
+      } else {
+        merged.push(Object.assign({}, e, { _cost: e.price * e.qty, fillCount: 1, minPrice: e.price, maxPrice: e.price, _lastSecs: secs(e.time) }));
+      }
+    });
+    list.length = 0;
+    merged.forEach((e) => list.push(e));
     let pos = 0;
     let entryN = 0;
     list.forEach((e) => {
@@ -804,7 +828,7 @@
       return `
       <div class="fill-row" style="display:grid; grid-template-columns: 22px 1fr auto; gap:2px 8px; align-items:baseline; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.06); font-size:12.5px;">
         <span style="opacity:.5;">${i + 1}</span>
-        <span><b style="color:${color};">${entry ? "+" : "\u2212"}${fmtQty(e.qty)} sh</b> <span style="opacity:.8;">${escapeHtml(e.action)}</span> @ <b>$${e.price.toFixed(e.price < 1 ? 4 : 2)}</b></span>
+        <span><b style="color:${color};">${entry ? "+" : "\u2212"}${fmtQty(e.qty)} sh</b> <span style="opacity:.8;">${escapeHtml(e.action)}</span> @ <b>$${e.price.toFixed(e.price < 1 ? 4 : 2)}</b>${e.fillCount > 1 ? ` <span style="opacity:.6;">(avg of ${e.fillCount} partial fills)</span>` : ""}</span>
         <span class="mono" style="opacity:.75;">${escapeHtml(e.time)}</span>
         <span></span>
         <span style="font-size:11.5px; opacity:.65;">${e.role} \u00b7 position after: ${fmtQty(e.posAfter)} sh</span>
@@ -932,11 +956,12 @@
       priceScaleMargins: { top: 0.14, bottom: 0.18 }, // headroom for pointer markers at any zoom level
       volScaleMargins: { top: 0.82, bottom: 0 },
       showLastValueLine: false, // entry/exit/S-R lines are all drawn explicitly below; the built-in one is redundant noise
+      hideTimeAxis: true, // the MACD pane below owns the one shared time axis
       fullscreenHost: document.getElementById("chart-stack"), // candle + MACD go fullscreen together
       drawKey: trade && trade.symbol ? trade.symbol + ":" + (trade.trade_date || "") : null, // saved drawings (support lines etc.) per symbol + day
       onFullscreenFit: () => {
         const m = document.getElementById("macd-chart");
-        if (currentMacdChart && m) currentMacdChart.applyOptions({ width: m.clientWidth, height: m.clientHeight || 110 });
+        if (currentMacdChart && m) currentMacdChart.applyOptions({ width: m.clientWidth, height: m.clientHeight || 90 });
         if (pointersResizeHandler) pointersResizeHandler();
       },
       onFocus: () => zoomToTrade(),
@@ -1155,6 +1180,7 @@
       const entry = e.kind === "entry";
       const head = `${entry ? "+" : "\u2212"}${fmtQty(e.qty)} sh \u00b7 ${e.action} @ $${e.price.toFixed(e.price < 1 ? 4 : 2)}`;
       let signal = `${e.role} at ${e.time} \u2192 position ${fmtQty(e.posAfter)} sh`;
+      if (e.fillCount > 1) signal += ` \u00b7 ${e.fillCount} partial fills, $${e.minPrice.toFixed(2)}\u2013$${e.maxPrice.toFixed(2)}`;
       const indicator = idx === 0 ? trade.entry_indicator : (idx === lastExitIdx ? trade.exit_indicator : "");
       if (indicator) signal += ` \u2014 ${indicator}`;
       return tooltipHtml(head, signal);
@@ -1292,6 +1318,15 @@
     requestAnimationFrame(repositionPointers);
     setTimeout(repositionPointers, 0);
 
+    // Best fix for "pointers drift away from their candle": ask the chart to
+    // call us from INSIDE its own paint, when the price/time scales are already
+    // up to date. (The visible-range event fires before the price autoscale has
+    // re-fit, so repositioning from it used the previous frame's scale.)
+    candleSeries.attachPrimitive({
+      attached() {}, detached() {}, updateAllViews() {},
+      paneViews() { return [{ zOrder() { return "top"; }, renderer() { return { draw() { repositionPointers(); } }; } }]; },
+    });
+
     // The library has no event for a PRICE-axis change (wheel/drag on the
     // price scale, autoscale re-fit), only for the time range -- so pointers
     // used to stay put until the chart itself was moved. Watch the pixel
@@ -1412,6 +1447,52 @@
         candleChart.timeScale().setVisibleRange({ from: lo - pad, to: hi + pad });
       } catch (e) { try { candleChart.timeScale().fitContent(); } catch (e2) {} }
     }
+
+    // Drag handle between the panes: resizes the MACD pane vertically.
+    // Normal view: MACD height in px (candle stays 420). Fullscreen: the MACD
+    // pane's share of the screen (candle takes the rest). Remembered.
+    (function wireMacdResizer() {
+      const stack = document.getElementById("chart-stack");
+      const handleEl = document.getElementById("macd-resizer");
+      if (!stack || !handleEl) return;
+      const KEY = "trade.macdH";
+      const DEFAULT_H = window.ChartIndicators.isPhone() ? 64 : 90;
+      let macdH = DEFAULT_H;
+      try { const v = parseInt(localStorage.getItem(KEY), 10); if (v >= 50 && v <= 600) macdH = v; } catch (e) {}
+      function apply() {
+        const fsOn = stack.classList.contains("chart-fs");
+        const maxH = fsOn ? Math.floor(stack.clientHeight * 0.7) : 400;
+        const h = Math.max(50, Math.min(macdH, maxH || macdH));
+        macdEl.style.height = fsOn ? "" : h + "px";
+        macdEl.style.flex = fsOn ? "0 0 " + h + "px" : "";
+        if (!fsOn) macdEl.style.minHeight = "0";
+        try { macdChart.applyOptions({ width: macdEl.clientWidth, height: h }); } catch (e) {}
+        if (currentChartHandle && currentChartHandle.fullscreen && fsOn) { try { currentChartHandle.fullscreen.fit(); } catch (e) {} }
+        if (pointersResizeHandler) pointersResizeHandler();
+      }
+      apply();
+      new MutationObserver(() => requestAnimationFrame(apply)).observe(stack, { attributes: true, attributeFilter: ["class"] });
+      let startY = 0, startH = 0, dragging = false;
+      handleEl.addEventListener("pointerdown", (e) => {
+        dragging = true; startY = e.clientY; startH = macdEl.clientHeight || macdH;
+        try { handleEl.setPointerCapture(e.pointerId); } catch (err) {}
+        handleEl.classList.add("dragging");
+        e.preventDefault();
+      });
+      handleEl.addEventListener("pointermove", (e) => {
+        if (!dragging) return;
+        macdH = Math.round(startH + (startY - e.clientY)); // drag up = taller MACD
+        apply();
+      });
+      const end = () => {
+        if (!dragging) return;
+        dragging = false; handleEl.classList.remove("dragging");
+        try { localStorage.setItem(KEY, String(macdH)); } catch (e) {}
+      };
+      handleEl.addEventListener("pointerup", end);
+      handleEl.addEventListener("pointercancel", end);
+      handleEl.addEventListener("dblclick", () => { macdH = DEFAULT_H; try { localStorage.removeItem(KEY); } catch (e) {} apply(); });
+    })();
 
     candleChart.timeScale().fitContent();
     macdChart.timeScale().fitContent();

@@ -482,7 +482,9 @@
       layout: { background: { color: "transparent" }, textColor: ct.text, fontSize: phone ? 10 : 12 },
       grid: { vertLines: { color: ct.grid }, horzLines: { color: ct.grid } },
       rightPriceScale: { borderColor: ct.border, minimumWidth: minW },
-      timeScale: { borderColor: ct.border, timeVisible: true, secondsVisible: false, rightOffset: phone ? 3 : 0 },
+      // hideTimeAxis: a companion pane (MACD) under this chart already draws the
+      // time axis; showing it on both made the page look like two separate charts.
+      timeScale: { borderColor: ct.border, timeVisible: true, visible: !opts.hideTimeAxis, secondsVisible: false, rightOffset: phone ? 3 : 0 },
       crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
       ...touchChartOpts(opts.touchMode),
     };
