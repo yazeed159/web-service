@@ -252,6 +252,7 @@
     const acts = opts.combined
       ? '<button type="button" class="filter-btn" data-act="view-all">View combined</button>'
       : '<button type="button" class="filter-btn" data-act="view" data-id="' + escapeHtml(a.id) + '">View</button>' +
+        (a.status === "archived" ? "" : '<button type="button" class="filter-btn" data-act="import" data-id="' + escapeHtml(a.id) + '">Import</button>') +
         '<button type="button" class="filter-btn" data-act="money" data-id="' + escapeHtml(a.id) + '">Deposits &amp; periods</button>' +
         '<button type="button" class="filter-btn" data-act="rename" data-id="' + escapeHtml(a.id) + '">Rename</button>' +
         '<button type="button" class="filter-btn" data-act="archive" data-id="' + escapeHtml(a.id) + '">' + (a.status === "archived" ? "Restore" : "Archive") + "</button>" +
@@ -349,6 +350,7 @@
     try {
       if (act === "view-all") { A.setScope({ ids: [] }, { reload: false }); window.location.href = "index.html"; }
       else if (act === "view") { A.setScope({ ids: [id] }, { reload: false }); window.location.href = "index.html"; }
+      else if (act === "import") { window.location.href = "import-trades.html?account=" + encodeURIComponent(id); }
       else if (act === "money") { pickedId = id; $("acc-pick").value = id; renderMoney(); $("acc-money-box").scrollIntoView({ behavior: "smooth" }); }
       else if (act === "rename") {
         const a = A.byId(id);
@@ -555,6 +557,7 @@
 </script>
 
 <script src="js/common.js"></script>
+<script src="js/select-enhance.js" defer></script>
 <script src="js/mobile-tables.js"></script>
 <script src="js/mobile-extras.js"></script>
 <script src="js/global-search.js"></script>

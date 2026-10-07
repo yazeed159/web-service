@@ -20,7 +20,7 @@
   }
   #m-msg { min-height: 1em; }
   .it-card input[type="text"], .it-card input[type="number"], .it-card input[type="date"], .it-card input[type="time"], .it-card select {
-    width: 100%; box-sizing: border-box; background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+    width: 100%; box-sizing: border-box; background-color: var(--panel-2); border: 1px solid var(--border); color: var(--text);
     border-radius: 6px; padding: 7px 9px; font-size: 13px; font-family: inherit;
   }
   input[type="file"] { color: var(--text-dim); font-size: 13px; max-width: 100%; }
@@ -595,6 +595,8 @@
           if (active.length < 2) return;
           var sc = window.Accounts.getScope();
           var preferred = sc.ids.length === 1 ? sc.ids[0] : (window.Accounts.defaultLive() || {}).id;
+          var wanted = new URLSearchParams(location.search).get("account");
+          if (wanted && active.some(function (a) { return a.id === wanted; })) preferred = wanted;
           var sel = document.getElementById("import-account");
           sel.innerHTML = active.map(function (a) {
             return '<option value="' + escapeHtml(a.id) + '"' + (a.id === preferred ? " selected" : "") + ">" + escapeHtml(a.name) + (window.Accounts.isBrokerPaper(a) ? " (paper)" : "") + "</option>";
@@ -638,6 +640,7 @@
   </script>
 
 <script src="js/common.js"></script>
+<script src="js/select-enhance.js" defer></script>
 <script src="js/mobile-tables.js"></script>
 <script src="js/mobile-extras.js"></script>
 <script src="js/global-search.js"></script>

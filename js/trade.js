@@ -447,14 +447,14 @@
           ${!trade.better_entry && !trade.better_exit ? `<div class="no-better" style="font-size:12px; opacity:.7;">No better entry/exit flagged — this trade lined up with the plan.</div>` : ""}
         </div>
 
-        ${fillsCard(trade)}
-
         <div class="card">
           <h2>Lessons from this trade</h2>
           ${Array.isArray(trade.lessons) && trade.lessons.length
             ? `<ul class="lessons-list" style="margin:0; padding-left:18px;">${trade.lessons.map((l) => lessonItem(l)).join("")}</ul>`
             : `<div class="no-better">No lessons recorded for this trade.</div>`}
         </div>
+
+        ${fillsCard(trade)}
 
         ${hasSymbolInfo(trade) || !hasFloat(trade) ? `
         <div class="card symbol-card" style="grid-column: 1 / -1;">
@@ -817,30 +817,32 @@
     return Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
   }
 
-  // Only rendered when the position took more than one entry or exit -- a
-  // plain one-in / one-out trade has nothing extra beyond the header.
+  // Fills: every add (entry) and reduce (exit) that made up this trade, with the
+  // position size after each. Always shown (even for a plain one-in / one-out
+  // trade) and sits in the grid cell beside "Lessons" rather than spanning the page.
   function fillsCard(trade) {
     const ex = executionsOf(trade);
-    if (ex.length <= 2) return "";
+    if (!ex.length) return "";
+    const px = (v) => "$" + Number(v).toFixed(v < 1 ? 4 : 2);
     const rows = ex.map((e, i) => {
       const entry = e.kind === "entry";
       const color = entry ? "#2fd08a" : "#f2555a";
+      const partial = e.fillCount > 1
+        ? `<div style="font-size:11px; opacity:.6; margin-top:2px;">${e.fillCount} partial fills, ${px(e.minPrice)}\u2013${px(e.maxPrice)}</div>` : "";
       return `
-      <div class="fill-row" style="display:grid; grid-template-columns: 22px 1fr auto; gap:2px 8px; align-items:baseline; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.06); font-size:12.5px;">
-        <span style="opacity:.5;">${i + 1}</span>
-        <span><b style="color:${color};">${entry ? "+" : "\u2212"}${fmtQty(e.qty)} sh</b> <span style="opacity:.8;">${escapeHtml(e.action)}</span> @ <b>$${e.price.toFixed(e.price < 1 ? 4 : 2)}</b>${e.fillCount > 1 ? ` <span style="opacity:.6;">(avg of ${e.fillCount} partial fills)</span>` : ""}</span>
+      <div class="fill-row" style="display:grid; grid-template-columns: 20px 1fr auto; gap:2px 10px; align-items:baseline; padding:9px 0; ${i < ex.length - 1 ? "border-bottom:1px solid var(--border-soft);" : ""} font-size:12.5px;">
+        <span style="opacity:.45;">${i + 1}</span>
+        <span><b style="color:${color};">${entry ? "+" : "\u2212"}${fmtQty(e.qty)} sh</b> <span style="opacity:.8;">${escapeHtml(e.action)}</span> @ <b>${px(e.price)}</b>${partial}</span>
         <span class="mono" style="opacity:.75;">${escapeHtml(e.time)}</span>
         <span></span>
-        <span style="font-size:11.5px; opacity:.65;">${e.role} \u00b7 position after: ${fmtQty(e.posAfter)} sh</span>
+        <span style="font-size:11.5px; opacity:.6;">${e.role} \u00b7 position after: ${fmtQty(e.posAfter)} sh</span>
         <span></span>
       </div>`;
     }).join("");
     return `
-        <div class="card" style="grid-column: 1 / -1;">
-          <h2 style="margin:0 0 4px;">Executions (${ex.length})</h2>
-          <div style="font-size:11.5px; opacity:.65; margin-bottom:8px;">
-            This is one trade: you added to and/or reduced the same position before closing it. Entry/Exit Price above are quantity-weighted averages of these. Hover (or tap) a pointer on the chart to see each one.
-          </div>
+        <div class="card fills-card">
+          <h2 style="margin:0 0 2px;">Fills (${ex.length})</h2>
+          ${ex.length > 2 ? `<div style="font-size:11.5px; opacity:.6; margin:4px 0 4px; line-height:1.5;">You added to and/or reduced this position before closing it, so Entry/Exit Price above are quantity-weighted averages of these.</div>` : ""}
           ${rows}
         </div>`;
   }
