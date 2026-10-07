@@ -41,11 +41,33 @@
   // repositionPointers pointing at the previous call's now-disposed chart
   // whenever buildStandardChart's onResize fires, alongside the new one.
   let pointersResizeHandler = null;
+  let pointerWatchRaf = 0; // rAF id of the price-scale watcher that keeps pointers pinned during vertical zoom/pan
   // Which timeframe the candle chart is currently resampled to (1/5/15/60
   // minutes). Kept at module scope, not inside buildCharts, so it
   // survives a "Show full day" rebuild -- switching to 5m and then
   // loading the full day keeps showing 5m instead of silently resetting.
   let currentInterval = 1;
+
+  // "Better entry / better exit" pointers are optional on the chart (they
+  // crowd it when a trade also has several real fills). The checked /
+  // unchecked state is saved in localStorage so it stays how you left it.
+  const BETTER_KEY = "tl_show_better_markers";
+  let showBetter = false;
+  try { showBetter = localStorage.getItem(BETTER_KEY) === "1"; } catch (e) { /* storage blocked: stays off */ }
+  // Set by buildCharts() to its own repositionPointers (which reads
+  // showBetter), so the toggle button can re-apply visibility live.
+  let betterToggleHandler = null;
+  function syncBetterUi() {
+    const btn = document.getElementById("better-toggle-btn");
+    if (btn) {
+      btn.setAttribute("aria-pressed", showBetter ? "true" : "false");
+      btn.style.borderColor = showBetter ? "#8b7cf6" : "";
+      btn.style.color = showBetter ? "#c9c1ff" : "";
+      const box = document.getElementById("better-box");
+      if (box) box.textContent = showBetter ? "\u2713" : "";
+    }
+    document.querySelectorAll(".legend-better").forEach((el) => { el.style.display = showBetter ? "" : "none"; });
+  }
 
   // "Show full day" -- widens the chart past the narrow window that got
   // stored with this trade, by pulling the rest of that symbol's session
@@ -369,8 +391,8 @@
             <span class="legend-item"><span class="legend-swatch" style="background:#b57bee"></span>EMA200</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#2fd08a"></span>entry</span>
             <span class="legend-item"><span class="legend-swatch" style="background:#f2555a"></span>exit</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#8b7cf6"></span>better entry</span>
-            <span class="legend-item"><span class="legend-swatch" style="background:#ec6cad"></span>better exit</span>
+            <span class="legend-item legend-better" style="${showBetter ? "" : "display:none;"}"><span class="legend-swatch" style="background:#8b7cf6"></span>better entry</span>
+            <span class="legend-item legend-better" style="${showBetter ? "" : "display:none;"}"><span class="legend-swatch" style="background:#ec6cad"></span>better exit</span>
           </div>
           <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; row-gap:8px;" id="chart-controls">
             <span class="chart-hint">Scroll to zoom · drag to pan</span>
@@ -382,6 +404,11 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               Practice
             </a>
+            ${(trade.better_entry && trade.better_entry.price) || (trade.better_exit && trade.better_exit.price) ? `
+            <button type="button" class="icon-btn icon-btn-visible" id="better-toggle-btn" aria-pressed="${showBetter ? "true" : "false"}" title="Show or hide the better entry / better exit pointers on the chart (remembered)" style="width:auto; padding:4px 10px; font-size:11.5px; gap:6px; ${showBetter ? "border-color:#8b7cf6; color:#c9c1ff;" : ""}">
+              <span id="better-box" style="display:inline-flex; width:13px; height:13px; box-sizing:border-box; border:1.5px solid currentColor; border-radius:3px; align-items:center; justify-content:center; font-size:10px; line-height:1;">${showBetter ? "\u2713" : ""}</span>
+              Better entry/exit
+            </button>` : ""}
             <button class="icon-btn icon-btn-visible" id="full-day-btn" title="Load this symbol's whole session so you can zoom/pan out past the trade window" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M15 3h6v6"></path><path d="M9 21H3v-6"></path><path d="M21 3l-7 7"></path><path d="M3 21l7-7"></path></svg>
               Full day
@@ -553,6 +580,16 @@
       });
     }
 
+    const betterBtn = document.getElementById("better-toggle-btn");
+    if (betterBtn) {
+      betterBtn.addEventListener("click", () => {
+        showBetter = !showBetter;
+        try { localStorage.setItem(BETTER_KEY, showBetter ? "1" : "0"); } catch (e) { /* ignore */ }
+        syncBetterUi();
+        if (betterToggleHandler) betterToggleHandler();
+      });
+    }
+
     const fullDayBtn = document.getElementById("full-day-btn");
     if (fullDayBtn) {
       fullDayBtn.addEventListener("click", () => {
@@ -714,25 +751,71 @@
     </div>`;
   }
 
-  // Only rendered when this trade merged more than one raw FIFO fill (see
-  // trade_matching.fifo_match_and_merge's "Fill Count"/"Fills") -- a
-  // single-fill trade has nothing extra to show beyond the Entry/Exit
-  // Price already in the header, so this card just doesn't appear.
+  // One trade = one whole position (flat -> flat). Its `fills` are the FIFO
+  // matched pieces; this folds them back into the real executions you made:
+  // every add (entry) and every reduce (exit), merged by time + price, with
+  // the position size left after each one.
+  function executionsOf(trade) {
+    const fills = Array.isArray(trade.fills) ? trade.fills : [];
+    if (!fills.length) return [];
+    const isLong = String(trade.side || "long").toLowerCase() !== "short";
+    const agg = new Map();
+    const add = (kind, time, price, qty) => {
+      if (!time || price == null) return;
+      const k = `${kind}|${time}|${Number(price).toFixed(4)}`;
+      const cur = agg.get(k) || { kind, time: String(time), price: Number(price), qty: 0 };
+      cur.qty += Number(qty) || 0;
+      agg.set(k, cur);
+    };
+    fills.forEach((f) => {
+      add("entry", f.entry_time, f.entry_price, f.qty);
+      add("exit", f.exit_time, f.exit_price, f.qty);
+    });
+    const list = [...agg.values()].sort((a, b) =>
+      a.time < b.time ? -1 : a.time > b.time ? 1 : (a.kind === b.kind ? 0 : a.kind === "entry" ? -1 : 1));
+    let pos = 0;
+    let entryN = 0;
+    list.forEach((e) => {
+      pos += e.kind === "entry" ? e.qty : -e.qty;
+      e.posAfter = Math.max(0, Math.round(pos * 1e6) / 1e6);
+      if (e.kind === "entry") {
+        entryN += 1;
+        e.role = entryN === 1 ? "Open" : "Add";
+        e.action = isLong ? "BUY" : "SELL SHORT";
+      } else {
+        e.role = e.posAfter <= 0 ? "Close" : "Trim";
+        e.action = isLong ? "SELL" : "BUY TO COVER";
+      }
+    });
+    return list;
+  }
+  function fmtQty(n) {
+    return Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+
+  // Only rendered when the position took more than one entry or exit -- a
+  // plain one-in / one-out trade has nothing extra beyond the header.
   function fillsCard(trade) {
-    if (!(trade.fill_count > 1) || !Array.isArray(trade.fills) || !trade.fills.length) return "";
-    const rows = trade.fills.map((f, i) => `
-      <div class="fill-row" style="display:grid; grid-template-columns: 24px 1fr 1fr 70px 90px; gap:8px; align-items:baseline; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.06); font-size:12.5px;">
+    const ex = executionsOf(trade);
+    if (ex.length <= 2) return "";
+    const rows = ex.map((e, i) => {
+      const entry = e.kind === "entry";
+      const color = entry ? "#2fd08a" : "#f2555a";
+      return `
+      <div class="fill-row" style="display:grid; grid-template-columns: 22px 1fr auto; gap:2px 8px; align-items:baseline; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.06); font-size:12.5px;">
         <span style="opacity:.5;">${i + 1}</span>
-        <span>entry <b>$${Number(f.entry_price).toFixed(2)}</b> @ ${escapeHtml(f.entry_time)}</span>
-        <span>exit <b>$${Number(f.exit_price).toFixed(2)}</b> @ ${escapeHtml(f.exit_time)}</span>
-        <span class="mono">${f.qty} sh</span>
-        <span class="mono ${f.pnl_before_comm >= 0 ? "up" : "down"}">${fmtMoney(f.pnl_before_comm)}</span>
-      </div>`).join("");
+        <span><b style="color:${color};">${entry ? "+" : "\u2212"}${fmtQty(e.qty)} sh</b> <span style="opacity:.8;">${escapeHtml(e.action)}</span> @ <b>$${e.price.toFixed(e.price < 1 ? 4 : 2)}</b></span>
+        <span class="mono" style="opacity:.75;">${escapeHtml(e.time)}</span>
+        <span></span>
+        <span style="font-size:11.5px; opacity:.65;">${e.role} \u00b7 position after: ${fmtQty(e.posAfter)} sh</span>
+        <span></span>
+      </div>`;
+    }).join("");
     return `
         <div class="card" style="grid-column: 1 / -1;">
-          <h2 style="margin:0 0 4px;">Fills (${trade.fill_count})</h2>
+          <h2 style="margin:0 0 4px;">Executions (${ex.length})</h2>
           <div style="font-size:11.5px; opacity:.65; margin-bottom:8px;">
-            The Entry/Exit Price above are quantity-weighted averages across these fills -- here's each one on its own.
+            This is one trade: you added to and/or reduced the same position before closing it. Entry/Exit Price above are quantity-weighted averages of these. Hover (or tap) a pointer on the chart to see each one.
           </div>
           ${rows}
         </div>`;
@@ -790,7 +873,7 @@
     const tagBadge = l.tag
       ? `<span class="lesson-tag" style="display:inline-block; font-size:10px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; padding:1px 6px; border-radius:3px; background:rgba(91,147,240,.15); color:#5b93f0; margin-left:6px; vertical-align:middle;">${escapeHtml(String(l.tag).replace(/_/g, " "))}</span>`
       : "";
-    return `<li style="margin-bottom:8px; font-size:12.5px;">${escapeHtml(l.lesson || l.text || "")}${tagBadge}</li>`;
+    return `<li style="margin-bottom:8px; font-size:12.5px;"><span class="lesson-body" style="flex:1; min-width:0;">${escapeHtml(l.lesson || l.text || "")}${tagBadge}</span></li>`;
   }
 
   function buildCharts(trade, overrideBars) {
@@ -1063,14 +1146,42 @@
       return { time, price, color, above, el, tooltip };
     }
 
-    const pointers = [
-      // Entry: triangle sits just above the fill, tip pointing down onto it.
-      mkPointer(toUnix(entryBar.t), trade.entry_price, ACTUAL_ENTRY_COLOR, true,
-        actualTooltip("entry", trade.entry_price, trade.entry_indicator)),
-      // Exit: triangle sits just below the fill, tip pointing up onto it.
-      mkPointer(toUnix(exitBar.t), trade.exit_price, ACTUAL_EXIT_COLOR, false,
-        actualTooltip("exit", trade.exit_price, trade.exit_indicator)),
-    ];
+    // One pointer per real execution (every add and every reduce), each with
+    // its own hover/tap tooltip showing the shares added or sold. Trades
+    // saved without fills fall back to a single entry + single exit pointer.
+    const executions = executionsOf(trade);
+    const lastExitIdx = (() => { for (let i = executions.length - 1; i >= 0; i--) if (executions[i].kind === "exit") return i; return -1; })();
+    function executionTooltip(e, idx) {
+      const entry = e.kind === "entry";
+      const head = `${entry ? "+" : "\u2212"}${fmtQty(e.qty)} sh \u00b7 ${e.action} @ $${e.price.toFixed(e.price < 1 ? 4 : 2)}`;
+      let signal = `${e.role} at ${e.time} \u2192 position ${fmtQty(e.posAfter)} sh`;
+      const indicator = idx === 0 ? trade.entry_indicator : (idx === lastExitIdx ? trade.exit_indicator : "");
+      if (indicator) signal += ` \u2014 ${indicator}`;
+      return tooltipHtml(head, signal);
+    }
+    const pointers = [];
+    if (executions.length) {
+      const stack = new Map(); // same bar + same side -> nudge sideways so they don't hide each other
+      executions.forEach((e, idx) => {
+        const bar = barAt(toUnix(`${trade.trade_date} ${e.time}`));
+        const entry = e.kind === "entry";
+        const p = mkPointer(toUnix(bar.t), e.price, entry ? ACTUAL_ENTRY_COLOR : ACTUAL_EXIT_COLOR, entry, executionTooltip(e, idx));
+        const k = `${p.time}|${e.kind}`;
+        const n = stack.get(k) || 0;
+        stack.set(k, n + 1);
+        p.dx = n * 8;
+        pointers.push(p);
+      });
+    } else {
+      pointers.push(
+        // Entry: triangle sits just above the fill, tip pointing down onto it.
+        mkPointer(toUnix(entryBar.t), trade.entry_price, ACTUAL_ENTRY_COLOR, true,
+          actualTooltip("entry", trade.entry_price, trade.entry_indicator)),
+        // Exit: triangle sits just below the fill, tip pointing up onto it.
+        mkPointer(toUnix(exitBar.t), trade.exit_price, ACTUAL_EXIT_COLOR, false,
+          actualTooltip("exit", trade.exit_price, trade.exit_indicator)),
+      );
+    }
     // Better entry/exit get their own pointers, in colors that match their
     // legend swatches and dotted price lines below -- so color alone ties a
     // triangle to the right line without reading labels. These are their
@@ -1108,14 +1219,18 @@
       const u = betterUnix(b.time);
       const bar = barForPrice(Number(b.price), Number.isFinite(u) ? barAt(u) : entryBar);
       const renderPrice = clampToBar(Number(b.price), bar);
-      pointers.push(mkPointer(toUnix(bar.t), renderPrice, BETTER_ENTRY_COLOR, true, betterTooltip("entry", b)));
+      const bp = mkPointer(toUnix(bar.t), renderPrice, BETTER_ENTRY_COLOR, true, betterTooltip("entry", b));
+      bp.better = true;
+      pointers.push(bp);
     }
     if (trade.better_exit && trade.better_exit.price) {
       const b = trade.better_exit;
       const u = betterUnix(b.time);
       const bar = barForPrice(Number(b.price), Number.isFinite(u) ? barAt(u) : exitBar);
       const renderPrice = clampToBar(Number(b.price), bar);
-      pointers.push(mkPointer(toUnix(bar.t), renderPrice, BETTER_EXIT_COLOR, false, betterTooltip("exit", b)));
+      const bp = mkPointer(toUnix(bar.t), renderPrice, BETTER_EXIT_COLOR, false, betterTooltip("exit", b));
+      bp.better = true;
+      pointers.push(bp);
     }
 
     // A zero-size div with only border-bottom set renders a triangle whose
@@ -1134,9 +1249,10 @@
 
     function repositionPointers() {
       pointers.forEach((p) => {
-        const x = candleChart.timeScale().timeToCoordinate(p.time);
+        const x0 = candleChart.timeScale().timeToCoordinate(p.time);
+        const x = x0 === null ? null : x0 + (p.dx || 0);
         const y = candleSeries.priceToCoordinate(p.price);
-        if (x === null || y === null) {
+        if ((p.better && !showBetter) || x === null || y === null) {
           p.el.style.display = "none";
           if (p.tooltip) { p.tooltip.style.display = "none"; p.tooltip.dataset.open = "0"; }
           return;
@@ -1168,12 +1284,29 @@
     // of adding a fresh window listener here -- see the note on
     // pointersResizeHandler above.
     pointersResizeHandler = repositionPointers;
+    betterToggleHandler = repositionPointers;
     // priceToCoordinate depends on the right price scale's own autoscale,
     // which isn't settled until after setData/fitContent run -- a couple
     // of follow-up passes catch that instead of racing it.
     repositionPointers();
     requestAnimationFrame(repositionPointers);
     setTimeout(repositionPointers, 0);
+
+    // The library has no event for a PRICE-axis change (wheel/drag on the
+    // price scale, autoscale re-fit), only for the time range -- so pointers
+    // used to stay put until the chart itself was moved. Watch the pixel
+    // position of a few reference prices each frame and re-place the pointers
+    // the moment any of them moves. Cheap (a handful of lookups per frame);
+    // stops by itself once this chart has been replaced or removed.
+    if (pointerWatchRaf) cancelAnimationFrame(pointerWatchRaf);
+    let lastSig = "";
+    (function watchPriceScale() {
+      if (!candleEl.isConnected || currentCandleChart !== candleChart) { pointerWatchRaf = 0; return; }
+      const refs = [candleSeries.coordinateToPrice(0), candleSeries.coordinateToPrice(candleEl.clientHeight || 400)];
+      const sig = refs.join("|") + "|" + (pointers[0] ? candleSeries.priceToCoordinate(pointers[0].price) : "");
+      if (sig !== lastSig) { lastSig = sig; repositionPointers(); }
+      pointerWatchRaf = requestAnimationFrame(watchPriceScale);
+    })();
 
     candleSeries.createPriceLine({
       price: trade.entry_price,

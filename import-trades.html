@@ -56,6 +56,18 @@
     background: var(--panel-2); color: var(--text-dim); font-size: 12.5px; font-weight: 600; cursor: pointer;
   }
   button.cancel:disabled { opacity: .5; cursor: default; }
+  .progress-bar-fill.indeterminate { width: 35% !important; animation: it-slide 1.2s ease-in-out infinite; }
+  @keyframes it-slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+  #phase { margin-top: 10px; font-size: 12.5px; font-family: var(--mono); color: var(--text-dim); }
+  #counts { margin-top: 6px; font-size: 12px; font-family: var(--mono); display: none; gap: 12px; flex-wrap: wrap; }
+  #counts span { white-space: nowrap; }
+  .st-published, .st-success { color: var(--green); }
+  .st-failed { color: var(--red); }
+  .st-skipped { color: var(--amber); }
+  .st-processing { color: var(--blue); }
+  .st-queued { color: var(--text-faint); }
+  .st-reason { display: block; font-size: 10.5px; white-space: normal; max-width: 220px; color: var(--text-dim); }
+  #activity { margin-top: 12px; max-height: 120px; overflow-y: auto; font-size: 11.5px; font-family: var(--mono); color: var(--text-dim); display: none; }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0b0f">
@@ -131,7 +143,7 @@
   <div class="main">
     <header class="topbar">
       <div class="topbar-left">
-        <h1 id="page-title">Import Trades</h1>
+        <h1 id="page-title">Import Trades <span style="font-size:11px;color:var(--text-faint);font-weight:400">live-status build</span></h1>
       </div>
       <div class="topbar-right">
         <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
@@ -152,13 +164,20 @@
           </p>
         </div>
 
+        <div style="margin-bottom:14px;">
+          <label style="display:flex; gap:8px; align-items:flex-start; font-size:13px; color:var(--text-dim); cursor:pointer;">
+            <input type="checkbox" id="import-overwrite" style="margin-top:3px;">
+            <span>Overwrite trades already in my journal (off = skip them and only import new or failed ones)</span>
+          </label>
+        </div>
+
         <div id="import-account-row" style="display:none; margin-bottom:14px;">
           <label for="import-account">Import into account</label>
           <select id="import-account" class="filter-input" style="width:100%; max-width:320px;"></select>
         </div>
         <label for="csv-file">Trade CSV</label>
         <div class="drop">
-          <input type="file" id="csv-file" accept=".csv">
+          <input type="file" id="csv-file">
           <button class="btn-confirm" id="run-btn" disabled>Import</button>
         </div>
 
@@ -170,11 +189,13 @@
             <button class="cancel" id="cancel-btn">Cancel</button>
           </div>
         </div>
+        <div id="phase"></div>
+        <div id="counts"></div>
+        <div id="activity"></div>
         <div class="table-wrap"><table id="results" class="hidden">
           <thead>
             <tr>
-              <th scope="col">Symbol</th><th scope="col">Date</th><th scope="col">Entry</th><th scope="col">Exit</th>
-              <th scope="col">Entry $</th><th scope="col">Exit $</th><th scope="col">Side</th><th scope="col">Shares</th><th scope="col">P&amp;L</th><th scope="col">Result</th>
+              <th scope="col">Symbol</th><th scope="col">Date</th><th scope="col">Side</th><th scope="col">P&amp;L</th><th scope="col">Status</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -283,8 +304,10 @@
         var pct = total ? Math.round((completed / total) * 100) : 0;
         progressFill.style.width = pct + "%";
         var label = "Trade " + completed + " of " + total;
-        if (current && current.symbol) label += " — up next: " + current.symbol + " " + (current.trade_date || "");
+        if (current && current.symbol) label += " — " + current.symbol;
         progressText.textContent = label;
+        progressFill.classList.remove("indeterminate");
+        progressFill.style.width = pct + "%";
       }
 
       function hideProgress() {
@@ -294,58 +317,161 @@
 
       // escapeHtml() now in utils.js (loads first on every page).
 
-      function renderRows(trades, publishById) {
+      var phaseEl = document.getElementById("phase");
+      var countsEl = document.getElementById("counts");
+      var activityEl = document.getElementById("activity");
+
+      function tradeKey(t) {
+        return t.id || (t["Symbol"] + "-" + (t["Trade Date"] || "").replace(/-/g, "") + "-" + (t["Entry Time"] || "").replace(/:/g, ""));
+      }
+      function stateMap(body) {
+        var m = {};
+        (body.trade_states || []).forEach(function (r) { m[r.id] = { status: r.state, reason: r.note }; });
+        (body.publish_results || []).forEach(function (r) { m[r.id] = r; });
+        return m;
+      }
+      // Remember the running job so leaving this page and coming back picks the
+      // progress up again (the job itself keeps running on the server).
+      var JOB_KEY = "tl_import_job";
+      function saveJob(base, jobId, trades) {
+        try { localStorage.setItem(JOB_KEY, JSON.stringify({ base: base, jobId: jobId, trades: trades, at: Date.now() })); } catch (e) { /* storage blocked */ }
+      }
+      function clearJob() { try { localStorage.removeItem(JOB_KEY); } catch (e) { /* ignore */ } }
+      function loadJob() {
+        try {
+          var j = JSON.parse(localStorage.getItem(JOB_KEY) || "null");
+          if (!j || !j.jobId || !j.base || Date.now() - (j.at || 0) > 24 * 3600 * 1000) { clearJob(); return null; }
+          return j;
+        } catch (e) { return null; }
+      }
+      // Keep the ids this import published so Accounts can offer "Undo last import".
+      function recordImport(body) {
+        var ids = (body.publish_results || []).filter(function (r) { return r.status === "published" && r.id; }).map(function (r) { return r.id; });
+        if (!ids.length || !window.KV) return;
+        window.KV.ready.then(function () {
+          var h = window.KV.get("import_history");
+          h = Array.isArray(h) ? h : [];
+          h.push({ at: Date.now(), ids: ids });
+          window.KV.set("import_history", h.slice(-20));
+        });
+      }
+      function setPhase(msg) { phaseEl.textContent = msg || ""; }
+      function logActivity(msg) {
+        activityEl.style.display = "block";
+        var d = new Date();
+        var ts = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2) + ":" + ("0" + d.getSeconds()).slice(-2);
+        var line = document.createElement("div");
+        line.textContent = ts + "  " + msg;
+        activityEl.appendChild(line);
+        activityEl.scrollTop = activityEl.scrollHeight;
+      }
+      function setIndeterminate(on) {
+        progressFill.classList.toggle("indeterminate", !!on);
+        if (on) { progressWrap.style.display = "block"; progressFill.style.width = ""; cancelBtn.style.display = "none"; progressText.textContent = "Working..."; } else { cancelBtn.style.display = ""; }
+      }
+
+      // Work out each trade's state. While the job runs the server only tells us how many
+      // are completed and which one is current, so: first N = done, next = processing, rest = queued.
+      // Once the server sends per-trade results (publish_results) those win.
+      function statusFor(i, t, byId, completed, running) {
+        var rec = byId ? byId[tradeKey(t)] : null;
+        if (rec && rec.status) return { status: rec.status, reason: rec.error || rec.reason || rec.message || rec.note || "" };
+        if (!running) return { status: byId ? "no result" : "queued", reason: "" };
+        if (i < completed) return { status: "done", reason: "" };
+        if (i === completed) return { status: "charting", reason: "" };
+        return { status: "queued", reason: "" };
+      }
+      var LABELS = { published: "success", charting: "charting…", charted: "charted, waiting to publish", chart_failed: "chart failed", publishing: "publishing…", saved: "saving…", processing: "processing…", done: "done" };
+
+      function renderRows(trades, publishById, completed, running) {
         tbody.innerHTML = "";
-        trades.forEach(function (t) {
-          var pub = publishById ? publishById[t.id || (t["Symbol"] + "-" + (t["Trade Date"] || "").replace(/-/g, "") + "-" + (t["Entry Time"] || "").replace(/:/g, ""))] : null;
-          var journalStatus = pub ? pub.status : "pending";
+        var counts = { published: 0, failed: 0, skipped: 0, processing: 0, queued: 0 };
+        var working = { charting: 1, charted: 1, publishing: 1, saved: 1, processing: 1 };
+        trades.forEach(function (t, i) {
+          var st = statusFor(i, t, publishById, completed || 0, running);
+          var key = st.status === "done" ? "published" : (st.status === "chart_failed" ? "failed" : (working[st.status] ? "processing" : st.status));
+          if (counts[key] !== undefined) counts[key]++;
+          var label = LABELS[st.status] || st.status;
+          var cls = "st-" + (key === "published" ? "published" : key === "processing" ? "processing" : key === "failed" ? "failed" : st.status.replace(/\s+/g, "-"));
           var tr = document.createElement("tr");
           tr.innerHTML =
             "<td>" + escapeHtml(t["Symbol"]) + "</td>" +
             "<td>" + escapeHtml(t["Trade Date"]) + "</td>" +
-            "<td>" + escapeHtml(t["Entry Time"]) + "</td>" +
-            "<td>" + escapeHtml(t["Exit Time"]) + "</td>" +
-            "<td>" + escapeHtml(t["Entry Price"]) + "</td>" +
-            "<td>" + escapeHtml(t["Exit Price"]) + "</td>" +
             "<td>" + escapeHtml(t["Side"]) + "</td>" +
-            "<td>" + escapeHtml(t["No. of Shares"]) + "</td>" +
             "<td class=\"" + (t["Result"] === "Win" ? "win" : "loss") + "\">" + escapeHtml(t["P&L After Comm"]) + "</td>" +
-            "<td class=\"" + (journalStatus === "published" ? "win" : (journalStatus === "failed" || journalStatus === "skipped" ? "loss" : "")) + "\">" + escapeHtml(journalStatus) + "</td>";
+            "<td class=\"" + cls + "\">" + escapeHtml(label) + (st.reason ? "<span class=\"st-reason\">" + escapeHtml(st.reason) + "</span>" : "") + "</td>";
           tbody.appendChild(tr);
         });
         resultsEl.classList.remove("hidden"); resultsEl.style.display = trades.length ? "table" : "none";
+        if (trades.length) {
+          countsEl.style.display = "flex";
+          countsEl.innerHTML =
+            "<span class=\"st-published\">" + counts.published + " success</span>" +
+            "<span class=\"st-failed\">" + counts.failed + " failed</span>" +
+            "<span class=\"st-skipped\">" + counts.skipped + " skipped</span>" +
+            (running ? "<span class=\"st-processing\">" + counts.processing + " processing</span><span class=\"st-queued\">" + counts.queued + " queued</span>" : "");
+        } else {
+          countsEl.style.display = "none";
+        }
       }
 
       function finishJob(body, matchedTrades, wasCancelled) {
         clearInterval(pollTimer);
+        clearJob();
         if (window.Haptics && !wasCancelled) window.Haptics.play((body.publish_results || []).some(function (r) { return r.status === "failed"; }) ? "warn" : "success");
         hideProgress();
-        var publishById = {};
-        (body.publish_results || []).forEach(function (r) { publishById[r.id] = r; });
-        renderRows(body.trades || matchedTrades, publishById);
+        var publishById = stateMap(body);
+        recordImport(body);
+        renderRows(body.trades || matchedTrades, publishById, body.completed || 0, false);
+        setIndeterminate(false); setPhase(wasCancelled ? "Cancelled." : "Finished.");
         var published = (body.publish_results || []).filter(function (r) { return r.status === "published"; }).length;
         var failed = (body.publish_results || []).filter(function (r) { return r.status === "failed"; }).length;
         var skippedN = (body.publish_results || []).filter(function (r) { return r.status === "skipped"; }).length;
         nextNote.classList.remove("hidden"); nextNote.style.display = "none";
         var prefix = wasCancelled ? "Cancelled after " + (body.completed || 0) + " of " + (body.total || 0) + " trades. " : "";
         setStatus(prefix + published + " published, " + failed + " failed, " + skippedN + " skipped.", failed || wasCancelled ? "err" : "ok");
+        
+        (body.publish_results || []).forEach(function (r) { if (r.status === "failed" || r.status === "skipped") logActivity(r.status.toUpperCase() + " " + (r.id || "") + (r.error || r.reason || r.message ? " — " + (r.error || r.reason || r.message) : "")); });
         runBtn.disabled = false;
       }
 
       function pollJob(base, jobId, matchedTrades) {
         currentJob = { base: base, jobId: jobId };
         if (pollTimer) clearInterval(pollTimer);
+        var lastCompleted = -1, pollFails = 0, lastPhase = "", lastStates = {};
         pollTimer = setInterval(function () {
           fetch(base + "/import-trades/" + jobId)
-            .then(function (res) { return res.json(); })
+            .then(function (res) { if (res.status === 404) { return { status: "gone" }; } return res.json(); })
             .then(function (body) {
+              if (body.status === "gone") { clearInterval(pollTimer); clearJob(); hideProgress(); setPhase(""); setStatus("That import is no longer available on the server.", "err"); runBtn.disabled = false; return; }
+              if (pollFails) { pollFails = 0; }
               if (body.status === "done") {
                 finishJob(body, matchedTrades, false);
               } else if (body.status === "cancelled") {
                 finishJob(body, matchedTrades, true);
               } else {
                 // "processing" or "cancelling"
-                showProgress(body.completed || 0, body.total || matchedTrades.length, body.current);
+                var comp = body.completed || 0;
+                showProgress(comp, body.total || matchedTrades.length, body.current);
+                var partial = stateMap(body);
+                renderRows(matchedTrades, partial, comp, true);
+                var tot = body.total || matchedTrades.length;
+                var cur = body.current && body.current.symbol ? body.current.symbol + " " + (body.current.trade_date || "") : "";
+                var ts = body.trade_states || [];
+                var doneN = ts.filter(function (r) { return r.state === "published" || r.state === "skipped" || r.state === "failed" || r.state === "chart_failed"; }).length;
+                var okN = ts.filter(function (r) { return r.state === "published"; }).length;
+                var verb = body.phase === "publishing" ? "publishing to your journal" : "charting + AI verdict";
+                setPhase(comp + " of " + tot + " done" + (cur ? " — now on " + cur : ""));
+                progressText.textContent = "Trade " + Math.min(comp + 1, tot) + " of " + tot;
+                progressFill.style.width = Math.round(100 * (tot ? (comp + (body.phase === "publishing" ? 0.6 : 0.2)) / tot : 0)) + "%";
+                lastCompleted = comp;
+                var seen = lastStates;
+                ts.forEach(function (r) {
+                  if (seen[r.id] !== r.state && (r.state === "skipped" || r.state === "failed" || r.state === "chart_failed")) {
+                    logActivity(r.id + " → " + r.state.replace("_", " ") + (r.note ? " — " + r.note : ""));
+                  }
+                  seen[r.id] = r.state;
+                });
                 if (body.status === "cancelling") {
                   cancelBtn.disabled = true;
                   cancelBtn.textContent = "Cancelling...";
@@ -353,8 +479,12 @@
                 }
               }
             })
-            .catch(function () { /* transient poll error -- try again next tick */ });
-        }, 5000);
+            .catch(function () {
+              pollFails++;
+              setPhase("Lost contact with the server (" + pollFails + ") — still retrying, the import keeps running there.");
+              if (pollFails === 1) logActivity("Couldn't reach the server for a status update; retrying.");
+            });
+        }, 3000);
       }
 
       cancelBtn.addEventListener("click", function () {
@@ -385,12 +515,17 @@
           resultsEl.classList.remove("hidden"); resultsEl.style.display = "none";
           nextNote.classList.remove("hidden"); nextNote.style.display = "none";
           hideProgress();
+          activityEl.innerHTML = ""; activityEl.style.display = "none"; countsEl.style.display = "none";
           setStatus("Uploading and matching...");
+          setPhase("Uploading " + (file.name || "file") + "…");
+          setIndeterminate(true);
 
           var formData = new FormData();
           formData.append("trade_csv", file);
           var acctSel = document.getElementById("import-account");
           if (acctSel && acctSel.value) formData.append("account_id", acctSel.value);
+          var owBox = document.getElementById("import-overwrite");
+          if (owBox && owBox.checked) formData.append("overwrite", "1");
 
           fetch(base + "/import-trades", {
             method: "POST",
@@ -401,29 +536,56 @@
             .then(function (result) {
               if (!result.ok) {
                 setStatus("Error: " + (result.body.error || "import failed"), "err");
+                setPhase("Failed at step 2 — the server rejected the file.");
+                logActivity("FAILED: " + (result.body.error || "import failed"));
+                setIndeterminate(false); hideProgress();
                 runBtn.disabled = false;
                 return;
               }
+              setPhase("Matching trades…");
+              if ((result.body.already_imported || []).length) logActivity((result.body.already_imported || []).length + " trade(s) already in your journal will be skipped.");
+              if (result.body.existing_check_failed) logActivity("Couldn't check which trades already exist — importing all (safe: saves overwrite, never duplicate).");
+              if (result.body.skipped_rows) logActivity(result.body.skipped_rows + " row(s) couldn't be read or paired.");
               var trades = result.body.trades || [];
-              renderRows(trades, null);
+              renderRows(trades, null, 0, !!(trades.length && result.body.job_id));
               nextNote.classList.remove("hidden"); nextNote.style.display = trades.length ? "block" : "none";
               var skippedNote = result.body.skipped_rows ? (" (" + result.body.skipped_rows + " row(s) skipped)") : "";
               setStatus(trades.length + " trade(s) matched" + skippedNote + " -- charting & publishing...", "ok");
               if (trades.length && result.body.job_id) {
+                setIndeterminate(false);
                 showProgress(0, trades.length, null);
+                saveJob(base, result.body.job_id, trades);
                 pollJob(base, result.body.job_id, trades);
               } else {
+                setIndeterminate(false); hideProgress();
+                setPhase(trades.length ? "Nothing to publish." : "No complete round-trip trades found in that file.");
+                if (!trades.length) logActivity("No trades matched — nothing to import.");
                 runBtn.disabled = false;
               }
             })
             .catch(function (err) {
               setStatus("Request failed: " + err.message, "err");
+              setPhase("Failed — couldn't reach the import server.");
+              logActivity("FAILED: " + err.message);
+              setIndeterminate(false); hideProgress();
               runBtn.disabled = false;
             });
         });
       }
 
       runBtn.addEventListener("click", function () { startImport(fileEl.files[0]); });
+
+      // Coming back to the page: re-attach to the import that was running.
+      (function resumeJob() {
+        var j = loadJob();
+        if (!j) return;
+        runBtn.disabled = true;
+        setStatus("Resuming your import…", "");
+        nextNote.classList.remove("hidden"); nextNote.style.display = "block";
+        renderRows(j.trades || [], null, 0, true);
+        showProgress(0, (j.trades || []).length, null);
+        pollJob(j.base, j.jobId, j.trades || []);
+      })();
 
       // Which account (real or broker paper) new trades land in (only shown when there's more than one).
       if (window.Accounts) {

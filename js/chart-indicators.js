@@ -113,6 +113,7 @@
     zoomBtn("\u2212", "Zoom out", () => zoomBy(1 / 0.6));
     zoomBtn("+", "Zoom in", () => zoomBy(0.6));
     zoomBtn("\u21BA", "Reset zoom", () => {
+      if (typeof fsOpts.onResetPrice === "function") { try { fsOpts.onResetPrice(); } catch (e) {} }
       chart.priceScale("right").applyOptions({ autoScale: true });
       chart.timeScale().fitContent();
     });
@@ -518,6 +519,109 @@
     const ema200Series = chart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema200Series.setData(ema200Data);
 
+    // ---- Vertical (price) zoom ------------------------------------------
+    // The mouse wheel only zoomed time, and dragging the thin price axis was
+    // the only way to scale price. Wheel over the price axis now zooms the
+    // price range around the cursor; double-click the axis to auto-fit again.
+    // Implemented as an autoscale override so the library keeps owning the
+    // scale (drag-pan, axis drag and pinch all still work and take over).
+    const priceZoom = { manual: null, margins: null };
+    series.applyOptions({
+      autoscaleInfoProvider: (orig) => {
+        const r = orig();
+        if (!priceZoom.manual) return r;
+        return { priceRange: { minValue: priceZoom.manual.min, maxValue: priceZoom.manual.max }, margins: { above: 0, below: 0 } };
+      },
+    });
+    function resetPriceZoom() {
+      if (!priceZoom.manual) return;
+      priceZoom.manual = null;
+      if (priceZoom.margins) chart.priceScale("right").applyOptions({ scaleMargins: priceZoom.margins });
+      series.applyOptions({});
+    }
+    function inPriceAxis(e) {
+      const rect = el.getBoundingClientRect();
+      const axisW = chart.priceScale("right").width() || minW;
+      return e.clientX >= rect.right - axisW - 2 && e.clientX <= rect.right;
+    }
+    // Zoom the price range by factor f (<1 zooms in) around the pane-relative
+    // y (defaults to the middle). Shared by wheel, buttons and two-finger pinch.
+    function zoomPriceBy(f, y) {
+      const rect = el.getBoundingClientRect();
+      const paneH = rect.height - (chart.timeScale().height() || 0);
+      const top = series.coordinateToPrice(0), bot = series.coordinateToPrice(paneH);
+      const at = series.coordinateToPrice(Math.max(0, Math.min(paneH, y == null ? paneH / 2 : y)));
+      if (top == null || bot == null || at == null || top === bot) return false;
+      const hi = Math.max(top, bot), lo = Math.min(top, bot);
+      const nHi = at + (hi - at) * f, nLo = at - (at - lo) * f;
+      if (!(nHi - nLo > 1e-9)) return false;
+      if (!priceZoom.manual) {
+        priceZoom.margins = { top: (opts.priceScaleMargins || { top: 0.12 }).top, bottom: (opts.priceScaleMargins || { bottom: 0.2 }).bottom };
+        chart.priceScale("right").applyOptions({ scaleMargins: { top: 0, bottom: 0 } });
+      }
+      priceZoom.manual = { min: nLo, max: nHi };
+      chart.priceScale("right").applyOptions({ autoScale: true });
+      series.applyOptions({});
+      return true;
+    }
+    el.addEventListener("wheel", (e) => {
+      if (!inPriceAxis(e)) return;
+      e.preventDefault(); e.stopPropagation();
+      const f = Math.pow(1.0015, Math.max(-200, Math.min(200, e.deltaY))); // scroll up = zoom in
+      zoomPriceBy(f, e.clientY - el.getBoundingClientRect().top);
+    }, { passive: false, capture: true });
+    // Swipe on the price axis (right-hand strip): one finger up = zoom price in,
+    // down = zoom out. Mirrors dragging the axis with a mouse; works on phones.
+    (function () {
+      let sw = null;
+      const axisHit = (t) => { const r = el.getBoundingClientRect(); const w = (chart.priceScale("right").width() || minW) + 14; return t.clientX >= r.right - w && t.clientX <= r.right; };
+      el.addEventListener("touchstart", (e) => {
+        if (e.touches.length === 1 && axisHit(e.touches[0])) {
+          sw = { y: e.touches[0].clientY };
+          e.preventDefault(); e.stopImmediatePropagation();
+        } else sw = null;
+      }, { passive: false, capture: true });
+      el.addEventListener("touchmove", (e) => {
+        if (!sw) return;
+        e.preventDefault(); e.stopImmediatePropagation();
+        if (e.touches.length !== 1) return;
+        const y = e.touches[0].clientY, dy = y - sw.y;
+        sw.y = y;
+        if (dy) zoomPriceBy(Math.exp(dy * 0.012), (el.clientHeight - (chart.timeScale().height() || 0)) / 2);
+      }, { passive: false, capture: true });
+      const end = (e) => { if (sw) { e.stopImmediatePropagation(); sw = null; } };
+      el.addEventListener("touchend", end, { capture: true });
+      el.addEventListener("touchcancel", end, { capture: true });
+    })();
+    // Two-finger pinch: a mostly-VERTICAL pinch zooms price (the library's own
+    // pinch only ever scales time). Decided once at touch start; a horizontal
+    // pinch is left to the library untouched.
+    (function () {
+      let pv = null; // { dist, mid } while a vertical pinch is active
+      const two = (t) => ({ dx: Math.abs(t[0].clientX - t[1].clientX), dy: Math.abs(t[0].clientY - t[1].clientY), my: (t[0].clientY + t[1].clientY) / 2 });
+      el.addEventListener("touchstart", (e) => {
+        if (e.touches.length !== 2) { pv = null; return; }
+        const m = two(e.touches);
+        if (m.dy > m.dx * 1.2 && m.dy > 24) {
+          pv = { dist: m.dy };
+          e.preventDefault(); e.stopImmediatePropagation();
+        } else pv = null;
+      }, { passive: false, capture: true });
+      el.addEventListener("touchmove", (e) => {
+        if (!pv) return;
+        e.preventDefault(); e.stopImmediatePropagation();
+        if (e.touches.length !== 2) return;
+        const m = two(e.touches);
+        if (m.dy < 8) return;
+        zoomPriceBy(pv.dist / m.dy, m.my - el.getBoundingClientRect().top); // fingers apart -> zoom in
+        pv.dist = m.dy;
+      }, { passive: false, capture: true });
+      const end = (e) => { if (pv) { e.stopImmediatePropagation(); if (e.touches.length < 2) pv = null; } };
+      el.addEventListener("touchend", end, { capture: true });
+      el.addEventListener("touchcancel", end, { capture: true });
+    })();
+    el.addEventListener("dblclick", (e) => { if (inPriceAxis(e)) { resetPriceZoom(); chart.priceScale("right").applyOptions({ autoScale: true }); } });
+
     // Top-left info overlay: optional float row, plus a live volume/VWAP/
     // EMA9/EMA20/EMA200 readout that tracks the crosshair the way a broker
     // platform's OHLCV legend does, falling back to the most recent bar's
@@ -583,7 +687,7 @@
       ? window.ChartDraw.attach({ chart, series, el, drawKey: opts.drawKey, isFs: () => !!(fs && fs.isOn()) })
       : null;
     fs = (opts.fullscreen !== false) ? attachFullscreen(el, chart, chartH, {
-      host: opts.fullscreenHost, onFit: opts.onFullscreenFit, onFocus: opts.onFocus,
+      host: opts.fullscreenHost, onFit: opts.onFullscreenFit, onResetPrice: resetPriceZoom, onFocus: opts.onFocus,
       autoLandscape: opts.autoLandscape, draw,
     }) : null;
     // A ResizeObserver tied to the container (rather than a page-level

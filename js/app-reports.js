@@ -34,6 +34,359 @@
   const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   // ----------------------------------------------------------------
+  // Drill-down. Click any stat, bar, table row or chart point in Reports
+  // and a panel opens with the trades behind it: summary numbers, a
+  // mini equity curve, "what's driving this" chips (symbol / setup /
+  // weekday / winners / losers) and the sortable trade list. Every
+  // trade links through to trade.html.
+  //
+  // How a renderer opts in: put `${drillAttr(title, trades)}` inside the
+  // opening tag of the element (it adds data-drill + tabindex). The
+  // trades are parked in drillRegistry, which renderReports() empties
+  // at the start of each pass, so it never outlives the render that
+  // filled it. One delegated click/keydown listener on #tab-reports
+  // (bottom of this block) opens the panel -- renderers bind nothing.
+  // Empty trade lists return "" so nothing is clickable that has
+  // nothing behind it.
+  // ----------------------------------------------------------------
+  const drillRegistry = new Map(); // id -> { title, sub, trades }
+  let drillSeq = 0;
+  function drillAttr(title, trades, opts) {
+    if (!trades || !trades.length) return "";
+    opts = opts || {};
+    const id = "d" + drillSeq++;
+    drillRegistry.set(id, { title: String(title), sub: opts.sub || "", trades });
+    return ` data-drill="${id}"${opts.row ? "" : ' role="button"'} tabindex="0"`;
+  }
+  // Some labels are built as HTML (e.g. "Net P&amp;L"); the panel title is
+  // plain text that it escapes itself, so undo that first.
+  function unescHtml(str) {
+    return String(str).replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+  }
+  const DRILL_PAGE = 40;
+  let drillState = null; // { root, ac, chartAc, entry, filter, sort, shown, trigger }
+  const drillNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const drillStamp = (t) => `${t.trade_date || ""} ${t.entry_time || ""}`;
+  const DRILL_SORTS = {
+    newest: { label: "Newest first", fn: (a, b) => drillStamp(b).localeCompare(drillStamp(a)) },
+    oldest: { label: "Oldest first", fn: (a, b) => drillStamp(a).localeCompare(drillStamp(b)) },
+    best: { label: "Best P&L", fn: (a, b) => drillNum(b.pnl_after_comm) - drillNum(a.pnl_after_comm) },
+    worst: { label: "Worst P&L", fn: (a, b) => drillNum(a.pnl_after_comm) - drillNum(b.pnl_after_comm) },
+    size: { label: "Biggest size", fn: (a, b) => drillNum(b.shares) * drillNum(b.entry_price) - drillNum(a.shares) * drillNum(a.entry_price) },
+    hold: { label: "Longest hold", fn: (a, b) => (App.durationMinutes(b) || 0) - (App.durationMinutes(a) || 0) },
+  };
+  function drillDow(t) {
+    const [y, m, d] = String(t.trade_date).split("-").map(Number);
+    return new Date(y, m - 1, d).getDay();
+  }
+  // Filters the panel can apply on top of the trades it was opened with.
+  // Defined once so "no filter" can't drift between the three places that need it.
+  const drillBlankFilter = () => ({ result: "all", symbol: "", setup: "", dow: null, side: "", hour: "", lesson: "", month: "" });
+  const drillAnyFilter = (f) => f.result !== "all" || Boolean(f.symbol || f.setup || f.side || f.hour || f.lesson || f.month) || f.dow !== null;
+  const drillSide = (t) => String(t.side || "").toLowerCase();
+  const drillHour = (t) => (typeof t.entry_time === "string" && /^\d{2}:/.test(t.entry_time) ? t.entry_time.slice(0, 2) : "");
+  const drillMonth = (t) => String(t.trade_date || "").slice(0, 7);
+  const drillLessons = (t) => (Array.isArray(t.lesson_tags) ? t.lesson_tags : []);
+  function drillFiltered() {
+    const f = drillState.filter;
+    return drillState.entry.trades.filter((t) => {
+      if (f.result === "win" && !t.win) return false;
+      if (f.result === "loss" && t.win) return false;
+      if (f.symbol && t.symbol !== f.symbol) return false;
+      if (f.setup && (t.setup_type || "") !== f.setup) return false;
+      if (f.dow !== null && drillDow(t) !== f.dow) return false;
+      if (f.side && drillSide(t) !== f.side) return false;
+      if (f.hour && drillHour(t) !== f.hour) return false;
+      if (f.lesson && !drillLessons(t).includes(f.lesson)) return false;
+      if (f.month && drillMonth(t) !== f.month) return false;
+      return true;
+    });
+  }
+  function drillSummary(list) {
+    const wins = list.filter((t) => t.win), losses = list.filter((t) => !t.win);
+    const sum = (arr) => arr.reduce((s, t) => s + drillNum(t.pnl_after_comm), 0);
+    const net = sum(list), gw = sum(wins), gl = Math.abs(sum(losses));
+    const holds = list.map((t) => App.durationMinutes(t)).filter((m) => m != null);
+    const pnls = list.map((t) => drillNum(t.pnl_after_comm));
+    return {
+      n: list.length, wins: wins.length, losses: losses.length,
+      winRate: list.length ? (wins.length / list.length) * 100 : null,
+      net, avg: list.length ? net / list.length : null,
+      avgWin: wins.length ? gw / wins.length : null,
+      avgLoss: losses.length ? -gl / losses.length : null,
+      pf: gl > 0 ? gw / gl : (gw > 0 ? Infinity : null),
+      best: pnls.length ? pnls.reduce((m, v) => (v > m ? v : m), -Infinity) : null,
+      worst: pnls.length ? pnls.reduce((m, v) => (v < m ? v : m), Infinity) : null,
+      hold: holds.length ? holds.reduce((a, b) => a + b, 0) / holds.length : null,
+      days: new Set(list.map((t) => t.trade_date)).size,
+    };
+  }
+  function drillChips(trades) {
+    // keyFn may return one key or an array of keys (a trade can carry several lesson tags).
+    const group = (keyFn) => {
+      const m = new Map();
+      trades.forEach((t) => {
+        const ks = keyFn(t);
+        (Array.isArray(ks) ? ks : [ks]).forEach((k) => {
+          if (k === null || k === "") return;
+          if (!m.has(k)) m.set(k, { n: 0, net: 0 });
+          const e = m.get(k); e.n++; e.net += drillNum(t.pnl_after_comm);
+        });
+      });
+      return m;
+    };
+    const chip = (kind, value, label, e) => `<button type="button" class="drill-chip" data-f="${kind}" data-v="${escapeHtml(String(value))}">${escapeHtml(label)} <span class="mono ${e.net >= 0 ? "up" : "down"}">${fmtMoney(e.net)}</span> <span class="dim">· ${e.n}</span></button>`;
+    const blocks = [];
+    const syms = Array.from(group((t) => t.symbol).entries()).sort((a, b) => b[1].n - a[1].n).slice(0, 8);
+    if (syms.length > 1) blocks.push(["Symbols", syms.map(([k, e]) => chip("symbol", k, k, e)).join("")]);
+    const setups = Array.from(group((t) => t.setup_type || "").entries()).sort((a, b) => b[1].n - a[1].n).slice(0, 8);
+    if (setups.length > 1) blocks.push(["Setups", setups.map(([k, e]) => chip("setup", k, prettifyTag(k), e)).join("")]);
+    const dows = group((t) => drillDow(t));
+    const dowOrder = [1, 2, 3, 4, 5, 6, 0].filter((d) => dows.has(d));
+    if (dowOrder.length > 1) blocks.push(["Weekday", dowOrder.map((d) => chip("dow", d, DOW[d], dows.get(d))).join("")]);
+    const sides = group(drillSide);
+    if (sides.size > 1) blocks.push(["Side", Array.from(sides.entries()).sort((a, b) => b[1].n - a[1].n).map(([k, e]) => chip("side", k, k[0].toUpperCase() + k.slice(1), e)).join("")]);
+    const hours = group(drillHour);
+    if (hours.size > 1) blocks.push(["Entry hour", Array.from(hours.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([k, e]) => chip("hour", k, `${k}:00`, e)).join("")]);
+    const lessons = Array.from(group(drillLessons).entries()).sort((a, b) => b[1].n - a[1].n).slice(0, 8);
+    if (lessons.length) blocks.push(["Lessons", lessons.map(([k, e]) => chip("lesson", k, prettifyTag(k), e)).join("")]);
+    const months = Array.from(group(drillMonth).entries()).sort((a, b) => a[0].localeCompare(b[0])).slice(-12);
+    if (months.length > 1) {
+      const monthLabel = (ym) => { const [y, m] = ym.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleString(undefined, { month: "short", year: "2-digit" }); };
+      blocks.push(["Month", months.map(([k, e]) => chip("month", k, monthLabel(k), e)).join("")]);
+    }
+    return blocks.map(([label, html]) => `<div class="drill-chip-row"><span class="drill-chip-label">${label}</span>${html}</div>`).join("");
+  }
+  function drillRowHtml(t) {
+    const href = `trade.html?id=${encodeURIComponent(t.id)}`;
+    const pnl = drillNum(t.pnl_after_comm);
+    const hold = App.durationMinutes(t);
+    const entry = typeof t.entry_time === "string" && t.entry_time ? t.entry_time.slice(0, 5) : "\u2014";
+    return `<tr class="drill-row" data-href="${href}">
+      <td class="mono">${escapeHtml(t.trade_date || "\u2014")}</td>
+      <td><a href="${href}" class="drill-sym">${escapeHtml(t.symbol || "?")}</a></td>
+      <td>${escapeHtml(t.side ? String(t.side) : "\u2014")}</td>
+      <td>${t.setup_type ? escapeHtml(prettifyTag(t.setup_type)) : "\u2014"}</td>
+      <td class="mono">${entry}</td>
+      <td class="mono">${hold != null ? App.fmtDurationPrecise(hold) : "\u2014"}</td>
+      <td class="mono num">${t.shares != null ? Number(t.shares).toLocaleString() : "\u2014"}</td>
+      <td class="mono num ${pnl >= 0 ? "up" : "down"}">${fmtMoney(pnl)}</td>
+    </tr>`;
+  }
+  function updateDrill() {
+    const st = drillState;
+    if (!st) return;
+    const list = drillFiltered();
+    const q = (sel) => st.root.querySelector(sel);
+
+    // Summary strip.
+    const sm = drillSummary(list);
+    const money = (v) => (v == null ? "\u2014" : `<span class="${v >= 0 ? "up" : "down"}">${fmtMoney(v)}</span>`);
+    // [label, value, action]. A tile with an action is a button: it narrows
+    // or re-sorts the list below so the number can be explained by its trades.
+    const kpis = [
+      ["Trades", String(sm.n), "clear", "Show all trades again"],
+      ["Win rate", sm.winRate == null ? "\u2014" : `<span class="${sm.winRate >= 50 ? "up" : "down"}">${sm.winRate.toFixed(1)}%</span>`, "win", "Show only the winners"],
+      ["Net P&amp;L", money(sm.n ? sm.net : null), "best", "Sort best P&L first"],
+      ["Avg trade", money(sm.avg), null],
+      ["Avg win", money(sm.avgWin), "win", "Show only the winners"],
+      ["Avg loss", money(sm.avgLoss), "loss", "Show only the losers"],
+      ["Profit factor", sm.pf == null ? "\u2014" : sm.pf === Infinity ? "\u221e" : sm.pf.toFixed(2), null],
+      ["Best", money(sm.best), "best", "Sort best P&L first"],
+      ["Worst", money(sm.worst), "worst", "Sort worst P&L first"],
+      ["Avg hold", sm.hold == null ? "\u2014" : App.fmtDurationPrecise(sm.hold), "hold", "Sort longest hold first"],
+      ["Days", String(sm.days), "oldest", "Sort oldest first"],
+    ];
+    // Re-rendering the tiles would drop keyboard focus, so put it back on the same tile.
+    const focusedKpi = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.kpiI : null;
+    q(".drill-kpis").innerHTML = kpis.map(([k, v, act, hint], i) => `<div class="drill-kpi${act ? " clickable" : ""}"${act ? ` data-kpi="${act}" data-kpi-i="${i}" role="button" tabindex="0" title="${hint}"` : ""}><div class="k">${k}</div><div class="v mono">${v}</div></div>`).join("");
+    if (focusedKpi != null) {
+      const again = q(`.drill-kpi[data-kpi-i="${focusedKpi}"]`);
+      if (again) again.focus();
+    }
+    const sortSel = q(".drill-sort-select");
+    if (sortSel) sortSel.value = st.sort;
+
+    // Mini equity curve of just these trades, oldest to newest.
+    if (st.chartAc) st.chartAc.abort();
+    st.chartAc = new AbortController();
+    const chartEl = q(".drill-chart");
+    if (list.length >= 2) {
+      const ordered = list.slice().sort(DRILL_SORTS.oldest.fn);
+      let run = 0;
+      chartEl.style.display = "";
+      renderMiniLineChart(chartEl, ordered.map((t) => { run += drillNum(t.pnl_after_comm); return { x: t.trade_date, y: run }; }), { height: 90, signal: st.chartAc.signal });
+    } else {
+      chartEl.style.display = "none";
+      chartEl.innerHTML = "";
+    }
+
+    // Chip + result-button active state.
+    st.root.querySelectorAll(".drill-chip").forEach((b) => {
+      const kind = b.dataset.f, v = b.dataset.v;
+      const cur = st.filter[kind];
+      b.classList.toggle("active", cur !== null && cur !== "" && String(cur) === v);
+    });
+    st.root.querySelectorAll(".drill-result").forEach((b) => b.classList.toggle("active", b.dataset.v === st.filter.result));
+    const anyFilter = drillAnyFilter(st.filter);
+    q(".drill-clear").style.display = anyFilter ? "" : "none";
+    q(".drill-count").textContent = anyFilter
+      ? `Showing ${list.length} of ${st.entry.trades.length} trades`
+      : `${list.length} trade${list.length === 1 ? "" : "s"}`;
+
+    // Trade list.
+    const sorted = list.slice().sort(DRILL_SORTS[st.sort].fn);
+    const shown = Math.min(st.shown, sorted.length);
+    const listEl = q(".drill-list");
+    if (!sorted.length) {
+      listEl.innerHTML = `<div class="empty-state small">No trades match these filters.</div>`;
+      return;
+    }
+    const remaining = sorted.length - shown;
+    listEl.innerHTML = `<div class="table-scroll"><table class="report-table drill-table"><thead><tr>
+        <th scope="col">Date</th><th scope="col">Symbol</th><th scope="col">Side</th><th scope="col">Setup</th>
+        <th scope="col">Entry</th><th scope="col">Hold</th><th scope="col" class="num">Shares</th><th scope="col" class="num">Net P&amp;L</th>
+      </tr></thead><tbody>${sorted.slice(0, shown).map(drillRowHtml).join("")}</tbody></table></div>
+      ${remaining > 0 ? `<div class="drill-more-wrap"><button type="button" class="btn-load-more drill-more">Show more (${remaining} left)</button></div>` : ""}`;
+  }
+  function closeDrill(silent) {
+    const st = drillState;
+    if (!st) return;
+    drillState = null;
+    st.ac.abort();
+    if (st.chartAc) st.chartAc.abort();
+    st.root.remove();
+    document.body.classList.remove("drill-lock");
+    if (!silent && st.trigger && document.contains(st.trigger) && typeof st.trigger.focus === "function") st.trigger.focus();
+  }
+  function openDrillData(entry, trigger) {
+    if (!entry || !entry.trades || !entry.trades.length) return;
+    closeDrill(true);
+    const root = document.createElement("div");
+    root.className = "drill-overlay";
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("aria-label", entry.title);
+    root.innerHTML = `
+      <div class="drill-panel">
+        <div class="drill-head">
+          <div class="drill-titles">
+            <div class="drill-title">${escapeHtml(entry.title)}</div>
+            ${entry.sub ? `<div class="drill-sub">${escapeHtml(entry.sub)}</div>` : ""}
+          </div>
+          <button type="button" class="drill-close" aria-label="Close">&times;</button>
+        </div>
+        <div class="drill-body">
+          <div class="drill-kpis"></div>
+          <div class="drill-chart"></div>
+          <div class="drill-filters">
+            <div class="drill-chip-row"><span class="drill-chip-label">Result</span>
+              <button type="button" class="drill-chip drill-result" data-v="all">All</button>
+              <button type="button" class="drill-chip drill-result" data-v="win">Winners</button>
+              <button type="button" class="drill-chip drill-result" data-v="loss">Losers</button>
+            </div>
+            ${drillChips(entry.trades)}
+          </div>
+          <div class="drill-listbar">
+            <span class="drill-count"></span>
+            <button type="button" class="drill-clear btn-load-more">Clear filters</button>
+            <label class="drill-sort">Sort <select class="filter-input drill-sort-select">${Object.entries(DRILL_SORTS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("")}</select></label>
+          </div>
+          <div class="drill-list"></div>
+        </div>
+      </div>`;
+    document.body.appendChild(root);
+    document.body.classList.add("drill-lock");
+    const ac = new AbortController();
+    drillState = { root, ac, chartAc: null, entry, filter: drillBlankFilter(), sort: "newest", shown: DRILL_PAGE, trigger };
+
+    root.addEventListener("click", (e) => {
+      const st = drillState;
+      if (!st) return;
+      if (e.target === root || e.target.closest(".drill-close")) { closeDrill(); return; }
+      const chip = e.target.closest(".drill-chip");
+      if (chip) {
+        const v = chip.dataset.v;
+        if (chip.classList.contains("drill-result")) st.filter.result = v;
+        else if (chip.dataset.f === "dow") st.filter.dow = st.filter.dow === Number(v) ? null : Number(v);
+        else st.filter[chip.dataset.f] = st.filter[chip.dataset.f] === v ? "" : v;
+        st.shown = DRILL_PAGE;
+        updateDrill();
+        return;
+      }
+      if (e.target.closest(".drill-clear")) {
+        st.filter = drillBlankFilter();
+        st.shown = DRILL_PAGE;
+        updateDrill();
+        return;
+      }
+      // Summary tiles: filter to winners/losers, or re-sort, then bring the list into view.
+      const kpi = e.target.closest("[data-kpi]");
+      if (kpi) {
+        const act = kpi.dataset.kpi;
+        if (act === "clear") st.filter = drillBlankFilter();
+        else if (act === "win" || act === "loss") st.filter.result = st.filter.result === act ? "all" : act;
+        else if (DRILL_SORTS[act]) st.sort = act;
+        st.shown = DRILL_PAGE;
+        updateDrill();
+        const bar = st.root.querySelector(".drill-listbar");
+        if (bar && bar.scrollIntoView) bar.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        return;
+      }
+      if (e.target.closest(".drill-more")) { st.shown += DRILL_PAGE; updateDrill(); return; }
+      const row = e.target.closest("tr.drill-row");
+      if (row && !e.target.closest("a")) {
+        const a = row.querySelector("a");
+        if (a) a.click();
+      }
+    }, { signal: ac.signal });
+    root.querySelector(".drill-sort-select").addEventListener("change", (e) => {
+      if (!drillState) return;
+      drillState.sort = e.target.value;
+      drillState.shown = DRILL_PAGE;
+      updateDrill();
+    }, { signal: ac.signal });
+    document.addEventListener("keydown", (e) => {
+      if (!drillState) return;
+      if (e.key === "Escape") { e.preventDefault(); closeDrill(); return; }
+      if ((e.key === "Enter" || e.key === " ") && e.target && e.target.matches && e.target.matches("[data-kpi]")) { e.preventDefault(); e.target.click(); return; }
+      if (e.key === "Tab") {
+        const f = Array.from(root.querySelectorAll("button, a[href], select, [tabindex='0']")).filter((x) => x.offsetParent !== null);
+        if (!f.length) return;
+        const first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && (document.activeElement === first || !root.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && (document.activeElement === last || !root.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+      }
+    }, { signal: ac.signal });
+
+    updateDrill();
+    root.querySelector(".drill-close").focus();
+  }
+  App.signal.addEventListener("abort", () => closeDrill(true), { once: true });
+  const reportsRoot = document.getElementById("tab-reports");
+  if (reportsRoot) {
+    const open = (el) => {
+      const entry = drillRegistry.get(el.getAttribute("data-drill"));
+      if (entry) openDrillData(entry, el);
+    };
+    reportsRoot.addEventListener("click", (e) => {
+      const el = e.target.closest("[data-drill]");
+      if (!el || !reportsRoot.contains(el)) return;
+      // A real link / control inside a drillable row keeps doing its own thing.
+      const inner = e.target.closest("a, button, input, select, textarea, label");
+      if (inner && inner !== el && el.contains(inner)) return;
+      open(el);
+    }, { signal: App.signal });
+    reportsRoot.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const el = e.target.closest && e.target.closest("[data-drill]");
+      if (!el || e.target !== el) return;
+      e.preventDefault();
+      open(el);
+    }, { signal: App.signal });
+  }
+
+  // ----------------------------------------------------------------
   // Reports — Tradervue-style axis bar charts, donut, and equity-curve
   // charts. Plain inline SVG (no charting library) so these stay cheap
   // to render inside a list of report panels.
@@ -80,8 +433,12 @@
       const x = hasNeg ? (r.value >= 0 ? labelW + zeroX : labelW + zeroX - barW) : labelW;
       const color = r.color || "var(--green)";
       const tip = `${escapeHtml(r.label)}: ${escapeHtml(fmt(r.value))}`;
-      return `<text x="${labelW - 8}" y="${(y + barH / 2 + 4).toFixed(1)}" font-size="11" fill="var(--text-dim)" text-anchor="end">${escapeHtml(r.label)}</text>` +
-        `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH}" rx="2" fill="${color}"><title>${tip}</title></rect>`;
+      const inner = `<text x="${labelW - 8}" y="${(y + barH / 2 + 4).toFixed(1)}" font-size="11" fill="var(--text-dim)" text-anchor="end">${escapeHtml(r.label)}</text>` +
+        `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH}" rx="2" fill="${color}"><title>${tip}${r.trades && r.trades.length ? " \u2014 click for trades" : ""}</title></rect>`;
+      // Rows that carry `trades` become clickable (whole row is the hit area).
+      const da = drillAttr(r.drillTitle || r.label, r.trades, { sub: r.drillSub || opts.context });
+      if (!da) return inner;
+      return `<g class="drillable"${da}><rect x="0" y="${(y - gap / 2).toFixed(1)}" width="${width}" height="${rowH}" fill="transparent"/>${inner}</g>`;
     }).join("");
     const zeroLine = hasNeg ? `<line x1="${(labelW + zeroX).toFixed(1)}" y1="${topPad}" x2="${(labelW + zeroX).toFixed(1)}" y2="${(topPad + rows.length * rowH).toFixed(1)}" stroke="var(--text-faint)" stroke-width="1.3"/>` : "";
     return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" style="overflow:visible; display:block;">${axis}${bars}${zeroLine}</svg>`;
@@ -98,10 +455,10 @@
       perfEl.innerHTML = `<div class="empty-state small">No data yet.</div>`;
       return;
     }
-    const distRows = present.map((b) => ({ label: b.label, value: b.trades.length, color: "var(--green)" }));
+    const distRows = present.map((b) => ({ label: b.label, value: b.trades.length, color: "var(--green)", trades: b.trades }));
     const perfRows = present.map((b) => {
       const net = b.trades.reduce((s, t) => s + t.pnl_after_comm, 0);
-      return { label: b.label, value: net, color: net >= 0 ? "var(--green)" : "var(--red)" };
+      return { label: b.label, value: net, color: net >= 0 ? "var(--green)" : "var(--red)", trades: b.trades };
     });
     distEl.innerHTML = svgAxisBarChart(distRows, Object.assign({ fmt: fmtAxisCount }, opts));
     perfEl.innerHTML = svgAxisBarChart(perfRows, Object.assign({ fmt: fmtAxisMoney }, opts));
@@ -112,12 +469,17 @@
     const r = (size - stroke) / 2, c = size / 2;
     const circ = 2 * Math.PI * r;
     const winLen = (winPct / 100) * circ;
+    const lossAttr = opts.lossTrades ? ` class="drillable"${drillAttr("Losing trades", opts.lossTrades, { sub: "Win/loss split" })}` : "";
+    const winAttr = opts.winTrades ? ` class="drillable"${drillAttr("Winning trades", opts.winTrades, { sub: "Win/loss split" })}` : "";
+    // The hole in the middle opens every trade (the ring segments open just the winners / losers).
+    const allAttr = opts.allTrades ? ` class="drillable"${drillAttr("All trades", opts.allTrades, { sub: "Win/loss split" })}` : "";
     return `<svg viewBox="0 0 ${size} ${size}" width="100%" height="${size}" style="max-width:${size}px; display:block; margin:0 auto;">
-      <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--red)" stroke-width="${stroke}"/>
+      <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--red)" stroke-width="${stroke}"${lossAttr}/>
       <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--green)" stroke-width="${stroke}"
-        stroke-dasharray="${winLen.toFixed(1)} ${circ.toFixed(1)}" stroke-dashoffset="${(circ * 0.25).toFixed(1)}" transform="scale(1,-1)" style="transform-origin:${c}px ${c}px;"/>
-      <text x="${c}" y="${c - 4}" text-anchor="middle" font-size="22" font-weight="700" fill="var(--green)">${winPct.toFixed(1)}%</text>
-      <text x="${c}" y="${c + 16}" text-anchor="middle" font-size="11" fill="var(--text-faint)">win rate</text>
+        stroke-dasharray="${winLen.toFixed(1)} ${circ.toFixed(1)}" stroke-dashoffset="${(circ * 0.25).toFixed(1)}" transform="scale(1,-1)" style="transform-origin:${c}px ${c}px;"${winAttr}/>
+      <circle cx="${c}" cy="${c}" r="${(r - stroke / 2 - 2).toFixed(1)}" fill="transparent"${allAttr}/>
+      <text x="${c}" y="${c - 4}" text-anchor="middle" font-size="22" font-weight="700" fill="var(--green)" style="pointer-events:none;">${winPct.toFixed(1)}%</text>
+      <text x="${c}" y="${c + 16}" text-anchor="middle" font-size="11" fill="var(--text-faint)" style="pointer-events:none;">win rate</text>
     </svg>`;
   }
   // Interactive line/area chart -- same crosshair + tooltip UX as the
@@ -215,7 +577,7 @@
       dot.setAttribute("cy", cy.toFixed(1));
       dot.setAttribute("stroke", values[i] >= 0 ? "var(--green)" : "var(--red)");
       const p = series[i];
-      tooltip.innerHTML = `<div class="eq-date">${escapeHtml(p.x)}</div><div class="eq-bal">${valueFmt(p.y)}</div>`;
+      tooltip.innerHTML = `<div class="eq-date">${escapeHtml(p.x)}</div><div class="eq-bal">${valueFmt(p.y)}</div>${opts.trades && opts.trades.length ? `<div class="eq-date" style="margin-top:2px;">Click for this day's trades</div>` : ""}`;
       tooltip.style.display = "block";
       const ttWidth = tooltip.offsetWidth || 120;
       let left = pxX + 10;
@@ -228,8 +590,20 @@
       tooltip.style.display = "none";
       dot.style.display = "none";
     }
-    wrap.addEventListener("pointermove", (e) => showAt(e.clientX), { signal: App.signal });
-    wrap.addEventListener("pointerleave", hide, { signal: App.signal });
+    const sig = opts.signal || App.signal;
+    wrap.addEventListener("pointermove", (e) => showAt(e.clientX), { signal: sig });
+    wrap.addEventListener("pointerleave", hide, { signal: sig });
+    // opts.trades (one entry per plotted point's trade): click a point to
+    // open that day's trades, with the chart's value at that moment.
+    if (opts.trades && opts.trades.length) {
+      wrap.style.cursor = "pointer";
+      wrap.addEventListener("click", (e) => {
+        const i = nearestIndex(e.clientX);
+        const date = series[i].x;
+        const dayTrades = opts.trades.filter((t) => t.trade_date === date);
+        openDrillData({ title: date, sub: `${opts.context || "Chart"} \u00b7 ${valueFmt(series[i].y)} after this point`, trades: dayTrades }, wrap);
+      }, { signal: sig });
+    }
   }
   // ----------------------------------------------------------------
   // Reports — click-to-expand trade lists (same pattern as patterns.html's
@@ -598,6 +972,7 @@
     }
   }
   function renderReports() {
+    drillRegistry.clear(); // parked trade lists belong to the pass that made them
     // Each of these owns its own, unrelated slice of the page (a
     // different tab/panel's worth of divs) -- one throwing on some
     // edge-case field shouldn't stop the other fifteen from running.
@@ -621,6 +996,19 @@
     App.safeRender(renderAdvanced, "renderAdvanced");
     App.safeRender(renderInsights, "renderInsights");
   }
+  // The actual trades behind each streak (trades are already chronological):
+  // longest win run, longest loss run, and the run you're in right now.
+  function streakInfo(list) {
+    let bestWin = [], bestLoss = [], cur = [], curWin = null;
+    list.forEach((t) => {
+      const w = Boolean(t.win);
+      if (cur.length && curWin === w) cur.push(t);
+      else { cur = [t]; curWin = w; }
+      if (w && cur.length > bestWin.length) bestWin = cur.slice();
+      if (!w && cur.length > bestLoss.length) bestLoss = cur.slice();
+    });
+    return { bestWin, bestLoss, current: cur };
+  }
   function renderStreaks() {
     // trades already sorted chronologically
     let best = 0, worst = 0, curWinRun = 0, curLossRun = 0;
@@ -634,10 +1022,11 @@
     const currentLabel = trailingSign === 1 ? `${trailingRun}W` : trailingSign === -1 ? `${trailingRun}L` : "—";
     const currentColor = trailingSign === 1 ? "up" : trailingSign === -1 ? "down" : "";
 
+    const si = streakInfo(App.state.trades);
     document.getElementById("streak-strip").innerHTML = `
-      <div class="cell"><div class="label">Current streak</div><div class="value ${currentColor}">${currentLabel}</div></div>
-      <div class="cell"><div class="label">Best win streak</div><div class="value up">${best}W</div></div>
-      <div class="cell"><div class="label">Worst loss streak</div><div class="value down">${worst}L</div></div>
+      <div class="cell"${drillAttr("Current streak: " + currentLabel, si.current, { sub: "The run you're in right now" })}><div class="label">Current streak</div><div class="value ${currentColor}">${currentLabel}</div></div>
+      <div class="cell"${drillAttr("Best win streak: " + best + "W", si.bestWin, { sub: "Longest run of winners" })}><div class="label">Best win streak</div><div class="value up">${best}W</div></div>
+      <div class="cell"${drillAttr("Worst loss streak: " + worst + "L", si.bestLoss, { sub: "Longest run of losers" })}><div class="label">Worst loss streak</div><div class="value down">${worst}L</div></div>
     `;
   }
   function renderHighlights() {
@@ -678,14 +1067,12 @@
       const pct = (Math.abs(e.net) / maxAbs) * 100;
       const color = e.net >= 0 ? "var(--green)" : "var(--red)";
       const smallSample = e.trades.length < 3;
-      const uid = `report-trade-list-${reportRowSeq++}`;
-      return `<tr class="report-row" data-trade-toggle="${uid}" style="cursor:pointer;">
+      return `<tr class="report-row"${drillAttr(sym, e.trades, { row: true, sub: "By symbol" })}>
         <td style="font-weight:600;">${escapeHtml(sym)}${smallSample ? ` <span class="pill" style="font-size:9.5px; padding:1px 6px;" title="Fewer than 3 trades — win rate isn't meaningful yet.">n=${e.trades.length}</span>` : ""}</td>
         <td class="mono dim">${e.trades.length}</td>
         <td class="mono">${winRate.toFixed(0)}%</td>
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${e.net >= 0 ? "up" : "down"}">${fmtMoney(e.net)}</span></td>
-      </tr>
-      <tr class="report-row-detail"><td colspan="4" style="padding:0; border-bottom:none;">${tradeListHtml(e.trades, uid)}</td></tr>`;
+      </tr>`;
     });
   }
   function renderDowBreakdown() {
@@ -706,14 +1093,12 @@
       const winRate = (e.trades.filter((t) => t.win).length / e.trades.length) * 100;
       const pct = (Math.abs(e.net) / maxAbs) * 100;
       const color = e.net >= 0 ? "var(--green)" : "var(--red)";
-      const uid = `report-trade-list-${reportRowSeq++}`;
-      return `<tr class="report-row" data-trade-toggle="${uid}" style="cursor:pointer;">
+      return `<tr class="report-row"${drillAttr(DOW[d], e.trades, { row: true, sub: "By day of week" })}>
         <td style="font-weight:600;">${DOW[d]}</td>
         <td class="mono dim">${e.trades.length}</td>
         <td class="mono">${winRate.toFixed(0)}%</td>
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${e.net >= 0 ? "up" : "down"}">${fmtMoney(e.net)}</span></td>
-      </tr>
-      <tr class="report-row-detail"><td colspan="4" style="padding:0; border-bottom:none;">${tradeListHtml(e.trades, uid)}</td></tr>`;
+      </tr>`;
     }).join("");
 
     const dowEl = document.getElementById("report-dow");
@@ -747,14 +1132,12 @@
       const winRate = (b.trades.filter((t) => t.win).length / b.trades.length) * 100;
       const pct = (Math.abs(net) / maxAbs) * 100;
       const color = net >= 0 ? "var(--green)" : "var(--red)";
-      const uid = `report-trade-list-${reportRowSeq++}`;
-      return `<tr class="report-row" data-trade-toggle="${uid}" style="cursor:pointer;">
+      return `<tr class="report-row"${drillAttr(b.label, b.trades, { row: true, sub: "By entry time" })}>
         <td style="font-weight:600;">${b.label}</td>
         <td class="mono dim">${b.trades.length}</td>
         <td class="mono">${winRate.toFixed(0)}%</td>
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</span></td>
-      </tr>
-      <tr class="report-row-detail"><td colspan="4" style="padding:0; border-bottom:none;">${tradeListHtml(b.trades, uid)}</td></tr>`;
+      </tr>`;
     }).join("");
 
     const el = document.getElementById("report-timeofday");
@@ -782,14 +1165,12 @@
     const rows = buckets.filter((b) => b.trades.length).map((b) => {
       const winRate = (b.trades.filter((t) => t.win).length / b.trades.length) * 100;
       const pct = (b.trades.length / maxCount) * 100;
-      const uid = `report-trade-list-${reportRowSeq++}`;
-      return `<div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
+      return `<div class="bar-row"${drillAttr(b.label, b.trades, { sub: "Hold time" })}>
         <div class="bar-label">${b.label}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(0)}%;"></div></div>
         <div class="bar-count">${b.trades.length}x</div>
         <div style="width:52px; text-align:right; flex-shrink:0; color:${winRate >= 50 ? "var(--green)" : "var(--red)"};">${winRate.toFixed(0)}%</div>
-      </div>
-      ${tradeListHtml(b.trades, uid)}`;
+      </div>`;
     }).join("");
 
     const el = document.getElementById("report-duration");
@@ -808,14 +1189,12 @@
   }
   function leaderboardRows(entries, valueFn, valueCls) {
     return entries.map(([sym, e]) => {
-      const uid = `report-trade-list-${reportRowSeq++}`;
       return `
-      <div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
+      <div class="bar-row"${drillAttr(sym, e.trades, { sub: "Symbol" })}>
         <div class="bar-label" style="width:70px;">${escapeHtml(sym)}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${e._pct}%;"></div></div>
         <div style="width:70px; text-align:right; flex-shrink:0;" class="${valueCls(e)}">${valueFn(e)}</div>
-      </div>
-      ${tradeListHtml(e.trades, uid)}`;
+      </div>`;
     }).join("");
   }
   function renderLeaderboards() {
@@ -869,14 +1248,12 @@
       const winRate = (e.trades.filter((t) => t.win).length / e.trades.length) * 100;
       const pct = (Math.abs(e.net) / maxAbs) * 100;
       const color = e.net >= 0 ? "var(--green)" : "var(--red)";
-      const uid = `report-trade-list-${reportRowSeq++}`;
-      return `<tr class="report-row" data-trade-toggle="${uid}" style="cursor:pointer;">
+      return `<tr class="report-row"${drillAttr(key, e.trades, { row: true, sub: colLabel })}>
         <td style="font-weight:600;">${escapeHtml(key)}</td>
         <td class="mono dim">${e.trades.length}</td>
         <td class="mono">${winRate.toFixed(0)}%</td>
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${e.net >= 0 ? "up" : "down"}">${fmtMoney(e.net)}</span></td>
-      </tr>
-      <tr class="report-row-detail"><td colspan="4" style="padding:0; border-bottom:none;">${tradeListHtml(e.trades, uid)}</td></tr>`;
+      </tr>`;
     });
   }
   function renderSectorCountryBreakdown() {
@@ -896,13 +1273,11 @@
   function dayTableHtml(days) {
     if (!days.length) return `<div class="empty-state small">No data yet.</div>`;
     const rows = days.map((d) => {
-      const uid = `report-trade-list-${reportRowSeq++}`;
-      return `<tr class="report-row" data-trade-toggle="${uid}" style="cursor:pointer;">
+      return `<tr class="report-row"${drillAttr(d.date, d.trades, { row: true, sub: "Trading day" })}>
         <td style="font-weight:600;">${d.date}</td>
         <td class="mono dim">${d.count}</td>
         <td class="mono ${d.net >= 0 ? "up" : "down"}">${fmtMoney(d.net)}</td>
-      </tr>
-      <tr class="report-row-detail"><td colspan="3" style="padding:0; border-bottom:none;">${tradeListHtml(d.trades, uid)}</td></tr>`;
+      </tr>`;
     }).join("");
     return `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Date</th><th scope="col">Trades</th><th scope="col">Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
@@ -920,12 +1295,13 @@
     const lossDays = days.filter((d) => d.net < 0);
     const avg = (arr) => (arr.length ? arr.reduce((s, d) => s + d.net, 0) / arr.length : 0);
 
+    const winDayTrades = winDays.flatMap((d) => d.trades), lossDayTrades = lossDays.flatMap((d) => d.trades);
     summaryEl.innerHTML = `
       <div class="streak-strip" style="grid-template-columns:repeat(4,1fr);">
-        <div class="cell"><div class="label">Winning days</div><div class="value up">${winDays.length} (${((winDays.length / days.length) * 100).toFixed(0)}%)</div></div>
-        <div class="cell"><div class="label">Losing days</div><div class="value down">${lossDays.length} (${((lossDays.length / days.length) * 100).toFixed(0)}%)</div></div>
-        <div class="cell"><div class="label">Avg win day</div><div class="value up">${fmtMoney(avg(winDays))}</div></div>
-        <div class="cell"><div class="label">Avg loss day</div><div class="value down">${fmtMoney(avg(lossDays))}</div></div>
+        <div class="cell"${drillAttr("Winning days", winDayTrades, { sub: `${winDays.length} days, every trade taken on them` })}><div class="label">Winning days</div><div class="value up">${winDays.length} (${((winDays.length / days.length) * 100).toFixed(0)}%)</div></div>
+        <div class="cell"${drillAttr("Losing days", lossDayTrades, { sub: `${lossDays.length} days, every trade taken on them` })}><div class="label">Losing days</div><div class="value down">${lossDays.length} (${((lossDays.length / days.length) * 100).toFixed(0)}%)</div></div>
+        <div class="cell"${drillAttr("Average winning day", winDayTrades, { sub: "Trades on winning days" })}><div class="label">Avg win day</div><div class="value up">${fmtMoney(avg(winDays))}</div></div>
+        <div class="cell"${drillAttr("Average losing day", lossDayTrades, { sub: "Trades on losing days" })}><div class="label">Avg loss day</div><div class="value down">${fmtMoney(avg(lossDays))}</div></div>
       </div>`;
 
     const winEl = document.getElementById("wld-top-win");
@@ -940,40 +1316,51 @@
   // running peak. A drawdown "period" runs from the last new high to the
   // next new high (or to the end of the data if it hasn't recovered).
   function computeDrawdownStats() {
-    if (!App.state.trades.length) return null;
-    let runPeak = App.state.trades[0]._balance;
-    let runPeakTrade = App.state.trades[0];
-    let runTroughTrade = App.state.trades[0];
+    const list = App.state.trades;
+    if (!list.length) return null;
+    let runPeak = list[0]._balance;
+    let peakIdx = 0, troughIdx = 0; // indexes into `list`, so each period knows which trades it spans
     let inDD = false;
     const periods = [];
-    let maxDD = 0, maxDDPeak = App.state.trades[0], maxDDTrough = App.state.trades[0];
+    let maxDD = 0, maxDDPeakIdx = 0, maxDDTroughIdx = 0;
 
-    App.state.trades.forEach((t) => {
+    list.forEach((t, i) => {
       if (t._balance >= runPeak) {
         if (inDD) {
-          periods.push({ peak: runPeakTrade, trough: runTroughTrade, recover: t });
+          periods.push({ peak: list[peakIdx], trough: list[troughIdx], recover: t, peakIdx, troughIdx, recoverIdx: i });
           inDD = false;
         }
         runPeak = t._balance;
-        runPeakTrade = t;
-        runTroughTrade = t;
+        peakIdx = i;
+        troughIdx = i;
       } else {
         inDD = true;
-        if (t._balance < runTroughTrade._balance) runTroughTrade = t;
+        if (t._balance < list[troughIdx]._balance) troughIdx = i;
       }
       const dd = t._balance - runPeak;
-      if (dd < maxDD) { maxDD = dd; maxDDPeak = runPeakTrade; maxDDTrough = t; }
+      if (dd < maxDD) { maxDD = dd; maxDDPeakIdx = peakIdx; maxDDTroughIdx = i; }
     });
-    if (inDD) periods.push({ peak: runPeakTrade, trough: runTroughTrade, recover: null });
+    if (inDD) periods.push({ peak: list[peakIdx], trough: list[troughIdx], recover: null, peakIdx, troughIdx, recoverIdx: null });
 
-    const last = App.state.trades[App.state.trades.length - 1];
+    const last = list[list.length - 1];
     const currentDD = last._balance - runPeak;
+    const maxDDPeak = list[maxDDPeakIdx], maxDDTrough = list[maxDDTroughIdx];
     const maxDDPct = maxDDPeak._balance !== 0 ? (maxDD / Math.abs(maxDDPeak._balance)) * 100 : null;
 
-    periods.forEach((p) => (p.size = p.trough._balance - p.peak._balance));
+    periods.forEach((p) => {
+      p.size = p.trough._balance - p.peak._balance;
+      // The trades that dug the hole: everything after the peak, up to the trough.
+      p.trades = list.slice(p.peakIdx + 1, p.troughIdx + 1);
+    });
     periods.sort((a, b) => a.size - b.size);
 
-    return { maxDD, maxDDPct, maxDDPeak, maxDDTrough, currentDD, periods };
+    return {
+      maxDD, maxDDPct, maxDDPeak, maxDDTrough, currentDD, periods,
+      maxDDTrades: list.slice(maxDDPeakIdx + 1, maxDDTroughIdx + 1),
+      currentTrades: currentDD < 0 ? list.slice(peakIdx + 1) : [],
+      // Every trade taken while underwater (peak to recovery, or to today if still down).
+      underwaterTrades: periods.reduce((acc, p) => acc.concat(list.slice(p.peakIdx + 1, p.recoverIdx == null ? list.length : p.recoverIdx)), []),
+    };
   }
   function renderDrawdown() {
     renderCumulativeCharts();
@@ -987,16 +1374,16 @@
     }
     summaryEl.innerHTML = `
       <div class="streak-strip" style="grid-template-columns:repeat(3,1fr);">
-        <div class="cell"><div class="label">Max drawdown</div><div class="value down">${fmtMoney(d.maxDD)}${d.maxDDPct != null ? ` (${d.maxDDPct.toFixed(1)}%)` : ""}</div></div>
-        <div class="cell"><div class="label">Current drawdown</div><div class="value ${d.currentDD < 0 ? "down" : ""}">${d.currentDD < 0 ? fmtMoney(d.currentDD) : "At peak"}</div></div>
-        <div class="cell"><div class="label">Drawdown periods</div><div class="value">${d.periods.length}</div></div>
+        <div class="cell"${drillAttr("Max drawdown", d.maxDDTrades, { sub: `${d.maxDDPeak.trade_date} \u2192 ${d.maxDDTrough.trade_date} \u00b7 the trades between the peak and the bottom` })}><div class="label">Max drawdown</div><div class="value down">${fmtMoney(d.maxDD)}${d.maxDDPct != null ? ` (${d.maxDDPct.toFixed(1)}%)` : ""}</div></div>
+        <div class="cell"${drillAttr("Current drawdown", d.currentTrades, { sub: "Every trade since your last equity high" })}><div class="label">Current drawdown</div><div class="value ${d.currentDD < 0 ? "down" : ""}">${d.currentDD < 0 ? fmtMoney(d.currentDD) : "At peak"}</div></div>
+        <div class="cell"${drillAttr("Trades taken while in drawdown", d.underwaterTrades, { sub: `${d.periods.length} drawdown period${d.periods.length === 1 ? "" : "s"}` })}><div class="label">Drawdown periods</div><div class="value">${d.periods.length}</div></div>
       </div>`;
 
     if (!d.periods.length) {
       periodsEl.innerHTML = `<div class="empty-state small">No drawdown periods — equity has only made new highs.</div>`;
       return;
     }
-    const rows = d.periods.slice(0, 10).map((p) => `<tr>
+    const rows = d.periods.slice(0, 10).map((p) => `<tr${drillAttr(`Drawdown ${p.peak.trade_date} \u2192 ${p.trough.trade_date}`, p.trades, { row: true, sub: `${fmtMoney(p.size)} \u00b7 trades from the peak down to the trough` })}>
         <td><a href="trade.html?id=${encodeURIComponent(p.peak.id)}">${p.peak.trade_date} <span class="dim" style="font-size:11px;">(${fmtMoney(p.peak._balance)})</span></a></td>
         <td><a href="trade.html?id=${encodeURIComponent(p.trough.id)}">${p.trough.trade_date} <span class="dim" style="font-size:11px;">(${fmtMoney(p.trough._balance)})</span></a></td>
         <td class="mono down">${fmtMoney(p.size)}</td>
@@ -1035,7 +1422,22 @@
     subset.forEach((t) => byDay.set(t.trade_date, (byDay.get(t.trade_date) || 0) + num(t.pnl_after_comm)));
     const dayNets = Array.from(byDay.values());
     const holds = subset.map((t) => App.durationMinutes(t)).filter((m) => m != null);
+    // Trade sets behind the special rows (best/worst day, biggest win...), for click-through.
+    const dayEntries = Array.from(byDay.entries());
+    const pickDay = (better) => {
+      const e = dayEntries.reduce((m, x) => (better(x[1], m[1]) ? x : m), dayEntries[0]);
+      return subset.filter((t) => t.trade_date === e[0]);
+    };
+    const sets = {
+      wins, losses,
+      bestWin: subset.filter((t) => num(t.pnl_after_comm) === maxOf(pnls)),
+      worstLoss: subset.filter((t) => num(t.pnl_after_comm) === minOf(pnls)),
+      bestDay: pickDay((a, b) => a > b),
+      worstDay: pickDay((a, b) => a < b),
+      winDays: subset.filter((t) => byDay.get(t.trade_date) > 0),
+    };
     return {
+      trades: subset, sets,
       n: subset.length,
       days: dayNets.length,
       net, gross, commissions, winRate, avgWin, avgLoss, profitFactor, payoffRatio,
@@ -1118,17 +1520,43 @@
     else if (row.better === "down") cls = diff > 0 ? "down" : "up";
     return `<span class="${cls}">${text}</span>`;
   }
+  // Which trades a Compare cell should open: the specific winners / losers /
+  // day behind the metric where there is one, otherwise the whole period.
+  function compareSet(st, key) {
+    switch (key) {
+      case "avgWin": return st.sets.wins;
+      case "avgLoss": return st.sets.losses;
+      case "largestWin": return st.sets.bestWin;
+      case "largestLoss": return st.sets.worstLoss;
+      case "bestDay": return st.sets.bestDay;
+      case "worstDay": return st.sets.worstDay;
+      case "winningDayPct": return st.sets.winDays;
+      default: return st.trades;
+    }
+  }
   function periodStatsHtml(a, b, ranges) {
     if (!a && !b) return `<div class="empty-state small">No trades in either date range.</div>`;
-    const cell = (s, row) => {
+    const cell = (s, row, which) => {
       const txt = s ? compareFormat(row.kind, s[row.key]) : "\u2014";
+      const da = s ? drillAttr(`${which} \u00b7 ${unescHtml(row.label)}`, compareSet(s, row.key), { sub: which === "Period A" ? ranges.a : ranges.b }) : "";
       // Color the signed-money rows green/red by sign; everything else stays neutral.
       const cls = s && (row.kind === "money" || row.kind === "pp") && Number.isFinite(s[row.key]) ? (s[row.key] >= 0 ? " up" : " down") : "";
-      return `<td class="mono num${cls}${row.bold ? " strong" : ""}">${txt}</td>`;
+      return `<td class="mono num${cls}${row.bold ? " strong" : ""}"${da}>${txt}</td>`;
+    };
+    // The Change column opens both periods' trades for that metric together
+    // (a trade that falls in both ranges is only listed once).
+    const bothSets = (row) => {
+      if (!a || !b) return [];
+      const seen = new Set(), out = [];
+      compareSet(a, row.key).concat(compareSet(b, row.key)).forEach((t) => {
+        const k = t.id != null ? t.id : t;
+        if (!seen.has(k)) { seen.add(k); out.push(t); }
+      });
+      return out;
     };
     const rows = COMPARE_ROWS.map((row) => `<tr>
-        <td>${row.label}</td>${cell(a, row)}${cell(b, row)}
-        <td class="mono num">${compareDeltaHtml(row, a, b)}</td>
+        <td>${row.label}</td>${cell(a, row, "Period A")}${cell(b, row, "Period B")}
+        <td class="mono num"${drillAttr(`Both periods · ${unescHtml(row.label)}`, bothSets(row), { sub: `${ranges.a} and ${ranges.b}, combined` })}>${compareDeltaHtml(row, a, b)}</td>
       </tr>`).join("");
     const note = (!a || !b) ? `<div class="dim" style="font-size:12px;margin-bottom:8px;">No trades in ${!a ? "Period A" : "Period B"}'s date range.</div>` : "";
     return `${note}<div class="table-scroll"><table class="report-table compare-table"><thead><tr>
@@ -1194,33 +1622,40 @@
     const daySd = stdev(dayVals);
     const dailySharpe = daySd ? dayMean / daySd : null;
 
-    let curSign = 0, curStreakSum = 0, bestWinStreakSum = 0, worstLossStreakSum = 0;
-    App.state.trades.forEach((t) => {
+    let curSign = 0, curStreakSum = 0, curStart = 0, bestWinStreakSum = 0, worstLossStreakSum = 0;
+    let bwStart = -1, bwEnd = -1, wlStart = -1, wlEnd = -1; // where the best/worst $ streak sits in the list
+    App.state.trades.forEach((t, i) => {
       const sign = t.pnl_after_comm >= 0 ? 1 : -1;
       if (sign === curSign) curStreakSum += t.pnl_after_comm;
-      else { curSign = sign; curStreakSum = t.pnl_after_comm; }
-      if (curSign === 1) bestWinStreakSum = Math.max(bestWinStreakSum, curStreakSum);
-      else worstLossStreakSum = Math.min(worstLossStreakSum, curStreakSum);
+      else { curSign = sign; curStreakSum = t.pnl_after_comm; curStart = i; }
+      if (curSign === 1) {
+        if (curStreakSum > bestWinStreakSum) { bestWinStreakSum = curStreakSum; bwStart = curStart; bwEnd = i; }
+      } else if (curStreakSum < worstLossStreakSum) { worstLossStreakSum = curStreakSum; wlStart = curStart; wlEnd = i; }
     });
 
     const allHold = App.state.trades.map(App.durationMinutes).filter((v) => v != null);
     const avgHoldAll = allHold.length ? allHold.reduce((a, b) => a + b, 0) / allHold.length : null;
 
-    return { commPctOfGross, tradesPerDay, dailySharpe, bestWinStreakSum, worstLossStreakSum, avgHoldAll };
+    return {
+      commPctOfGross, tradesPerDay, dailySharpe, bestWinStreakSum, worstLossStreakSum, avgHoldAll,
+      bestWinStreakTrades: bwStart >= 0 ? App.state.trades.slice(bwStart, bwEnd + 1) : [],
+      worstLossStreakTrades: wlStart >= 0 ? App.state.trades.slice(wlStart, wlEnd + 1) : [],
+    };
   }
   function renderAdvanced() {
     const d = computeAdvancedStats();
     const el = document.getElementById("advanced-grid");
     if (!d) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
+    const all = App.state.trades;
     const rows = [
-      ["Commissions as % of Gross P&amp;L", d.commPctOfGross != null ? `<span class="v mono">${d.commPctOfGross.toFixed(1)}%</span>` : naCell("No gross P&L to compare against.")],
-      ["Avg Trades per Trading Day", d.tradesPerDay != null ? `<span class="v mono">${d.tradesPerDay.toFixed(1)}</span>` : naCell("No trading days recorded.")],
-      ["Daily Sharpe (un-annualized)", d.dailySharpe != null ? `<span class="v mono" title="Mean divided by standard deviation of daily net P&amp;L — not annualized, not risk-free-rate adjusted.">${d.dailySharpe.toFixed(2)}</span>` : naCell("Not enough trading days yet.")],
-      ["Best Win Streak ($)", `<span class="v up mono">${fmtMoney(d.bestWinStreakSum)}</span>`],
-      ["Worst Loss Streak ($)", `<span class="v down mono">${fmtMoney(d.worstLossStreakSum)}</span>`],
-      ["Average Hold Time (all trades)", `<span class="v mono">${fmtDuration(d.avgHoldAll)}</span>`],
+      ["Commissions as % of Gross P&amp;L", d.commPctOfGross != null ? `<span class="v mono">${d.commPctOfGross.toFixed(1)}%</span>` : naCell("No gross P&L to compare against."), all.filter((t) => Number(t.commission) > 0), "Trades that paid commission"],
+      ["Avg Trades per Trading Day", d.tradesPerDay != null ? `<span class="v mono">${d.tradesPerDay.toFixed(1)}</span>` : naCell("No trading days recorded."), all, "Every trade in this view"],
+      ["Daily Sharpe (un-annualized)", d.dailySharpe != null ? `<span class="v mono" title="Mean divided by standard deviation of daily net P&amp;L — not annualized, not risk-free-rate adjusted.">${d.dailySharpe.toFixed(2)}</span>` : naCell("Not enough trading days yet."), all, "Every trade in this view"],
+      ["Best Win Streak ($)", `<span class="v up mono">${fmtMoney(d.bestWinStreakSum)}</span>`, d.bestWinStreakTrades, "The run of trades that made the most money"],
+      ["Worst Loss Streak ($)", `<span class="v down mono">${fmtMoney(d.worstLossStreakSum)}</span>`, d.worstLossStreakTrades, "The run of trades that lost the most money"],
+      ["Average Hold Time (all trades)", `<span class="v mono">${fmtDuration(d.avgHoldAll)}</span>`, all.filter((t) => App.durationMinutes(t) != null), "Trades that have a hold time"],
     ];
-    el.innerHTML = rows.map(([k, v]) => `<div class="stat-line"><span class="k">${k}</span>${v}</div>`).join("");
+    el.innerHTML = rows.map(([k, v, set, sub]) => `<div class="stat-line"${set ? drillAttr(unescHtml(k), set, { sub, row: true }) : ""}><span class="k">${k}</span>${v}</div>`).join("");
   }
   // Small stats helpers shared by the grid below.
   function stdev(arr) {
@@ -1316,39 +1751,44 @@
     const winPct = d.n ? (d.wins.length / d.n) * 100 : 0;
     const lossPct = d.n ? (d.losses.length / d.n) * 100 : 0;
 
+    // [label, value html, trades behind it, one-line note for the panel]
+    const all = App.state.trades;
+    const scratch = all.filter((t) => t.pnl_after_comm === 0);
+    const withHold = (arr) => arr.filter((t) => App.durationMinutes(t) != null);
+    const si = streakInfo(all);
     const rows = [
-      ["Total Gain/Loss", moneyCell(d.netPnl)],
-      ["Largest Gain", moneyCell(d.largestGain)],
-      ["Largest Loss", moneyCell(d.largestLoss)],
-      ["Average Daily Gain/Loss", moneyCell(d.avgDailyGainLoss)],
+      ["Total Gain/Loss", moneyCell(d.netPnl), all, "Every trade in this view"],
+      ["Largest Gain", moneyCell(d.largestGain), all.filter((t) => t.pnl_after_comm === d.largestGain), "Your best trade"],
+      ["Largest Loss", moneyCell(d.largestLoss), all.filter((t) => t.pnl_after_comm === d.largestLoss), "Your worst trade"],
+      ["Average Daily Gain/Loss", moneyCell(d.avgDailyGainLoss), all, `Averaged over ${d.dayCount} trading day${d.dayCount === 1 ? "" : "s"}`],
       ["Average Daily Volume", naCell("Needs each symbol's daily market volume flattened onto data/trades.json — not in the schema yet.")],
-      ["Average Per-share Gain/Loss", d.avgPerShare != null ? moneyCell(d.avgPerShare) : naCell("No trades with a share count.")],
-      ["Average Trade Gain/Loss", moneyCell(d.avgTradeGainLoss)],
-      ["Average Winning Trade", moneyCell(d.avgWin)],
-      ["Average Losing Trade", moneyCell(d.avgLoss)],
-      ["Total Number of Trades", `<span class="v">${d.n}</span>`],
-      ["Number of Winning Trades", `<span class="v up">${d.wins.length} (${winPct.toFixed(1)}%)</span>`],
-      ["Number of Losing Trades", `<span class="v down">${d.losses.length} (${lossPct.toFixed(1)}%)</span>`],
-      ["Average Hold Time (scratch trades)", `<span class="v mono">${fmtDuration(d.holdScratchAvg)}</span>`],
-      ["Average Hold Time (winning trades)", `<span class="v mono">${fmtDuration(d.holdWinAvg)}</span>`],
-      ["Average Hold Time (losing trades)", `<span class="v mono">${fmtDuration(d.holdLossAvg)}</span>`],
-      ["Number of Scratch Trades", `<span class="v">${d.scratchCount}</span>`],
-      ["Max Consecutive Wins", `<span class="v up">${d.bestWin}</span>`],
-      ["Max Consecutive Losses", `<span class="v down">${d.bestLoss}</span>`],
-      ["Trade P&amp;L Standard Deviation", `<span class="v mono">$${d.sd.toFixed(2)}</span>`],
-      ["System Quality Number (SQN)", d.sqn != null ? `<span class="v mono" title="PnL-based SQN, not R-multiple-based.">${d.sqn.toFixed(2)}</span>` : naCell("Not enough trades yet.")],
-      ["Probability of Random Chance", d.pRandom != null ? `<span class="v mono" title="Approximate — normal-approximation two-tailed p-value.">${(d.pRandom * 100).toFixed(1)}%</span>` : naCell("Not enough trades yet.")],
-      ["Kelly Percentage", d.kelly != null ? `<span class="v mono">${d.kelly.toFixed(1)}%</span>` : naCell("Needs both wins and losses to compute.")],
-      ["K-Ratio", d.kr != null ? `<span class="v mono" title="Trade-level, un-annualized.">${d.kr.toFixed(2)}</span>` : naCell("Not enough trades yet.")],
-      ["Profit Factor", `<span class="v mono">${d.profitFactor === Infinity ? "∞" : d.profitFactor.toFixed(2)}</span>`],
-      ["Total Commissions", `<span class="v mono">$${d.totalComm.toFixed(2)}</span>`],
+      ["Average Per-share Gain/Loss", d.avgPerShare != null ? moneyCell(d.avgPerShare) : naCell("No trades with a share count."), all.filter((t) => t.shares), "Trades with a share count"],
+      ["Average Trade Gain/Loss", moneyCell(d.avgTradeGainLoss), all, "Every trade in this view"],
+      ["Average Winning Trade", moneyCell(d.avgWin), d.wins, "Winners"],
+      ["Average Losing Trade", moneyCell(d.avgLoss), d.losses, "Losers"],
+      ["Total Number of Trades", `<span class="v">${d.n}</span>`, all, "Every trade in this view"],
+      ["Number of Winning Trades", `<span class="v up">${d.wins.length} (${winPct.toFixed(1)}%)</span>`, d.wins, "Winners"],
+      ["Number of Losing Trades", `<span class="v down">${d.losses.length} (${lossPct.toFixed(1)}%)</span>`, d.losses, "Losers"],
+      ["Average Hold Time (scratch trades)", `<span class="v mono">${fmtDuration(d.holdScratchAvg)}</span>`, withHold(scratch), "Scratch trades that have a hold time"],
+      ["Average Hold Time (winning trades)", `<span class="v mono">${fmtDuration(d.holdWinAvg)}</span>`, withHold(d.wins), "Winners that have a hold time"],
+      ["Average Hold Time (losing trades)", `<span class="v mono">${fmtDuration(d.holdLossAvg)}</span>`, withHold(d.losses), "Losers that have a hold time"],
+      ["Number of Scratch Trades", `<span class="v">${d.scratchCount}</span>`, scratch, "Trades that closed at exactly $0"],
+      ["Max Consecutive Wins", `<span class="v up">${d.bestWin}</span>`, si.bestWin, "Your longest winning streak"],
+      ["Max Consecutive Losses", `<span class="v down">${d.bestLoss}</span>`, si.bestLoss, "Your longest losing streak"],
+      ["Trade P&amp;L Standard Deviation", `<span class="v mono">$${d.sd.toFixed(2)}</span>`, all, "Every trade in this view"],
+      ["System Quality Number (SQN)", d.sqn != null ? `<span class="v mono" title="PnL-based SQN, not R-multiple-based.">${d.sqn.toFixed(2)}</span>` : naCell("Not enough trades yet."), all, "Every trade in this view"],
+      ["Probability of Random Chance", d.pRandom != null ? `<span class="v mono" title="Approximate — normal-approximation two-tailed p-value.">${(d.pRandom * 100).toFixed(1)}%</span>` : naCell("Not enough trades yet."), all, "Every trade in this view"],
+      ["Kelly Percentage", d.kelly != null ? `<span class="v mono">${d.kelly.toFixed(1)}%</span>` : naCell("Needs both wins and losses to compute."), all, "Every trade in this view"],
+      ["K-Ratio", d.kr != null ? `<span class="v mono" title="Trade-level, un-annualized.">${d.kr.toFixed(2)}</span>` : naCell("Not enough trades yet."), all, "Every trade in this view"],
+      ["Profit Factor", `<span class="v mono">${d.profitFactor === Infinity ? "∞" : d.profitFactor.toFixed(2)}</span>`, all, "Gross wins \u00f7 gross losses, over every trade"],
+      ["Total Commissions", `<span class="v mono">$${d.totalComm.toFixed(2)}</span>`, all.filter((t) => Number(t.commission) > 0), "Trades that paid commission"],
       ["Total Fees", naCell("Only commission is tracked in the current schema — no separate fees field.")],
       ["Average Position MAE", naCell("Needs intrabar adverse-excursion tracking not in the current schema.")],
       ["Average Position MFE", naCell("Needs intrabar favorable-excursion tracking not in the current schema.")],
     ];
 
     document.getElementById("detailed-stat-grid").innerHTML = rows
-      .map(([k, v]) => `<div class="stat-line"><span class="k">${k}</span>${v}</div>`)
+      .map(([k, v, set, sub]) => `<div class="stat-line"${set ? drillAttr(unescHtml(k), set, { sub, row: true }) : ""}><span class="k">${k}</span>${v}</div>`)
       .join("");
   }
   // ---------------------------------------------------------------
@@ -1365,14 +1805,12 @@
       const winRate = (b.trades.filter((t) => t.win).length / b.trades.length) * 100;
       const pct = (Math.abs(net) / maxAbs) * 100;
       const color = net >= 0 ? "var(--green)" : "var(--red)";
-      const uid = `report-trade-list-${reportRowSeq++}`;
-      return `<tr class="report-row" data-trade-toggle="${uid}" style="cursor:pointer;">
+      return `<tr class="report-row"${drillAttr(b.label, b.trades, { row: true, sub: labelHeader })}>
         <td style="font-weight:600;">${escapeHtml(b.label)}</td>
         <td class="mono dim">${b.trades.length}</td>
         <td class="mono">${winRate.toFixed(0)}%</td>
         <td class="mono"><span class="mini-bar-track"><span class="mini-bar-fill" style="width:${pct.toFixed(0)}%;background:${color}"></span></span><span class="${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</span></td>
-      </tr>
-      <tr class="report-row-detail"><td colspan="4" style="padding:0; border-bottom:none;">${tradeListHtml(b.trades, uid)}</td></tr>`;
+      </tr>`;
     }).join("");
     return `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">${escapeHtml(labelHeader)}</th><th scope="col">Trades</th><th scope="col">Win %</th><th scope="col">Net P&amp;L</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
@@ -1445,7 +1883,7 @@
       const bucket = buckets.find((b) => t.entry_price <= b.max);
       (bucket || buckets[buckets.length - 1]).trades.push(t);
     });
-    renderPairedHistogram("detail-price-dist", "detail-price-perf", buckets, { labelW: 96 });
+    renderPairedHistogram("detail-price-dist", "detail-price-perf", buckets, { labelW: 96, context: "Entry price" });
   }
   const SIZE_BUCKETS = [
     { label: "< 20", max: 20 }, { label: "20 – 49", max: 49 }, { label: "50 – 99", max: 99 },
@@ -1458,7 +1896,7 @@
       const bucket = buckets.find((b) => t.shares <= b.max);
       (bucket || buckets[buckets.length - 1]).trades.push(t);
     });
-    renderPairedHistogram("detail-size-dist", "detail-size-perf", buckets, { labelW: 96 });
+    renderPairedHistogram("detail-size-dist", "detail-size-perf", buckets, { labelW: 96, context: "Position size (shares)" });
   }
   // ---- Instrument ----
   function renderDetailSymbolTable() {
@@ -1486,8 +1924,8 @@
       if (!el) return;
       if (!rows.length) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
       el.innerHTML = svgAxisBarChart(
-        rows.map((r) => ({ label: r.label, value: r.net, color })),
-        { fmt: fmtAxisMoney, labelW: 60, barHeight: 15 }
+        rows.map((r) => ({ label: r.label, value: r.net, color, trades: r.trades })),
+        { fmt: fmtAxisMoney, labelW: 60, barHeight: 15, context: "Symbol" }
       );
     };
     chartFor("detail-symbol-top20", winners, "var(--green)");
@@ -1526,14 +1964,12 @@
     if (!entries.length) { el.innerHTML = `<div class="empty-state small">No lesson tags logged yet.</div>`; return; }
     const maxCount = Math.max(...entries.map(([, e]) => e.count));
     el.innerHTML = entries.map(([tag, e]) => {
-      const uid = `report-trade-list-${reportRowSeq++}`;
       return `
-      <div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
+      <div class="bar-row"${drillAttr(tag.replace(/_/g, " "), e.trades, { sub: "Lesson tag" })}>
         <div class="bar-label">${escapeHtml(tag.replace(/_/g, " "))}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${((e.count / maxCount) * 100).toFixed(0)}%;"></div></div>
         <div class="bar-count">${e.count}x</div>
-      </div>
-      ${tradeListHtml(e.trades, uid)}`;
+      </div>`;
     }).join("");
     bindTradeToggles(el);
   }
@@ -1559,14 +1995,12 @@
     if (!present.length) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
     const maxCount = Math.max(...present.map((b) => b.count));
     el.innerHTML = present.map((b) => {
-      const uid = `report-trade-list-${reportRowSeq++}`;
       return `
-      <div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer;">
+      <div class="bar-row"${drillAttr(b.label, b.trades, { sub: "Trade P&L range" })}>
         <div class="bar-label" style="width:130px;">${b.label}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${((b.count / maxCount) * 100).toFixed(0)}%;background:${b.neg ? "var(--red)" : "var(--green)"};"></div></div>
         <div class="bar-count">${b.count}x</div>
-      </div>
-      ${tradeListHtml(b.trades, uid)}`;
+      </div>`;
     }).join("");
     bindTradeToggles(el);
   }
@@ -1589,7 +2023,7 @@
       (bucket || buckets[buckets.length - 1]).trades.push(t);
     });
     const all = under.trades.length ? [under, ...buckets] : buckets;
-    renderPairedHistogram("detail-rvol-dist", "detail-rvol-perf", all, { labelW: 92 });
+    renderPairedHistogram("detail-rvol-dist", "detail-rvol-perf", all, { labelW: 92, context: "Relative volume" });
   }
   // No raw 30-day-average-volume number is carried on the trades index
   // (only trade.js's per-trade detail fetch sees that) -- so this uses
@@ -1603,7 +2037,7 @@
       map.get(t.avg_volume_tag).push(t);
     });
     const buckets = Array.from(map.entries()).map(([label, ts]) => ({ label: prettifyTag(label), trades: ts }));
-    renderPairedHistogram("detail-avgvol-dist", "detail-avgvol-perf", buckets, { labelW: 92 });
+    renderPairedHistogram("detail-avgvol-dist", "detail-avgvol-perf", buckets, { labelW: 92, context: "Average volume" });
   }
   // ---- Win/Loss/Expectation ----
   function renderDetailWinLossRatio() {
@@ -1617,12 +2051,12 @@
       return;
     }
     const winPct = (d.wins.length / d.n) * 100;
-    donutEl.innerHTML = svgDonutChart(winPct) + `<div style="text-align:center; color:var(--text-faint); font-size:11.5px; margin-top:4px;">${d.wins.length} wins · ${d.losses.length} losses</div>`;
+    donutEl.innerHTML = svgDonutChart(winPct, { winTrades: d.wins, lossTrades: d.losses, allTrades: App.state.trades }) + `<div style="text-align:center; color:var(--text-faint); font-size:11.5px; margin-top:4px;"><span${drillAttr("Winning trades", d.wins, { sub: "Win/loss split" })}>${d.wins.length} wins</span> · <span${drillAttr("Losing trades", d.losses, { sub: "Win/loss split" })}>${d.losses.length} losses</span></div>`;
     const grossWin = d.wins.reduce((s, t) => s + t.pnl_after_comm, 0);
     const grossLoss = d.losses.reduce((s, t) => s + t.pnl_after_comm, 0);
     cmpEl.innerHTML = svgAxisBarChart(
-      [{ label: "Gain", value: grossWin, color: "var(--green)" }, { label: "Loss", value: grossLoss, color: "var(--red)" }],
-      { fmt: fmtAxisMoney, labelW: 56, barHeight: 34 }
+      [{ label: "Gain", value: grossWin, color: "var(--green)", trades: d.wins, drillTitle: "Winning trades" }, { label: "Loss", value: grossLoss, color: "var(--red)", trades: d.losses, drillTitle: "Losing trades" }],
+      { fmt: fmtAxisMoney, labelW: 56, barHeight: 34, context: "Gross gain vs gross loss" }
     );
   }
   function renderDetailExpectationBar() {
@@ -1633,8 +2067,8 @@
     const winRateFrac = d.wins.length / d.n, lossRateFrac = d.losses.length / d.n;
     const expectancy = winRateFrac * d.avgWin + lossRateFrac * d.avgLoss;
     el.innerHTML = svgAxisBarChart(
-      [{ label: "Expectation", value: expectancy, color: expectancy >= 0 ? "var(--green)" : "var(--red)" }],
-      { fmt: fmtAxisMoney, labelW: 84, barHeight: 34 }
+      [{ label: "Expectation", value: expectancy, color: expectancy >= 0 ? "var(--green)" : "var(--red)", trades: App.state.trades, drillTitle: "All trades" }],
+      { fmt: fmtAxisMoney, labelW: 84, barHeight: 34, context: "Expected P&L per trade" }
     ) + `<div style="text-align:center; color:var(--text-faint); font-size:11.5px; margin-top:2px;">Expected P&amp;L per trade</div>`;
   }
   function renderDetailExpectancy() {
@@ -1646,12 +2080,12 @@
     const expectancy = winRateFrac * d.avgWin + lossRateFrac * d.avgLoss;
     const ratio = d.avgLoss !== 0 ? d.avgWin / Math.abs(d.avgLoss) : null;
     const rows = [
-      ["Win rate", (winRateFrac * 100).toFixed(1) + "%"],
-      ["Avg win / avg loss ratio", ratio != null ? ratio.toFixed(2) : "—"],
-      ["Expectancy per trade", fmtMoney(expectancy)],
-      ["Kelly percentage", d.kelly != null ? d.kelly.toFixed(1) + "%" : "—"],
+      ["Win rate", (winRateFrac * 100).toFixed(1) + "%", App.state.trades, "All trades"],
+      ["Avg win / avg loss ratio", ratio != null ? ratio.toFixed(2) : "—", App.state.trades, "All trades"],
+      ["Expectancy per trade", fmtMoney(expectancy), App.state.trades, "All trades"],
+      ["Kelly percentage", d.kelly != null ? d.kelly.toFixed(1) + "%" : "—", App.state.trades, "All trades"],
     ];
-    el.innerHTML = `<div class="kv-list">${rows.map(([k, v]) => `<div class="kv-row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join("")}</div>`;
+    el.innerHTML = `<div class="kv-list">${rows.map(([k, v, set, sub]) => `<div class="kv-row"${drillAttr(k, set, { sub, row: true })}><span class="k">${k}</span><span class="v">${v}</span></div>`).join("")}</div>`;
   }
   // Tradervue-style Daily/Weekly/Monthly/Yearly rollup switcher (see
   // #report-period-select). All four timeframes are the exact same
@@ -1696,7 +2130,7 @@
       map.get(key).trades.push(t);
     });
     const buckets = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
-    renderPairedHistogram("report-month-dist", "report-month-perf", buckets, { labelW: 64, barHeight: 15 });
+    renderPairedHistogram("report-month-dist", "report-month-perf", buckets, { labelW: 64, barHeight: 15, context: `By ${noun}` });
   }
   function renderCumulativeCharts() {
     const pnlEl = document.getElementById("dd-cum-pnl");
@@ -1715,8 +2149,8 @@
     const cumPnl = App.state.trades.map((t) => t._balance - startBalance);
     let runPeak = -Infinity;
     const drawdown = cumPnl.map((v) => { runPeak = Math.max(runPeak, v); return v - runPeak; });
-    renderMiniLineChart(pnlEl, App.state.trades.map((t, i) => ({ x: t.trade_date, y: cumPnl[i] })));
-    renderMiniLineChart(ddEl, App.state.trades.map((t, i) => ({ x: t.trade_date, y: drawdown[i] })));
+    renderMiniLineChart(pnlEl, App.state.trades.map((t, i) => ({ x: t.trade_date, y: cumPnl[i] })), { trades: App.state.trades, context: "Cumulative P&L" });
+    renderMiniLineChart(ddEl, App.state.trades.map((t, i) => ({ x: t.trade_date, y: drawdown[i] })), { trades: App.state.trades, context: "Drawdown from peak" });
   }
   // ================================================================
   // REPORTS — Overview: Cumulative P&L with its own 30/60/90/All toggle
@@ -1754,7 +2188,7 @@
     if (!subset.length) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
     let running = 0;
     const series = subset.map((t) => { running += t.pnl_after_comm; return { x: t.trade_date, y: running }; });
-    renderMiniLineChart(el, series);
+    renderMiniLineChart(el, series, { trades: subset, context: "Cumulative P&L" });
   }
   // Win/Loss/Expectation's own Cumulative P&L -- tracks whatever `trades`
   // currently holds (the page's overall date range / filters), same as
@@ -1765,7 +2199,7 @@
     if (!App.state.trades.length) { el.innerHTML = `<div class="empty-state small">No data yet.</div>`; return; }
     let running = 0;
     const series = App.state.trades.map((t) => { running += t.pnl_after_comm; return { x: t.trade_date, y: running }; });
-    renderMiniLineChart(el, series);
+    renderMiniLineChart(el, series, { trades: App.state.trades, context: "Cumulative P&L" });
   }
 
   // =====================================================================
@@ -1782,6 +2216,12 @@
   const insCls = (v) => (v > 0 ? "up" : v < 0 ? "down" : "dim");
   const insDur = (m) => App.fmtDurationPrecise(m);
   const insPlural = (n, one, many) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+  // A bold number inside a sentence. Clickable (opens the trades behind it)
+  // whenever there are any; plain bold when there are none.
+  function insLink(html, title, trades, sub) {
+    const a = drillAttr(title, trades, { sub });
+    return a ? `<b class="ins-link"${a}>${html}</b>` : `<b>${html}</b>`;
+  }
   // Green/red wash for a heat-map cell, scaled against the biggest |value| on the grid.
   function insTint(v, maxAbs) {
     if (!maxAbs || !Number.isFinite(v) || v === 0) return "";
@@ -1883,25 +2323,30 @@
       perK: perK(arr),
     });
     const A = col(both), W = wins.length ? col(wins) : null, L = losses.length ? col(losses) : null;
-    const cell = (c, f) => `<td class="mono num">${c ? f(c) : "\u2014"}</td>`;
+    const insT = (arr) => arr.map((r) => r.t);
+    const TS_SUB = "Trades with a price, share count and hold time";
+    const cell = (c, f, arr, who, label) => `<td class="mono num"${c ? drillAttr(`${who} \u00b7 ${unescHtml(label)}`, insT(arr), { sub: TS_SUB }) : ""}>${c ? f(c) : "\u2014"}</td>`;
     const money = (v) => (v == null ? "\u2014" : `<span class="${insCls(v)}">${fmtMoney(v)}</span>`);
-    const line = (label, f) => `<tr><td>${label}</td>${cell(A, f)}${cell(W, f)}${cell(L, f)}</tr>`;
+    const line = (label, f) => `<tr><td${drillAttr(`All trades \u00b7 ${unescHtml(label)}`, insT(both), { row: true, sub: TS_SUB })}>${label}</td>${cell(A, f, both, "All trades", label)}${cell(W, f, wins, "Winners", label)}${cell(L, f, losses, "Losers", label)}</tr>`;
 
     // Plain-language reads -- only when both sides have enough trades to mean something.
     const notes = [];
     if (W && L && W.n >= 3 && L.n >= 3) {
       const hr = L.hold / W.hold;
-      notes.push(hr >= 1.15 ? `You hold losers about <b>${hr.toFixed(1)}\u00d7 as long</b> as winners.`
-        : hr <= 0.87 ? `You cut losers faster than winners (losers are held about <b>${hr.toFixed(1)}\u00d7</b> as long).`
+      const hrL = (txt) => insLink(txt, "Losing trades \u00b7 hold time", insT(losses), `Losers are held about ${hr.toFixed(1)}\u00d7 as long as winners`);
+      notes.push(hr >= 1.15 ? `You hold losers about ${hrL(`${hr.toFixed(1)}\u00d7 as long`)} as winners.`
+        : hr <= 0.87 ? `You cut losers faster than winners (losers are held about ${hrL(`${hr.toFixed(1)}\u00d7`)} as long).`
         : `Winners and losers are held for about the same time.`);
       const sr = L.size / W.size;
-      notes.push(sr >= 1.15 ? `Your losing trades are about <b>${Math.round((sr - 1) * 100)}% bigger</b> than your winners.`
-        : sr <= 0.87 ? `Your losing trades are about <b>${Math.round((1 - sr) * 100)}% smaller</b> than your winners.`
+      const srL = (txt) => insLink(txt, "Losing trades \u00b7 position size", insT(losses), "Compared with your winners' size");
+      notes.push(sr >= 1.15 ? `Your losing trades are about ${srL(`${Math.round((sr - 1) * 100)}% bigger`)} than your winners.`
+        : sr <= 0.87 ? `Your losing trades are about ${srL(`${Math.round((1 - sr) * 100)}% smaller`)} than your winners.`
         : `Winners and losers are about the same size.`);
     }
     const tim = insTimeInMarket(trades);
+    const timedT = trades.filter((t) => insToMin(t.exit_time) > insToMin(t.entry_time));
     const timeLine = tim
-      ? `On days you trade, you're in a position about <b>${insDur(tim.avgPerDay)}</b> (${insPct((tim.avgPerDay / INS_SESSION_MIN) * 100, 0)} of a 6.5-hour session), overlapping trades counted once.`
+      ? `On days you trade, you're in a position about ${insLink(insDur(tim.avgPerDay), "Time in market", timedT, "Trades with an entry and exit time")} (${insPct((tim.avgPerDay / INS_SESSION_MIN) * 100, 0)} of a 6.5-hour session), overlapping trades counted once.`
       : "";
 
     // Size buckets (equal trade counts) -> hold time / win rate / P&L / return per capital-hour.
@@ -1916,7 +2361,7 @@
         ${sizeB.map((b, i) => {
           const wr = (b.rows.filter((r) => r.win).length / b.rows.length) * 100;
           const net = insSum(b.rows, (r) => r.net);
-          return `<tr><td>${sizeName(b, i)}</td><td class="mono num">${b.rows.length}</td>
+          return `<tr${drillAttr(sizeName(b, i), b.rows.map((r) => r.t), { row: true, sub: "By position size" })}><td>${sizeName(b, i)}</td><td class="mono num">${b.rows.length}</td>
             <td class="mono num">${insDur(insAvg(b.rows, (r) => r.mins))}</td>
             <td class="mono num ${wr >= 50 ? "up" : "down"}">${wr.toFixed(0)}%</td>
             <td class="mono num">${money(net)}</td>
@@ -1929,18 +2374,22 @@
       const cells = sizeB.map((sb) => holdB.map((hb) => both.filter((r) => sb.rows.includes(r) && hb.rows.includes(r))));
       const maxAbs = cells.reduce((m, row) => row.reduce((mm, c) => Math.max(mm, Math.abs(insSum(c, (r) => r.net))), m), 0);
       grid = `<div class="table-scroll"><table class="report-table ins-heat"><thead><tr><th scope="col">Size \u2193 / Hold \u2192</th>
-        ${holdB.map((hb) => `<th scope="col" class="num">${insDur(hb.lo)}\u2013${insDur(hb.hi)}</th>`).join("")}</tr></thead><tbody>
-        ${sizeB.map((sb, i) => `<tr><td>${sizeName(sb, i)}</td>${cells[i].map((c) => {
+        ${holdB.map((hb) => `<th scope="col" class="num"${drillAttr(`Hold ${insDur(hb.lo)}\u2013${insDur(hb.hi)}`, hb.rows.map((r) => r.t), { row: true, sub: "Every position size at this hold time" })}>${insDur(hb.lo)}\u2013${insDur(hb.hi)}</th>`).join("")}</tr></thead><tbody>
+        ${sizeB.map((sb, i) => `<tr><td${drillAttr(sizeName(sb, i), sb.rows.map((r) => r.t), { row: true, sub: "Every hold time at this position size" })}>${sizeName(sb, i)}</td>${cells[i].map((c, j) => {
           if (!c.length) return `<td class="cell dim">\u00b7</td>`;
           const net = insSum(c, (r) => r.net), wr = (c.filter((r) => r.win).length / c.length) * 100;
-          return `<td class="cell"${insTint(net, maxAbs)}><span class="${insCls(net)}">${fmtMoney(net)}</span><span class="sub">${c.length} \u00b7 ${wr.toFixed(0)}%</span></td>`;
+          const gridDrill = drillAttr(`${sizeName(sb, i)} \u00d7 hold ${insDur(holdB[j].lo)}\u2013${insDur(holdB[j].hi)}`, c.map((r) => r.t), { sub: "Size \u00d7 hold time" });
+          return `<td class="cell"${insTint(net, maxAbs)}${gridDrill}><span class="${insCls(net)}">${fmtMoney(net)}</span><span class="sub">${c.length} \u00b7 ${wr.toFixed(0)}%</span></td>`;
         }).join("")}</tr>`).join("")}</tbody></table></div>
         <div class="ins-note">Each cell: net P&amp;L, then trade count \u00b7 win rate. Buckets hold roughly equal numbers of trades.</div>`;
     }
 
     el.innerHTML = `
       ${notes.length || timeLine ? `<p class="ins-lead">${notes.concat(timeLine ? [timeLine] : []).join(" ")}</p>` : ""}
-      <div class="table-scroll"><table class="report-table"><thead><tr><th scope="col"></th><th scope="col" class="num">All</th><th scope="col" class="num">Winners</th><th scope="col" class="num">Losers</th></tr></thead><tbody>
+      <div class="table-scroll"><table class="report-table"><thead><tr><th scope="col"></th>
+        <th scope="col" class="num"${drillAttr("All trades", insT(both), { row: true, sub: TS_SUB })}>All</th>
+        <th scope="col" class="num"${drillAttr("Winners", insT(wins), { row: true, sub: TS_SUB })}>Winners</th>
+        <th scope="col" class="num"${drillAttr("Losers", insT(losses), { row: true, sub: TS_SUB })}>Losers</th></tr></thead><tbody>
         ${line("Trades", (c) => c.n)}
         ${line("Avg position size", (c) => insUsd(c.size))}
         ${line("Avg hold time", (c) => insDur(c.hold))}
@@ -1975,6 +2424,7 @@
       });
     });
     const stat = (arr) => ({
+      trades: arr.map((r) => r.t),
       n: arr.length,
       size: insAvg(arr.filter((r) => r.notional != null), (r) => r.notional),
       wr: arr.length ? (arr.filter((r) => r.win).length / arr.length) * 100 : null,
@@ -1993,15 +2443,16 @@
     if (aw && al && aw.n >= 5 && al.n >= 5) {
       if (aw.size && al.size) {
         const r = al.size / aw.size;
-        notes.push(r >= 1.15 ? `You size up <b>${Math.round((r - 1) * 100)}%</b> after a loss, compared with after a win \u2014 a common tilt pattern.`
-          : r <= 0.87 ? `You size down <b>${Math.round((1 - r) * 100)}%</b> after a loss, compared with after a win.`
+        const szL = (txt) => insLink(txt, "Trades after a loss", al.trades, "Compared with trades after a win");
+        notes.push(r >= 1.15 ? `You size up ${szL(`${Math.round((r - 1) * 100)}%`)} after a loss, compared with after a win \u2014 a common tilt pattern.`
+          : r <= 0.87 ? `You size down ${szL(`${Math.round((1 - r) * 100)}%`)} after a loss, compared with after a win.`
           : `Your size stays about the same after a win or a loss.`);
       }
       const d = al.wr - aw.wr;
-      if (Math.abs(d) >= 5) notes.push(`Your win rate is <b>${Math.abs(d).toFixed(0)} points ${d < 0 ? "lower" : "higher"}</b> after a loss than after a win.`);
+      if (Math.abs(d) >= 5) notes.push(`Your win rate is ${insLink(`${Math.abs(d).toFixed(0)} points ${d < 0 ? "lower" : "higher"}`, "Trades after a loss", al.trades, `Win rate ${al.wr.toFixed(0)}% after a loss vs ${aw.wr.toFixed(0)}% after a win`)} after a loss than after a win.`);
     }
     const behTable = `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Situation</th><th scope="col" class="num">Trades</th><th scope="col" class="num">Avg size</th><th scope="col" class="num">Win rate</th><th scope="col" class="num">Avg P&amp;L</th><th scope="col" class="num">Net P&amp;L</th></tr></thead><tbody>
-      ${groups.map(([label, s]) => `<tr><td>${label}</td><td class="mono num">${s.n}</td><td class="mono num">${insUsd(s.size)}</td>
+      ${groups.map(([label, s]) => `<tr${drillAttr(label, s.trades, { row: true, sub: "After a win or a loss" })}><td>${label}</td><td class="mono num">${s.n}</td><td class="mono num">${insUsd(s.size)}</td>
         <td class="mono num ${s.wr >= 50 ? "up" : "down"}">${s.wr.toFixed(0)}%</td>
         <td class="mono num ${insCls(s.avg)}">${fmtMoney(s.avg)}</td><td class="mono num ${insCls(s.net)}">${fmtMoney(s.net)}</td></tr>`).join("")}
       </tbody></table></div>`;
@@ -2013,20 +2464,20 @@
         const arr = seq.filter((r) => r.nth >= lo && r.nth <= hi);
         if (!arr.length) return "";
         const s = stat(arr);
-        return `<tr><td>${label}</td><td class="mono num">${s.n}</td><td class="mono num ${s.wr >= 50 ? "up" : "down"}">${s.wr.toFixed(0)}%</td>
+        return `<tr${drillAttr(label, s.trades, { row: true, sub: "By trade number of the day" })}><td>${label}</td><td class="mono num">${s.n}</td><td class="mono num ${s.wr >= 50 ? "up" : "down"}">${s.wr.toFixed(0)}%</td>
           <td class="mono num ${insCls(s.avg)}">${fmtMoney(s.avg)}</td><td class="mono num ${insCls(s.net)}">${fmtMoney(s.net)}</td></tr>`;
       }).join("")}</tbody></table></div>`;
 
     // Days grouped by how many trades were taken (overtrading check).
     const DAYB = [[1, 3, "1\u20133 trades"], [4, 6, "4\u20136 trades"], [7, 10, "7\u201310 trades"], [11, 20, "11\u201320 trades"], [21, Infinity, "21+ trades"]];
-    const dayList = Array.from(byDay.values()).map((list) => ({ n: list.length, net: insSum(list, (r) => r.net) }));
+    const dayList = Array.from(byDay.values()).map((list) => ({ n: list.length, net: insSum(list, (r) => r.net), trades: list.map((r) => r.t) }));
     const dayTable = `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Trades taken that day</th><th scope="col" class="num">Days</th><th scope="col" class="num">Winning days</th><th scope="col" class="num">Avg day P&amp;L</th><th scope="col" class="num">Avg per trade</th></tr></thead><tbody>
       ${DAYB.map(([lo, hi, label]) => {
         const d = dayList.filter((x) => x.n >= lo && x.n <= hi);
         if (!d.length) return "";
         const w = (d.filter((x) => x.net > 0).length / d.length) * 100;
         const avgDay = insAvg(d, (x) => x.net), avgTr = insSum(d, (x) => x.net) / insSum(d, (x) => x.n);
-        return `<tr><td>${label}</td><td class="mono num">${d.length}</td><td class="mono num ${w >= 50 ? "up" : "down"}">${w.toFixed(0)}%</td>
+        return `<tr${drillAttr(label, d.flatMap((x) => x.trades), { row: true, sub: "Every trade on days with this many trades" })}><td>${label}</td><td class="mono num">${d.length}</td><td class="mono num ${w >= 50 ? "up" : "down"}">${w.toFixed(0)}%</td>
           <td class="mono num ${insCls(avgDay)}">${fmtMoney(avgDay)}</td><td class="mono num ${insCls(avgTr)}">${fmtMoney(avgTr)}</td></tr>`;
       }).join("")}</tbody></table></div>`;
 
@@ -2057,41 +2508,52 @@
     const dayMap = new Map();
     rows.forEach((r) => dayMap.set(r.date, (dayMap.get(r.date) || 0) + r.net));
     const daysDesc = Array.from(dayMap.values()).sort((a, b) => b - a);
+    // Same orderings, but carrying the trades so each row can open them.
+    const rowsDesc = rows.slice().sort((a, b) => b.net - a.net);
+    const daysDescFull = Array.from(dayMap.entries()).map(([date, net]) => ({ net, trades: rows.filter((r) => r.date === date).map((r) => r.t) })).sort((a, b) => b.net - a.net);
+    const tr = (arr) => arr.map((r) => r.t);
+    const dy = (arr) => arr.flatMap((d) => d.trades);
     const top = (arr, n) => arr.slice(0, n);
     const bottom = (arr, n) => arr.slice(Math.max(0, arr.length - n));
     const tenPct = Math.max(1, Math.ceil(rows.length * 0.1));
     const defs = [
-      ["Your best trade", top(tradesDesc, 1), "trade"],
-      ["Your best 3 trades", top(tradesDesc, 3), "trade"],
-      ["Your best 5 trades", top(tradesDesc, 5), "trade"],
-      [`Your best 10% of trades (${tenPct})`, top(tradesDesc, tenPct), "trade"],
-      ["Your best day", top(daysDesc, 1), "day"],
-      ["Your best 3 days", top(daysDesc, 3), "day"],
-      ["Your worst 3 trades", bottom(tradesDesc, 3), "trade"],
-      ["Your worst day", bottom(daysDesc, 1), "day"],
+      ["Your best trade", top(tradesDesc, 1), "trade", tr(top(rowsDesc, 1))],
+      ["Your best 3 trades", top(tradesDesc, 3), "trade", tr(top(rowsDesc, 3))],
+      ["Your best 5 trades", top(tradesDesc, 5), "trade", tr(top(rowsDesc, 5))],
+      [`Your best 10% of trades (${tenPct})`, top(tradesDesc, tenPct), "trade", tr(top(rowsDesc, tenPct))],
+      ["Your best day", top(daysDesc, 1), "day", dy(top(daysDescFull, 1))],
+      ["Your best 3 days", top(daysDesc, 3), "day", dy(top(daysDescFull, 3))],
+      ["Your worst 3 trades", bottom(tradesDesc, 3), "trade", tr(bottom(rowsDesc, 3))],
+      ["Your worst day", bottom(daysDesc, 1), "day", dy(bottom(daysDescFull, 1))],
     ];
-    const rowsHtml = defs.map(([label, removed, unit]) => {
+    // What's left once a set of trades is taken out (by identity, so equal P&L can't confuse it).
+    const without_ = (set) => { const gone = new Set(set); return tr(rows).filter((t) => !gone.has(t)); };
+    const rowsHtml = defs.map(([label, removed, unit, set]) => {
       const rem = insSum(removed, (x) => x);
       const without = total - rem;
-      return `<tr><td>${label}</td><td class="mono num ${insCls(rem)}">${fmtMoney(rem)}</td><td class="mono num ${insCls(without)}"><b>${fmtMoney(without)}</b></td></tr>`;
+      return `<tr${drillAttr(label, set, { row: true, sub: "The trades being taken out" })}><td>${label}</td><td class="mono num ${insCls(rem)}">${fmtMoney(rem)}</td><td class="mono num ${insCls(without)}"${drillAttr(`Everything except: ${label}`, without_(set), { row: true, sub: "The trades that are left" })}><b>${fmtMoney(without)}</b></td></tr>`;
     }).join("");
 
     const best3 = insSum(top(tradesDesc, 3), (x) => x);
     const worst3 = insSum(bottom(tradesDesc, 3), (x) => x);
+    const best3T = tr(top(rowsDesc, 3)), worst3T = tr(bottom(rowsDesc, 3));
+    const allL = (v) => insLink(fmtMoney(v), "All trades", tr(rows), "Every trade in this view");
     let read;
     if (total > 0) {
+      const leftL = insLink(fmtMoney(total - best3), "Everything except your best 3 trades", without_(best3T), "The trades that are left");
       read = total - best3 <= 0
-        ? `Your profit leans on a few trades: without your best 3 you'd be at <b>${fmtMoney(total - best3)}</b> instead of <b>${fmtMoney(total)}</b>.`
-        : `Your profit is fairly spread out: even without your best 3 trades you'd still be at <b>${fmtMoney(total - best3)}</b>.`;
+        ? `Your profit leans on a few trades: without your best 3 you'd be at ${leftL} instead of ${allL(total)}.`
+        : `Your profit is fairly spread out: even without your best 3 trades you'd still be at ${leftL}.`;
     } else {
+      const leftL = insLink(fmtMoney(total - worst3), "Everything except your 3 worst trades", without_(worst3T), "The trades that are left");
       read = total - worst3 > 0
-        ? `Your 3 worst trades account for the whole loss: without them you'd be at <b>${fmtMoney(total - worst3)}</b> instead of <b>${fmtMoney(total)}</b>.`
-        : `The loss isn't just a few bad trades: even without your 3 worst you'd be at <b>${fmtMoney(total - worst3)}</b>.`;
+        ? `Your 3 worst trades account for the whole loss: without them you'd be at ${leftL} instead of ${allL(total)}.`
+        : `The loss isn't just a few bad trades: even without your 3 worst you'd be at ${leftL}.`;
     }
     el.innerHTML = `
       <p class="ins-lead">${read}</p>
       <div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">If you took out\u2026</th><th scope="col" class="num">Their P&amp;L</th><th scope="col" class="num">Net P&amp;L without them</th></tr></thead><tbody>
-        <tr><td><b>Everything (as is)</b></td><td class="mono num dim">\u2014</td><td class="mono num ${insCls(total)}"><b>${fmtMoney(total)}</b></td></tr>
+        <tr${drillAttr("Everything (as is)", tr(rows), { row: true, sub: "All trades in this view" })}><td><b>Everything (as is)</b></td><td class="mono num dim">\u2014</td><td class="mono num ${insCls(total)}"><b>${fmtMoney(total)}</b></td></tr>
         ${rowsHtml}</tbody></table></div>
       <div class="ins-note">Across ${insPlural(rows.length, "trade", "trades")} on ${insPlural(dayMap.size, "trading day", "trading days")}. Days are net P&amp;L per calendar day.</div>`;
   }
@@ -2121,14 +2583,14 @@
   function insNetBreakeven(rows) {
     return insBreakeven(rows.filter((r) => r.win).map((r) => r.net), rows.filter((r) => !r.win).map((r) => Math.abs(r.net)));
   }
-  function insGauge(b) {
+  function insGauge(b, allTrades) {
     const fill = Math.max(0, Math.min(100, b.winRate)), mark = Math.max(0, Math.min(100, b.be));
     const ok = b.winRate >= b.be;
     return `<div class="be-gauge">
       <div class="be-track"><div class="be-fill ${ok ? "ok" : "short"}" style="width:${fill.toFixed(1)}%"></div>
         <div class="be-mark" style="left:${mark.toFixed(1)}%"></div></div>
-      <div class="be-legend"><span class="${ok ? "up" : "down"}"><b>${b.winRate.toFixed(1)}%</b> your win rate</span>
-        <span><b>${b.be.toFixed(1)}%</b> needed to break even</span></div></div>`;
+      <div class="be-legend"><span class="${ok ? "up" : "down"}">${insLink(b.winRate.toFixed(1) + "%", "Your win rate", allTrades, "Every trade in this view")} your win rate</span>
+        <span>${insLink(b.be.toFixed(1) + "%", "Break-even win rate", allTrades, "Worked out from every trade in this view")} needed to break even</span></div></div>`;
   }
   function insBreakevenTable(title, groups) {
     const list = groups.map(([label, arr]) => [label, arr, insNetBreakeven(arr)]).filter(([, arr, s]) => arr.length >= 5 && s && s.be != null);
@@ -2136,7 +2598,7 @@
     return `<div class="ins-sub">${title}</div><div class="table-scroll"><table class="report-table"><thead><tr>
       <th scope="col"></th><th scope="col" class="num">Trades</th><th scope="col" class="num">Win rate</th><th scope="col" class="num">Avg win</th><th scope="col" class="num">Avg loss</th>
       <th scope="col" class="num">Needed</th><th scope="col" class="num">Vs needed</th><th scope="col" class="num">Net P&amp;L</th></tr></thead><tbody>
-      ${list.map(([label, arr, s]) => `<tr><td>${label}</td><td class="mono num">${s.n}</td><td class="mono num">${s.winRate.toFixed(0)}%</td>
+      ${list.map(([label, arr, s]) => `<tr${drillAttr(unescHtml(label), arr.map((r) => r.t), { row: true, sub: title })}><td>${label}</td><td class="mono num">${s.n}</td><td class="mono num">${s.winRate.toFixed(0)}%</td>
         <td class="mono num">${insUsd2(s.avgWin)}</td><td class="mono num">${insUsd2(s.avgLoss)}</td><td class="mono num">${s.be.toFixed(0)}%</td>
         <td class="mono num ${insCls(s.cushion)}">${insPts(s.cushion)}</td>
         <td class="mono num ${insCls(insSum(arr, (r) => r.net))}">${fmtMoney(insSum(arr, (r) => r.net))}</td></tr>`).join("")}
@@ -2153,28 +2615,34 @@
     }
     // "1.4 points" when the gap is small (whole numbers would hide it), "34 points" when it's big.
     const gapTxt = (v) => { const g = Math.abs(v); const t = g < 10 ? g.toFixed(1) : g.toFixed(0); return `${t} point${t === "1.0" || t === "1" ? "" : "s"}`; };
+    const allT = rows.map((r) => r.t), winT = rows.filter((r) => r.win).map((r) => r.t), lossT = rows.filter((r) => !r.win).map((r) => r.t);
+    const wrB = insLink(`${B.winRate.toFixed(0)}%`, "Your win rate", allT, "Every trade in this view");
+    const awB = insLink(insUsd2(B.avgWin), "Winning trades", winT, "The trades behind your average win");
+    const alB = insLink(insUsd2(B.avgLoss), "Losing trades", lossT, "The trades behind your average loss");
+    const beB = insLink(`${B.be.toFixed(0)}%`, "Break-even win rate", allT, "Worked out from every trade in this view");
+    const gapB = insLink(gapTxt(B.cushion), "Gap to break-even", allT, "Your win rate minus the break-even rate, over every trade");
     const lead = B.cushion < 0
-      ? `You win <b>${B.winRate.toFixed(0)}%</b> of trades. With an average win of <b>${insUsd2(B.avgWin)}</b> and an average loss of <b>${insUsd2(B.avgLoss)}</b>, you'd need <b>${B.be.toFixed(0)}%</b> to break even \u2014 <b>${gapTxt(B.cushion)}</b> short.`
-      : `You win <b>${B.winRate.toFixed(0)}%</b> of trades. With an average win of <b>${insUsd2(B.avgWin)}</b> and an average loss of <b>${insUsd2(B.avgLoss)}</b>, you need <b>${B.be.toFixed(0)}%</b> to break even \u2014 you're <b>${gapTxt(B.cushion)}</b> above it.`;
+      ? `You win ${wrB} of trades. With an average win of ${awB} and an average loss of ${alB}, you'd need ${beB} to break even \u2014 ${gapB} short.`
+      : `You win ${wrB} of trades. With an average win of ${awB} and an average loss of ${alB}, you need ${beB} to break even \u2014 you're ${gapB} above it.`;
 
     // The three ways to close (or protect) the gap, changing one thing at a time.
-    const lever = (label, now, needed, fmt, needsUp, inPoints) => {
-      if (needed == null) return `<tr><td>${label}</td><td class="mono num">${fmt(now)}</td><td class="mono num">\u2014</td><td class="mono num dim">\u2014</td></tr>`;
+    const lever = (label, set, now, needed, fmt, needsUp, inPoints) => {
+      if (needed == null) return `<tr${drillAttr(unescHtml(label), set, { row: true, sub: "Break-even levers" })}><td>${label}</td><td class="mono num">${fmt(now)}</td><td class="mono num">\u2014</td><td class="mono num dim">\u2014</td></tr>`;
       const short = needsUp ? needed > now : needed < now;
       const pct = now ? Math.abs((needed - now) / now) * 100 : null;
       const sign = needed > now ? "+" : "\u2212";
       // Win rate is already a percentage, so its gap is in points; the dollar rows also get a % change.
       const gap = inPoints ? `${sign}${Math.abs(needed - now).toFixed(1)} pts`
         : `${sign}${fmt(Math.abs(needed - now))}${pct != null ? ` (${Math.round(pct)}%)` : ""}`;
-      return `<tr><td>${label}</td><td class="mono num">${fmt(now)}</td><td class="mono num">${fmt(needed)}</td>
+      return `<tr${drillAttr(unescHtml(label), set, { row: true, sub: "Break-even levers" })}><td>${label}</td><td class="mono num">${fmt(now)}</td><td class="mono num">${fmt(needed)}</td>
         <td class="mono num ${short ? "down" : "up"}">${short ? "need " : "room "}${gap}</td></tr>`;
     };
     const pctFmt = (v) => v.toFixed(1) + "%";
     const levers = `<div class="ins-sub">What it would take to break even (change one thing, keep the others)</div>
       <div class="table-scroll"><table class="report-table"><thead><tr><th scope="col"></th><th scope="col" class="num">Now</th><th scope="col" class="num">Break-even</th><th scope="col" class="num">Gap</th></tr></thead><tbody>
-        ${lever("Win rate", B.winRate, B.be, pctFmt, true, true)}
-        ${lever("Average win", B.avgWin, B.needWin, insUsd2, true)}
-        ${lever("Average loss (smaller is better)", B.avgLoss, B.maxLoss, insUsd2, false)}
+        ${lever("Win rate", rows.map((r) => r.t), B.winRate, B.be, pctFmt, true, true)}
+        ${lever("Average win", rows.filter((r) => r.win).map((r) => r.t), B.avgWin, B.needWin, insUsd2, true)}
+        ${lever("Average loss (smaller is better)", rows.filter((r) => !r.win).map((r) => r.t), B.avgLoss, B.maxLoss, insUsd2, false)}
       </tbody></table></div>`;
 
     const bySetup = new Map();
@@ -2196,14 +2664,18 @@
       const flips = withGross.filter((r) => r.gross > 0 && r.net <= 0);
       const grossWinners = withGross.filter((r) => r.gross > 0).length;
       const c2 = (v) => (v == null ? "\u2014" : `${v >= 0 ? "+" : "\u2212"}${Math.abs(v).toFixed(2)}\u00a2`);
-      const line = (label, a, b, d, cls) => `<tr><td>${label}</td><td class="mono num">${a}</td><td class="mono num">${b}</td><td class="mono num ${cls || "dim"}">${d}</td></tr>`;
+      const line = (label, a, b, d, cls) => `<tr${drillAttr(unescHtml(label), withGross.map((r) => r.t), { row: true, sub: "Trades with before-commission P&L" })}><td>${label}</td><td class="mono num">${a}</td><td class="mono num">${b}</td><td class="mono num ${cls || "dim"}">${d}</td></tr>`;
       const beRow = G && N && G.be != null && N.be != null
         ? line("Break-even win rate", G.be.toFixed(1) + "%", N.be.toFixed(1) + "%", insPts(N.be - G.be), N.be > G.be ? "down" : "up") : "";
+      const wgT = withGross.map((r) => r.t);
+      const grossL = insLink(fmtMoney(grossTotal), "P&L before commissions", wgT, "Trades with before-commission P&L");
+      const netL = insLink(fmtMoney(netTotal), "P&L after commissions", wgT, "Trades with before-commission P&L");
+      const commL = insLink(insUsd2(commTotal), "Commissions paid", wgT, "Trades with before-commission P&L");
       const read = grossTotal > 0 && netTotal <= 0
-        ? `You're profitable <b>before</b> commissions (<b>${fmtMoney(grossTotal)}</b>), but commissions of <b>${insUsd2(commTotal)}</b> turn that into <b>${fmtMoney(netTotal)}</b>.`
+        ? `You're profitable <b>before</b> commissions (${grossL}), but commissions of ${commL} turn that into ${netL}.`
         : grossTotal <= 0
-        ? `You're losing money even <b>before</b> commissions (<b>${fmtMoney(grossTotal)}</b>) \u2014 commissions (<b>${insUsd2(commTotal)}</b>) make it worse rather than being the cause.`
-        : `Commissions took <b>${insUsd2(commTotal)}</b> (${((commTotal / grossTotal) * 100).toFixed(0)}% of your gross profit of <b>${fmtMoney(grossTotal)}</b>).`;
+        ? `You're losing money even <b>before</b> commissions (${grossL}) \u2014 commissions (${commL}) make it worse rather than being the cause.`
+        : `Commissions took ${commL} (${((commTotal / grossTotal) * 100).toFixed(0)}% of your gross profit of ${grossL}).`;
       cost = `<div class="ins-sub">Cost drag \u2014 before vs after commissions</div>
         <p class="ins-lead">${read}</p>
         <div class="table-scroll"><table class="report-table"><thead><tr><th scope="col"></th><th scope="col" class="num">Before commissions</th><th scope="col" class="num">After commissions</th><th scope="col" class="num">Change</th></tr></thead><tbody>
@@ -2214,14 +2686,14 @@
           ${beRow}
           ${shares > 0 ? line("P&amp;L per share", c2(cps(grossTotal)), c2(cps(netTotal)), c2(cps(netTotal - grossTotal)), "down") : ""}
         </tbody></table></div>
-        <div class="ins-note"><b>${flips.length}</b> of your ${withGross.length} trades (${((flips.length / withGross.length) * 100).toFixed(0)}%) made money before commissions but lost after them${grossWinners ? ` \u2014 ${((flips.length / grossWinners) * 100).toFixed(0)}% of your gross winners` : ""}.
-        Commissions average <b>${insUsd2(commTotal / withGross.length)}</b> a trade${shares > 0 ? ` (${(cps(commTotal)).toFixed(2)}\u00a2 a share)` : ""}.</div>`;
+        <div class="ins-note"><b${drillAttr("Made money before commissions, lost after", flips.map((r) => r.t), { sub: "Commission flips" })}>${flips.length}</b> of your ${withGross.length} trades (${((flips.length / withGross.length) * 100).toFixed(0)}%) made money before commissions but lost after them${grossWinners ? ` \u2014 ${((flips.length / grossWinners) * 100).toFixed(0)}% of your gross winners` : ""}.
+        Commissions average ${insLink(insUsd2(commTotal / withGross.length), "Commissions per trade", wgT, "Trades with before-commission P&L")} a trade${shares > 0 ? ` (${(cps(commTotal)).toFixed(2)}\u00a2 a share)` : ""}.</div>`;
     } else if (totalComm <= 0) {
       cost = `<div class="ins-note">No commissions are recorded on these trades, so there is no cost-drag comparison to show.</div>`;
     }
 
     el.innerHTML = `
-      <p class="ins-lead">${lead}</p>${insGauge(B)}${levers}${setupTable}${sideTable}${cost}
+      <p class="ins-lead">${lead}</p>${insGauge(B, allT)}${levers}${setupTable}${sideTable}${cost}
       <div class="ins-note">Break-even win rate = average loss \u00f7 (average win + average loss), using P&amp;L after commissions. It's the win rate at which winners and losers cancel out exactly. Groups with fewer than 5 trades are hidden \u2014 small samples swing wildly.</div>`;
   }
 
@@ -2246,12 +2718,17 @@
       ["15\u201330 min", (g) => g >= 15 && g < 30],
       ["30+ min", (g) => g >= 30],
     ];
-    const st = (arr) => (arr.length ? { n: arr.length, wr: (arr.filter((r) => r.win).length / arr.length) * 100, avg: insAvg(arr, (r) => r.net), net: insSum(arr, (r) => r.net) } : null);
-    const cell = (s) => (s ? `<td class="mono num">${s.n}</td><td class="mono num ${s.wr >= 50 ? "up" : "down"}">${s.wr.toFixed(0)}%</td><td class="mono num ${insCls(s.avg)}">${fmtMoney(s.avg)}</td>`
-      : `<td class="mono num dim">0</td><td class="mono num dim">\u2014</td><td class="mono num dim">\u2014</td>`);
+    const st = (arr) => (arr.length ? { trades: arr.map((r) => r.t), n: arr.length, wr: (arr.filter((r) => r.win).length / arr.length) * 100, avg: insAvg(arr, (r) => r.net), net: insSum(arr, (r) => r.net) } : null);
+    // All three numbers in a group open the same trades.
+    const cell = (s, title) => {
+      if (!s) return `<td class="mono num dim">0</td><td class="mono num dim">\u2014</td><td class="mono num dim">\u2014</td>`;
+      const a = drillAttr(title, s.trades, { sub: "Re-entry timing" });
+      return `<td class="mono num"${a}>${s.n}</td><td class="mono num ${s.wr >= 50 ? "up" : "down"}"${a}>${s.wr.toFixed(0)}%</td><td class="mono num ${insCls(s.avg)}"${a}>${fmtMoney(s.avg)}</td>`;
+    };
     const rowsHtml = BUCKETS.map(([label, f]) => {
-      const L = st(withGap.filter((r) => r.prev === "loss" && f(r.gap))), W = st(withGap.filter((r) => r.prev === "win" && f(r.gap)));
-      return L || W ? `<tr><td>${label}</td>${cell(L)}${cell(W)}</tr>` : "";
+      const inBucket = withGap.filter((r) => f(r.gap));
+      const L = st(inBucket.filter((r) => r.prev === "loss")), W = st(inBucket.filter((r) => r.prev === "win"));
+      return L || W ? `<tr><td${drillAttr(label, inBucket.map((r) => r.t), { row: true, sub: "Re-entry timing \u00b7 after a win or a loss" })}>${label}</td>${cell(L, label + " \u00b7 after a loss")}${cell(W, label + " \u00b7 after a win")}</tr>` : "";
     }).join("");
 
     // Fast vs slow after a loss, using the adjustable threshold.
@@ -2262,7 +2739,9 @@
     const fs = st(fast), ss = st(slow);
     if (fs && ss && fs.n >= 8 && ss.n >= 8) {
       const d = fs.wr - ss.wr;
-      notes.push(`Trades opened within <b>${T} min</b> of a loss win <b>${fs.wr.toFixed(0)}%</b> (net <b>${fmtMoney(fs.net)}</b>, ${fs.n} trades) versus <b>${ss.wr.toFixed(0)}%</b> when you wait longer (net <b>${fmtMoney(ss.net)}</b>, ${ss.n} trades)${Math.abs(d) >= 5 ? ` \u2014 ${Math.abs(d).toFixed(0)} points ${d < 0 ? "worse" : "better"} when you rush back in` : ""}.`);
+      const fL = (txt) => insLink(txt, `Opened within ${T} min of a loss`, fs.trades, "Re-entry timing");
+      const sL = (txt) => insLink(txt, `Opened more than ${T} min after a loss`, ss.trades, "Re-entry timing");
+      notes.push(`Trades opened within ${fL(`${T} min`)} of a loss win ${fL(`${fs.wr.toFixed(0)}%`)} (net ${fL(fmtMoney(fs.net))}, ${fs.n} trades) versus ${sL(`${ss.wr.toFixed(0)}%`)} when you wait longer (net ${sL(fmtMoney(ss.net))}, ${ss.n} trades)${Math.abs(d) >= 5 ? ` \u2014 ${Math.abs(d).toFixed(0)} points ${d < 0 ? "worse" : "better"} when you rush back in` : ""}.`);
     } else {
       notes.push(`Not enough trades on both sides of ${T} min after a loss to compare (need 8 each) \u2014 try a different threshold.`);
     }
@@ -2270,7 +2749,8 @@
     const bigger = fast.filter((r) => r.notional != null && r.prevRow && r.prevRow.notional != null && r.notional >= 1.25 * r.prevRow.notional);
     const bs = st(bigger);
     if (bs && bs.n >= 3) {
-      notes.push(`Of the ${fast.length} trades opened within ${T} min of a loss, <b>${bs.n}</b> were also at least 25% bigger than the trade before \u2014 they won <b>${bs.wr.toFixed(0)}%</b> and netted <b>${fmtMoney(bs.net)}</b>.`);
+      const bL = (txt) => insLink(txt, `Fast and 25%+ bigger (within ${T} min of a loss)`, bs.trades, "The \"make it back\" pattern");
+      notes.push(`Of the ${fast.length} trades opened within ${T} min of a loss, ${bL(String(bs.n))} were also at least 25% bigger than the trade before \u2014 they won ${bL(`${bs.wr.toFixed(0)}%`)} and netted ${bL(fmtMoney(bs.net))}.`);
     }
     return `<p class="ins-lead">${notes.join(" ")}</p>
       <div class="table-scroll"><table class="report-table"><thead>
@@ -2318,19 +2798,24 @@
     const p = insRuleValue(rule.key);
     const sim = insSimulate(insRuleDays, rule.key, p);
     const skippedNet = insSum(sim.skipped, (r) => r.net);
+    const skippedSet = new Set(sim.skipped);
     return {
-      rule, p, n: sim.skipped.length, days: sim.daysAffected,
+      rule, p, n: sim.skipped.length, days: sim.daysAffected, skipped: sim.skipped,
+      kept: insRuleDays.flat().filter((r) => !skippedSet.has(r)),
       wr: sim.skipped.length ? (sim.skipped.filter((r) => r.win).length / sim.skipped.length) * 100 : null,
       pnl: insRuleTotal - skippedNet, change: -skippedNet,
     };
   }
   function insFillRuleRow(tr, o) {
     const set = (cls, html) => { const c = tr.querySelector("." + cls); if (c) c.innerHTML = html; };
-    set("r-n", String(o.n));
-    set("r-days", String(o.days));
-    set("r-wr", o.wr == null ? "\u2014" : `<span class="${o.wr >= 50 ? "up" : "down"}">${o.wr.toFixed(0)}%</span>`);
-    set("r-pnl", `<span class="${insCls(o.pnl)}">${fmtMoney(o.pnl)}</span>`);
-    set("r-chg", o.n ? `<span class="${insCls(o.change)}"><b>${fmtMoney(o.change)}</b></span>` : `<span class="dim">no effect</span>`);
+    const ruleName = `${o.rule.label} ${o.rule.unit === "dollars" ? "$" + o.p : o.p + " " + o.rule.unit}`;
+    const skipA = o.n ? drillAttr(`Skipped by rule: ${ruleName}`, o.skipped.map((r) => r.t), { sub: "The trades this rule would have kept you out of" }) : "";
+    const keptA = drillAttr(`Kept by rule: ${ruleName}`, o.kept.map((r) => r.t), { sub: "The trades you'd still have taken" });
+    set("r-n", o.n ? `<span${skipA}>${o.n}</span>` : "0");
+    set("r-days", o.n ? `<span${skipA}>${o.days}</span>` : String(o.days));
+    set("r-wr", o.wr == null ? "\u2014" : `<span class="${o.wr >= 50 ? "up" : "down"}"${skipA}>${o.wr.toFixed(0)}%</span>`);
+    set("r-pnl", `<span class="${insCls(o.pnl)}"${keptA}>${fmtMoney(o.pnl)}</span>`);
+    set("r-chg", o.n ? `<span class="${insCls(o.change)}"${skipA}><b>${fmtMoney(o.change)}</b></span>` : `<span class="dim">no effect</span>`);
   }
   function insRefreshRules() {
     const panel = document.getElementById("insights-rules");
@@ -2343,7 +2828,12 @@
     if (lead) lead.innerHTML = !affecting.length
       ? "None of these rules would have changed anything with the values below."
       : best.change > 0
-        ? `In hindsight, the rule that would have helped most is <b>${best.rule.label.toLowerCase()} ${best.rule.unit === "dollars" ? "$" + best.p : best.p + " " + best.rule.unit}</b>: <b>${fmtMoney(best.change)}</b> better, by skipping ${best.n} ${best.n === 1 ? "trade" : "trades"} on ${best.days} ${best.days === 1 ? "day" : "days"}.`
+        ? (() => {
+          const bestSet = best.skipped.map((r) => r.t);
+          const bestSub = "The trades this rule would have kept you out of";
+          const bestName = `${best.rule.label} ${best.rule.unit === "dollars" ? "$" + best.p : best.p + " " + best.rule.unit}`;
+          return `In hindsight, the rule that would have helped most is ${insLink(`${best.rule.label.toLowerCase()} ${best.rule.unit === "dollars" ? "$" + best.p : best.p + " " + best.rule.unit}`, `Skipped by rule: ${bestName}`, bestSet, bestSub)}: ${insLink(fmtMoney(best.change), `Skipped by rule: ${bestName}`, bestSet, bestSub)} better, by skipping ${best.n} ${best.n === 1 ? "trade" : "trades"} on ${best.days} ${best.days === 1 ? "day" : "days"}.`;
+        })()
         : "None of these rules would have improved your P&amp;L \u2014 the trades they'd have skipped made about as much as they lost.";
   }
   function renderInsightsRules(rows) {
@@ -2370,7 +2860,7 @@
       <p class="ins-lead" id="ins-rules-lead"></p>
       <div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Rule</th><th scope="col">Value</th><th scope="col" class="num">Trades skipped</th><th scope="col" class="num">Days affected</th><th scope="col" class="num">Skipped win rate</th><th scope="col" class="num">P&amp;L with rule</th><th scope="col" class="num">Change</th></tr></thead>
         <tbody>${rowsHtml}
-        <tr class="dim"><td>Your actual results</td><td></td><td class="mono num">0</td><td class="mono num">0</td><td class="mono num">\u2014</td><td class="mono num"><span class="${insCls(insRuleTotal)}">${fmtMoney(insRuleTotal)}</span></td><td class="mono num">\u2014</td></tr></tbody></table></div>
+        <tr class="dim"><td>Your actual results</td><td></td><td class="mono num">0</td><td class="mono num">0</td><td class="mono num">\u2014</td><td class="mono num"><span class="${insCls(insRuleTotal)}"${drillAttr("Your actual results", rows.map((r) => r.t), { sub: "Every trade, no rule applied" })}>${fmtMoney(insRuleTotal)}</span></td><td class="mono num">\u2014</td></tr></tbody></table></div>
       <div class="ins-note">Each rule is tested on its own against your real days, in the order you entered trades. It assumes the trades a rule would have skipped are simply not taken, and that the rest go exactly as they did \u2014 in reality you'd also trade differently after stopping, so treat this as a hint, not a forecast. Change the values to see how sensitive the result is: a rule that only helps at one exact number is probably fitting noise. The starting values are 3\u00d7 your average loss / win and a busy-day trade count, not tuned to your results.</div>`;
     insRefreshRules();
     if (!el.__rulesBound) {

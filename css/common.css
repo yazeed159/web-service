@@ -3574,3 +3574,24 @@ html.has-ptr .data-fresh { cursor: pointer; }
   html.tabedit-open .bottom-nav, html.tabedit-open .chatw-launcher { visibility: hidden; }
 }
 @keyframes hsSheetIn { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ---- Mobile polish: lesson tags, About pills, day-view rows, week box ---- */
+.lessons-list li .lesson-body .lesson-tag { display: inline-block; white-space: nowrap; line-height: 1.5; }
+.symbol-card .sym-meta-row { align-items: center; }
+.symbol-card .sym-meta-row .pill, .symbol-card .sym-meta-row .icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; line-height: 1.2; min-height: 28px; box-sizing: border-box;
+}
+@media (max-width: 760px) {
+  /* Day view: price gets two columns so "Price $0.54 -> $0.57" no longer runs into Shares */
+  .tt-day tbody tr { grid-template-columns: repeat(3, minmax(0,1fr));
+    grid-template-areas: "sym sym net" "price price shares" "hold gross comm" "cps io io"; }
+  .tt-day td { min-width: 0; }
+  .tt-day td:nth-child(2), .tt-day td:nth-child(4) { white-space: nowrap; }
+  .tt-day td:nth-child(4) { justify-self: end; }
+}
+@media (max-width: 560px) {
+  /* Week summary: widen its column and keep the P&L inside the box */
+  .cal-grid { grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 1.25fr); }
+  .cal-week-box { min-width: 0; overflow: hidden; align-items: center; text-align: center; padding: 6px 2px; }
+  .cal-week-box .week-pnl { font-size: 10.5px; letter-spacing: -0.04em; white-space: nowrap; max-width: 100%; }
+}

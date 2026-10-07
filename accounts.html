@@ -198,6 +198,7 @@
   .acc-card{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
   .acc-card.combined{border-color:var(--primary);background:var(--primary-soft)}
   .acc-card.archived{opacity:.65}
+  .acc-actions .danger-btn{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent)}
   .acc-card-h{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}
   .acc-dot{width:10px;height:10px;border-radius:50%;flex:none}
   .acc-balance{font:600 22px var(--mono);letter-spacing:-.01em}
@@ -254,7 +255,9 @@
         '<button type="button" class="filter-btn" data-act="money" data-id="' + escapeHtml(a.id) + '">Deposits &amp; periods</button>' +
         '<button type="button" class="filter-btn" data-act="rename" data-id="' + escapeHtml(a.id) + '">Rename</button>' +
         '<button type="button" class="filter-btn" data-act="archive" data-id="' + escapeHtml(a.id) + '">' + (a.status === "archived" ? "Restore" : "Archive") + "</button>" +
-        (trades.length === 0 ? '<button type="button" class="filter-btn" data-act="delete" data-id="' + escapeHtml(a.id) + '">Delete</button>' : "");
+        (lastImportFor(a.id, trades) ? '<button type="button" class="filter-btn" data-act="undo-import" data-id="' + escapeHtml(a.id) + '">Undo last import</button>' : "") +
+        (trades.length ? '<button type="button" class="filter-btn" data-act="del-trades" data-id="' + escapeHtml(a.id) + '">Delete trades\u2026</button>' : "") +
+        '<button type="button" class="filter-btn danger-btn" data-act="delete" data-id="' + escapeHtml(a.id) + '">Delete account</button>';
     return '<div class="acc-card' + (opts.combined ? " combined" : "") + (a && a.status === "archived" ? " archived" : "") + '">' +
       '<div class="acc-card-h"><span class="acc-dot" style="background:' + (opts.combined ? "var(--primary)" : escapeHtml(a.color || "#8b7cf6")) + '"></span>' +
       escapeHtml(opts.combined ? "All real accounts" : a.name) + (a && opts.paper ? ' <span class="pill">paper</span>' : "") + (a && a.status === "archived" ? ' <span class="pill">archived</span>' : "") + "</div>" +
@@ -283,6 +286,60 @@
       : '<div class="acc-empty">No paper accounts yet. Add one, then import its trades from Import Trades (pick it as the account).</div>';
   }
 
+  // ---------------- delete / undo helpers ----------------
+  // Import history is written by import-trades.html (KV "import_history":
+  // [{at, ids:[trade ids that import published]}]).
+  function importHistory() { const h = window.KV && window.KV.get("import_history"); return Array.isArray(h) ? h : []; }
+  function lastImportFor(accountId, trades) {
+    const mine = new Set(trades.map((t) => t.id));
+    const h = importHistory();
+    for (let i = h.length - 1; i >= 0; i--) {
+      const ids = (h[i].ids || []).filter((id) => mine.has(id));
+      if (ids.length) return { entry: h[i], ids };
+    }
+    return null;
+  }
+  async function deleteTradeIds(ids) {
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      // Child rows first (best effort -- may already cascade or be absent).
+      try { await window.sb.from("trade_details").delete().in("trade_id", chunk); } catch (e) { /* ignore */ }
+      const res = await window.sb.from("trades").delete().in("id", chunk);
+      if (res.error) throw new Error(res.error.message);
+    }
+    const gone = new Set(ids);
+    allTrades = allTrades.filter((t) => !gone.has(t.id));
+    const h = importHistory().map((e) => Object.assign({}, e, { ids: (e.ids || []).filter((id) => !gone.has(id)) })).filter((e) => e.ids.length);
+    window.KV.set("import_history", h);
+  }
+  // Modal: pick all trades or a date range, see the live count, then confirm.
+  function pickTradesToDelete(a, trades) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "ui-modal-overlay open";
+      overlay.innerHTML =
+        '<div class="ui-modal-box" role="alertdialog" aria-modal="true">' +
+        '<div class="ui-modal-title">Delete trades from ' + escapeHtml(a.name) + "</div>" +
+        '<div class="ui-modal-msg">Leave both dates empty to delete <b>every</b> trade in this account, or limit it to a date range. This can\u2019t be undone.</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;">' +
+        '<div><label>From</label><input type="date" id="dt-from"></div><div><label>To</label><input type="date" id="dt-to"></div></div>' +
+        '<div id="dt-count" class="ui-modal-msg" style="margin-top:12px;font-weight:600;color:var(--text);"></div>' +
+        '<div class="ui-modal-actions"><button type="button" class="btn-advanced" data-a="cancel">Cancel</button>' +
+        '<button type="button" class="btn-danger" data-a="ok">Delete</button></div></div>';
+      document.body.appendChild(overlay);
+      const from = overlay.querySelector("#dt-from"), to = overlay.querySelector("#dt-to"), cnt = overlay.querySelector("#dt-count"), ok = overlay.querySelector('[data-a="ok"]');
+      const sel = () => trades.filter((t) => (!from.value || t.trade_date >= from.value) && (!to.value || t.trade_date <= to.value));
+      const upd = () => { const n = sel().length; cnt.textContent = n + " of " + trades.length + " trade" + (trades.length === 1 ? "" : "s") + " will be deleted"; ok.disabled = !n; ok.textContent = n ? "Delete " + n + " trade" + (n === 1 ? "" : "s") : "Delete"; };
+      from.addEventListener("input", upd); to.addEventListener("input", upd); upd();
+      const close = (v) => { overlay.remove(); document.removeEventListener("keydown", onKey); resolve(v); };
+      const onKey = (e) => { if (e.key === "Escape") close(null); };
+      document.addEventListener("keydown", onKey);
+      overlay.addEventListener("click", (e) => { if (e.target === overlay) close(null); });
+      overlay.querySelector('[data-a="cancel"]').addEventListener("click", () => close(null));
+      ok.addEventListener("click", () => close(sel().map((t) => t.id)));
+    });
+  }
+
   async function onCardClick(ev) {
     const btn = ev.target.closest("button[data-act]");
     if (!btn) return;
@@ -306,14 +363,43 @@
         }
         await A.setStatus(id, a.status === "archived" ? "active" : "archived");
         refreshAll();
-      } else if (act === "delete") {
-        const ok = await UIModal.confirm("Delete this empty account? Its deposits/withdrawals will be removed too.", { title: "Delete account?", tone: "danger", confirmLabel: "Delete" });
+      } else if (act === "undo-import") {
+        const a = A.byId(id);
+        const found = lastImportFor(id, tradesOf(id));
+        if (!found) { toast("No recent import found for this account.", "error"); return; }
+        const when = new Date(found.entry.at).toLocaleString();
+        const ok = await UIModal.confirm("Delete the " + found.ids.length + " trade" + (found.ids.length === 1 ? "" : "s") + " from your last import (" + when + ") in \u201c" + a.name + "\u201d? If that import overwrote trades that already existed, those are removed too. This can\u2019t be undone.", { title: "Undo last import?", tone: "danger", confirmLabel: "Delete " + found.ids.length + " trades" });
         if (!ok) return;
+        await deleteTradeIds(found.ids);
+        refreshAll();
+        toast("Last import undone \u2014 " + found.ids.length + " trades deleted.");
+      } else if (act === "del-trades") {
+        const a = A.byId(id);
+        const ids = await pickTradesToDelete(a, tradesOf(id));
+        if (!ids || !ids.length) return;
+        await deleteTradeIds(ids);
+        refreshAll();
+        toast(ids.length + " trade" + (ids.length === 1 ? "" : "s") + " deleted.");
+      } else if (act === "delete") {
+        const a = A.byId(id);
+        if (!A.isBrokerPaper(a) && a.status !== "archived" && A.live().filter((x) => x.status === "active").length <= 1) {
+          toast("Keep at least one active real account \u2014 create another first.", "error"); return;
+        }
+        const trades = tradesOf(id);
+        const entries = ledgerOf(id);
+        const detail = trades.length
+          ? "This permanently deletes \u201c" + a.name + "\u201d, its " + trades.length + " trade" + (trades.length === 1 ? "" : "s") + (entries.length ? " and its deposits/withdrawals" : "") + ". This can\u2019t be undone. Type the account name to confirm:"
+          : "Delete the empty account \u201c" + a.name + "\u201d" + (entries.length ? " and its deposits/withdrawals" : "") + "? Type the account name to confirm:";
+        const typed = await UIModal.prompt(detail, "", { title: "Delete account?", tone: "danger", confirmLabel: "Delete account" });
+        if (typed === null) return;
+        if (typed.trim() !== a.name.trim()) { toast("Name didn\u2019t match \u2014 nothing was deleted.", "error"); return; }
+        if (trades.length) await deleteTradeIds(trades.map((t) => t.id));
         await A.remove(id);
         ledger = ledger.filter((e) => A.ledgerAccountId(e) !== id);
         saveLedger();
         if (pickedId === id) pickedId = null;
         refreshAll();
+        toast("Account deleted.");
       }
     } catch (e) { toast(e.message || String(e), "error"); }
   }
