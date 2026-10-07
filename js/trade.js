@@ -193,21 +193,58 @@
   // Compact share-count formatting for the About card -- 18,500,000 -> "18.5M".
 // fmtShares() now in utils.js (loads first on every page).
 
-  function siblingNav(trade, siblings) {
-    if (!Array.isArray(siblings) || !siblings.length) return "";
-    const key = (t) => (t.trade_date || "") + (t.entry_time || "");
-    const idx = siblings.findIndex((r) => r.id === trade.id);
-    const prev = idx > 0 ? siblings[idx - 1] : null;
-    const next = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
-    const link = (row, label, dir) =>
-      row
-        ? `<a href="trade.html?id=${encodeURIComponent(row.id)}" class="trade-nav-link" style="color:#8b98a5; text-decoration:none; font-size:12.5px; display:flex; align-items:center; gap:4px;">${dir === "prev" ? "←" : ""}${escapeHtml(label)}${dir === "next" ? "→" : ""}</a>`
-        : `<span style="color:#3a4149; font-size:12.5px;">${dir === "prev" ? "←" : ""}${escapeHtml(label)}${dir === "next" ? "→" : ""}</span>`;
-    return `<div class="trade-sibling-nav" style="display:flex; justify-content:space-between; margin-bottom:10px;">
-      ${link(prev, prev ? `${prev.symbol} · ${prev.trade_date}` : "No earlier trade", "prev")}
-      ${link(next, next ? `${next.symbol} · ${next.trade_date}` : "No later trade", "next")}
-    </div>`;
+  // "Mar 4" (plus the year when it isn't this year) from a YYYY-MM-DD string.
+  function shortDate(d) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || "");
+    if (!m) return d || "";
+    const dt = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    const opts = { month: "short", day: "numeric" };
+    if (dt.getFullYear() !== new Date().getFullYear()) opts.year = "numeric";
+    return dt.toLocaleDateString(undefined, opts);
   }
+  function longDate(d) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || "");
+    if (!m) return d || "";
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+      .toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  }
+
+  // Previous / next trade buttons (older <- this -> newer), filled into the
+  // static #trade-pager slot so the "All trades" link and Share button next
+  // to it keep their one-time wiring. Left/right arrow keys do the same thing.
+  function renderPager(trade, siblings) {
+    const host = document.getElementById("trade-pager");
+    if (!host) return;
+    if (!Array.isArray(siblings) || !siblings.length) { host.innerHTML = ""; return; }
+    const idx = siblings.findIndex((r) => r.id === trade.id);
+    if (idx < 0) { host.innerHTML = ""; return; }
+    const prev = idx > 0 ? siblings[idx - 1] : null;
+    const next = idx < siblings.length - 1 ? siblings[idx + 1] : null;
+    const chev = (dir) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="${dir === "prev" ? "15 18 9 12 15 6" : "9 18 15 12 9 6"}"></polyline></svg>`;
+    const btn = (row, dir) => {
+      const word = dir === "prev" ? "Previous" : "Next";
+      const sub = row ? `${escapeHtml(row.symbol)} · ${escapeHtml(shortDate(row.trade_date))}` : (dir === "prev" ? "Oldest trade" : "Latest trade");
+      const inner = `${dir === "prev" ? chev(dir) : ""}<span class="th-nav-txt"><span class="th-nav-word">${word}</span><span class="th-nav-sub">${sub}</span></span>${dir === "next" ? chev(dir) : ""}`;
+      return row
+        ? `<a class="th-nav ${dir}" data-dir="${dir}" href="trade.html?id=${encodeURIComponent(row.id)}" title="${word} trade (${dir === "prev" ? "\u2190" : "\u2192"})">${inner}</a>`
+        : `<span class="th-nav ${dir} is-off" aria-disabled="true">${inner}</span>`;
+    };
+    host.innerHTML = `<nav class="th-pager" aria-label="Trade navigation">
+      ${btn(prev, "prev")}
+      <span class="th-pos mono" title="Position among all your trades, oldest first">${idx + 1}<span class="th-pos-of"> / ${siblings.length}</span></span>
+      ${btn(next, "next")}
+    </nav>`;
+  }
+
+  // \u2190 / \u2192 step through trades, unless you're typing somewhere.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.defaultPrevented) return;
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    const a = document.querySelector(`#trade-pager a.th-nav[data-dir="${e.key === "ArrowLeft" ? "prev" : "next"}"]`);
+    if (a) { e.preventDefault(); a.click(); }
+  });
 
   // Your own journal entry for this trade (plan, setup, mistakes, rules,
   // notes) -- see trade-notes.js. Saves on every change, debounced for text.
@@ -340,24 +377,41 @@
     const win = trade.win;
 
     content.innerHTML = `
-      ${siblingNav(trade, siblings || [])}
-      <div class="trade-head">
-        <h1>
-          ${escapeHtml(trade.symbol)}
-          <span class="verdict-badge ${win ? "up" : "down"}">${win ? "WIN" : "LOSS"} · ${fmtMoney(trade.pnl_after_comm)}</span>
-        </h1>
-        <div class="trade-meta">
-          ${trade.trade_date} &nbsp;·&nbsp; entry ${trade.entry_time ? trade.entry_time + " " : ""}@ $${trade.entry_price.toFixed(2)}
-          &nbsp;→&nbsp; exit ${trade.exit_time ? trade.exit_time + " " : ""}@ $${trade.exit_price.toFixed(2)}
-          &nbsp;·&nbsp; <span class="meta-standout">${trade.shares} sh</span> &nbsp;·&nbsp; held <span class="meta-standout">${trade.time_in_trade || "—"}</span>
-          ${trade.fill_count > 1 ? `&nbsp;·&nbsp; <span class="pill" title="Entry/Exit Price above are quantity-weighted averages across these fills" style="opacity:.85;">${trade.fill_count} fills</span>` : ""}
+      <section class="th-card">
+        <div class="th-id">
+          <div class="th-title-row">
+            <h1 class="th-symbol">${escapeHtml(trade.symbol)}</h1>
+            <span class="verdict-badge th-verdict ${win ? "up" : "down"}">${win ? "WIN" : "LOSS"} · ${fmtMoney(trade.pnl_after_comm)}</span>
+          </div>
+          <div class="th-sub">
+            <span>${escapeHtml(longDate(trade.trade_date))}</span>
+            ${trade.side ? `<span class="th-sep"></span><span>${escapeHtml(String(trade.side).charAt(0).toUpperCase() + String(trade.side).slice(1).toLowerCase())}</span>` : ""}
+            ${trade.fill_count > 1 ? `<span class="th-sep"></span><span title="Entry/Exit Price below are quantity-weighted averages across these fills">${trade.fill_count} fills</span>` : ""}
+          </div>
         </div>
-        <div class="trade-meta" style="margin-top:6px; display:flex; align-items:center; gap:8px;" id="grade-row">
-          <span style="color:var(--text-faint); font-size:12px;">Execution grade</span>
-          <span id="grade-widget">${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(trade), { interactive: true, size: 16 }) : ""}</span>
-          <span id="grade-label" style="color:var(--text-faint); font-size:11.5px;"></span>
+        <div class="th-grade" id="grade-row">
+          <span class="th-grade-label">Execution grade</span>
+          <span id="grade-widget">${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(trade), { interactive: true, size: 20 }) : ""}</span>
+          <span id="grade-label" class="th-grade-note"></span>
         </div>
-      </div>
+        <div class="th-track">
+          <div class="th-leg">
+            <span class="th-leg-k"><i class="th-dot entry"></i>Entry</span>
+            <span class="th-leg-p">$${trade.entry_price.toFixed(2)}</span>
+            <span class="th-leg-t">${trade.entry_time || "—"}</span>
+          </div>
+          <div class="th-mid">
+            <span class="th-line"></span>
+            <span class="th-held"><b>${trade.time_in_trade || "—"}</b> held<span class="th-sep"></span><b>${trade.shares != null ? Number(trade.shares).toLocaleString() : "—"}</b> sh</span>
+            <span class="th-line th-line-end"></span>
+          </div>
+          <div class="th-leg th-leg-right">
+            <span class="th-leg-k"><i class="th-dot exit"></i>Exit</span>
+            <span class="th-leg-p">$${trade.exit_price.toFixed(2)}</span>
+            <span class="th-leg-t">${trade.exit_time || "—"}</span>
+          </div>
+        </div>
+      </section>
 
       <div class="pnl-breakdown">
         <div class="cell">
@@ -490,6 +544,7 @@
       <div id="journal-card"></div>
     `;
 
+    renderPager(trade, siblings || []);
     buildCharts(trade);
     if (window.TradeNotes) renderJournalCard(trade);
 
