@@ -788,11 +788,12 @@
         prev.qty += e.qty;
         prev.price = prev.qty ? prev._cost / prev.qty : prev.price;
         prev.fillCount += 1;
+        prev.parts.push({ time: e.time, price: e.price, qty: e.qty });
         prev.minPrice = Math.min(prev.minPrice, e.price);
         prev.maxPrice = Math.max(prev.maxPrice, e.price);
         prev._lastSecs = secs(e.time);
       } else {
-        merged.push(Object.assign({}, e, { _cost: e.price * e.qty, fillCount: 1, minPrice: e.price, maxPrice: e.price, _lastSecs: secs(e.time) }));
+        merged.push(Object.assign({}, e, { _cost: e.price * e.qty, fillCount: 1, parts: [{ time: e.time, price: e.price, qty: e.qty }], minPrice: e.price, maxPrice: e.price, _lastSecs: secs(e.time) }));
       }
     });
     list.length = 0;
@@ -817,32 +818,43 @@
     return Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
   }
 
-  // Fills: every add (entry) and reduce (exit) that made up this trade, with the
-  // position size after each. Always shown (even for a plain one-in / one-out
-  // trade) and sits in the grid cell beside "Lessons" rather than spanning the page.
+  // Fills: every add (entry) and reduce (exit) that made up this trade, and for
+  // each one EXACTLY how many shares filled at each price. Always shown, and sits
+  // in the grid cell beside "Lessons".
   function fillsCard(trade) {
     const ex = executionsOf(trade);
     if (!ex.length) return "";
-    const px = (v) => "$" + Number(v).toFixed(v < 1 ? 4 : 2);
+    const px = (v) => "$" + Number(v).toFixed(Number(v) < 1 ? 4 : 2);
     const rows = ex.map((e, i) => {
       const entry = e.kind === "entry";
       const color = entry ? "#2fd08a" : "#f2555a";
-      const partial = e.fillCount > 1
-        ? `<div style="font-size:11px; opacity:.6; margin-top:2px;">${e.fillCount} partial fills, ${px(e.minPrice)}\u2013${px(e.maxPrice)}</div>` : "";
+      // same price (and second) -> one line; different price -> its own line
+      const byLevel = new Map();
+      e.parts.forEach((pt) => {
+        const k = `${pt.time}|${Number(pt.price).toFixed(4)}`;
+        const cur = byLevel.get(k) || { time: pt.time, price: pt.price, qty: 0 };
+        cur.qty += pt.qty;
+        byLevel.set(k, cur);
+      });
+      const levels = [...byLevel.values()].sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : a.price - b.price));
+      const levelRows = levels.map((l) => `
+          <div style="display:grid; grid-template-columns: 1fr auto auto; gap:12px; font-size:12.5px; padding:2px 0;" class="mono">
+            <span><b style="color:${color};">${fmtQty(l.qty)}</b> <span style="opacity:.6;">sh</span></span>
+            <span>@ <b>${px(l.price)}</b></span>
+            <span style="opacity:.6;">${escapeHtml(l.time)}</span>
+          </div>`).join("");
       return `
-      <div class="fill-row" style="display:grid; grid-template-columns: 20px 1fr auto; gap:2px 10px; align-items:baseline; padding:9px 0; ${i < ex.length - 1 ? "border-bottom:1px solid var(--border-soft);" : ""} font-size:12.5px;">
-        <span style="opacity:.45;">${i + 1}</span>
-        <span><b style="color:${color};">${entry ? "+" : "\u2212"}${fmtQty(e.qty)} sh</b> <span style="opacity:.8;">${escapeHtml(e.action)}</span> @ <b>${px(e.price)}</b>${partial}</span>
-        <span class="mono" style="opacity:.75;">${escapeHtml(e.time)}</span>
-        <span></span>
-        <span style="font-size:11.5px; opacity:.6;">${e.role} \u00b7 position after: ${fmtQty(e.posAfter)} sh</span>
-        <span></span>
+      <div class="fill-row" style="padding:10px 0; ${i < ex.length - 1 ? "border-bottom:1px solid var(--border-soft);" : ""}">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:12.5px; margin-bottom:6px;">
+          <span><span style="opacity:.45; margin-right:6px;">${i + 1}</span><b style="color:${color};">${e.role.toUpperCase()}</b> <span style="opacity:.8;">${escapeHtml(e.action)}</span> \u00b7 <b>${fmtQty(e.qty)} sh</b>${levels.length > 1 ? ` @ avg <b>${px(e.price)}</b>` : ""}</span>
+          <span style="font-size:11.5px; opacity:.6; white-space:nowrap;">position after: ${fmtQty(e.posAfter)} sh</span>
+        </div>
+        <div style="padding-left:16px; border-left:2px solid ${color}55;">${levelRows}</div>
       </div>`;
     }).join("");
     return `
         <div class="card fills-card">
           <h2 style="margin:0 0 2px;">Fills (${ex.length})</h2>
-          ${ex.length > 2 ? `<div style="font-size:11.5px; opacity:.6; margin:4px 0 4px; line-height:1.5;">You added to and/or reduced this position before closing it, so Entry/Exit Price above are quantity-weighted averages of these.</div>` : ""}
           ${rows}
         </div>`;
   }
