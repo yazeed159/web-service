@@ -79,11 +79,11 @@
     return `<tr>
       <td class="mono">${escapeHtml(t.trade_date || "\u2014")}</td>
       <td><a href="${href}" class="drill-sym">${escapeHtml(t.symbol || "?")}</a></td>
-      <td>${escapeHtml(t.side ? String(t.side) : "\u2014")}</td>
-      <td>${t.setup_type ? escapeHtml(prettifyTag(t.setup_type)) : "\u2014"}</td>
+      <td class="drill-opt">${escapeHtml(t.side ? String(t.side) : "\u2014")}</td>
+      <td class="drill-opt">${t.setup_type ? escapeHtml(prettifyTag(t.setup_type)) : "\u2014"}</td>
       <td class="mono">${entry}</td>
-      <td class="mono">${hold != null ? App.fmtDurationPrecise(hold) : "\u2014"}</td>
-      <td class="mono num">${t.shares != null ? Number(t.shares).toLocaleString() : "\u2014"}</td>
+      <td class="mono drill-opt">${hold != null ? App.fmtDurationPrecise(hold) : "\u2014"}</td>
+      <td class="mono num drill-opt">${t.shares != null ? Number(t.shares).toLocaleString() : "\u2014"}</td>
       <td class="mono num ${pnl >= 0 ? "up" : "down"}">${fmtMoney(pnl)}</td>
     </tr>`;
   }
@@ -91,9 +91,9 @@
     const sorted = trades.slice().sort(drillNewestFirst);
     const net = sorted.reduce((sum, t) => sum + drillNum(t.pnl_after_comm), 0);
     const remaining = sorted.length - Math.min(shown, sorted.length);
-    return `<div class="table-scroll"><table class="report-table drill-table"><thead><tr>
-        <th scope="col">Date</th><th scope="col">Symbol</th><th scope="col">Side</th><th scope="col">Setup</th>
-        <th scope="col">Entry</th><th scope="col">Hold</th><th scope="col" class="num">Shares</th><th scope="col" class="num">Net P&amp;L</th>
+    return `<div class="table-scroll"><table class="report-table drill-table no-stack"><thead><tr>
+        <th scope="col">Date</th><th scope="col">Symbol</th><th scope="col" class="drill-opt">Side</th><th scope="col" class="drill-opt">Setup</th>
+        <th scope="col">Entry</th><th scope="col" class="drill-opt">Hold</th><th scope="col" class="num drill-opt">Shares</th><th scope="col" class="num">Net P&amp;L</th>
       </tr></thead><tbody>${sorted.slice(0, shown).map(drillRowHtml).join("")}</tbody>
       <tfoot><tr><td colspan="7">${sorted.length} trade${sorted.length === 1 ? "" : "s"}</td><td class="mono num ${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</td></tr></tfoot></table></div>
       ${remaining > 0 ? `<div class="drill-more-wrap"><button type="button" class="btn-load-more drill-more">Show more (${remaining} left)</button></div>` : ""}`;
@@ -160,6 +160,15 @@
     el.setAttribute("aria-expanded", "true");
     el.classList.add("drill-open");
     paintDrillPanel(panel);
+    // Charts / stat strips open their panel below the whole chart or strip, which can
+    // be a long way down on a phone -- bring it into view instead of making you hunt.
+    requestAnimationFrame(() => {
+      const r = panel.getBoundingClientRect();
+      const top = 70; // clear of the sticky top bar
+      if (r.top > window.innerHeight * 0.55 || r.top < top) {
+        window.scrollBy({ top: r.top - top - 10, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      }
+    });
   }
   const reportsRoot = document.getElementById("tab-reports");
   if (reportsRoot) {

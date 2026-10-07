@@ -3782,3 +3782,45 @@ a.th-nav:active { transform: translateY(1px); }
 }
 @media (max-width: 420px) { .th-nav-sub { font-size: 11px; } }
 @media (prefers-reduced-motion: reduce) { .th-nav, a.th-nav:active { transition: none; transform: none; } }
+
+
+/* =====================================================
+   Phone fixes: Reports drop-down + Day View header / month strip
+===================================================== */
+@media (max-width: 760px) {
+  /* The stacked-card styling for wide tables (mobile-tables.js) is written with
+     descendant selectors, so it also hit the trades table inside an opened row.
+     Put that inner table back to a real table, and drop the less useful columns. */
+  table.mt-stack tbody tr.drill-inline-row { padding: 0; margin: -4px 0 10px; border-top: 0; border-radius: 0 0 var(--radius) var(--radius); background: var(--panel-2); }
+  table.mt-stack .drill-inline table.drill-table { display: table; width: 100%; min-width: 0; }
+  table.mt-stack .drill-inline table.drill-table thead { display: table-header-group; }
+  table.mt-stack .drill-inline table.drill-table tbody { display: table-row-group; width: auto; }
+  table.mt-stack .drill-inline table.drill-table tfoot { display: table-footer-group; }
+  table.mt-stack .drill-inline table.drill-table tbody tr,
+  table.mt-stack .drill-inline table.drill-table tfoot tr { display: table-row; padding: 0; margin: 0; background: none; border: 0; border-radius: 0; }
+  table.mt-stack .drill-inline table.drill-table th,
+  table.mt-stack .drill-inline table.drill-table td {
+    display: table-cell; padding: 8px 6px !important; font-size: 12.5px; white-space: nowrap !important;
+    border: 0 !important; border-bottom: 1px solid var(--border) !important;
+  }
+  table.mt-stack .drill-inline table.drill-table td.num, table.mt-stack .drill-inline table.drill-table th.num { text-align: right !important; }
+  table.mt-stack .drill-inline table.drill-table td::before { content: none !important; }
+  table.mt-stack .drill-inline table.drill-table tfoot td { border-bottom: 0 !important; }
+  .drill-table .drill-opt { display: none !important; }
+  .drill-inline { padding: 8px 10px 10px; }
+
+  /* Top bar: title on top, "Updated …" tucked under it, so neither gets cut off. */
+  .topbar-left { flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; }
+  .topbar-left h1 { max-width: 100%; }
+  .topbar-left .data-fresh { padding: 0; min-height: 0; border: 0; font-size: 11px; line-height: 1.3; max-width: 100%; }
+
+  /* Month summary strip: two money tiles on top, three counts underneath. */
+  .cal-summary-strip { flex-direction: column; }
+  .cal-summary-cells { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .cal-summary-cells .cell { padding: 10px 12px; min-width: 0; grid-column: span 2; order: 3; }
+  .cal-summary-cells .cell:nth-child(1) { grid-column: span 3; order: 1; }
+  .cal-summary-cells .cell:nth-child(5) { grid-column: span 3; order: 2; }
+  .cal-summary-cells .cell .value { font-size: 15px; }
+  .cal-summary-cells .cell .label { margin-bottom: 4px; white-space: nowrap; }
+  .cal-legend { flex-wrap: wrap; row-gap: 6px; }
+}
