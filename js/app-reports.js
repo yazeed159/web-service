@@ -63,106 +63,20 @@
   function unescHtml(str) {
     return String(str).replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
   }
-  const DRILL_PAGE = 40;
-  let drillState = null; // { root, ac, chartAc, entry, filter, sort, shown, trigger }
+  // Clicking a drillable thing drops the trades behind it open right under it
+  // as a plain table (same look as the other report tables) -- click again,
+  // or the x, to fold it back up. Things with no trades behind them never get
+  // data-drill (drillAttr returns "" for an empty list), so they don't react.
+  const DRILL_PAGE = 25;
   const drillNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   const drillStamp = (t) => `${t.trade_date || ""} ${t.entry_time || ""}`;
-  const DRILL_SORTS = {
-    newest: { label: "Newest first", fn: (a, b) => drillStamp(b).localeCompare(drillStamp(a)) },
-    oldest: { label: "Oldest first", fn: (a, b) => drillStamp(a).localeCompare(drillStamp(b)) },
-    best: { label: "Best P&L", fn: (a, b) => drillNum(b.pnl_after_comm) - drillNum(a.pnl_after_comm) },
-    worst: { label: "Worst P&L", fn: (a, b) => drillNum(a.pnl_after_comm) - drillNum(b.pnl_after_comm) },
-    size: { label: "Biggest size", fn: (a, b) => drillNum(b.shares) * drillNum(b.entry_price) - drillNum(a.shares) * drillNum(a.entry_price) },
-    hold: { label: "Longest hold", fn: (a, b) => (App.durationMinutes(b) || 0) - (App.durationMinutes(a) || 0) },
-  };
-  function drillDow(t) {
-    const [y, m, d] = String(t.trade_date).split("-").map(Number);
-    return new Date(y, m - 1, d).getDay();
-  }
-  // Filters the panel can apply on top of the trades it was opened with.
-  // Defined once so "no filter" can't drift between the three places that need it.
-  const drillBlankFilter = () => ({ result: "all", symbol: "", setup: "", dow: null, side: "", hour: "", lesson: "", month: "" });
-  const drillAnyFilter = (f) => f.result !== "all" || Boolean(f.symbol || f.setup || f.side || f.hour || f.lesson || f.month) || f.dow !== null;
-  const drillSide = (t) => String(t.side || "").toLowerCase();
-  const drillHour = (t) => (typeof t.entry_time === "string" && /^\d{2}:/.test(t.entry_time) ? t.entry_time.slice(0, 2) : "");
-  const drillMonth = (t) => String(t.trade_date || "").slice(0, 7);
-  const drillLessons = (t) => (Array.isArray(t.lesson_tags) ? t.lesson_tags : []);
-  function drillFiltered() {
-    const f = drillState.filter;
-    return drillState.entry.trades.filter((t) => {
-      if (f.result === "win" && !t.win) return false;
-      if (f.result === "loss" && t.win) return false;
-      if (f.symbol && t.symbol !== f.symbol) return false;
-      if (f.setup && (t.setup_type || "") !== f.setup) return false;
-      if (f.dow !== null && drillDow(t) !== f.dow) return false;
-      if (f.side && drillSide(t) !== f.side) return false;
-      if (f.hour && drillHour(t) !== f.hour) return false;
-      if (f.lesson && !drillLessons(t).includes(f.lesson)) return false;
-      if (f.month && drillMonth(t) !== f.month) return false;
-      return true;
-    });
-  }
-  function drillSummary(list) {
-    const wins = list.filter((t) => t.win), losses = list.filter((t) => !t.win);
-    const sum = (arr) => arr.reduce((s, t) => s + drillNum(t.pnl_after_comm), 0);
-    const net = sum(list), gw = sum(wins), gl = Math.abs(sum(losses));
-    const holds = list.map((t) => App.durationMinutes(t)).filter((m) => m != null);
-    const pnls = list.map((t) => drillNum(t.pnl_after_comm));
-    return {
-      n: list.length, wins: wins.length, losses: losses.length,
-      winRate: list.length ? (wins.length / list.length) * 100 : null,
-      net, avg: list.length ? net / list.length : null,
-      avgWin: wins.length ? gw / wins.length : null,
-      avgLoss: losses.length ? -gl / losses.length : null,
-      pf: gl > 0 ? gw / gl : (gw > 0 ? Infinity : null),
-      best: pnls.length ? pnls.reduce((m, v) => (v > m ? v : m), -Infinity) : null,
-      worst: pnls.length ? pnls.reduce((m, v) => (v < m ? v : m), Infinity) : null,
-      hold: holds.length ? holds.reduce((a, b) => a + b, 0) / holds.length : null,
-      days: new Set(list.map((t) => t.trade_date)).size,
-    };
-  }
-  function drillChips(trades) {
-    // keyFn may return one key or an array of keys (a trade can carry several lesson tags).
-    const group = (keyFn) => {
-      const m = new Map();
-      trades.forEach((t) => {
-        const ks = keyFn(t);
-        (Array.isArray(ks) ? ks : [ks]).forEach((k) => {
-          if (k === null || k === "") return;
-          if (!m.has(k)) m.set(k, { n: 0, net: 0 });
-          const e = m.get(k); e.n++; e.net += drillNum(t.pnl_after_comm);
-        });
-      });
-      return m;
-    };
-    const chip = (kind, value, label, e) => `<button type="button" class="drill-chip" data-f="${kind}" data-v="${escapeHtml(String(value))}">${escapeHtml(label)} <span class="mono ${e.net >= 0 ? "up" : "down"}">${fmtMoney(e.net)}</span> <span class="dim">· ${e.n}</span></button>`;
-    const blocks = [];
-    const syms = Array.from(group((t) => t.symbol).entries()).sort((a, b) => b[1].n - a[1].n).slice(0, 8);
-    if (syms.length > 1) blocks.push(["Symbols", syms.map(([k, e]) => chip("symbol", k, k, e)).join("")]);
-    const setups = Array.from(group((t) => t.setup_type || "").entries()).sort((a, b) => b[1].n - a[1].n).slice(0, 8);
-    if (setups.length > 1) blocks.push(["Setups", setups.map(([k, e]) => chip("setup", k, prettifyTag(k), e)).join("")]);
-    const dows = group((t) => drillDow(t));
-    const dowOrder = [1, 2, 3, 4, 5, 6, 0].filter((d) => dows.has(d));
-    if (dowOrder.length > 1) blocks.push(["Weekday", dowOrder.map((d) => chip("dow", d, DOW[d], dows.get(d))).join("")]);
-    const sides = group(drillSide);
-    if (sides.size > 1) blocks.push(["Side", Array.from(sides.entries()).sort((a, b) => b[1].n - a[1].n).map(([k, e]) => chip("side", k, k[0].toUpperCase() + k.slice(1), e)).join("")]);
-    const hours = group(drillHour);
-    if (hours.size > 1) blocks.push(["Entry hour", Array.from(hours.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([k, e]) => chip("hour", k, `${k}:00`, e)).join("")]);
-    const lessons = Array.from(group(drillLessons).entries()).sort((a, b) => b[1].n - a[1].n).slice(0, 8);
-    if (lessons.length) blocks.push(["Lessons", lessons.map(([k, e]) => chip("lesson", k, prettifyTag(k), e)).join("")]);
-    const months = Array.from(group(drillMonth).entries()).sort((a, b) => a[0].localeCompare(b[0])).slice(-12);
-    if (months.length > 1) {
-      const monthLabel = (ym) => { const [y, m] = ym.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleString(undefined, { month: "short", year: "2-digit" }); };
-      blocks.push(["Month", months.map(([k, e]) => chip("month", k, monthLabel(k), e)).join("")]);
-    }
-    return blocks.map(([label, html]) => `<div class="drill-chip-row"><span class="drill-chip-label">${label}</span>${html}</div>`).join("");
-  }
+  const drillNewestFirst = (a, b) => drillStamp(b).localeCompare(drillStamp(a));
   function drillRowHtml(t) {
     const href = `trade.html?id=${encodeURIComponent(t.id)}`;
     const pnl = drillNum(t.pnl_after_comm);
     const hold = App.durationMinutes(t);
     const entry = typeof t.entry_time === "string" && t.entry_time ? t.entry_time.slice(0, 5) : "\u2014";
-    return `<tr class="drill-row" data-href="${href}">
+    return `<tr>
       <td class="mono">${escapeHtml(t.trade_date || "\u2014")}</td>
       <td><a href="${href}" class="drill-sym">${escapeHtml(t.symbol || "?")}</a></td>
       <td>${escapeHtml(t.side ? String(t.side) : "\u2014")}</td>
@@ -173,216 +87,110 @@
       <td class="mono num ${pnl >= 0 ? "up" : "down"}">${fmtMoney(pnl)}</td>
     </tr>`;
   }
-  function updateDrill() {
-    const st = drillState;
-    if (!st) return;
-    const list = drillFiltered();
-    const q = (sel) => st.root.querySelector(sel);
-
-    // Summary strip.
-    const sm = drillSummary(list);
-    const money = (v) => (v == null ? "\u2014" : `<span class="${v >= 0 ? "up" : "down"}">${fmtMoney(v)}</span>`);
-    // [label, value, action]. A tile with an action is a button: it narrows
-    // or re-sorts the list below so the number can be explained by its trades.
-    const kpis = [
-      ["Trades", String(sm.n), "clear", "Show all trades again"],
-      ["Win rate", sm.winRate == null ? "\u2014" : `<span class="${sm.winRate >= 50 ? "up" : "down"}">${sm.winRate.toFixed(1)}%</span>`, "win", "Show only the winners"],
-      ["Net P&amp;L", money(sm.n ? sm.net : null), "best", "Sort best P&L first"],
-      ["Avg trade", money(sm.avg), null],
-      ["Avg win", money(sm.avgWin), "win", "Show only the winners"],
-      ["Avg loss", money(sm.avgLoss), "loss", "Show only the losers"],
-      ["Profit factor", sm.pf == null ? "\u2014" : sm.pf === Infinity ? "\u221e" : sm.pf.toFixed(2), null],
-      ["Best", money(sm.best), "best", "Sort best P&L first"],
-      ["Worst", money(sm.worst), "worst", "Sort worst P&L first"],
-      ["Avg hold", sm.hold == null ? "\u2014" : App.fmtDurationPrecise(sm.hold), "hold", "Sort longest hold first"],
-      ["Days", String(sm.days), "oldest", "Sort oldest first"],
-    ];
-    // Re-rendering the tiles would drop keyboard focus, so put it back on the same tile.
-    const focusedKpi = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.kpiI : null;
-    q(".drill-kpis").innerHTML = kpis.map(([k, v, act, hint], i) => `<div class="drill-kpi${act ? " clickable" : ""}"${act ? ` data-kpi="${act}" data-kpi-i="${i}" role="button" tabindex="0" title="${hint}"` : ""}><div class="k">${k}</div><div class="v mono">${v}</div></div>`).join("");
-    if (focusedKpi != null) {
-      const again = q(`.drill-kpi[data-kpi-i="${focusedKpi}"]`);
-      if (again) again.focus();
-    }
-    const sortSel = q(".drill-sort-select");
-    if (sortSel) sortSel.value = st.sort;
-
-    // Mini equity curve of just these trades, oldest to newest.
-    if (st.chartAc) st.chartAc.abort();
-    st.chartAc = new AbortController();
-    const chartEl = q(".drill-chart");
-    if (list.length >= 2) {
-      const ordered = list.slice().sort(DRILL_SORTS.oldest.fn);
-      let run = 0;
-      chartEl.style.display = "";
-      renderMiniLineChart(chartEl, ordered.map((t) => { run += drillNum(t.pnl_after_comm); return { x: t.trade_date, y: run }; }), { height: 90, signal: st.chartAc.signal });
-    } else {
-      chartEl.style.display = "none";
-      chartEl.innerHTML = "";
-    }
-
-    // Chip + result-button active state.
-    st.root.querySelectorAll(".drill-chip").forEach((b) => {
-      const kind = b.dataset.f, v = b.dataset.v;
-      const cur = st.filter[kind];
-      b.classList.toggle("active", cur !== null && cur !== "" && String(cur) === v);
-    });
-    st.root.querySelectorAll(".drill-result").forEach((b) => b.classList.toggle("active", b.dataset.v === st.filter.result));
-    const anyFilter = drillAnyFilter(st.filter);
-    q(".drill-clear").style.display = anyFilter ? "" : "none";
-    q(".drill-count").textContent = anyFilter
-      ? `Showing ${list.length} of ${st.entry.trades.length} trades`
-      : `${list.length} trade${list.length === 1 ? "" : "s"}`;
-
-    // Trade list.
-    const sorted = list.slice().sort(DRILL_SORTS[st.sort].fn);
-    const shown = Math.min(st.shown, sorted.length);
-    const listEl = q(".drill-list");
-    if (!sorted.length) {
-      listEl.innerHTML = `<div class="empty-state small">No trades match these filters.</div>`;
-      return;
-    }
-    const remaining = sorted.length - shown;
-    listEl.innerHTML = `<div class="table-scroll"><table class="report-table drill-table"><thead><tr>
+  function drillTableHtml(trades, shown) {
+    const sorted = trades.slice().sort(drillNewestFirst);
+    const net = sorted.reduce((sum, t) => sum + drillNum(t.pnl_after_comm), 0);
+    const remaining = sorted.length - Math.min(shown, sorted.length);
+    return `<div class="table-scroll"><table class="report-table drill-table"><thead><tr>
         <th scope="col">Date</th><th scope="col">Symbol</th><th scope="col">Side</th><th scope="col">Setup</th>
         <th scope="col">Entry</th><th scope="col">Hold</th><th scope="col" class="num">Shares</th><th scope="col" class="num">Net P&amp;L</th>
-      </tr></thead><tbody>${sorted.slice(0, shown).map(drillRowHtml).join("")}</tbody></table></div>
+      </tr></thead><tbody>${sorted.slice(0, shown).map(drillRowHtml).join("")}</tbody>
+      <tfoot><tr><td colspan="7">${sorted.length} trade${sorted.length === 1 ? "" : "s"}</td><td class="mono num ${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</td></tr></tfoot></table></div>
       ${remaining > 0 ? `<div class="drill-more-wrap"><button type="button" class="btn-load-more drill-more">Show more (${remaining} left)</button></div>` : ""}`;
   }
-  function closeDrill(silent) {
-    const st = drillState;
-    if (!st) return;
-    drillState = null;
-    st.ac.abort();
-    if (st.chartAc) st.chartAc.abort();
-    st.root.remove();
-    document.body.classList.remove("drill-lock");
-    if (!silent && st.trigger && document.contains(st.trigger) && typeof st.trigger.focus === "function") st.trigger.focus();
+  function paintDrillPanel(panel) {
+    const d = panel._drill;
+    panel.querySelector(".drill-inline-body").innerHTML = drillTableHtml(d.entry.trades, d.shown);
   }
-  function openDrillData(entry, trigger) {
-    if (!entry || !entry.trades || !entry.trades.length) return;
-    closeDrill(true);
-    const root = document.createElement("div");
-    root.className = "drill-overlay";
-    root.setAttribute("role", "dialog");
-    root.setAttribute("aria-modal", "true");
-    root.setAttribute("aria-label", entry.title);
-    root.innerHTML = `
-      <div class="drill-panel">
-        <div class="drill-head">
-          <div class="drill-titles">
-            <div class="drill-title">${escapeHtml(entry.title)}</div>
-            ${entry.sub ? `<div class="drill-sub">${escapeHtml(entry.sub)}</div>` : ""}
-          </div>
-          <button type="button" class="drill-close" aria-label="Close">&times;</button>
+  function closeInline(el) {
+    const panel = el && el._drillPanel;
+    if (!panel) return;
+    if (panel._drill.key && panel._drill.key._drillEl === el) panel._drill.key._drillEl = null;
+    panel.remove();
+    el._drillPanel = null;
+    el.setAttribute("aria-expanded", "false");
+    el.classList.remove("drill-open");
+  }
+  function toggleInline(el, entry) {
+    if (!el || !entry || !entry.trades || !entry.trades.length) return;
+    if (el._drillPanel) {
+      const same = el._drillPanel._drill.entry.title === entry.title;
+      closeInline(el);
+      if (same) return;
+    }
+    const inner = `<div class="drill-inline">
+        <div class="drill-inline-head">
+          <span class="drill-inline-title">${escapeHtml(entry.title)}</span>${entry.sub ? `<span class="drill-inline-sub">${escapeHtml(entry.sub)}</span>` : ""}
+          <button type="button" class="drill-inline-close" aria-label="Close">&times;</button>
         </div>
-        <div class="drill-body">
-          <div class="drill-kpis"></div>
-          <div class="drill-chart"></div>
-          <div class="drill-filters">
-            <div class="drill-chip-row"><span class="drill-chip-label">Result</span>
-              <button type="button" class="drill-chip drill-result" data-v="all">All</button>
-              <button type="button" class="drill-chip drill-result" data-v="win">Winners</button>
-              <button type="button" class="drill-chip drill-result" data-v="loss">Losers</button>
-            </div>
-            ${drillChips(entry.trades)}
-          </div>
-          <div class="drill-listbar">
-            <span class="drill-count"></span>
-            <button type="button" class="drill-clear btn-load-more">Clear filters</button>
-            <label class="drill-sort">Sort <select class="filter-input drill-sort-select">${Object.entries(DRILL_SORTS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("")}</select></label>
-          </div>
-          <div class="drill-list"></div>
-        </div>
+        <div class="drill-inline-body"></div>
       </div>`;
-    document.body.appendChild(root);
-    document.body.classList.add("drill-lock");
-    const ac = new AbortController();
-    drillState = { root, ac, chartAc: null, entry, filter: drillBlankFilter(), sort: "newest", shown: DRILL_PAGE, trigger };
-
-    root.addEventListener("click", (e) => {
-      const st = drillState;
-      if (!st) return;
-      if (e.target === root || e.target.closest(".drill-close")) { closeDrill(); return; }
-      const chip = e.target.closest(".drill-chip");
-      if (chip) {
-        const v = chip.dataset.v;
-        if (chip.classList.contains("drill-result")) st.filter.result = v;
-        else if (chip.dataset.f === "dow") st.filter.dow = st.filter.dow === Number(v) ? null : Number(v);
-        else st.filter[chip.dataset.f] = st.filter[chip.dataset.f] === v ? "" : v;
-        st.shown = DRILL_PAGE;
-        updateDrill();
-        return;
+    let panel, key;
+    const tr = el.closest("tr");
+    if (tr) {
+      key = tr;
+      const cols = Array.from(tr.cells).reduce((n, c) => n + (c.colSpan || 1), 0) || 1;
+      panel = document.createElement("tr");
+      panel.className = "drill-inline-row";
+      panel.innerHTML = `<td colspan="${cols}">${inner}</td>`;
+      if (tr.parentElement.tagName === "THEAD") {
+        const tb = tr.closest("table").tBodies[0];
+        if (tb) tb.insertBefore(panel, tb.firstChild); else tr.after(panel);
+      } else {
+        tr.after(panel);
       }
-      if (e.target.closest(".drill-clear")) {
-        st.filter = drillBlankFilter();
-        st.shown = DRILL_PAGE;
-        updateDrill();
-        return;
-      }
-      // Summary tiles: filter to winners/losers, or re-sort, then bring the list into view.
-      const kpi = e.target.closest("[data-kpi]");
-      if (kpi) {
-        const act = kpi.dataset.kpi;
-        if (act === "clear") st.filter = drillBlankFilter();
-        else if (act === "win" || act === "loss") st.filter.result = st.filter.result === act ? "all" : act;
-        else if (DRILL_SORTS[act]) st.sort = act;
-        st.shown = DRILL_PAGE;
-        updateDrill();
-        const bar = st.root.querySelector(".drill-listbar");
-        if (bar && bar.scrollIntoView) bar.scrollIntoView({ block: "nearest", behavior: "smooth" });
-        return;
-      }
-      if (e.target.closest(".drill-more")) { st.shown += DRILL_PAGE; updateDrill(); return; }
-      const row = e.target.closest("tr.drill-row");
-      if (row && !e.target.closest("a")) {
-        const a = row.querySelector("a");
-        if (a) a.click();
-      }
-    }, { signal: ac.signal });
-    root.querySelector(".drill-sort-select").addEventListener("change", (e) => {
-      if (!drillState) return;
-      drillState.sort = e.target.value;
-      drillState.shown = DRILL_PAGE;
-      updateDrill();
-    }, { signal: ac.signal });
-    document.addEventListener("keydown", (e) => {
-      if (!drillState) return;
-      if (e.key === "Escape") { e.preventDefault(); closeDrill(); return; }
-      if ((e.key === "Enter" || e.key === " ") && e.target && e.target.matches && e.target.matches("[data-kpi]")) { e.preventDefault(); e.target.click(); return; }
-      if (e.key === "Tab") {
-        const f = Array.from(root.querySelectorAll("button, a[href], select, [tabindex='0']")).filter((x) => x.offsetParent !== null);
-        if (!f.length) return;
-        const first = f[0], last = f[f.length - 1];
-        if (e.shiftKey && (document.activeElement === first || !root.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && (document.activeElement === last || !root.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
-      }
-    }, { signal: ac.signal });
-
-    updateDrill();
-    root.querySelector(".drill-close").focus();
+    } else {
+      // Not in a table: open it right below the thing clicked. Inside a grid/flex
+      // strip (stat cells) or an SVG chart, go below the whole strip / chart instead.
+      let anchor = el instanceof SVGElement ? (el.closest("svg") || el) : el;
+      const par = anchor.parentElement;
+      const disp = par ? getComputedStyle(par).display : "";
+      if (/grid|flex/.test(disp)) anchor = par;
+      key = anchor;
+      panel = document.createElement("div");
+      panel.className = "drill-inline-wrap";
+      panel.innerHTML = inner;
+      anchor.after(panel);
+    }
+    // One open panel per row / strip: opening a sibling folds the previous one.
+    if (key._drillEl && key._drillEl !== el) closeInline(key._drillEl);
+    key._drillEl = el;
+    panel._drill = { entry, shown: DRILL_PAGE, key, owner: el };
+    el._drillPanel = panel;
+    el.setAttribute("aria-expanded", "true");
+    el.classList.add("drill-open");
+    paintDrillPanel(panel);
   }
-  App.signal.addEventListener("abort", () => closeDrill(true), { once: true });
   const reportsRoot = document.getElementById("tab-reports");
   if (reportsRoot) {
-    const open = (el) => {
-      const entry = drillRegistry.get(el.getAttribute("data-drill"));
-      if (entry) openDrillData(entry, el);
-    };
     reportsRoot.addEventListener("click", (e) => {
+      const closeBtn = e.target.closest(".drill-inline-close");
+      const more = e.target.closest(".drill-more");
+      const panel = (closeBtn || more) && (closeBtn || more).closest(".drill-inline-row, .drill-inline-wrap");
+      if (panel && panel._drill) {
+        if (closeBtn) {
+          const owner = panel._drill.owner;
+          closeInline(owner);
+          if (owner && owner.focus && document.contains(owner)) { try { owner.focus({ preventScroll: true }); } catch (err) { owner.focus(); } }
+        } else {
+          panel._drill.shown += DRILL_PAGE;
+          paintDrillPanel(panel);
+        }
+        return;
+      }
       const el = e.target.closest("[data-drill]");
       if (!el || !reportsRoot.contains(el)) return;
       // A real link / control inside a drillable row keeps doing its own thing.
-      const inner = e.target.closest("a, button, input, select, textarea, label");
-      if (inner && inner !== el && el.contains(inner)) return;
-      open(el);
+      const ctl = e.target.closest("a, button, input, select, textarea, label");
+      if (ctl && ctl !== el && el.contains(ctl)) return;
+      toggleInline(el, drillRegistry.get(el.getAttribute("data-drill")));
     }, { signal: App.signal });
     reportsRoot.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" && e.key !== " ") return;
       const el = e.target.closest && e.target.closest("[data-drill]");
       if (!el || e.target !== el) return;
       e.preventDefault();
-      open(el);
+      toggleInline(el, drillRegistry.get(el.getAttribute("data-drill")));
     }, { signal: App.signal });
   }
 
@@ -596,12 +404,15 @@
     // opts.trades (one entry per plotted point's trade): click a point to
     // open that day's trades, with the chart's value at that moment.
     if (opts.trades && opts.trades.length) {
-      wrap.style.cursor = "pointer";
       wrap.addEventListener("click", (e) => {
         const i = nearestIndex(e.clientX);
         const date = series[i].x;
         const dayTrades = opts.trades.filter((t) => t.trade_date === date);
-        openDrillData({ title: date, sub: `${opts.context || "Chart"} \u00b7 ${valueFmt(series[i].y)} after this point`, trades: dayTrades }, wrap);
+        toggleInline(wrap, { title: date, sub: `${opts.context || "Chart"} \u00b7 ${valueFmt(series[i].y)} after this point`, trades: dayTrades });
+      }, { signal: sig });
+      wrap.addEventListener("pointermove", (e) => {
+        const d = series[nearestIndex(e.clientX)].x;
+        wrap.style.cursor = opts.trades.some((t) => t.trade_date === d) ? "pointer" : "default";
       }, { signal: sig });
     }
   }

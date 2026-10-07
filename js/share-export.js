@@ -168,7 +168,9 @@ ${scriptExtra || ""}
           ${je.setup ? `Setup <span class="meta-standout">${escapeHtml(je.setup)}</span> &nbsp;·&nbsp; ` : ""}
           Followed rules <span class="meta-standout">${rules}</span>
           ${je.plan_stop ? ` &nbsp;·&nbsp; planned stop <span class="meta-standout">$${Number(je.plan_stop).toFixed(2)}</span>` : ""}
+          ${je.no_stop ? ` &nbsp;·&nbsp; planned stop <span class="meta-standout">none</span>` : ""}
           ${je.plan_target ? ` &nbsp;·&nbsp; planned target <span class="meta-standout">$${Number(je.plan_target).toFixed(2)}</span>` : ""}
+          ${je.no_target ? ` &nbsp;·&nbsp; planned target <span class="meta-standout">none</span>` : ""}
           ${m.planned_rr != null ? ` &nbsp;·&nbsp; planned R:R <span class="meta-standout">${m.planned_rr.toFixed(2)}</span>` : ""}
           ${m.r_multiple != null ? ` &nbsp;·&nbsp; result <span class="meta-standout ${m.r_multiple >= 0 ? "up" : "down"}">${fmtR(m.r_multiple)}</span>` : ""}
         </div>

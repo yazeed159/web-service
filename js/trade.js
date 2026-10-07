@@ -252,7 +252,7 @@
     const host = document.getElementById("journal-card");
     if (!host) return;
     const entry = Object.assign(
-      { plan_stop: null, plan_target: null, setup: "", mistakes: [], followed_rules: null, notes: "" },
+      { plan_stop: null, plan_target: null, no_stop: false, no_target: false, setup: "", mistakes: [], followed_rules: null, notes: "" },
       window.TradeNotes.get(trade.id) || {}
     );
     const tags = window.TradeNotes.knownTags();
@@ -268,8 +268,8 @@
           <span id="jn-status" style="font-size:11.5px; color:var(--text-faint);"></span>
         </div>
         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:14px;">
-          <div><label style="${lbl}">Planned stop ($)</label><input id="jn-stop" type="number" step="0.01" min="0" inputmode="decimal" style="${inputStyle}" value="${entry.plan_stop ?? ""}"></div>
-          <div><label style="${lbl}">Planned target ($)</label><input id="jn-target" type="number" step="0.01" min="0" inputmode="decimal" style="${inputStyle}" value="${entry.plan_target ?? ""}"></div>
+          <div><label style="${lbl}">Planned stop ($)</label><div style="display:flex; gap:6px; align-items:center;"><input id="jn-stop" type="number" step="0.01" min="0" inputmode="decimal" placeholder="${entry.no_stop ? "None" : ""}" ${entry.no_stop ? "disabled" : ""} style="${inputStyle} flex:1; min-width:0;${entry.no_stop ? " opacity:.55;" : ""}" value="${entry.plan_stop ?? ""}">${chip("None", entry.no_stop, "data-none-for=\"stop\" data-none")}</div></div>
+          <div><label style="${lbl}">Planned target ($)</label><div style="display:flex; gap:6px; align-items:center;"><input id="jn-target" type="number" step="0.01" min="0" inputmode="decimal" placeholder="${entry.no_target ? "None" : ""}" ${entry.no_target ? "disabled" : ""} style="${inputStyle} flex:1; min-width:0;${entry.no_target ? " opacity:.55;" : ""}" value="${entry.plan_target ?? ""}">${chip("None", entry.no_target, "data-none-for=\"target\" data-none")}</div></div>
           <div><label style="${lbl}">Followed my rules?</label>
             <div id="jn-rules" style="display:flex; gap:6px;">
               ${chip("Yes", entry.followed_rules === true, "data-rules")}${chip("No", entry.followed_rules === false, "data-rules")}
@@ -307,6 +307,8 @@
       if (m.risk_dollars != null) parts.push(`Risk <b>$${m.risk_dollars.toFixed(2)}</b> (${(m.risk_per_share * 100).toFixed(1)}¢/sh)`);
       if (m.planned_rr != null) parts.push(`Planned R:R <b>${m.planned_rr.toFixed(2)}</b>`);
       if (m.r_multiple != null) parts.push(`Realised <b class="${m.r_multiple >= 0 ? "up" : "down"}">${m.r_multiple >= 0 ? "+" : ""}${m.r_multiple.toFixed(2)}R</b>`);
+      if (entry.no_stop) parts.push(`<span style="color:var(--text-dim);">No planned stop</span>`);
+      if (entry.no_target) parts.push(`<span style="color:var(--text-dim);">No planned target</span>`);
       if (entry.plan_stop && m.risk_per_share == null) parts.push(`<span style="color:var(--red);">Stop must be on the losing side of entry ($${trade.entry_price.toFixed(2)})</span>`);
       $("jn-metrics").innerHTML = parts.join("<span style=\"color:var(--border);\">|</span>");
     }
@@ -342,6 +344,17 @@
       validatePlanField(e.target, entry.plan_target);
       paintMetrics(); persist();
     });
+    // "None" = no stop / no target on purpose (no plan, or undecided) -- kept
+    // distinct from just leaving the field blank. Picking it clears the value
+    // and locks the field; clicking it again un-sets it.
+    host.querySelectorAll("[data-none-for]").forEach((b) => b.addEventListener("click", () => {
+      const kind = b.getAttribute("data-none-for");
+      const flag = kind === "stop" ? "no_stop" : "no_target";
+      const field = kind === "stop" ? "plan_stop" : "plan_target";
+      entry[flag] = !entry[flag];
+      if (entry[flag]) entry[field] = null;
+      persist(true); renderJournalCard(trade);
+    }));
     $("jn-notes").addEventListener("input", (e) => { entry.notes = e.target.value; persist(); });
 
     host.querySelectorAll("[data-rules]").forEach((b) => b.addEventListener("click", () => {

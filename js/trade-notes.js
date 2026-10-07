@@ -7,6 +7,7 @@
 //
 // Schema (one KV key, { [tradeId]: entry }):
 //   { plan_stop: number|null, plan_target: number|null,
+//     no_stop: bool, no_target: bool,   // "None" chosen on purpose (no plan / undecided)
 //     setup: string, mistakes: string[], followed_rules: true|false|null,
 //     notes: string, updated: ISO string }
 // Empty entries are deleted rather than stored.
@@ -36,7 +37,7 @@
     return isFinite(n) && n > 0 ? n : null;
   }
   function isEmpty(e) {
-    return !e || (e.plan_stop == null && e.plan_target == null && !e.setup &&
+    return !e || (e.plan_stop == null && e.plan_target == null && !e.no_stop && !e.no_target && !e.setup &&
       !(e.mistakes && e.mistakes.length) && e.followed_rules == null && !(e.notes || "").trim());
   }
 
@@ -45,9 +46,12 @@
   function save(tradeId, entry) {
     if (!tradeId) return;
     const store = readStore();
+    const stop = num(entry.plan_stop), target = num(entry.plan_target);
     const clean = {
-      plan_stop: num(entry.plan_stop),
-      plan_target: num(entry.plan_target),
+      plan_stop: stop,
+      plan_target: target,
+      no_stop: stop == null && entry.no_stop === true,
+      no_target: target == null && entry.no_target === true,
       setup: (entry.setup || "").trim(),
       mistakes: Array.from(new Set((entry.mistakes || []).map((m) => String(m).trim()).filter(Boolean))),
       followed_rules: entry.followed_rules === true ? true : entry.followed_rules === false ? false : null,

@@ -136,8 +136,8 @@
 }
 
 /* =====================================================
-   Reports drill-down -- anything with data-drill opens the
-   "trades behind this" panel (js/app-reports.js, drillAttr).
+   Reports drill-down -- anything with data-drill drops open the
+   trades behind it as an inline table (js/app-reports.js, drillAttr).
 ===================================================== */
 [data-drill] { cursor: pointer; }
 .report-hint { font-size: 13px; color: var(--text-dim); margin: 2px 0 14px; }
@@ -158,66 +158,25 @@ b.ins-link[data-drill] { text-decoration-color: var(--text-dim); border-radius: 
 [data-drill]:focus-visible { outline: 1.5px solid var(--primary); outline-offset: -1px; }
 g[data-drill]:focus-visible, circle[data-drill]:focus-visible { outline-offset: 2px; }
 
-body.drill-lock { overflow: hidden; }
-.drill-overlay {
-  position: fixed; inset: 0; z-index: 9000;
-  display: flex; align-items: center; justify-content: center; padding: 20px;
-  background: rgba(6, 7, 10, 0.62); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+/* Trades behind a clicked row / number, dropped open right under it as a plain table. */
+[data-drill][aria-expanded="true"] { background: var(--panel-2); }
+.drill-inline-row > td { padding: 0 !important; border-bottom: 1px solid var(--border); background: var(--panel-2); }
+.drill-inline { padding: 10px 14px 12px; border-left: 2px solid var(--primary); }
+.drill-inline-wrap { margin: 6px 0 12px; background: var(--panel-2); border-radius: 6px; }
+.drill-inline-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.drill-inline-title { font-size: 13px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.drill-inline-sub { font-size: 12px; color: var(--text-dim); }
+.drill-inline-close {
+  margin-left: auto; width: 28px; height: 28px; line-height: 1; font-size: 18px; cursor: pointer;
+  background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--text-dim);
 }
-.drill-panel {
-  width: 100%; max-width: 940px; max-height: min(88vh, 900px);
-  display: flex; flex-direction: column; overflow: hidden;
-  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg, 14px);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
-}
-.drill-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 18px 12px; border-bottom: 1px solid var(--border-soft); }
-.drill-title { font-size: 17px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
-.drill-sub { font-size: 13px; color: var(--text-dim); margin-top: 3px; }
-.drill-close {
-  flex: none; width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
-  background: var(--panel-2); color: var(--text-dim); font-size: 22px; line-height: 1; cursor: pointer;
-}
-.drill-close:hover { color: var(--text); border-color: var(--text-dim); }
-.drill-body { padding: 14px 18px 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-.drill-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; }
-.drill-kpi { background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: 10px; padding: 9px 12px; }
-.drill-kpi .k { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim); font-weight: 600; margin-bottom: 4px; }
-.drill-kpi .v { font-size: 16px; font-weight: 700; }
-/* Tiles that narrow / re-sort the list below. */
-.drill-kpi.clickable { cursor: pointer; transition: border-color .12s, background .12s; }
-.drill-kpi.clickable:hover { border-color: var(--text-dim); background: var(--panel); }
-.drill-kpi.clickable:focus-visible { outline: 1.5px solid var(--primary); outline-offset: 1px; }
-.drill-chart { margin-top: 12px; }
-.drill-filters { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
-.drill-chip-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.drill-chip-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim); font-weight: 600; width: 76px; flex: none; }
-.drill-chip {
-  font-size: 13px; padding: 5px 11px; border-radius: 20px; border: 1px solid var(--border);
-  background: var(--panel-2); color: var(--text); cursor: pointer;
-}
-.drill-chip:hover { border-color: var(--text-dim); }
-.drill-chip.active { background: var(--primary-soft); color: var(--primary); border-color: rgba(139, 124, 246, 0.5); }
-.drill-chip .dim { color: var(--text-dim); }
-.drill-listbar { display: flex; align-items: center; gap: 10px; margin: 14px 0 6px; flex-wrap: wrap; }
-.drill-count { font-size: 13px; color: var(--text-dim); margin-right: auto; }
-.drill-sort { font-size: 13px; color: var(--text-dim); display: inline-flex; align-items: center; gap: 6px; }
-.drill-sort select { font-size: 13px; padding: 5px 8px; }
-.drill-table .drill-row { cursor: pointer; }
-.drill-table .drill-row:hover td { background: var(--panel-2); }
+.drill-inline-close:hover { color: var(--text); border-color: var(--border); }
+.drill-inline .drill-table { background: transparent; }
+.drill-inline .drill-table tbody tr:last-child td { border-bottom: 1px solid var(--border); }
+.drill-inline .drill-table tfoot td { font-weight: 600; border-bottom: none; color: var(--text-dim); }
+.drill-inline .drill-table tfoot td.up { color: var(--green); }
+.drill-inline .drill-table tfoot td.down { color: var(--red); }
 .drill-table .drill-sym { font-weight: 700; color: var(--text); text-decoration: none; }
 .drill-table .drill-sym:hover { color: var(--primary); }
 .drill-table th.num, .drill-table td.num { text-align: right; }
 .drill-more-wrap { text-align: center; padding: 10px 0 2px; }
-
-@media (max-width: 640px) {
-  .drill-overlay { padding: 0; align-items: flex-end; }
-  .drill-panel { max-height: 94vh; border-radius: 16px 16px 0 0; border-bottom: none; }
-  .drill-head, .drill-body { padding-left: 14px; padding-right: 14px; }
-  .drill-chip-label { width: auto; margin-right: 2px; }
-  .drill-chip-row { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; scrollbar-width: none; }
-  .drill-chip-row::-webkit-scrollbar { display: none; }
-  .drill-chip { flex: none; white-space: nowrap; }
-  .drill-kpis { grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  .drill-kpi { padding: 7px 9px; }
-  .drill-kpi .v { font-size: 15px; }
-}
