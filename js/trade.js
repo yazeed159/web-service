@@ -391,7 +391,7 @@
         </div>
         <div class="th-grade" id="grade-row">
           <span class="th-grade-label">Execution grade</span>
-          <span id="grade-widget">${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(trade), { interactive: true, size: 20 }) : ""}</span>
+          <span id="grade-widget">${window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(trade), { interactive: true, size: 16 }) : ""}</span>
           <span id="grade-label" class="th-grade-note"></span>
         </div>
         <div class="th-track">
