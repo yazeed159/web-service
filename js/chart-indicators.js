@@ -577,8 +577,17 @@
     (function () {
       let sw = null;
       const axisHit = (t) => { const r = el.getBoundingClientRect(); const w = (chart.priceScale("right").width() || minW) + 14; return t.clientX >= r.right - w && t.clientX <= r.right; };
+      // The fullscreen / zoom buttons sit inside this right-hand strip. Treating
+      // a touch on them as an axis swipe (preventDefault + stopImmediatePropagation
+      // in the capture phase) swallowed the tap, so the buttons never fired on
+      // phones. Also: on a phone the strip is ~30% of the chart's width, so
+      // owning it outside fullscreen made vertical page scrolling impossible
+      // there. Outside fullscreen the page keeps those swipes (Practice's
+      // "capture" mode, where one finger owns the chart, is unchanged).
+      const onControl = (t) => !!(t && t.closest && t.closest(".chart-fs-btn, .chart-zoom-tools, .chart-fs-only, .chart-draw-bar, .cd-pop"));
+      const axisSwipeOn = () => !phone || opts.touchMode === "capture" || !!(fs && fs.isOn());
       el.addEventListener("touchstart", (e) => {
-        if (e.touches.length === 1 && axisHit(e.touches[0])) {
+        if (axisSwipeOn() && !onControl(e.target) && e.touches.length === 1 && axisHit(e.touches[0])) {
           sw = { y: e.touches[0].clientY };
           e.preventDefault(); e.stopImmediatePropagation();
         } else sw = null;
@@ -623,6 +632,28 @@
       el.addEventListener("touchcancel", end, { capture: true });
     })();
     el.addEventListener("dblclick", (e) => { if (inPriceAxis(e)) { resetPriceZoom(); chart.priceScale("right").applyOptions({ autoScale: true }); } });
+
+    // lightweight-charts' price-axis widget always claims vertical touch drags
+    // (it uses them to scale the price), so a swipe that starts on the axis column
+    // could never scroll the page. On touch screens, cover that column with a
+    // transparent pan-y layer while the chart is NOT fullscreen; in fullscreen
+    // (CSS hides the shield) the axis is a real control again.
+    let axisShield = null;
+    if (phone && opts.touchMode !== "capture") {
+      axisShield = document.createElement("div");
+      axisShield.className = "chart-axis-shield";
+      axisShield.setAttribute("aria-hidden", "true");
+      el.appendChild(axisShield);
+      const placeShield = () => {
+        try {
+          axisShield.style.width = ((chart.priceScale("right").width() || minW) + 2) + "px";
+          axisShield.style.bottom = (chart.timeScale().height() || 0) + "px";
+        } catch (e) {}
+      };
+      placeShield();
+      try { chart.timeScale().subscribeVisibleLogicalRangeChange(placeShield); } catch (e) {}
+      window.requestAnimationFrame(placeShield);
+    }
 
     // Top-left info overlay: optional float row, plus a live volume/VWAP/
     // EMA9/EMA20/EMA200 readout that tracks the crosshair the way a broker
@@ -709,7 +740,7 @@
       });
       ro.observe(el);
     }
-    return { chart, series, volSeries, vwapSeries, ema9Series, ema20Series, ema200Series, priceLineRefs, resizeObserver: ro, renderOverlay, handleState, fullscreen: fs, draw };
+    return { chart, series, volSeries, vwapSeries, ema9Series, ema20Series, ema200Series, priceLineRefs, resizeObserver: ro, renderOverlay, handleState, fullscreen: fs, draw, axisShield };
   }
 
   // Tears down a handle from buildStandardChart(). Callers that stash
@@ -724,6 +755,7 @@
     try { if (handle.pointerRo) handle.pointerRo.disconnect(); } catch (e) {}
     try { if (handle.eodRo) handle.eodRo.disconnect(); } catch (e) {}
     try { if (handle.fullscreen) handle.fullscreen.dispose(); } catch (e) {}
+    try { if (handle.axisShield && handle.axisShield.parentNode) handle.axisShield.parentNode.removeChild(handle.axisShield); } catch (e) {}
     try { if (handle.draw) handle.draw.dispose(); } catch (e) {}
     try { handle.chart.remove(); } catch (e) {}
   }

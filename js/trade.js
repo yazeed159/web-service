@@ -558,7 +558,11 @@
     `;
 
     renderPager(trade, siblings || []);
-    buildCharts(trade);
+    // If this symbol-day's full session is already saved locally, open straight on it
+    // (re-renders such as "Get float", and reloads, used to snap back to the narrow
+    // trade window and make you press Full day again).
+    const savedFullDay = window.peekFullDayBars ? window.peekFullDayBars(trade.symbol, trade.trade_date) : null;
+    buildCharts(trade, savedFullDay);
     if (window.TradeNotes) renderJournalCard(trade);
 
     // Self-graded execution quality (1-5 stars, separate from win/loss --
@@ -661,6 +665,7 @@
 
     const fullDayBtn = document.getElementById("full-day-btn");
     if (fullDayBtn) {
+      if (savedFullDay && savedFullDay.length) { fullDayBtn.innerHTML = "Full day loaded"; fullDayBtn.disabled = true; }
       fullDayBtn.addEventListener("click", () => {
         if (fullDayBtn.disabled) return;
         fullDayBtn.disabled = true;
@@ -1642,7 +1647,19 @@
         // actually looking at, not a fixed default view. Read the live
         // chart off currentCandleChart (not the candleChart this listener
         // closed over) in case a full-day rebuild has replaced it since.
-        const canvas = currentCandleChart.takeScreenshot();
+        const shot = currentCandleChart.takeScreenshot();
+        // The chart's layout background is transparent, so the raw screenshot is a
+        // light-on-nothing (dark theme) or dark-on-nothing (light theme) image that
+        // is unreadable on whatever the viewer opens it in. Paint the theme's panel
+        // color underneath so the PNG matches what's on screen.
+        const canvas = document.createElement("canvas");
+        canvas.width = shot.width;
+        canvas.height = shot.height;
+        const g = canvas.getContext("2d");
+        const theme = window.chartThemeColors ? window.chartThemeColors() : null;
+        g.fillStyle = (theme && theme.bg) || "#14161c";
+        g.fillRect(0, 0, canvas.width, canvas.height);
+        g.drawImage(shot, 0, 0);
         canvas.toBlob((blob) => {
           if (!blob) return;
           const url = URL.createObjectURL(blob);

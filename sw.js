@@ -7,9 +7,8 @@
 //    single-page scripts (Reports, Rewind, Practice, Backtester, Live Trading, Edge
 //    Analysis, report.js, the charts library) are NOT -- they're cached the first time
 //    you open them, so a fresh install on mobile data doesn't pull what you haven't asked for.
-//  * Same-origin GETs are served stale-while-revalidate: instant from cache,
-//    quietly refreshed in the background, so a deploy shows up one navigation
-//    later without anyone bumping a version number.
+//  * Same-origin GETs are NETWORK-FIRST (cache is the offline / slow-network fallback),
+//    so an installed app always runs the latest deploy without bumping a version.
 //  * The two CDN scripts every page loads (supabase-js, lightweight-charts) are
 //    cached the same way, so they stop being a per-navigation network hop.
 //  * Share target: the manifest registers this app to receive a shared CSV (a broker
@@ -21,7 +20,7 @@
 //    tunnel, POSTs) is never touched -- it goes straight to the network.
 //
 // Bump CACHE_VERSION only if you ever want to force-purge every cached file.
-var CACHE_VERSION = "v17";
+var CACHE_VERSION = "v18";
 var CACHE = "tradelog-shell-" + CACHE_VERSION;
 
 var SHELL = [
@@ -174,11 +173,26 @@ self.addEventListener("fetch", function (event) {
           }
           return res;
         });
-        if (hit) {
-          refresh.catch(function () {}); // background update; ignore failures (offline)
+        if (!hit) return refresh;
+        if (!sameOrigin) {
+          refresh.catch(function () {}); // CDN libs: stale-while-revalidate is fine
           return hit;
         }
-        return refresh;
+        // The app's own pages/scripts/styles: NETWORK FIRST. Stale-while-revalidate
+        // meant an installed app (which rarely does a cold navigation) kept showing
+        // the previous deploy indefinitely. Online you now always get the latest;
+        // if the network is slow (>4s) or down, the cached copy is served instead.
+        return new Promise(function (resolve) {
+          var done = false;
+          var timer = setTimeout(function () { if (!done) { done = true; resolve(hit); } }, 4000);
+          refresh.then(function (res) {
+            clearTimeout(timer);
+            if (!done) { done = true; resolve(res && (res.ok || res.type === "opaque") ? res : (res && res.status >= 300 && res.status < 400 ? res : hit)); }
+          }, function () {
+            clearTimeout(timer);
+            if (!done) { done = true; resolve(hit); }
+          });
+        });
       });
     })
   );

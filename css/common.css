@@ -2798,6 +2798,14 @@ html.chart-fs-lock .bottom-nav, html.chart-fs-lock .chatw-launcher, html.chart-f
 .chart-stack.chart-fs #macd-resizer { flex: none; }
 /* Candle pane's floating buttons (zoom, draw tools, fullscreen) must paint above the MACD canvas below. */
 .chart-stack #candle-chart { position: relative; z-index: 3; }
+/* Transparent layer over the price-axis column (see axisShield in chart-indicators.js):
+   lets a vertical swipe that starts on the axis scroll the page. Touch screens only,
+   never in fullscreen, and always below the chart's floating buttons (z-index 4+). */
+.chart-axis-shield { display: none; }
+@media (pointer: coarse) {
+  .chart-axis-shield { display: block; position: absolute; top: 0; right: 0; z-index: 2; touch-action: pan-y; }
+}
+.chart-fs .chart-axis-shield { display: none !important; }
 /* Zoom / fit / jump-to-trade toolbar (phones only; the wheel covers desktop). */
 .chart-zoom-tools, .chart-fs-only { display: none; }
 @media (max-width: 760px), (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {

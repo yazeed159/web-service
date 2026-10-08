@@ -343,12 +343,51 @@ window.chartServiceBase = function chartServiceBase() {
   if (!base || base.includes("YOUR-NGROK-SUBDOMAIN")) return "";
   return base;
 };
+// Full-day bars are cached in localStorage (survives reloads, closing the tab and
+// the installed app restarting), most-recent-first, capped at FULL_DAY_KEEP symbol-days
+// so it can't eat the browser's storage quota; sessionStorage is the fallback if
+// localStorage is unavailable. Having a symbol-day cached is also what makes a trade
+// page open on the full day automatically (see trade.js) instead of the narrow window.
+window.FULL_DAY_INDEX_KEY = "chartSvc:fullDay:index";
+window.FULL_DAY_KEEP = 10;
+function fullDayIndex() {
+  try { const a = JSON.parse(localStorage.getItem(window.FULL_DAY_INDEX_KEY) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+}
+window.peekFullDayBars = function peekFullDayBars(symbol, tradeDate) {
+  const cacheKey = window.FULL_DAY_CACHE_PREFIX + symbol + ":" + tradeDate;
+  for (const store of ["localStorage", "sessionStorage"]) {
+    try {
+      const cached = window[store].getItem(cacheKey);
+      if (cached) { const bars = JSON.parse(cached); if (Array.isArray(bars) && bars.length) return bars; }
+    } catch (e) { /* unavailable / corrupt -- try the next one */ }
+  }
+  return null;
+};
+function saveFullDayBars(cacheKey, bars) {
+  const json = JSON.stringify(bars);
+  try {
+    let idx = fullDayIndex().filter((k) => k !== cacheKey);
+    idx.unshift(cacheKey);
+    while (idx.length > window.FULL_DAY_KEEP) { try { localStorage.removeItem(idx.pop()); } catch (e) {} }
+    for (let attempt = 0; attempt < 12; attempt++) {
+      try {
+        localStorage.setItem(cacheKey, json);
+        localStorage.setItem(window.FULL_DAY_INDEX_KEY, JSON.stringify(idx));
+        return;
+      } catch (e) {
+        // Quota: drop the oldest other entry and retry.
+        const victim = idx.length > 1 ? idx.pop() : null;
+        if (!victim || victim === cacheKey) break;
+        try { localStorage.removeItem(victim); } catch (e2) {}
+      }
+    }
+  } catch (e) { /* fall through */ }
+  try { sessionStorage.setItem(cacheKey, json); } catch (e) { /* quota, etc -- fine, just skip caching */ }
+}
 window.fetchFullDayBars = function fetchFullDayBars(symbol, tradeDate) {
   const cacheKey = window.FULL_DAY_CACHE_PREFIX + symbol + ":" + tradeDate;
-  try {
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) return Promise.resolve(JSON.parse(cached));
-  } catch (e) { /* sessionStorage unavailable/full -- fall through to network */ }
+  const hit = window.peekFullDayBars(symbol, tradeDate);
+  if (hit) return Promise.resolve(hit);
   const base = window.chartServiceBase();
   if (!base) return Promise.reject(new Error("CHART_SERVICE_URL isn't set in config.js"));
   return fetch(`${base}/full-day-bars`, {
@@ -362,7 +401,7 @@ window.fetchFullDayBars = function fetchFullDayBars(symbol, tradeDate) {
     }))
     .then((data) => {
       const bars = Array.isArray(data.bars) ? data.bars : [];
-      try { sessionStorage.setItem(cacheKey, JSON.stringify(bars)); } catch (e) { /* quota, etc -- fine, just skip caching */ }
+      if (bars.length) saveFullDayBars(cacheKey, bars);
       return bars;
     });
 };
@@ -590,7 +629,10 @@ window.emptyStateHtml = function emptyStateHtml(opts) {
 // on either background and don't need to switch.
 window.chartThemeColors = function chartThemeColors() {
   const light = document.documentElement.getAttribute("data-theme") === "light";
+  // bg = the panel color the chart sits on (--panel in common.css). The chart's own
+  // layout background is transparent, so anything that exports it to an image
+  // (trade.html's PNG button) has to paint this behind it.
   return light
-    ? { text: "#565a6b", grid: "#eceef3", border: "#dfe2ea" }
-    : { text: "#8b98a5", grid: "#1c2127", border: "#232830" };
+    ? { text: "#565a6b", grid: "#eceef3", border: "#dfe2ea", bg: "#ffffff" }
+    : { text: "#8b98a5", grid: "#1c2127", border: "#232830", bg: "#14161c" };
 };
