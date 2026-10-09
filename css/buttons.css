@@ -212,3 +212,87 @@ button.pill.tagpill:focus-visible, .int-disconnect:focus-visible {
   transition: background-color .18s var(--btn-ease), color .18s var(--btn-ease);
 }
 #dn-checklist button[data-del]:hover { color: var(--red); background: var(--red-soft); }
+
+/* ===================================================================
+   GLASS PASS: buttons. Theme-aware surfaces (the old white-on-dark
+   tokens vanished in light mode), a specular sheen, frosted secondary
+   buttons, glass segmented tracks, glowing active states and springy
+   press. Delete this block to go back to the flat buttons.
+   =================================================================== */
+:root {
+  --btn-surface: color-mix(in srgb, var(--text) 5%, transparent);
+  --btn-surface-hi: color-mix(in srgb, var(--text) 9%, transparent);
+  --btn-edge: color-mix(in srgb, var(--text) 12%, transparent);
+  --btn-edge-hi: color-mix(in srgb, var(--text) 24%, transparent);
+  --btn-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --btn-sheen: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,0) 55%);
+}
+:root[data-theme="light"] { --btn-sheen: linear-gradient(180deg, rgba(255,255,255,.7), rgba(255,255,255,0) 60%); }
+
+/* secondary: frosted */
+.btn-advanced, .filter-btn, .icon-btn, .btn-icon, .cal-nav-btn, .sidebar-toggle {
+  background: var(--btn-sheen), var(--g-fill, var(--btn-surface));
+  border-color: var(--g-line, var(--btn-edge));
+  -webkit-backdrop-filter: var(--g-blur, blur(16px)); backdrop-filter: var(--g-blur, blur(16px));
+  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.1)), 0 4px 14px -8px rgba(0,0,0,.4);
+}
+.btn-advanced:hover:not(:disabled), .filter-btn:hover, .icon-btn:hover, .btn-icon:hover, .cal-nav-btn:hover, .sidebar-toggle:hover {
+  background: var(--btn-sheen), color-mix(in srgb, var(--primary) 12%, var(--g-fill, var(--btn-surface-hi)));
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--g-line, var(--btn-edge-hi)));
+  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.14)), 0 10px 24px -10px rgba(0,0,0,.45);
+}
+.btn-advanced:active:not(:disabled), .filter-btn:active, .icon-btn:active, .btn-icon:active, .cal-nav-btn:active, .sidebar-toggle:active { transition-timing-function: var(--btn-spring); }
+.filter-btn.active, .btn-advanced.active {
+  color: var(--text);
+  background: var(--btn-sheen), linear-gradient(135deg, color-mix(in srgb, var(--primary) 32%, transparent), color-mix(in srgb, var(--primary) 12%, transparent));
+  border-color: color-mix(in srgb, var(--primary) 55%, transparent);
+  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.14)), 0 6px 18px -8px var(--primary);
+}
+:root:not([data-theme="light"]) .filter-btn.active, :root:not([data-theme="light"]) .btn-advanced.active { color: #fff; }
+
+/* primary: glass-lit gradient with a soft coloured halo */
+.btn-confirm {
+  border-color: rgba(255,255,255,.22);
+  background: var(--btn-sheen), linear-gradient(135deg, var(--violet, #8457ff), var(--primary-2, #6e5bf0));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.3), inset 0 -1px 0 rgba(0,0,0,.14), 0 10px 26px -10px var(--glow-violet, rgba(132,87,255,.6));
+}
+.btn-confirm:hover:not(:disabled) { box-shadow: inset 0 1px 0 rgba(255,255,255,.34), inset 0 -1px 0 rgba(0,0,0,.14), 0 14px 32px -10px var(--glow-violet, rgba(132,87,255,.7)); }
+.btn-confirm:active:not(:disabled) { transition-timing-function: var(--btn-spring); }
+
+/* tinted accent */
+.sr-run-btn { background: var(--btn-sheen), linear-gradient(135deg, color-mix(in srgb, var(--primary) 26%, transparent), color-mix(in srgb, var(--primary) 8%, transparent)); color: var(--text); -webkit-backdrop-filter: var(--g-blur, blur(16px)); backdrop-filter: var(--g-blur, blur(16px)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.12)); }
+
+/* segmented controls: a glass track, a lit active pill */
+.tf-switcher, .eq-range-toggle, .calc-toggle, .pr-view-tabs, .quiz-mode-row {
+  border-radius: 999px; background: var(--g-fill, var(--btn-surface)); border: 1px solid var(--g-line, var(--btn-edge));
+  -webkit-backdrop-filter: var(--g-blur, blur(16px)); backdrop-filter: var(--g-blur, blur(16px));
+  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08));
+}
+.tf-switcher, .eq-range-toggle, .calc-toggle { padding: 3px; }
+.pr-view-tab, .quiz-mode-btn, .tf-btn, .calc-toggle button, .eq-range-toggle button { border-radius: 999px; }
+.pr-view-tab.active, .tf-btn.active, .calc-toggle button.active, .calc-toggle button.on, .quiz-mode-btn.active, .eq-range-toggle button.active {
+  color: var(--text);
+  background: var(--btn-sheen), linear-gradient(135deg, color-mix(in srgb, var(--primary) 34%, transparent), color-mix(in srgb, var(--primary) 14%, transparent));
+  border-color: color-mix(in srgb, var(--primary) 50%, transparent);
+  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.14)), 0 6px 18px -8px var(--primary);
+}
+:root:not([data-theme="light"]) .pr-view-tab.active, :root:not([data-theme="light"]) .tf-btn.active, :root:not([data-theme="light"]) .quiz-mode-btn.active { color: #fff; }
+.quiz-mode-btn, .eq-range-toggle button { background: transparent; border-color: transparent; }
+.quiz-mode-btn:hover, .eq-range-toggle button:hover { background: var(--btn-surface); border-color: transparent; }
+.quiz-mode-row { padding: 3px; gap: 3px; }
+
+/* chips: glass pills that light up */
+.calc-chip, .calc-symbol-chip, .chat-chip, button.pill.tagpill { background: var(--btn-sheen), var(--g-fill, var(--btn-surface)); border-color: var(--g-line, var(--btn-edge)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)); }
+.calc-chip.active, button.pill.tagpill.on, button.pill.tagpill.active {
+  color: var(--text); background: var(--btn-sheen), linear-gradient(135deg, color-mix(in srgb, var(--primary) 38%, transparent), color-mix(in srgb, var(--primary) 14%, transparent));
+  border-color: color-mix(in srgb, var(--primary) 60%, transparent); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.14)), 0 0 16px -4px var(--primary);
+}
+:root:not([data-theme="light"]) .calc-chip.active, :root:not([data-theme="light"]) button.pill.tagpill.on { color: #fff; }
+
+/* text links + danger */
+.link:hover, .calc-balance-edit:hover, .edge-explain-toggle:hover, #calc-use-actual-winrate:hover, .rw-progress-reset:hover { color: var(--text); }
+.int-disconnect:hover, .strat-card-delete:hover { box-shadow: 0 0 14px -4px var(--red); }
+.btn-danger { background: var(--btn-sheen), var(--red-soft); backdrop-filter: var(--g-blur, blur(16px)); -webkit-backdrop-filter: var(--g-blur, blur(16px)); }
+
+/* keep fullscreen charts safe: buttons inside a fullscreen chart skip the blur */
+.chart-fs .btn-advanced, .chart-fs .filter-btn, .chart-fs .icon-btn, .chart-fs .btn-icon, .chart-fs .tf-switcher { -webkit-backdrop-filter: none; backdrop-filter: none; }

@@ -92,6 +92,26 @@
   function kpiIcon(name) {
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${KPI_ICONS[name]}</svg>`;
   }
+  // Phone hero footer: last session's P&L (labelled "Today" when it is) and a
+  // one-tap link to the daily plan / end-of-day review (the CSS hides this row on desktop).
+  function heroCtaRow() {
+    const tr = App.state.trades || [];
+    let lastDay = null;
+    tr.forEach((t) => { if (t.trade_date && (!lastDay || t.trade_date > lastDay)) lastDay = t.trade_date; });
+    let day = "";
+    let isToday = false;
+    if (lastDay) {
+      const pnl = tr.filter((t) => t.trade_date === lastDay).reduce((a, t) => a + (Number(t.pnl_after_comm) || 0), 0);
+      let label = "Last session";
+      try {
+        isToday = lastDay === new Date().toLocaleDateString("en-CA");
+        label = isToday ? "Today"
+          : new Date(lastDay + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      } catch (e) {}
+      day = `<div class="hero-day"><span class="hero-day-k">${label}</span><span class="hero-day-v ${pnl >= 0 ? "up" : "down"}">${fmtMoney(pnl)}</span></div>`;
+    }
+    return `<div class="hero-cta-row">${day}<a class="hero-cta" id="hero-add" href="daily.html"><span>${isToday ? "Review today" : "Plan today"}</span><i aria-hidden="true">\u203A</i></a></div>`;
+  }
   function renderStats() {
     const s = App.computeStats();
     const w = tradeWindows();
@@ -120,7 +140,22 @@
           <div class="hero-spark-label">Last ${sparkTrades.length} trades</div>
           ${svgTradeSparkline(sparkTrades)}
         </div>
+        ${heroCtaRow()}
       `;
+      // Count the big number up once per page load (skipped for reduced-motion).
+      const hv = heroEl.querySelector(".hero-value");
+      let reduced = false;
+      try { reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+      if (hv && !window.__heroCounted && !reduced && isFinite(s.netPnl) && s.netPnl !== 0) {
+        window.__heroCounted = true;
+        const t0 = performance.now(), dur = 900, target = s.netPnl;
+        const step = (now) => {
+          const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+          hv.textContent = fmtMoney(target * e);
+          if (k < 1) requestAnimationFrame(step); else hv.textContent = fmtMoney(target);
+        };
+        requestAnimationFrame(step);
+      }
     }
 
     // ---------- Supporting KPI cards ----------
@@ -548,6 +583,8 @@
     const yline = document.getElementById("equity-crosshair-yline");
     const yvalLabel = document.getElementById("equity-yval-label");
     if (!wrap || !svg) return;
+    const coarse = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+    let shownIdx = -1;
 
     function nearestIndex(clientX) {
       const rect = wrap.getBoundingClientRect();
@@ -560,6 +597,7 @@
       if (!equityState) return;
       const { points, coords, values, startBalance, W, H } = equityState;
       const i = nearestIndex(clientX);
+      shownIdx = i;
       const [cx, cy] = coords[i];
       const rect = wrap.getBoundingClientRect();
       const pxX = (cx / W) * rect.width;
@@ -593,7 +631,7 @@
       let html = `<div class="eq-date">${escapeHtml(dateLabel)}</div><div class="eq-bal">${fmtBalance(p.e)}</div>`;
       if (p.t) {
         html += `<div class="eq-trade">${escapeHtml(p.t.symbol)} <span class="${p.t.win ? "up" : "down"}">${fmtMoney(p.t.pnl_after_comm)}</span></div>`;
-        html += `<div class="eq-hint">Click to open trade →</div>`;
+        html += `<div class="eq-hint">${coarse ? "Tap again to open trade" : "Click to open trade"} →</div>`;
       }
       tooltip.innerHTML = html;
       tooltip.style.display = "block";
@@ -607,6 +645,7 @@
     }
 
     function hide() {
+      shownIdx = -1;
       crosshair.style.display = "none";
       tooltip.style.display = "none";
       if (yline) yline.style.display = "none";
@@ -615,12 +654,57 @@
       if (dot) dot.style.display = "none";
     }
 
-    wrap.addEventListener("pointermove", (e) => showAt(e.clientX), { signal: App.signal });
-    wrap.addEventListener("pointerleave", hide, { signal: App.signal });
+    // Mouse: hover as before. Touch: press and hold (~200ms) then drag to scrub
+    // along the curve; a quick swipe still scrolls the page. A plain tap shows
+    // that point, and tapping the same point again opens the trade.
+    wrap.addEventListener("pointermove", (e) => { if (e.pointerType !== "touch") showAt(e.clientX); }, { signal: App.signal });
+    wrap.addEventListener("pointerleave", (e) => { if (e.pointerType !== "touch") hide(); }, { signal: App.signal });
+
+    let holdTimer = null, scrubbing = false, suppressClick = false;
+    let sx = 0, sy = 0, lastX = 0;
+    const endHold = () => { clearTimeout(holdTimer); holdTimer = null; };
+    wrap.addEventListener("touchstart", (e) => {
+      if (e.touches.length !== 1) { endHold(); return; }
+      sx = lastX = e.touches[0].clientX; sy = e.touches[0].clientY;
+      endHold();
+      holdTimer = setTimeout(() => {
+        holdTimer = null; scrubbing = true;
+        wrap.classList.add("scrubbing");
+        try { if (navigator.vibrate) navigator.vibrate(8); } catch (err) {}
+        showAt(lastX);
+      }, 200);
+    }, { passive: true, signal: App.signal });
+    wrap.addEventListener("touchmove", (e) => {
+      const t = e.touches[0];
+      if (!t) return;
+      lastX = t.clientX;
+      if (scrubbing) {
+        if (e.cancelable) e.preventDefault(); // keep the page from scrolling while scrubbing
+        showAt(t.clientX);
+      } else if (Math.abs(t.clientX - sx) > 8 || Math.abs(t.clientY - sy) > 8) {
+        endHold(); // finger moved before the hold registered: it is a scroll
+      }
+    }, { passive: false, signal: App.signal });
+    const touchDone = () => {
+      endHold();
+      if (scrubbing) {
+        scrubbing = false;
+        wrap.classList.remove("scrubbing");
+        suppressClick = true; // the click synthesised on release must not open the trade
+        setTimeout(() => { suppressClick = false; }, 400);
+      }
+    };
+    wrap.addEventListener("touchend", touchDone, { signal: App.signal });
+    wrap.addEventListener("touchcancel", touchDone, { signal: App.signal });
+    wrap.addEventListener("contextmenu", (e) => { if (coarse) e.preventDefault(); }, { signal: App.signal });
+    // Tapping anywhere else (or scrolling away) clears the readout left on screen.
+    document.addEventListener("touchstart", (e) => { if (!wrap.contains(e.target)) hide(); }, { passive: true, signal: App.signal });
+
     wrap.addEventListener("click", (e) => {
-      if (!equityState) return;
+      if (!equityState || suppressClick) return;
       const i = nearestIndex(e.clientX);
       const p = equityState.points[i];
+      if (coarse && shownIdx !== i) { showAt(e.clientX); return; } // first tap: just show it
       if (p && p.t) window.location.href = `trade.html?id=${encodeURIComponent(p.t.id)}`;
     }, { signal: App.signal });
   }

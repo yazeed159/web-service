@@ -501,7 +501,33 @@ window.NavState = (function () {
     });
   }
 
+  /* ---------- 5. Glass spotlight: a soft highlight follows the cursor across cards (mouse only) ---------- */
+  var spotBound = false;
+  function initGlassSpot() {
+    if (reduced || spotBound || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    spotBound = true;
+    var SEL = '.card, .panel-box, .equity-panel, .chart-panel, .day-group, .stat-grid, .pnl-breakdown, .streak-strip, .cal-summary-cells, .th-card, .calc-box, .ts-card, .rr-strip';
+    var last = null, raf = 0, px = 0, py = 0, target = null;
+    function paint() {
+      raf = 0;
+      if (!target) return;
+      var r = target.getBoundingClientRect();
+      target.style.setProperty('--mx', (px - r.left) + 'px');
+      target.style.setProperty('--my', (py - r.top) + 'px');
+    }
+    function clear(el) { if (el) { el.style.removeProperty('--mx'); el.style.removeProperty('--my'); } }
+    document.addEventListener('pointermove', function (e) {
+      if (e.pointerType && e.pointerType !== 'mouse') return;
+      var el = e.target && e.target.closest ? e.target.closest(SEL) : null;
+      if (el !== last) { clear(last); last = el; }
+      target = el; px = e.clientX; py = e.clientY;
+      if (el && !raf) raf = requestAnimationFrame(paint);
+    }, { passive: true });
+    document.addEventListener('pointerleave', function () { clear(last); last = null; target = null; }, true);
+  }
+
   function boot() {
+    initGlassSpot();
     initReveal();
     initRipple();
     initValueFlash();

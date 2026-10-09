@@ -1,7 +1,7 @@
 # trade.log — trading journal dashboard
 
 A TradeZella-style trading journal. Static frontend (HTML/CSS/vanilla JS,
-no build step) deployed on **Cloudflare Pages**, backed by **Supabase**
+no build step) deployed on **Cloudflare Workers** (static assets, see `wrangler.jsonc`), backed by **Supabase**
 (auth + database, via Row Level Security) and a small Python/Flask API
 (`chart_service.py`, in the companion `chart-service` repo) deployed on
 **Render**. A daily GitHub Actions cron kicks off the IBKR sync.
@@ -16,7 +16,7 @@ no build step) deployed on **Cloudflare Pages**, backed by **Supabase**
 
 | Layer | What | Where |
 |---|---|---|
-| Frontend | Static HTML/CSS/JS, one page per section, shared `common.css` + `common.js` shell | Cloudflare Pages |
+| Frontend | Static HTML/CSS/JS, one page per section, shared `common.css` + `common.js` shell | Cloudflare Workers (static assets) |
 | Auth + data | Supabase (`trades`, `trade_details`, `broker_accounts`, `backtest_runs` tables, `user_kv` for settings), Row Level Security scopes every query to `auth.uid()` | Supabase |
 | AI / heavy compute | Flask API — chart generation, vision-LLM verdicts, backtesting, support/resistance, chat, CSV import | Render (`chart-service` repo) |
 | Daily sync | Pulls the day's IBKR Flex report, matches fills, generates charts, gets an AI verdict, publishes to Supabase | GitHub Actions cron → `POST /daily-sync` on Render |
@@ -217,3 +217,16 @@ Supabase SQL editor. Until it runs, the site behaves exactly as before.
 - **Fullscreen** (`attachFullscreen()` in `js/chart-indicators.js`): the expand button (top-right of every price chart built by `buildStandardChart()` -- Trade, Report, Practice, Rewind) now shows on desktop as well as phones. `Esc` closes it.
 - **Drawing tools** (`js/chart-draw.js`, toolbar down the left edge while fullscreen): horizontal line (support / resistance, with a price tag), trend line, ray, zone (rectangle), fib retracement, measure (price / % / bars / time, not saved) and text note. Also: colour picker, snap-to-candle (magnet), stay-in-tool, undo (Ctrl+Z), delete (Del), clear all. Click-click or press-drag-release to draw; in Select mode click a drawing to move it, drag its dots to reshape it. `Esc` backs out of a tool / selection first, then closes fullscreen.
 - Drawings render through a lightweight-charts series primitive (follows pan / zoom / resize automatically) and are stored as `{t, p}` (time + price), so they carry across the 1m / 5m / 15m / 1h switcher. Trade and Report save them in `localStorage` under `trade.log:draw:v1:<SYMBOL>:<date>` (same key on both pages); Practice / Rewind keep them for the session only so a replay never shows lines from an earlier round. Pass `drawKey` to `buildStandardChart()` to persist elsewhere, or `fullscreen: false` to turn the whole thing off for a chart.
+
+
+## Phone glass skin
+
+- On phones (`max-width: 760px`) the whole UI is restyled as frosted glass: translucent cards over a soft colour wash, a floating pill tab bar, glass modals/sheets/drawer, springy press feedback and staggered entrances. It is **pure CSS** in the `GLASS SKIN` blocks at the end of `css/common.css` (parts 1-7); delete them to revert. Parts 8-9 add the Journal, Reports, Day view, Daily plan and Trade page; **part 10** covers the remaining pages (Accounts, Live trading, Scanner, Edge analysis, Performance setup bars, Backtester, Calculator, Rewind/Practice setup + stats, Search, Report import) at every screen size. **Part 11** (end of `css/common.css`) restyles dropdowns and menus (select trigger + options, account menu, tag picker, shortcuts overlay, keycaps, quick-add sheet, chat bubbles, toasts, native checkbox/radio/range accents); the buttons are a glass pass at the end of `css/buttons.css` (frosted secondary buttons, glass segmented tracks, lit active pills, theme-aware surfaces). **Part 12** (end of `css/common.css`) is the consistency pass: one radius scale (`--r-xs…--r-xl`), leftover solid surfaces on Practice/Rewind/Calculator turned to glass, tabular numbers, glass skeletons and status pill, shared disclosure (`<summary>`) style, link and touch behaviour. `login.html` now has a desktop glass block too (it carries its own CSS). **Part 13** covers JS-built pieces: chart marker tooltips (`.pointer-tooltip`, overriding their inline styles), the account-scope switcher (CSS injected by `js/accounts.js`, overridden via `.topbar .scope-*`), the fullscreen drawing toolbar and colour popover, and the Today strip. Chart canvases (which CSS can't reach) are themed from `window.chartThemeColors()` / `window.chartCrosshair()` in `js/utils.js`: soft translucent grid and axis lines so the glass shows through, dashed purple crosshair with purple axis labels, and Inter on the axes. Used by the main candle chart, the MACD panes (Trade, Report) and the equity charts; the standalone share-export page keeps its own fixed chart colours (but its page chrome is glass, via a self-contained block at the end of `BASE_CSS` in `js/share-export.js`). **Part 14** (end of `css/common.css`) adds fallbacks: `prefers-reduced-transparency` swaps glass for solid surfaces with no blur, `prefers-contrast: more` makes edges crisper and secondary text stronger, and touch devices skip the blur on small controls (cards, sheets, top bar and tab bar keep theirs) to keep scrolling smooth. The theme toggle reloads the page (`js/common.js`), so charts always draw with the right colours. The four redirect stubs (`notes`, `chat`, `playbooks`, `practice-analytics`) show a glass card with a spinner while they bounce. Desktop is untouched. `login.html` carries its own copy (it doesn't load `common.css`).
+- Dark and light themes share the same blocks: secondary-surface tokens (`--panel-2/3`, `--border*`) are made translucent on phones, and `--g-fill`, `--g-line`, `--g-hi`, `--g-blur` drive the glass.
+- Animations respect `prefers-reduced-motion`. Charts' panels deliberately skip `backdrop-filter` (it would trap the fullscreen chart).
+- The dashboard hero (`renderStats()` in `js/app-dashboard.js`) adds a phone-only footer: last-session P&L and an "Add trade note" button (opens `QuickAdd`).
+- After changing cached assets, bump `CACHE_VERSION` in `sw.js` so installed phones pick the change up on the next open.
+
+## Journal CSV export
+
+The Journal's Export CSV picker lists the table columns plus a "Your journal entries" group: planned stop / target, planned R:R, realised R, your setup tag, mistakes, followed rules, notes (from `TradeNotes`, `js/trade-notes.js`). Free-text fields starting with `= + - @` get a leading apostrophe so spreadsheets never evaluate them.

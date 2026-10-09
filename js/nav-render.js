@@ -299,8 +299,8 @@
   // ---- Phone bottom tab bar ------------------------------------------
   // The sidebar is a hidden drawer on phones, so every page change cost
   // two taps (hamburger, then link). This is a thumb-reach tab bar: four
-  // pages the person picks (defaults below), a centre "+" quick note, Search,
-  // and "More", which opens that same drawer. It's hidden above 760px by
+  // pages the person picks (defaults below), Search, and "More", which
+  // opens that same drawer -- five slots in all, so nothing is cramped. It's hidden above 760px by
   // CSS (.bottom-nav), so desktop is unchanged.
   //
   // The four tabs are stored per device in localStorage (a phone's tab bar
@@ -308,8 +308,8 @@
   // load, before any network-backed store could answer).
   const TABS_KEY = "trade.log:bottom-tabs";
   const RECENT_KEY = "trade.log:recent-pages";
-  const TAB_COUNT = 4;
-  const DEFAULT_TABS = ["index", "journal", "daily", "practice"];
+  const TAB_COUNT = 3;
+  const DEFAULT_TABS = ["index", "journal", "daily"];
 
   // Bar-specific icons for the four default pages (thinner, bar-sized
   // glyphs); every other page falls back to its sidebar icon.
@@ -385,7 +385,9 @@
     const saved = readJson(TABS_KEY);
     if (Array.isArray(saved)) {
       const ok = saved.filter((id, i) => catalogItem(id) && saved.indexOf(id) === i);
-      if (ok.length === TAB_COUNT) return ok;
+      // The bar used to hold four tabs (plus a centre "+"); keep the first
+      // three of an older saved layout rather than throwing it away.
+      if (ok.length >= TAB_COUNT) return ok.slice(0, TAB_COUNT);
     }
     return DEFAULT_TABS.slice();
   }
@@ -402,9 +404,8 @@
 
   function paintTabs(nav) {
     const items = getTabs().map(catalogItem);
-    const addHtml = `<button type="button" class="bn-item bn-add" id="bn-add" aria-label="Quick note"><span class="bn-plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></span><span class="bn-add-label">Note</span></button>`;
     nav.innerHTML =
-      items.slice(0, 2).map(tabLinkHtml).join("") + addHtml + items.slice(2).map(tabLinkHtml).join("") +
+      items.map(tabLinkHtml).join("") +
       `<button type="button" class="bn-item" id="bn-search" aria-label="Search">${SVG_OPEN}${SEARCH_GLYPH}</svg><span>Search</span></button>` +
       `<button type="button" class="bn-item" id="bn-more" aria-label="More pages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="17" x2="20" y2="17"></line></svg><span>More</span></button>`;
   }
@@ -421,10 +422,7 @@
       document.body.appendChild(nav);
       // Delegated, so the buttons keep working when the tabs are repainted.
       nav.addEventListener("click", (e) => {
-        if (e.target.closest("#bn-add")) {
-          // Centre "+" = quick note (js/mobile-extras.js QuickAdd): jot something right after a trade.
-          if (window.QuickAdd) window.QuickAdd.open({ mode: "trade" });
-        } else if (e.target.closest("#bn-search")) {
+        if (e.target.closest("#bn-search")) {
           if (window.GlobalSearch) window.GlobalSearch.toggle();
         } else if (e.target.closest("#bn-more")) {
           const btn = document.getElementById("mobile-nav-btn");
@@ -492,7 +490,7 @@
   }
 
   // ---- Tab editor (bottom sheet) ---------------------------------------
-  // Pick exactly four pages. Tapping a page adds it to the end of the bar;
+  // Pick exactly three pages. Tapping a page adds it to the end of the bar;
   // tapping it again (or its chip in the preview) removes it, so the order on
   // the bar is the order picked.
   let editor = null;

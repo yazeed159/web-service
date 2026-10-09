@@ -22,14 +22,38 @@
   let decayRows = [];
   let decaySort = { key: "n", dir: -1 };
 
+  // Auto-recovering load (same idea as app-shared.js): a failed FETCH (network
+  // blip, token that expired while the tab slept) retries by itself with a
+  // backoff, immediately when the network returns or the tab is refocused, and
+  // offers a Retry button. A failure while DRAWING is a real bug, so it is
+  // reported once and never loops.
+  let loadTries = 0;
+  let retryTimer = null;
+  const MAX_AUTO_RETRIES = 6;
   function load() {
-    window.fetchTradesIndex()
-      .then((rows) => render(Array.isArray(rows) ? rows : []))
-      .catch((err) => {
-        content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
-      });
+    clearTimeout(retryTimer);
+    window.fetchTradesIndex().then(
+      (rows) => {
+        loadTries = 0;
+        try { render(Array.isArray(rows) ? rows : []); }
+        catch (err) {
+          console.error("[edge-analysis] render failed:", err);
+          content.innerHTML = `<div class="empty-state">Something went wrong drawing this page (${escapeHtml(String(err.message))}). Your data loaded fine. <button type="button" class="btn-advanced" onclick="location.reload()">Reload</button></div>`;
+        }
+      },
+      (err) => {
+        loadTries++;
+        const willRetry = loadTries <= MAX_AUTO_RETRIES;
+        content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String((err && err.message) || err))}). ${willRetry ? "Retrying automatically…" : "Automatic retries used up."} <button type="button" class="btn-advanced" data-retry>Retry now</button></div>`;
+        const btn = content.querySelector("[data-retry]");
+        if (btn) btn.addEventListener("click", () => { loadTries = 0; load(); });
+        if (willRetry) retryTimer = setTimeout(load, Math.min(3000 * Math.pow(2, loadTries - 1), 30000));
+      }
+    );
   }
   load();
+  window.addEventListener("online", () => { if (loadTries > 0) { loadTries = 0; load(); } });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && loadTries > 0) { loadTries = 0; load(); } });
   // Picks up trades that landed while this tab sat in the background
   // (see app-shared.js's identical call for the full reasoning) --
   // this page isn't an SPA page (see page-transition.js), so it only

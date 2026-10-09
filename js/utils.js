@@ -617,6 +617,13 @@ window.emptyStateHtml = function emptyStateHtml(opts) {
   return `<div class="empty-state-hero"><div class="empty-state-hero-icon">${icon}</div>${title}${message}${actions}</div>`;
 };
 
+// chartCrosshair — glass-skin crosshair: dashed purple lines with purple axis labels.
+window.chartCrosshair = function chartCrosshair(mode) {
+  const c = window.chartThemeColors();
+  const line = { color: c.cross, width: 1, style: 2, labelBackgroundColor: c.crossLabel };
+  return { mode: mode, vertLine: line, horzLine: line };
+};
+
 // chartThemeColors — grid/axis/text colors for the lightweight-charts
 // instances (chart-indicators.js, trade.js's MACD pane, report.js's
 // equity + MACD charts, edge-analysis.js, share-export.js), so they
@@ -633,6 +640,6 @@ window.chartThemeColors = function chartThemeColors() {
   // layout background is transparent, so anything that exports it to an image
   // (trade.html's PNG button) has to paint this behind it.
   return light
-    ? { text: "#565a6b", grid: "#eceef3", border: "#dfe2ea", bg: "#ffffff" }
-    : { text: "#8b98a5", grid: "#1c2127", border: "#232830", bg: "#14161c" };
+    ? { text: "#565a6b", grid: "rgba(90,80,160,0.08)", border: "rgba(90,80,160,0.16)", bg: "#ffffff", cross: "rgba(110,91,240,0.55)", crossLabel: "#6e5bf0", font: "Inter, system-ui, sans-serif" }
+    : { text: "#8b98a5", grid: "rgba(255,255,255,0.045)", border: "rgba(255,255,255,0.10)", bg: "#14161c", cross: "rgba(139,124,246,0.6)", crossLabel: "#6e5bf0", font: "Inter, system-ui, sans-serif" };
 };

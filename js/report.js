@@ -1085,7 +1085,7 @@
       grid: { vertLines: { color: rptMacdCt.grid }, horzLines: { color: rptMacdCt.grid } },
       rightPriceScale: { borderColor: rptMacdCt.border, minimumWidth: 92 },
       timeScale: { borderColor: rptMacdCt.border, timeVisible: true, secondsVisible: false },
-      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      crosshair: window.chartCrosshair ? window.chartCrosshair(LightweightCharts.CrosshairMode.Normal) : { mode: LightweightCharts.CrosshairMode.Normal },
     };
 
     const rptChartHandleLocal = window.ChartIndicators.buildStandardChart(candleEl, initialDisplayBars, {

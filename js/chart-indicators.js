@@ -43,6 +43,13 @@
   function isPhone() {
     try { return window.matchMedia("(max-width: 760px)").matches || isLandscapePhone(); } catch (e) { return window.innerWidth <= 760; }
   }
+  // Any touch-first device (phone, tablet, or a phone showing the "desktop
+  // site"): its vertical swipes must scroll the page, not the chart, whatever
+  // the viewport width says.
+  function isCoarse() {
+    try { return window.matchMedia("(pointer: coarse)").matches; } catch (e) { return false; }
+  }
+  function isTouchy() { return isPhone() || isCoarse(); }
   // Same sizing buildStandardChart uses for a phone-sized chart.
   function phoneChartHeight(baseH) {
     return Math.min(baseH || 380, Math.max(260, Math.round(window.innerHeight * 0.5)));
@@ -58,7 +65,7 @@
   // dragging moves it; lifting the finger clears it, so a stale crosshair
   // never freezes the OHLC/indicator readout while the tape keeps playing.
   function touchChartOpts(mode) {
-    if (!isPhone()) return {};
+    if (!isTouchy()) return {};
     const exit = (window.LightweightCharts && LightweightCharts.TrackingModeExitMode &&
       LightweightCharts.TrackingModeExitMode.OnTouchEnd);
     return {
@@ -475,17 +482,18 @@
     // On a phone the 88-92px price-scale gutter eats ~25% of a 360-390px
     // screen, and a fixed 380-420px canvas is most of the viewport height.
     const phone = isPhone();
+    const touchy = isTouchy();
     const minW = phone ? Math.min(opts.minimumWidth || 88, 60) : (opts.minimumWidth || 88);
     const baseH = opts.height || 380;
     const chartH = phone ? phoneChartHeight(baseH) : baseH;
     const commonOpts = {
-      layout: { background: { color: "transparent" }, textColor: ct.text, fontSize: phone ? 10 : 12 },
+      layout: { background: { color: "transparent" }, textColor: ct.text, fontFamily: ct.font, fontSize: phone ? 10 : 12 },
       grid: { vertLines: { color: ct.grid }, horzLines: { color: ct.grid } },
       rightPriceScale: { borderColor: ct.border, minimumWidth: minW },
       // hideTimeAxis: a companion pane (MACD) under this chart already draws the
       // time axis; showing it on both made the page look like two separate charts.
       timeScale: { borderColor: ct.border, timeVisible: true, visible: !opts.hideTimeAxis, secondsVisible: false, rightOffset: phone ? 3 : 0 },
-      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      crosshair: window.chartCrosshair ? window.chartCrosshair(LightweightCharts.CrosshairMode.Normal) : { mode: LightweightCharts.CrosshairMode.Normal },
       ...touchChartOpts(opts.touchMode),
     };
     // Pin the container to the height the chart is actually created at. On
@@ -493,7 +501,7 @@
     // so the canvas overflowed and its bottom (time axis) was covered by the
     // pane underneath.
     el.style.height = chartH + "px";
-    if (phone) {
+    if (touchy) {
       // Long-press must not open the browser's text-selection / image menu.
       el.classList.add("chart-touch");
       if (opts.touchMode === "capture") el.classList.add("chart-touch-capture");
@@ -585,7 +593,7 @@
       // there. Outside fullscreen the page keeps those swipes (Practice's
       // "capture" mode, where one finger owns the chart, is unchanged).
       const onControl = (t) => !!(t && t.closest && t.closest(".chart-fs-btn, .chart-zoom-tools, .chart-fs-only, .chart-draw-bar, .cd-pop"));
-      const axisSwipeOn = () => !phone || opts.touchMode === "capture" || !!(fs && fs.isOn());
+      const axisSwipeOn = () => !touchy || opts.touchMode === "capture" || !!(fs && fs.isOn());
       el.addEventListener("touchstart", (e) => {
         if (axisSwipeOn() && !onControl(e.target) && e.touches.length === 1 && axisHit(e.touches[0])) {
           sw = { y: e.touches[0].clientY };
@@ -639,7 +647,7 @@
     // transparent pan-y layer while the chart is NOT fullscreen; in fullscreen
     // (CSS hides the shield) the axis is a real control again.
     let axisShield = null;
-    if (phone && opts.touchMode !== "capture") {
+    if (touchy && opts.touchMode !== "capture") {
       axisShield = document.createElement("div");
       axisShield.className = "chart-axis-shield";
       axisShield.setAttribute("aria-hidden", "true");
@@ -768,6 +776,7 @@
     buildStandardChart,
     teardownStandardChart,
     isPhone,
+    isTouchy,
     isLandscapePhone,
     phoneChartHeight,
     touchChartOpts,

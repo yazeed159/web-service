@@ -267,6 +267,23 @@
       csv: (r) => { const je = window.TradeNotes ? window.TradeNotes.get(r.id) : null; return (r.lesson_tags || []).concat((je && je.mistakes) || []).join("; "); },
       render: tagsCellHtml },
   ];
+  // Journal fields for the CSV export only (kept out of ALL_COLUMNS so the table
+  // and its column picker are unchanged). Text fields are prefixed with an
+  // apostrophe when they start with = + - @ so Excel never runs them as formulas.
+  const csvSafe = (v) => { const t = String(v == null ? "" : v); return /^[=+\-@\t\r]/.test(t) ? "'" + t : t; };
+  const jEntry = (r) => (window.TradeNotes ? window.TradeNotes.get(r.id) : null) || null;
+  const jMetrics = (r) => (window.TradeNotes ? window.TradeNotes.metrics(r, jEntry(r)) : {});
+  const JOURNAL_EXPORT_COLUMNS = [
+    { id: "j_plan_stop", label: "Planned stop", csv: (r) => { const e = jEntry(r); return e ? (e.plan_stop != null ? e.plan_stop : (e.no_stop ? "none" : "")) : ""; } },
+    { id: "j_plan_target", label: "Planned target", csv: (r) => { const e = jEntry(r); return e ? (e.plan_target != null ? e.plan_target : (e.no_target ? "none" : "")) : ""; } },
+    { id: "j_planned_rr", label: "Planned R:R", csv: (r) => { const m = jMetrics(r); return m.planned_rr != null ? m.planned_rr.toFixed(2) : ""; } },
+    { id: "j_r_multiple", label: "Realised R", csv: (r) => { const m = jMetrics(r); return m.r_multiple != null ? m.r_multiple.toFixed(2) : ""; } },
+    { id: "j_setup", label: "My setup tag", csv: (r) => { const e = jEntry(r); return csvSafe(e ? e.setup : ""); } },
+    { id: "j_mistakes", label: "My mistakes", csv: (r) => { const e = jEntry(r); return csvSafe(e && e.mistakes ? e.mistakes.join("; ") : ""); } },
+    { id: "j_followed_rules", label: "Followed my rules", csv: (r) => { const e = jEntry(r); return e && e.followed_rules === true ? "Yes" : e && e.followed_rules === false ? "No" : ""; } },
+    { id: "j_notes", label: "My notes", csv: (r) => { const e = jEntry(r); return csvSafe(e ? e.notes : ""); } },
+  ];
+  const EXPORT_COLUMNS = ALL_COLUMNS.concat(JOURNAL_EXPORT_COLUMNS);
   const DEFAULT_ORDER = ALL_COLUMNS.map((c) => c.id);
   let colOrder = DEFAULT_ORDER.slice();
   let colWidths = {};
@@ -1323,7 +1340,7 @@
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
   function buildCsv(rows, columnIds) {
-    const defs = columnIds.map((id) => ALL_COLUMNS.find((c) => c.id === id)).filter(Boolean);
+    const defs = columnIds.map((id) => EXPORT_COLUMNS.find((c) => c.id === id)).filter(Boolean);
     const header = defs.map((d) => csvEscape(d.label)).join(",");
     const lines = rows.map((r) => defs.map((d) => csvEscape(d.csv(r))).join(","));
     return [header].concat(lines).join("\r\n");
@@ -1345,6 +1362,8 @@
         <div class="ui-modal-title">Export ${rows.length} trade${rows.length === 1 ? "" : "s"} to CSV</div>
         <div class="export-col-picker">
           ${ALL_COLUMNS.map((c) => `<label class="export-col-row"><input type="checkbox" value="${c.id}" checked> ${escapeHtml(c.label)}</label>`).join("")}
+          <div class="export-col-group" style="margin:10px 0 4px; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint);">Your journal entries</div>
+          ${JOURNAL_EXPORT_COLUMNS.map((c) => `<label class="export-col-row"><input type="checkbox" value="${c.id}" checked> ${escapeHtml(c.label)}</label>`).join("")}
         </div>
         <div class="ui-modal-actions">
           <button type="button" class="btn-advanced" data-act="cancel">Cancel</button>

@@ -153,6 +153,99 @@
     .ticker { display: none; }
     .formside { padding: 32px 24px 48px; }
   }
+
+  /* ---------- Phone: glass sign-in screen ---------- */
+  @media (max-width: 860px) {
+    :root { --g-fill: rgba(30,33,44,.50); --g-fill-strong: rgba(20,22,30,.72); --g-line: rgba(255,255,255,.10); --g-hi: rgba(255,255,255,.14); --g-blur: blur(20px) saturate(165%); }
+    body::before {
+      content: ""; position: fixed; inset: -10% -20% auto -20%; height: 85vh; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(42% 46% at 18% 22%, rgba(139,124,246,.42), transparent 70%),
+        radial-gradient(38% 42% at 86% 14%, rgba(242,85,90,.28), transparent 70%),
+        radial-gradient(46% 40% at 60% 72%, rgba(47,208,138,.15), transparent 72%);
+      animation: lg-drift 12s ease-in-out infinite alternate;
+    }
+    @keyframes lg-drift { from { transform: translate(0,0) scale(1); } to { transform: translate(6%, 5%) scale(1.12); } }
+    @keyframes lg-rise { from { opacity: 0; transform: translateY(16px) scale(.985); } to { opacity: 1; transform: none; } }
+    .shell { min-height: 100dvh; align-content: start; }
+    .hero { background: transparent; border: 0; padding: calc(28px + env(safe-area-inset-top, 0px)) 20px 8px; gap: 18px; }
+    .hero > * { animation: lg-rise .55s cubic-bezier(.22,1,.36,1) backwards; }
+    .hero > *:nth-child(2) { animation-delay: .07s; } .hero > *:nth-child(3) { animation-delay: .14s; } .hero > *:nth-child(4) { animation-delay: .21s; }
+    .brand .mark { border-radius: 12px; width: 36px; height: 36px; color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 8px 22px rgba(139,124,246,.45); }
+    .curve-panel, .stat-row {
+      background: var(--g-fill); border: 1px solid var(--g-line); border-radius: 24px;
+      -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi), 0 12px 32px rgba(0,0,0,.3);
+    }
+    .stat-row { gap: 0; }
+    .stat-cell { background: transparent; }
+    .stat-cell + .stat-cell { box-shadow: -1px 0 0 var(--g-line); }
+    .formside { padding: 8px 16px calc(40px + env(safe-area-inset-bottom, 0px)); align-items: flex-start; }
+    .formwrap {
+      max-width: none; padding: 26px 20px 22px; border-radius: 32px;
+      background: var(--g-fill-strong); border: 1px solid var(--g-line);
+      -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
+      box-shadow: inset 0 1px 0 var(--g-hi), 0 22px 56px rgba(0,0,0,.45);
+      animation: lg-rise .6s .18s cubic-bezier(.22,1,.36,1) backwards;
+    }
+    .formwrap h2 { font-size: 22px; }
+    input { padding: 14px 16px; border-radius: 16px; font-size: 16px; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); transition: border-color .2s, box-shadow .25s; }
+    input:focus { border-color: rgba(139,124,246,.7); box-shadow: 0 0 0 4px rgba(139,124,246,.22); }
+    .pw-toggle { border-radius: 999px; padding: 6px 12px; right: 8px; }
+    button.primary {
+      padding: 16px; border-radius: 999px; font-size: 16px; font-weight: 700; color: #fff;
+      border: 1px solid rgba(255,255,255,.22);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 10px 28px rgba(110,91,240,.5);
+      transition: transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .25s;
+    }
+    button.primary:active:not(:disabled) { transform: scale(.97); }
+  }
+  @media (max-width: 860px) and (prefers-reduced-motion: reduce) { body::before, .hero > *, .formwrap { animation: none !important; } }
+
+  /* ---------- Desktop: glass sign-in (matches the app's glass skin) ---------- */
+  @media (min-width: 861px) {
+    :root { --g-fill: rgba(30,33,44,.46); --g-fill-strong: rgba(20,22,30,.72); --g-line: rgba(255,255,255,.09); --g-hi: rgba(255,255,255,.14); --g-blur: blur(24px) saturate(175%);
+      --g-sheen: linear-gradient(145deg, rgba(255,255,255,.10) 0%, rgba(255,255,255,.03) 30%, rgba(255,255,255,0) 58%); --bg: #07080c; }
+    body::before {
+      content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(38% 46% at 12% 14%, rgba(139,124,246,.38), transparent 70%),
+        radial-gradient(34% 40% at 88% 8%, rgba(34,211,238,.20), transparent 70%),
+        radial-gradient(40% 44% at 92% 72%, rgba(242,85,90,.20), transparent 72%),
+        radial-gradient(46% 42% at 40% 98%, rgba(47,208,138,.16), transparent 72%);
+      animation: lg-drift 16s ease-in-out infinite alternate;
+    }
+    @keyframes lg-drift { from { transform: translate(0,0) scale(1); } to { transform: translate(3%, 2%) scale(1.08); } }
+    @keyframes lg-rise { from { opacity: 0; transform: translateY(16px) scale(.985); } to { opacity: 1; transform: none; } }
+    .hero { background: transparent; border-right: 1px solid var(--g-line); }
+    .hero > * { animation: lg-rise .6s cubic-bezier(.22,1,.36,1) backwards; }
+    .hero > *:nth-child(2) { animation-delay: .08s; } .hero > *:nth-child(3) { animation-delay: .16s; } .hero > *:nth-child(4) { animation-delay: .24s; }
+    .brand .mark { border-radius: 10px; color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 8px 24px rgba(139,124,246,.45); }
+    .curve-panel, .stat-row {
+      background: var(--g-sheen), var(--g-fill); border: 1px solid var(--g-line); border-radius: 20px;
+      -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi), 0 14px 38px rgba(0,0,0,.34);
+    }
+    .stat-row { gap: 0; } .stat-cell { background: transparent; } .stat-cell + .stat-cell { box-shadow: -1px 0 0 var(--g-line); }
+    .trow { background: var(--g-sheen), var(--g-fill); border-color: var(--g-line); border-radius: 14px; -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi); }
+    .formwrap {
+      max-width: 380px; padding: 34px 30px 28px; border-radius: 28px;
+      background: var(--g-sheen), var(--g-fill-strong); border: 1px solid var(--g-line);
+      -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
+      box-shadow: inset 0 1px 0 var(--g-hi), 0 30px 70px rgba(0,0,0,.5);
+      animation: lg-rise .65s .2s cubic-bezier(.22,1,.36,1) backwards;
+    }
+    input { border-radius: 14px; background: var(--g-fill); border-color: var(--g-line); box-shadow: inset 0 1px 0 var(--g-hi); transition: border-color .2s ease, box-shadow .25s ease; }
+    input:focus { border-color: rgba(139,124,246,.7); box-shadow: 0 0 0 4px rgba(139,124,246,.22); }
+    .pw-toggle { border-radius: 999px; padding: 5px 11px; }
+    button.primary {
+      padding: 13px; border-radius: 14px; color: #fff; border: 1px solid rgba(255,255,255,.22);
+      background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,0) 55%), linear-gradient(135deg, var(--primary), var(--primary-2));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 10px 28px -8px rgba(110,91,240,.6);
+      transition: transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .25s ease;
+    }
+    button.primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 14px 34px -8px rgba(110,91,240,.7); }
+    button.primary:active:not(:disabled) { transform: scale(.98); }
+  }
+  @media (min-width: 861px) and (prefers-reduced-motion: reduce) { body::before, .hero > *, .formwrap { animation: none; } }
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0b0f">

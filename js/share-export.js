@@ -94,6 +94,33 @@ window.TradeLogShare = (function () {
     .pill.loss{background:var(--red-soft); color:var(--red);}
     .filters-summary{font-size:12.5px; color:var(--text-dim); margin-bottom:18px;}
     svg.equity-svg{width:100%; height:140px; display:block;}
+
+    /* Glass skin (self-contained: this page is exported on its own and can't load the app's CSS) */
+    :root{ --g-fill:rgba(30,33,44,.46); --g-fill-strong:rgba(20,22,30,.72); --g-line:rgba(255,255,255,.09); --g-hi:rgba(255,255,255,.14);
+      --g-blur:blur(24px) saturate(175%); --g-sheen:linear-gradient(145deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,.03) 30%,rgba(255,255,255,0) 58%); }
+    body{ background:#07080c; min-height:100vh; -webkit-font-smoothing:antialiased; }
+    body::before{ content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+      background:
+        radial-gradient(38% 46% at 12% 12%, rgba(139,124,246,.34), transparent 70%),
+        radial-gradient(34% 40% at 90% 8%, rgba(34,211,238,.18), transparent 70%),
+        radial-gradient(40% 44% at 92% 70%, rgba(242,85,90,.18), transparent 72%),
+        radial-gradient(46% 42% at 40% 98%, rgba(47,208,138,.14), transparent 72%); }
+    .card, .pnl-grid, .stat-row{ background:var(--g-sheen), var(--g-fill); border:1px solid var(--g-line); border-radius:20px;
+      -webkit-backdrop-filter:var(--g-blur); backdrop-filter:var(--g-blur); box-shadow:inset 0 1px 0 var(--g-hi), 0 14px 38px rgba(0,0,0,.34); }
+    .pnl-grid, .stat-row{ gap:0; }
+    .pnl-grid .cell, .stat-row .cell{ background:transparent; }
+    .pnl-grid .cell + .cell, .stat-row .cell + .cell{ box-shadow:-1px 0 0 var(--g-line); }
+    .brand .mark{ border-radius:8px; color:#fff; box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 6px 18px rgba(139,124,246,.45); }
+    .badge{ border:1px solid currentColor; box-shadow:0 0 16px -4px currentColor; }
+    .badge.up{ background:rgba(47,208,138,.13); } .badge.down{ background:rgba(242,85,90,.13); }
+    .setup-tag, .pill, .lesson-tag{ border-radius:999px; }
+    .pill.win{ box-shadow:0 0 12px -4px var(--green); } .pill.loss{ box-shadow:0 0 12px -4px var(--red); }
+    .walk-away{ border-radius:14px; background:var(--g-fill); border-color:var(--g-line); }
+    .better-row, table.data-table td, .footer-note{ border-color:var(--g-line); }
+    table.data-table th{ border-bottom-color:var(--g-line); letter-spacing:.06em; }
+    table.data-table tbody tr:hover{ background:rgba(139,124,246,.08); }
+    .chart-info-overlay{ background:rgba(20,22,30,.55); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); border:1px solid var(--g-line); border-radius:12px; padding:6px 10px; }
+    @media (max-width:640px){ .pnl-grid, .stat-row{ grid-template-columns:repeat(2,1fr); } .pnl-grid .cell:nth-child(n+3), .stat-row .cell:nth-child(n+3){ box-shadow:0 -1px 0 var(--g-line); } .wrap{ padding:20px 14px 48px; } }
   `;
 
   function pageShell({ title, headExtra, bodyHtml, scriptExtra }) {

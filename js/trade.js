@@ -1475,11 +1475,11 @@
     // swipes and the page can't be scrolled past it.
     const macdPhone = window.ChartIndicators.isPhone();
     const macdCommonOpts = {
-      layout: { background: { color: "transparent" }, textColor: macdCt.text, fontSize: macdPhone ? 10 : 12 },
+      layout: { background: { color: "transparent" }, textColor: macdCt.text, fontFamily: macdCt.font, fontSize: macdPhone ? 10 : 12 },
       grid: { vertLines: { color: macdCt.grid }, horzLines: { color: macdCt.grid } },
       rightPriceScale: { borderColor: macdCt.border, minimumWidth: macdPhone ? 60 : 92 },
       timeScale: { borderColor: macdCt.border, timeVisible: true, secondsVisible: false, rightOffset: macdPhone ? 3 : 0 },
-      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      crosshair: window.chartCrosshair ? window.chartCrosshair(LightweightCharts.CrosshairMode.Normal) : { mode: LightweightCharts.CrosshairMode.Normal },
       ...window.ChartIndicators.touchChartOpts(),
     };
     // Use the container's real (CSS) height -- 80px on phones -- not a
