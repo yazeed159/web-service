@@ -32,7 +32,7 @@
   const MAX_AUTO_RETRIES = 6;
   function load() {
     clearTimeout(retryTimer);
-    window.fetchTradesIndex().then(
+    return window.fetchTradesIndex().then(
       (rows) => {
         loadTries = 0;
         try { render(Array.isArray(rows) ? rows : []); }
@@ -59,6 +59,11 @@
   // this page isn't an SPA page (see page-transition.js), so it only
   // ever loads once and the listener never needs teardown.
   window.refreshOnFocus(load);
+  // mobile-extras.js loads after this script, so register once the page has finished parsing.
+  (function () {
+    const reg = () => { if (window.PullRefresh) window.PullRefresh.set(load); };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", reg); else reg();
+  })();
 
   // See app.js's identical helper for why this exists: renderDecay /
   // renderVolume / renderSizing each own a totally different section of

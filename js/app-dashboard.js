@@ -719,7 +719,9 @@
   function symbolAvatarHtml(symbol) {
     const hue = avatarColor(symbol);
     const initials = symbol.slice(0, 2).toUpperCase();
-    return `<span class="sym-avatar" style="background:hsla(${hue},70%,55%,0.16); color:hsl(${hue},70%,68%);">${initials}</span>`;
+    // Light theme: the pale 68% text washes out on the light tint, so go dark there (the toggle reloads the page).
+    const light = document.documentElement.getAttribute("data-theme") === "light";
+    return `<span class="sym-avatar" style="background:hsla(${hue},70%,55%,0.16); color:hsl(${hue},70%,${light ? 28 : 68}%);">${initials}</span>`;
   }
   // "$5.20", or an em dash when a trade has no recorded price -- null.toFixed()
   // used to throw here and took the whole Recent trades table down with it.

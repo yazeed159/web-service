@@ -7,6 +7,7 @@
 <title>Trading accounts — trade.log</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/glass.css">
 <link rel="stylesheet" href="css/ui-modal.css">
 <style>
   .int-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel-2); margin-bottom: 10px; overflow: hidden; }
@@ -546,11 +547,14 @@
         document.querySelector(".content").insertAdjacentHTML("afterbegin", '<div class="panel-box mb-16"><div class="empty-state small">Accounts aren\u2019t set up in your database yet. Run <b>001_accounts.sql</b> in the Supabase SQL editor, then reload.</div></div>');
         return;
       }
-      return window.Accounts.fetchAllTrades().then((rows) => {
+      const reload = () => window.Accounts.fetchAllTrades().then((rows) => {
         allTrades = rows;
         ledger = window.Accounts.getLedger();
         refreshAll();
       });
+      // Phones: pull down at the top to re-fetch in place (js/mobile-extras.js).
+      if (window.PullRefresh) window.PullRefresh.set(reload);
+      return reload();
     });
   }).catch((e) => toast("Couldn't load accounts: " + (e && e.message ? e.message : e), "error"));
 })();

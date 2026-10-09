@@ -7,6 +7,7 @@
 <title>Daily — trade.log</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/glass.css">
 <style>
   .dn-grid{display:grid;gap:16px;max-width:980px;}
   .dn-datebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
@@ -495,6 +496,13 @@
     trades = Array.isArray(rows) ? rows : [];
     load(); renderForm(); bind(); renderSummary(); renderWeek();
   });
+  // Phones: pull down at the top to re-fetch trades. Only the numbers are redrawn,
+  // so text you're typing in the plan is never overwritten.
+  if (window.PullRefresh) window.PullRefresh.set(() =>
+    window.fetchTradesIndex().then((rows) => {
+      trades = Array.isArray(rows) ? rows : [];
+      renderSummary(); renderWeek();
+    }));
 })();
 </script>
 </body>

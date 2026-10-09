@@ -7,6 +7,7 @@
 <title>Patterns — trade.log</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/glass.css">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0a0b0f">
 <script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light"){var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#f5f6f9");}}catch(e){}})();</script>
@@ -115,11 +116,19 @@
   "use strict";
   const content = document.getElementById("patterns-content");
 
-  window.fetchTradesIndex()
-    .then((rows) => render(Array.isArray(rows) ? rows : []))
-    .catch((err) => {
-      content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
-    });
+  function load() {
+    return window.fetchTradesIndex()
+      .then((rows) => render(Array.isArray(rows) ? rows : []))
+      .catch((err) => {
+        content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
+      });
+  }
+  load();
+  // mobile-extras.js loads after this script, so register once the page has finished parsing.
+  (function () {
+    const reg = () => { if (window.PullRefresh) window.PullRefresh.set(load); };
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", reg); else reg();
+  })();
 
   // escapeHtml() now in utils.js (loads first on every page).
 

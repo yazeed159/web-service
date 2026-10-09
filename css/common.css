@@ -57,6 +57,7 @@
    (green/red/blue/amber/primary) are deepened a bit from their dark-mode
    values -- the originals are tuned for contrast against near-black and
    read as pale/washed-out used as text on a white panel. */
+/* Light-theme accent text colours darkened to reach WCAG AA (4.5:1) on glass cards and P&L-tinted tiles. */
 :root[data-theme="light"] {
   --bg: #f5f6f9;
   --sidebar-bg: #ffffff;
@@ -68,15 +69,15 @@
   --text: #1a1c26;
   --text-dim: #565a6b;
   --text-faint: #5f6371;
-  --green: #189a63;
-  --green-soft: rgba(24, 154, 99, 0.13);
-  --red: #d5383f;
-  --red-soft: rgba(213, 56, 63, 0.12);
-  --blue: #3568cc;
+  --green: #127249;
+  --green-soft: rgba(18, 114, 73, 0.13);
+  --red: #bf282f;
+  --red-soft: rgba(191, 40, 47, 0.12);
+  --blue: #3060bf;
   --blue-soft: rgba(53, 104, 204, 0.12);
-  --amber: #a5701a;
-  --amber-soft: rgba(165, 112, 26, 0.14);
-  --primary: #6e5bf0;
+  --amber: #865b15;
+  --amber-soft: rgba(134, 91, 21, 0.14);
+  --primary: #5b46ee;
   --primary-2: #5a46e0;
   --primary-soft: rgba(110, 91, 240, 0.12);
   /* "glass" panels (modern.css layer, below) are a translucent tint over
@@ -189,7 +190,6 @@ button, a, input, select, textarea,
   position: relative;
   width: 52px;
   height: 52px;
-  border-radius: 14px;
   background: linear-gradient(135deg, var(--primary), var(--primary-2));
   display: flex;
   align-items: center;
@@ -297,7 +297,6 @@ a, button, input, select, textarea, summary, [role="button"], .row-link {
 
 a { color: inherit; }
 button { font-family: var(--sans); }
-::selection { background: rgba(139,124,246,0.3); }
 :focus-visible { outline: 1.5px solid var(--primary); outline-offset: 2px; }
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -447,7 +446,7 @@ button { font-family: var(--sans); }
 
 .sidebar-bottom { padding: 14px 16px 18px; border-top: 1px solid var(--border-soft); }
 .pipeline-status { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-faint); white-space: nowrap; overflow: hidden; }
-.pipeline-status .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+.pipeline-status .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--green);  }
 .sidebar.collapsed .pipeline-status span:not(.dot) { display: none; }
 .sidebar.collapsed .pipeline-status { justify-content: center; }
 
@@ -503,7 +502,7 @@ html[data-theme="light"] .theme-toggle-btn .theme-icon-moon { display: block; }
 .panel-head { margin-bottom: 18px; }
 .panel-head .sub { color: var(--text-dim); font-size: 13.5px; margin-top: 2px; }
 .section-label {
-  font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint);
+  font-size: 11px; text-transform: uppercase;  
   font-weight: 600; margin: 28px 0 12px;
 }
 .section-label:first-child { margin-top: 0; }
@@ -600,7 +599,7 @@ html[data-theme="light"] .theme-toggle-btn .theme-icon-moon { display: block; }
   .equity-chart-wrap.scrubbing { touch-action: none; }
 }
 .equity-crosshair {
-  position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border);
+  position: absolute; top: 0; bottom: 0; width: 1px; 
   pointer-events: none; display: none; z-index: 2;
 }
 /* Crosshair value/axis readout -- a horizontal line at the hovered
@@ -608,26 +607,23 @@ html[data-theme="light"] .theme-toggle-btn .theme-icon-moon { display: block; }
    same idea as a trading platform's price-axis crosshair label. Sits
    alongside (not instead of) the existing date/trade tooltip below. */
 .equity-crosshair-yline {
-  position: absolute; left: 0; right: 0; height: 1px; background: var(--border);
+  position: absolute; left: 0; right: 0; height: 1px; 
   pointer-events: none; display: none; z-index: 2;
 }
 .equity-yval-label {
   position: absolute; left: 0; transform: translateY(-50%);
   pointer-events: none; display: none; z-index: 3;
-  background: var(--panel-3); color: var(--text); border: 1px solid var(--border);
+  background: var(--panel-3);  border: 1px solid var(--border);
   font-family: var(--mono); font-size: 10.5px; font-weight: 600;
-  padding: 1px 6px; border-radius: 3px; white-space: nowrap;
+    white-space: nowrap;
 }
 .equity-tooltip {
   position: absolute; top: 8px; pointer-events: none; display: none; z-index: 3;
-  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--panel-2); border: 1px solid var(--border); 
   padding: 7px 10px; font-size: 11.5px; line-height: 1.5; white-space: nowrap;
   box-shadow: 0 4px 14px rgba(0,0,0,0.25);
 }
-.equity-tooltip .eq-date { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; }
-.equity-tooltip .eq-bal { font-family: var(--mono); font-weight: 700; }
 .equity-tooltip .eq-trade { color: var(--text-dim); margin-top: 2px; }
-.equity-tooltip .eq-hint { color: var(--text-faint); font-size: 10.5px; margin-top: 3px; }
 .equity-tooltip .eq-compare-line { margin-top: 2px; color: var(--text-dim); font-family: var(--mono); font-size: 11px; }
 .equity-tooltip .eq-compare-line .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
 /* Compare-to-previous-period: a small toggle button that lives inside
@@ -648,7 +644,7 @@ html[data-theme="light"] .theme-toggle-btn .theme-icon-moon { display: block; }
 .equity-compare-legend .sw.prev { background: none; border: 1.5px dashed var(--text-faint); }
 .equity-compare-legend b { font-family: var(--mono); }
 .equity-path-compare { fill: none; stroke: var(--text-faint); stroke-width: 1.5; stroke-dasharray: 5 4; }
-.equity-stats { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-soft); }
+.equity-stats { display: flex;  flex-wrap: wrap; margin-top: 10px; padding-top: 10px;  }
 .equity-stats .eq-stat-label { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 5px; }
 .equity-stats .eq-stat-value { font-family: var(--mono); font-weight: 700; font-size: 12px; }
 
@@ -676,9 +672,7 @@ html[data-theme="light"] .theme-toggle-btn .theme-icon-moon { display: block; }
 .trade-table td.sym { font-weight: 600; }
 .trade-table td.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .side-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 7px; }
-.pnl-tag { display: inline-block; padding: 3px 8px; border-radius: 5px; font-size: 12px; font-weight: 700; font-family: var(--mono); }
-.pnl-tag.up { background: var(--green-soft); color: var(--green); }
-.pnl-tag.down { background: var(--red-soft); color: var(--red); }
+.pnl-tag { display: inline-block;   font-size: 12px;  font-family: var(--mono); }
 .empty-state { text-align: center; padding: 48px 20px; color: var(--text-faint); font-size: 14px; }
 .empty-state.small { padding: 28px 20px; font-size: 13px; }
 
@@ -689,13 +683,13 @@ html[data-theme="light"] .theme-toggle-btn .theme-icon-moon { display: block; }
    --text-faint/--primary tokens as the rest of the theme, so it needs
    no separate light/dark handling. */
 .empty-state-hero { text-align: center; padding: 56px 24px 48px; color: var(--text-faint); }
-.empty-state-hero-icon { color: var(--text-faint); opacity: 0.55; margin: 0 auto 16px; width: 48px; height: 48px; }
+.empty-state-hero-icon {   margin: 0 auto 16px; width: 48px; height: 48px; }
 .empty-state-hero-icon svg { width: 100%; height: 100%; display: block; }
 .empty-state-hero-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
 .empty-state-hero-msg { font-size: 13.5px; line-height: 1.5; max-width: 420px; margin: 0 auto; }
 .empty-state-hero-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .empty-state-hero-action {
-  display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 18px; border-radius: var(--radius-sm);
+  display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 18px; 
   background: var(--primary-soft); color: var(--primary); font: inherit; font-size: 13.5px; font-weight: 600; text-decoration: none;
   border: 1px solid transparent; cursor: pointer;
 }
@@ -808,7 +802,6 @@ html[data-theme="light"] .theme-toggle-btn .theme-icon-moon { display: block; }
    P&L/gross stats above the grid, which are computed separately). */
 .cal-cell.other-month { opacity: 0.5; }
 .cal-cell.other-month .date-num { color: var(--text-faint); }
-.cal-cell.selected { box-shadow: 0 0 0 1.5px var(--primary) inset; }
 .cal-cell .date-num { font-size: 15px; color: var(--text-dim); font-weight: 600; margin-bottom: auto; }
 .cal-cell.win .date-num, .cal-cell.loss .date-num { color: var(--text); }
 .cal-cell .cell-pnl { font-family: var(--mono); font-size: 17px; font-weight: 700; margin-top: 8px; }
@@ -1013,19 +1006,17 @@ html[data-theme="light"] .theme-toggle-btn .theme-icon-moon { display: block; }
    ordinary "data's on its way" beat. See index.html for markup. */
 @keyframes skelShimmer { 0% { background-position: -150% 0; } 100% { background-position: 150% 0; } }
 .skel {
-  background: linear-gradient(90deg, var(--panel-2) 25%, var(--panel-3) 50%, var(--panel-2) 75%);
-  background-size: 250% 100%;
+  
   animation: skelShimmer 1.4s ease-in-out infinite;
-  border-radius: var(--radius-sm);
 }
 .skel-block { width: 100%; height: 150px; }
-.skel-line { height: 12px; border-radius: 4px; }
+.skel-line { height: 12px;  }
 .skel-line.w30 { width: 30%; }
 .skel-line.w40 { width: 40%; }
 .skel-line.w60 { width: 60%; }
 .skel-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
 .skel-row + .skel-row { border-top: 1px solid var(--border-soft); }
-.skel-avatar { flex: none; width: 34px; height: 34px; border-radius: 8px; }
+.skel-avatar { flex: none; width: 34px; height: 34px;  }
 .skel-rowbody { flex: 1; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 
 .hero-skel { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
@@ -1045,7 +1036,6 @@ html[data-theme="light"] .theme-toggle-btn .theme-icon-moon { display: block; }
 .loading-line.skel-cards { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 24px; }
 .skel-card {
   display: flex; align-items: center; gap: 12px; padding: 14px;
-  background: var(--panel); border: 1px solid var(--border-soft); border-radius: var(--radius);
 }
 .skel-card .skel-rowbody { gap: 8px; }
 .skel-card .skel-pnl { flex: none; width: 56px; height: 18px; }
@@ -1219,16 +1209,14 @@ select.filter-input:focus{
 @media (hover: hover) { .dow-chip:hover{border-color:var(--text-faint);color:var(--text);} }
 .dow-chip.on{background:var(--primary-soft);border-color:var(--primary);color:var(--text);}
 .btn-advanced.active{border-color:var(--primary);background:var(--primary-soft);}
-.tags-panel{display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:40;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:8px;min-width:220px;max-height:260px;overflow-y:auto;box-shadow:0 12px 28px rgba(0,0,0,0.4);}
+.tags-panel{display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:40;border:1px solid var(--border);padding:8px;min-width:220px;max-height:260px;overflow-y:auto;box-shadow:0 12px 28px rgba(0,0,0,0.4);}
 .tags-panel.open{display:block;}
-.tags-panel label{display:flex;align-items:center;gap:8px;padding:6px;border-radius:6px;font-size:13px;color:var(--text);cursor:pointer;}
+.tags-panel label{display:flex;align-items:center;gap:8px;padding:6px;font-size:13px;color:var(--text);cursor:pointer;}
 @media (hover: hover) { .tags-panel label:hover{background:var(--panel-3);} }
 .tags-panel input[type="checkbox"]{accent-color:var(--green);}
 .tags-panel-empty{color:var(--text-dim);font-size:12.5px;padding:6px;}
-.report-toptabs{display:flex;gap:22px;border-bottom:1px solid var(--border);margin-bottom:18px;}
-.toptab-btn{background:none;border:none;color:var(--text-dim);padding:10px 2px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;flex-shrink:0;}
-.toptab-btn.active{color:var(--green);border-bottom-color:var(--green);}
-
+.report-toptabs{margin-bottom:18px;}
+.toptab-btn{background:none;color:var(--text-dim);font-size:13px;cursor:pointer;border-bottom:2px solid transparent;flex-shrink:0;}
 /* features.css
  * Additive styles for journal.html / stats.html / patterns.html.
  * These pages use the same app-shell/sidebar and design tokens as
@@ -1316,9 +1304,6 @@ table.data-table td { padding: 8px 10px; border-bottom: 1px solid var(--border-s
 table.data-table a.row-link { color: var(--text); text-decoration: none; display: block; }
 .pill.tagpill { background: var(--panel-2); color: var(--text-dim); border-color: var(--border-soft); text-transform: none; }
 
-.pill.win { background: var(--green-soft); color: var(--green); border-color: rgba(47,208,138,0.3); }
-.pill.loss { background: var(--red-soft); color: var(--red); border-color: rgba(242,85,90,0.3); }
-
 /* Volume / relative-volume / float tag pills -- journal.html rows and the
    trade.html "About" card. One color per dimension so the three read as
    distinct at a glance instead of blurring into one generic tag color. */
@@ -1370,7 +1355,7 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .btn-load-more {
   background: transparent; border: 1px solid var(--border); color: var(--text-dim);
   font-family: var(--sans); font-size: 12px; font-weight: 600; cursor: pointer;
-  padding: 7px 16px; border-radius: 999px; transition: border-color .15s ease, color .15s ease, background .15s ease;
+   border-radius: 999px; transition: border-color .15s ease, color .15s ease, background .15s ease;
 }
 @media (hover: hover) { .btn-load-more:hover { border-color: var(--primary); color: var(--text); background: var(--primary-soft); } }
 
@@ -1421,7 +1406,7 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .ins-heat td.cell .sub { display: block; font-size: 10.5px; color: var(--text-dim); margin-top: 2px; }
 .ins-heat th.num { text-align: center; }
 .be-gauge { margin: 4px 0 6px; }
-.be-track { position: relative; height: 12px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); overflow: visible; }
+.be-track { position: relative; height: 12px; border-radius: 999px;  border: 1px solid var(--border); overflow: visible; }
 .be-fill { height: 100%; border-radius: 999px; }
 .be-fill.ok { background: var(--green); }
 .be-fill.short { background: var(--red); }
@@ -1474,7 +1459,7 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .calc-row .calc-hint{font-size:11.5px;color:var(--text-faint);font-weight:400;text-transform:none;letter-spacing:0;}
 .calc-input-wrap{position:relative;display:flex;align-items:center;}
 .calc-input-wrap .filter-input{width:100%;font-family:var(--mono);font-size:15px;padding:9px 10px;}
-.calc-stepper{display:flex;flex-direction:column;position:absolute;right:2px;top:2px;bottom:2px;}
+.calc-stepper{display:flex;flex-direction:column;position:absolute;top:2px;bottom:2px;}
 .calc-stepper button{flex:1;width:22px;background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:9px;line-height:1;padding:0;}
 @media (hover: hover) { .calc-stepper button:hover{color:var(--text);} }
 .chip-row{display:flex;flex-wrap:wrap;gap:6px;}
@@ -1494,7 +1479,7 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .calc-symbol-chip .px{font-family:var(--mono);font-size:10.5px;color:var(--text-dim);}
 .calc-results{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:16px;}
 .calc-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.calc-stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+.calc-stat{padding:12px 14px;}
 .calc-stat .lbl{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px;}
 .calc-stat .val{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--text);}
 .calc-stat .sub{font-size:11px;color:var(--text-faint);margin-top:3px;}
@@ -1513,8 +1498,8 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .hint-text { font-size: 12px; color: var(--text-faint); line-height: 1.6; margin: 10px 0 0; }
 .hint-text b { color: var(--text-dim); }
 
-.progress-track { height: 8px; border-radius: 4px; background: var(--panel-3); overflow: hidden; margin-bottom: 10px; }
-.progress-fill { height: 100%; background: var(--primary); transition: width .2s ease; }
+.progress-track { height: 8px;    margin-bottom: 10px; }
+.progress-fill { height: 100%;   }
 
 .btn-confirm:disabled { opacity: 0.55; cursor: not-allowed; }
 
@@ -1589,11 +1574,9 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .chat-bubble p { margin: 0 0 8px; }
 .chat-bubble p:last-child { margin-bottom: 0; }
 .chat-msg-user .chat-bubble {
-  background: var(--primary-soft); border: 1px solid rgba(139,124,246,0.3);
   border-bottom-right-radius: 3px;
 }
 .chat-msg-ai .chat-bubble {
-  background: var(--panel-2); border: 1px solid var(--border-soft);
   border-bottom-left-radius: 3px;
 }
 .chat-typing { display: flex; align-items: center; gap: 4px; padding: 14px; }
@@ -1618,14 +1601,14 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 
 .chat-input-row { display: flex; gap: 10px; padding-top: 4px; border-top: 1px solid var(--border-soft); }
 .chat-input {
-  flex: 1; background: var(--panel-2); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 11px 14px; color: var(--text);
+  flex: 1;  
+   padding: 11px 14px; color: var(--text);
   font-family: var(--sans); font-size: 13.5px;
 }
-.chat-input:focus { outline: none; border-color: var(--primary); }
+.chat-input:focus { outline: none;  }
 .chat-input:disabled { opacity: 0.6; }
 .chat-send-btn {
-  flex: none; width: 42px; height: 42px; border-radius: var(--radius);
+  flex: none; width: 42px; height: 42px; 
   background: var(--primary-soft); border: 1px solid rgba(139,124,246,0.35); color: var(--primary);
   display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
@@ -1820,8 +1803,8 @@ body::before {
 .score-gauge .fill { stroke: url(#modernGaugeGradient); }
 
 /* ---------- Equity curve: gradient glow line ---------- */
-#equity-svg .equity-path { stroke: url(#modernEquityGradient); filter: drop-shadow(0 0 6px var(--glow-cyan)); }
-#equity-svg .equity-path.neg { stroke: var(--red); filter: drop-shadow(0 0 6px rgba(242,85,90,0.35)); }
+#equity-svg .equity-path { stroke: url(#modernEquityGradient);  }
+#equity-svg .equity-path.neg { stroke: var(--red);  }
 
 /* ---------- Buttons & interactive controls ---------- */
 .filter-btn, .icon-btn, .cal-nav-btn, .sidebar-toggle, .btn-advanced, .btn-icon, .sr-run-btn {
@@ -1879,7 +1862,7 @@ body::before {
 .toast { display: flex; align-items: center; gap: 14px; }
 .toast-text { flex: 1; }
 .toast-action {
-  flex-shrink: 0; background: none; border: none; cursor: pointer;
+  flex-shrink: 0;   cursor: pointer;
   color: var(--primary); font-size: 13px; font-weight: 700;
   padding: 2px 0; text-transform: uppercase; letter-spacing: .02em;
 }
@@ -1944,9 +1927,6 @@ body::before {
 .score-row .fill { background: var(--grad-signature) !important; }
 
 /* ---------- Selection ---------- */
-::selection { background: rgba(132,87,255,0.35); }
-
-
 /* ===================================================================
    chat-widget.css — floating "AI Chat" launcher + popup panel.
    Loaded on every app-shell page alongside chat-widget.js. Replaces
@@ -2107,9 +2087,6 @@ body::before {
   box-shadow: 0 1px 2px rgba(0,0,0,0.15);
   transition: transform .15s ease;
 }
-.chat-msg-user .chat-bubble {
-  background: linear-gradient(135deg, var(--primary-soft), rgba(139,124,246,0.08));
-}
 .chat-msg-ai .chat-bubble { position: relative; }
 
 .chat-typing { padding: 12px 14px; }
@@ -2128,7 +2105,7 @@ body::before {
 .chat-input {
   transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
 }
-.chat-input:focus { box-shadow: 0 0 0 3px var(--primary-soft); background: var(--panel-3); }
+.chat-input:focus {  background: var(--panel-3); }
 .chat-send-btn {
   transition: transform .15s cubic-bezier(.2,.8,.3,1.3), background .15s ease, box-shadow .15s ease;
 }
@@ -2266,9 +2243,8 @@ body::before {
 
 .account-trigger {
   display: flex; align-items: center; gap: 6px;
-  padding: 3px 7px 3px 3px; border-radius: 20px; border: 1px solid transparent;
+  padding: 3px 7px 3px 3px;  border: 1px solid transparent;
   background: transparent; cursor: pointer;
-  transition: background .15s var(--ease), border-color .15s var(--ease);
 }
 @media (hover: hover) { .account-trigger:hover { background: var(--glass); border-color: var(--glass-border); } }
 .account-trigger.open { background: var(--glass-hi); border-color: var(--glass-border-hi); }
@@ -2287,8 +2263,7 @@ body::before {
 .account-panel {
   display: none;
   position: absolute; top: calc(100% + 10px); right: 0; min-width: 244px; z-index: 100;
-  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
-  box-shadow: 0 14px 28px -12px rgba(0,0,0,0.55);
+  
   overflow: hidden;
 }
 .account-panel.open { display: block; animation: hsPanelIn .12s ease; }
@@ -2307,16 +2282,16 @@ body::before {
 
 .account-menu { padding: 6px; }
 .account-menu-item {
-  display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; 
   background: none; border: none; color: var(--text); font: 500 12.5px var(--sans); text-decoration: none; cursor: pointer;
-  text-align: left; transition: background .12s var(--ease);
+  text-align: left; 
 }
 .account-menu-item svg { flex: none; width: 15px; height: 15px; color: var(--text-faint); }
 @media (hover: hover) { .account-menu-item:hover { background: var(--panel-2); } }
 .account-menu-item.danger { color: var(--red); }
 .account-menu-item.danger svg { color: var(--red); }
 @media (hover: hover) { .account-menu-item.danger:hover { background: var(--red-soft); } }
-.account-menu-divider { height: 1px; background: var(--border-soft); margin: 4px 6px; }
+.account-menu-divider { height: 1px;  margin: 4px 6px; }
 
 /* ---------- Account section (settings.html) ---------- */
 .account-hero { display: flex; align-items: center; gap: 16px; padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--border-soft); flex-wrap: wrap; }
@@ -2377,7 +2352,7 @@ body::before {
 
 .bt-section .panel-box-head { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
 .bt-section-icon {
-  flex: none; width: 28px; height: 28px; border-radius: 8px;
+  flex: none; width: 28px; height: 28px; 
   display: flex; align-items: center; justify-content: center;
   background: var(--panel-3); border: 1px solid var(--border);
 }
@@ -2460,7 +2435,6 @@ body::before {
 .progress-track { position: relative; }
 .progress-fill {
   position: relative; overflow: hidden;
-  background: linear-gradient(90deg, var(--primary-2), var(--primary));
 }
 .progress-fill::after {
   content: ""; position: absolute; inset: 0;
@@ -2629,18 +2603,14 @@ html:active-view-transition #page-progress-bar { display: none !important; }
   position: fixed; inset: 0; z-index: 10000;
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
-  background: rgba(6, 7, 10, 0.6);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  
   opacity: 0;
   transition: opacity .16s ease;
 }
 .shortcuts-overlay.open { opacity: 1; }
 .shortcuts-box {
   width: 100%; max-width: 360px; max-height: min(70vh, 520px); overflow-y: auto;
-  background: var(--panel); border: 1px solid var(--border-soft); border-radius: var(--radius-lg);
   padding: 20px 20px 16px;
-  box-shadow: 0 24px 60px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3);
   transform: scale(.95) translateY(6px);
   transition: transform .16s cubic-bezier(.2,.9,.3,1.2);
 }
@@ -2712,7 +2682,7 @@ table.journal-data-table td.col-tags { white-space: normal; }
 .pill.tagpill.user-tag { border-style: dashed; }
 .tags-edit-btn {
   background: none; border: none; color: var(--text-faint); cursor: pointer;
-  font-size: 12px; padding: 1px 4px; border-radius: 4px; line-height: 1; flex-shrink: 0;
+  font-size: 12px; padding: 1px 4px;  line-height: 1; flex-shrink: 0;
 }
 @media (hover: hover) { .tags-edit-btn:hover { color: var(--primary); background: var(--panel-2); } }
 .quick-edit-panel { display: flex; align-items: center; gap: 5px; width: 100%; flex-wrap: wrap; }
@@ -2862,26 +2832,24 @@ html.chart-fs-lock .bottom-nav, html.chart-fs-lock .chatw-launcher, html.chart-f
   display: flex; flex-direction: column; gap: 4px;
   position: absolute; left: 8px; top: 8px; bottom: 78px; z-index: 5;
   width: 40px; padding: 4px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none;
-  background: color-mix(in srgb, var(--panel) 90%, transparent);
-  border: 1px solid var(--border-soft); border-radius: 10px;
+  border: 1px solid var(--border-soft); 
   touch-action: pan-y;
 }
 .chart-fs .chart-draw-bar::-webkit-scrollbar { display: none; }
 .cd-btn {
   flex: none; display: flex; align-items: center; justify-content: center;
   width: 32px; height: 32px; padding: 0; color: var(--text-dim);
-  background: transparent; border: 1px solid transparent; border-radius: 7px; cursor: pointer;
+  background: transparent; border: 1px solid transparent;  cursor: pointer;
 }
-.cd-btn:hover:not(:disabled) { color: var(--text); background: var(--panel-2); }
-.cd-btn.on { color: var(--primary); background: var(--primary-soft); border-color: color-mix(in srgb, var(--primary) 50%, transparent); }
+.cd-btn:hover:not(:disabled) { color: var(--text);  }
+.cd-btn.on { color: var(--primary);  border-color: color-mix(in srgb, var(--primary) 50%, transparent); }
 .cd-btn:disabled { opacity: .35; cursor: default; }
-.cd-sep { flex: none; height: 1px; margin: 3px 4px; background: var(--border-soft); }
+.cd-sep { flex: none; height: 1px; margin: 3px 4px;  }
 .cd-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--border); }
 .chart-fs .cd-pop.open {
   display: grid; grid-template-columns: repeat(3, 28px); gap: 6px; padding: 8px;
   position: absolute; left: 56px; top: 8px; z-index: 6;
-  background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-  box-shadow: 0 10px 24px -10px rgba(0,0,0,.6);
+   border: 1px solid var(--border); 
 }
 .cd-swatch { width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--border); cursor: pointer; }
 /* Keep the OHLC / indicator readout clear of the toolbar while fullscreen. */
@@ -3269,12 +3237,12 @@ html.qa-open { overflow: hidden; }
 .qa-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .qa-title { font-size: 16px; font-weight: 700; }
 .qa-x { width: 40px; height: 40px; margin-right: -8px; border: 0; background: none; color: var(--text-dim); font-size: 16px; cursor: pointer; }
-.qa-tabs { display: flex; gap: 4px; padding: 3px; margin-bottom: 12px; background: var(--panel-2); border-radius: 10px; }
+.qa-tabs { display: flex; gap: 4px;  margin-bottom: 12px;   }
 .qa-tabs button {
-  flex: 1; min-height: 38px; border: 0; border-radius: 8px; background: none;
+  flex: 1; min-height: 38px; border: 0;  background: none;
   font: inherit; font-size: 13.5px; font-weight: 600; color: var(--text-dim); cursor: pointer;
 }
-.qa-tabs button.on { background: var(--panel-3); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
+.qa-tabs button.on {  color: var(--text);  }
 .qa-tabs button:disabled { opacity: .4; }
 .qa-pick, .qa-text, .qa-custom {
   width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; /* 16px: no iOS zoom-on-focus */
@@ -3302,9 +3270,8 @@ html.qa-open { overflow: hidden; }
 .qa-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
 .qa-link { font-size: 12.5px; color: var(--text-faint); text-decoration: none; padding: 10px 0; }
 .qa-save {
-  min-width: 132px; min-height: 48px; padding: 0 22px; border: 0; border-radius: 12px; cursor: pointer;
+  min-width: 132px; min-height: 48px; padding: 0 22px; border: 0;  cursor: pointer;
   font: inherit; font-size: 15px; font-weight: 700; color: #fff;
-  background: linear-gradient(135deg, var(--primary), var(--primary-2));
 }
 .qa-save:disabled { opacity: .5; }
 @media (min-width: 761px) {
@@ -3393,17 +3360,17 @@ html.has-ptr, html.has-ptr body { overscroll-behavior-y: contain; }
 .ts-bar-col.now span { color: var(--primary); font-weight: 700; }
 .ts-bar-col.future { opacity: .45; }
 .ts-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.ts-chip { padding: 4px 10px; border-radius: 12px; font-size: 12px; color: var(--text-dim); background: var(--panel-2); border: 1px solid var(--border-soft); }
+.ts-chip { padding: 4px 10px;  font-size: 12px; color: var(--text-dim);  border: 1px solid var(--border-soft); }
 .ts-chip .ok, .ts-adh b.ok, .ts-check summary b.ok { color: var(--green); }
 .ts-chip .bad, .ts-adh b.bad { color: var(--red); }
 .ts-plan { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--border-soft); }
-.ts-banner { padding: 10px 12px; border-radius: 10px; font-size: 13px; font-weight: 600; }
-.ts-banner.bad { color: var(--red); background: var(--red-soft); border: 1px solid var(--red); }
-.ts-banner.good { color: var(--green); background: var(--green-soft); border: 1px solid var(--green); }
+.ts-banner { padding: 10px 12px;  font-size: 13px; font-weight: 600; }
+.ts-banner.bad { color: var(--red);  border: 1px solid var(--red); }
+.ts-banner.good { color: var(--green);  border: 1px solid var(--green); }
 .ts-meter-top { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-dim); margin-bottom: 5px; }
 .ts-meter-top b { font-family: var(--mono); font-weight: 500; color: var(--text); }
-.ts-track { height: 6px; border-radius: 3px; background: var(--panel-3); overflow: hidden; }
-.ts-track i { display: block; height: 100%; border-radius: 3px; background: var(--green); transition: width .4s ease; }
+.ts-track { height: 6px;   overflow: hidden; }
+.ts-track i { display: block; height: 100%;  background: var(--green); transition: width .4s ease; }
 .ts-meter.warn .ts-track i { background: var(--amber); }
 .ts-meter.bad .ts-track i { background: var(--red); }
 .ts-meter.hit .ts-track i { background: var(--primary); }
@@ -3434,7 +3401,7 @@ html.has-ptr, html.has-ptr body { overscroll-behavior-y: contain; }
   font: inherit; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer;
   color: var(--text); background: var(--panel-2); border: 1px solid var(--border);
 }
-.ts-btn.primary { color: #fff; border-color: transparent; background: linear-gradient(135deg, var(--primary), var(--primary-2)); }
+.ts-btn.primary { color: #fff;   }
 @media (min-width: 900px) {
   .ts-card { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); column-gap: 28px;
     grid-template-areas: "tabs tabs" "main plan" "chips plan" "actions actions"; }
@@ -3651,9 +3618,8 @@ select option, select optgroup { background: var(--panel-2); color: var(--text);
   position: absolute; inset: 0; width: 100%; height: 100%; margin: 0;
   display: flex; align-items: center; gap: 8px; box-sizing: border-box;
   padding: 0 34px 0 11px; text-align: left; cursor: pointer;
-  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+   border: 1px solid var(--border); 
   color: var(--text); font: inherit; line-height: 1.2;
-  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
 }
 .ds-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ds-label.ds-empty { opacity: .55; }
@@ -3662,7 +3628,6 @@ select option, select optgroup { background: var(--panel-2); color: var(--text);
   color: var(--text-faint); pointer-events: none;
   transition: transform .18s var(--ease, ease), color .15s ease;
 }
-.ds-trigger:hover { border-color: var(--text-faint); }
 .ds.open .ds-trigger,
 .ds-native:focus ~ .ds-trigger,
 .ds-trigger:focus-visible {
@@ -3676,23 +3641,22 @@ select option, select optgroup { background: var(--panel-2); color: var(--text);
 .ds-menu {
   position: fixed; z-index: 100000; left: 0; top: 0; box-sizing: border-box;
   min-width: 120px; max-width: min(440px, calc(100vw - 16px)); max-height: 320px; overflow-y: auto;
-  padding: 5px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 11px;
+   background: var(--panel-2); border: 1px solid var(--border); 
   box-shadow: 0 20px 44px -14px rgba(0,0,0,.72), 0 2px 8px rgba(0,0,0,.25);
   opacity: 0; transform: translateY(-5px) scale(.985); transform-origin: top center;
   transition: opacity .12s ease, transform .14s var(--ease, ease); pointer-events: none;
-  scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  scrollbar-width: thin; 
 }
 .ds-menu.up { transform-origin: bottom center; transform: translateY(5px) scale(.985); }
 .ds-menu.show { opacity: 1; transform: none; pointer-events: auto; }
 .ds-opt {
-  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 7px;
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; 
   cursor: pointer; color: var(--text-dim); line-height: 1.25; user-select: none;
-  transition: background-color .08s ease, color .08s ease;
 }
 .ds-opt.indented { padding-left: 18px; }
 .ds-opt-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ds-opt .ds-check { flex: none; width: 14px; height: 14px; margin-left: auto; color: var(--primary); opacity: 0; }
-.ds-opt.active { background: var(--panel-3); color: var(--text); }
+.ds-opt.active {  color: var(--text); }
 .ds-opt.selected { color: var(--text); font-weight: 600; }
 .ds-opt.selected .ds-check { opacity: 1; }
 .ds-opt.selected.active { background: var(--primary-soft); }
@@ -3834,1412 +3798,4 @@ a.th-nav:active { transform: translateY(1px); }
   .cal-summary-cells .cell .value { font-size: 15px; }
   .cal-summary-cells .cell .label { margin-bottom: 4px; white-space: nowrap; }
   .cal-legend { flex-wrap: wrap; row-gap: 6px; }
-}
-
-/* ======================================================================
-   GLASS SKIN (phones, <=760px). Frosted floating surfaces over a soft
-   colour-wash background, pill-shaped controls and a floating tab bar.
-   Pure restyle: no markup/behaviour changes, desktop untouched. To turn it
-   off, delete this block.
-====================================================================== */
-@media (max-width: 760px) {
-  :root {
-    --g-fill: color-mix(in srgb, var(--panel) 52%, transparent);
-    --g-fill-strong: color-mix(in srgb, var(--panel) 78%, transparent);
-    --g-line: color-mix(in srgb, var(--text) 11%, transparent);
-    --g-hi: rgba(255,255,255,.10);
-    --g-shadow: 0 10px 30px rgba(0,0,0,.28);
-    --g-blur: blur(20px) saturate(165%);
-    --g-r: 24px;
-  }
-  :root[data-theme="light"] { --g-hi: rgba(255,255,255,.85); --g-shadow: 0 10px 28px rgba(70,60,140,.14); --g-fill: color-mix(in srgb, var(--panel) 62%, transparent); }
-
-  /* Colour wash the glass blurs against */
-  body::before {
-    content: ""; position: fixed; inset: -10% -20% auto -20%; height: 75vh; z-index: -1; pointer-events: none;
-    background:
-      radial-gradient(42% 46% at 18% 22%, rgba(139,124,246,.38), transparent 70%),
-      radial-gradient(38% 42% at 86% 12%, rgba(242,85,90,.26), transparent 70%),
-      radial-gradient(46% 40% at 60% 70%, rgba(47,208,138,.14), transparent 72%);
-  }
-  :root[data-theme="light"] body::before { opacity: .55; }
-
-  /* Frosted cards */
-  .card, .panel-box, .equity-panel, .day-group, .stat-grid, .pnl-breakdown, .streak-strip, .cal-summary-cells, .rr-strip {
-    background: var(--g-fill) !important;
-    -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-    border: 1px solid var(--g-line) !important;
-    border-radius: var(--g-r) !important;
-    box-shadow: inset 0 1px 0 var(--g-hi), var(--g-shadow);
-  }
-  /* Chart panel: no backdrop-filter (would trap the fullscreen chart), slightly denser fill instead */
-  .chart-panel {
-    background: var(--g-fill-strong); border: 1px solid var(--g-line); border-radius: var(--g-r);
-    box-shadow: inset 0 1px 0 var(--g-hi), var(--g-shadow);
-  }
-  .stat, .pnl-breakdown .cell, .streak-strip .cell, .cal-summary-cells .cell { background: transparent !important; }
-  .stat-grid, .pnl-breakdown, .streak-strip, .cal-summary-cells { gap: 0; }
-  .stat + .stat, .pnl-breakdown .cell + .cell, .streak-strip .cell + .cell, .cal-summary-cells .cell + .cell { box-shadow: -1px 0 0 var(--g-line); }
-  .day-header { background: transparent; border-bottom-color: var(--g-line); }
-
-  /* Floating glass top bar */
-  .topbar {
-    margin: 0; border-bottom: 0; border-radius: 0 0 28px 28px;
-    background: var(--g-fill-strong);
-    -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-    box-shadow: inset 0 -1px 0 var(--g-line), 0 8px 26px rgba(0,0,0,.18);
-  }
-  .icon-btn { border-radius: 50%; background: var(--g-fill); border: 1px solid var(--g-line); box-shadow: inset 0 1px 0 var(--g-hi); }
-
-  /* Pills, inputs, switchers */
-  .tf-switcher, .eq-range-toggle { border-radius: 999px; background: var(--g-fill); border-color: var(--g-line); padding: 3px; }
-  .tf-btn { border-radius: 999px; }
-  .tf-btn.active { background: color-mix(in srgb, var(--primary) 24%, transparent); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent); }
-  .filter-input, select, input[type="text"], input[type="search"], input[type="date"], input[type="number"], textarea {
-    border-radius: 16px; background: var(--g-fill); border: 1px solid var(--g-line);
-  }
-  .pill { background: var(--g-fill); border-color: var(--g-line); }
-
-  /* Floating pill tab bar */
-  .bottom-nav {
-    left: 12px; right: 12px; bottom: calc(10px + var(--safe-bottom)); padding: 5px;
-    border: 1px solid var(--g-line); border-radius: 32px;
-    background: var(--g-fill-strong);
-    -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-    box-shadow: inset 0 1px 0 var(--g-hi), 0 14px 36px rgba(0,0,0,.38);
-  }
-  .bn-item { min-height: 52px; border-radius: 26px; transition: background .18s ease, color .18s ease; }
-  .bn-item.active {
-    color: var(--text);
-    background: color-mix(in srgb, var(--primary) 22%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent), inset 0 1px 0 var(--g-hi);
-  }
-  .bn-item.active svg { color: var(--primary); }
-  .bn-item:active { background: color-mix(in srgb, var(--text) 8%, transparent); }
-  .content { padding-bottom: calc(118px + var(--safe-bottom)); }
-}
-
-/* ======================================================================
-   GLASS SKIN, PART 2 (phones): refined dark/light palettes and native-app
-   motion (springy press feedback, staggered entrances, theme cross-fade,
-   scroll-reactive top bar). All motion is disabled for reduced-motion users.
-====================================================================== */
-@media (max-width: 760px) {
-  /* ---- Dark: deeper canvas, brighter glass edge ---- */
-  :root:not([data-theme="light"]) {
-    --bg: #07080c;
-    --g-fill: rgba(30,33,44,.46);
-    --g-fill-strong: rgba(20,22,30,.74);
-    --g-line: rgba(255,255,255,.09);
-    --g-hi: rgba(255,255,255,.14);
-    --g-shadow: 0 12px 34px rgba(0,0,0,.45);
-  }
-  /* ---- Light: airy pastel wash, crisp white glass, tinted shadows ---- */
-  :root[data-theme="light"] {
-    --bg: #eef0f8;
-    --g-fill: rgba(255,255,255,.62);
-    --g-fill-strong: rgba(255,255,255,.82);
-    --g-line: rgba(90,80,160,.12);
-    --g-hi: rgba(255,255,255,.95);
-    --g-shadow: 0 10px 28px rgba(86,72,170,.13);
-  }
-  :root[data-theme="light"] body::before { opacity: .8; filter: saturate(.8); }
-  :root[data-theme="light"] .bottom-nav { box-shadow: inset 0 1px 0 var(--g-hi), 0 12px 32px rgba(86,72,170,.2); }
-  :root[data-theme="light"] .topbar { box-shadow: inset 0 -1px 0 var(--g-line), 0 8px 24px rgba(86,72,170,.10); }
-
-  /* ---- Theme switch cross-fades instead of snapping ---- */
-  body, .card, .panel-box, .chart-panel, .equity-panel, .day-group, .stat-grid, .pnl-breakdown,
-  .streak-strip, .topbar, .bottom-nav, .icon-btn, .pill, .filter-input, .tf-switcher {
-    transition: background-color .35s ease, border-color .35s ease, color .25s ease, box-shadow .35s ease;
-  }
-  body::before { transition: opacity .5s ease, filter .5s ease; }
-
-  /* ---- Native feel: no text-select on chrome, springy press feedback ---- */
-  .bn-item, .icon-btn, .tf-btn, .pill, .topbar { -webkit-user-select: none; user-select: none; }
-  .icon-btn, .tf-btn, .pill, .btn-confirm, .btn-advanced, .filter-btn, .btn-icon, .cal-nav-btn,
-  .trade-table tbody tr, a.card, .day-header {
-    transition: transform .22s cubic-bezier(.34,1.56,.64,1), background-color .2s ease, opacity .2s ease;
-  }
-  .icon-btn:active, .btn-confirm:active, .btn-advanced:active, .filter-btn:active, .btn-icon:active,
-  .cal-nav-btn:active, .pill:active, a.card:active { transform: scale(.94); }
-  .trade-table tbody tr:active, .day-header:active { transform: scale(.985); }
-  .bn-item:active { transform: scale(.92); }
-  .bn-item { transition: transform .22s cubic-bezier(.34,1.56,.64,1), background .22s ease, color .22s ease, box-shadow .22s ease; }
-  /* Active tab icon pops once when it becomes active */
-  .bn-item.active svg { animation: gl-pop .42s cubic-bezier(.34,1.56,.64,1); }
-  @keyframes gl-pop { 0% { transform: scale(.7); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
-
-  /* ---- Staggered fade-up as a page's blocks arrive (backwards fill: no lingering transform) ---- */
-  @keyframes gl-rise { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
-  .content > * { animation: gl-rise .5s cubic-bezier(.22,1,.36,1) backwards; }
-  .content > *:nth-child(2) { animation-delay: .05s; }
-  .content > *:nth-child(3) { animation-delay: .10s; }
-  .content > *:nth-child(4) { animation-delay: .15s; }
-  .content > *:nth-child(5) { animation-delay: .20s; }
-  .content > *:nth-child(6) { animation-delay: .25s; }
-  .content > *:nth-child(n+7) { animation-delay: .30s; }
-
-  /* ---- Bottom nav slides up on load; sheets/menus glide in ---- */
-  @keyframes gl-dock { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
-  .bottom-nav { animation: gl-dock .55s .1s cubic-bezier(.22,1,.36,1) backwards; }
-  .qa-sheet, .ds-menu { background: var(--g-fill-strong); -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); border: 1px solid var(--g-line); }
-  .qa-sheet { border-radius: 28px 28px 0 0; }
-  .ds-menu { border-radius: 18px; }
-
-  /* ---- Top bar firms up as you scroll (Chrome/Safari 26+; harmless elsewhere) ---- */
-  @supports (animation-timeline: scroll()) {
-    @keyframes gl-bar { from { box-shadow: inset 0 -1px 0 transparent, 0 0 0 rgba(0,0,0,0); } to { box-shadow: inset 0 -1px 0 var(--g-line), 0 10px 30px rgba(0,0,0,.28); } }
-    .topbar { animation: gl-bar linear both; animation-timeline: scroll(root); animation-range: 0 90px; }
-  }
-}
-
-@media (max-width: 760px) and (prefers-reduced-motion: reduce) {
-  .content > *, .bottom-nav, .bn-item.active svg, .topbar { animation: none !important; }
-  .icon-btn, .tf-btn, .pill, .bn-item, .trade-table tbody tr, .day-header, a.card { transition: none !important; }
-}
-
-/* ======================================================================
-   GLASS SKIN, PART 3 (phones): everything else. Secondary-surface tokens
-   become translucent so every inline-styled input / pill / track / chip in
-   the app turns glass automatically; then modals, sheets, drawer, search,
-   chat, toasts, tables, calendar, forms and buttons get explicit treatment.
-====================================================================== */
-@media (max-width: 760px) {
-  :root:not([data-theme="light"]) {
-    --panel-2: rgba(255,255,255,.065); --panel-3: rgba(255,255,255,.11);
-    --border: rgba(255,255,255,.12); --border-soft: rgba(255,255,255,.075);
-    --sidebar-bg: rgba(14,15,22,.78);
-  }
-  :root[data-theme="light"] {
-    --panel-2: rgba(110,91,240,.07); --panel-3: rgba(110,91,240,.13);
-    --border: rgba(90,80,160,.18); --border-soft: rgba(90,80,160,.10);
-    --sidebar-bg: rgba(255,255,255,.80);
-  }
-  * { scrollbar-width: none; }
-  *::-webkit-scrollbar { display: none; }
-  ::selection { background: color-mix(in srgb, var(--primary) 35%, transparent); }
-
-  /* ---- More frosted surfaces (fill only; nested blur is costly) ---- */
-  .th-card, .cal-cell, .rpt-local-card, .calc-box, .calc-results, .tags-panel, .advanced-filters,
-  .drill-inline-wrap, .hint-text, .rpt-dropzone-inner, .rpt-journal-row, .calc-chip, .calc-symbol-chip, .dow-chip {
-    background: var(--g-fill) !important; border: 1px solid var(--g-line) !important;
-    border-radius: 20px !important; box-shadow: inset 0 1px 0 var(--g-hi);
-  }
-  .th-card, .calc-box, .calc-results, .tags-panel, .advanced-filters { -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi), var(--g-shadow); }
-  .cal-cell { border-radius: 16px !important; transition: transform .22s cubic-bezier(.34,1.56,.64,1), background-color .2s; }
-  .cal-cell:active { transform: scale(.95); }
-  .calc-chip, .calc-symbol-chip, .dow-chip { border-radius: 999px !important; }
-
-  /* Tables: rows read as glass strips, sticky header is denser so text never muddles */
-  .table-scroll, .trade-table { border-radius: 20px; }
-  .trade-table thead th, table.data-table thead th, .report-table thead th {
-    background: var(--g-fill-strong) !important; -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-    border-bottom: 1px solid var(--g-line);
-  }
-  .trade-table tbody tr, table.data-table tbody tr, .report-table tbody tr { background: transparent; border-bottom: 1px solid var(--g-line); }
-  .trade-table tbody td, table.data-table tbody td { border-color: var(--g-line); }
-  table.journal-data-table tbody tr[data-id] { background: var(--g-fill) !important; border: 1px solid var(--g-line); border-radius: 18px; box-shadow: inset 0 1px 0 var(--g-hi); }
-
-  /* ---- Trade page header bits ---- */
-  .th-nav, .th-btn, .th-pager, .back-link, .trade-nav-link, .rpt-back {
-    background: var(--g-fill); border: 1px solid var(--g-line); border-radius: 999px; box-shadow: inset 0 1px 0 var(--g-hi);
-  }
-  .verdict-badge { border-radius: 999px; box-shadow: inset 0 1px 0 var(--g-hi); }
-  .setup-tag, .tagpill { border-radius: 999px; background: var(--g-fill); border-color: var(--g-line); }
-
-  /* ---- Buttons ---- */
-  .btn-confirm {
-    border-radius: 999px; border: 1px solid rgba(255,255,255,.22);
-    background: linear-gradient(135deg, var(--primary), var(--primary-2));
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 8px 22px color-mix(in srgb, var(--primary) 45%, transparent);
-  }
-  .btn-advanced, .filter-btn, .btn-icon, .cal-nav-btn {
-    background: var(--g-fill); border: 1px solid var(--g-line); border-radius: 999px; box-shadow: inset 0 1px 0 var(--g-hi);
-  }
-  .chart-fs-btn, .chart-zoom-btn, .cd-btn { background: var(--g-fill-strong) !important; border: 1px solid var(--g-line) !important; border-radius: 14px !important; -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); }
-  .chart-info-overlay { background: var(--g-fill); border-radius: 12px; padding: 4px 8px; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
-
-  /* ---- Forms: glow on focus ---- */
-  .filter-input, select, input, textarea, .ui-modal-input, .header-search-input, .qa-text { transition: border-color .2s, box-shadow .25s, background-color .2s; }
-  .filter-input:focus, select:focus, input:focus, textarea:focus, .ui-modal-input:focus, .qa-text:focus {
-    outline: none; border-color: color-mix(in srgb, var(--primary) 65%, transparent);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent);
-  }
-
-  /* ---- Drawer, backdrops, modals, sheets ---- */
-  .sidebar { -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); border-right: 1px solid var(--g-line); border-radius: 0 30px 30px 0; box-shadow: 18px 0 50px rgba(0,0,0,.35); }
-  .nav-item { border-radius: 16px; }
-  .nav-item.active { background: color-mix(in srgb, var(--primary) 20%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 38%, transparent); }
-  .sidebar-backdrop, .qa-backdrop, .ui-modal-overlay, .rpt-chart-modal-backdrop {
-    background: rgba(5,6,12,.45) !important; -webkit-backdrop-filter: blur(10px) saturate(130%); backdrop-filter: blur(10px) saturate(130%);
-  }
-  :root[data-theme="light"] .sidebar-backdrop, :root[data-theme="light"] .qa-backdrop, :root[data-theme="light"] .ui-modal-overlay { background: rgba(60,50,120,.22) !important; }
-  .ui-modal-box, .rpt-chart-modal-box {
-    background: var(--g-fill-strong) !important; border: 1px solid var(--g-line) !important; border-radius: 28px !important;
-    -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi), 0 24px 60px rgba(0,0,0,.5);
-  }
-  .ui-modal-box { transition: transform .35s cubic-bezier(.34,1.4,.64,1), opacity .25s ease; }
-  .qa-grab { background: var(--g-line); border-radius: 99px; }
-  .qa-tabs, .ts-tabs { background: var(--g-fill) !important; border: 1px solid var(--g-line) !important; border-radius: 999px !important; padding: 3px; }
-  .qa-chip, .qa-pick, .qa-link { border-radius: 999px; background: var(--g-fill); border: 1px solid var(--g-line); }
-  .qa-save { border-radius: 999px; box-shadow: 0 8px 22px color-mix(in srgb, var(--primary) 45%, transparent); }
-
-  /* ---- Search, chat, toasts ---- */
-  .header-search-box { background: var(--g-fill); border: 1px solid var(--g-line); border-radius: 999px; box-shadow: inset 0 1px 0 var(--g-hi); }
-  .header-search-panel { background: var(--g-fill-strong); border: 1px solid var(--g-line); border-radius: 22px; -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: var(--g-shadow); }
-  .header-search-item { border-radius: 14px; }
-  .chatw-launcher { background: var(--g-fill-strong) !important; border: 1px solid var(--g-line) !important; -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi), 0 10px 28px color-mix(in srgb, var(--primary) 35%, transparent); bottom: calc(96px + var(--safe-bottom)); }
-  .chatw-panel { background: var(--g-fill-strong) !important; border: 1px solid var(--g-line) !important; border-radius: 28px !important; -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi), 0 24px 60px rgba(0,0,0,.45); }
-  .chatw-panel-head { border-bottom: 1px solid var(--g-line); background: transparent; }
-  .chat-bubble { border-radius: 20px; }
-  .toast { background: var(--g-fill-strong) !important; border: 1px solid var(--g-line) !important; border-radius: 999px !important; -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi), var(--g-shadow); }
-
-  /* ---- Progress / bars get a soft glow ---- */
-  .bar-track, .mini-bar-track, .score-row .track, .th-track { background: var(--panel-3) !important; border-radius: 99px; box-shadow: inset 0 1px 2px rgba(0,0,0,.18); }
-  .bar-fill, .mini-bar-fill { border-radius: 99px; }
-  hr, .divider { border-color: var(--g-line); }
-}
-
-/* ======================================================================
-   GLASS SKIN, PART 4: dashboard hero (phones). A tall glass "balance card":
-   big animated P&L, recent-form bars in an inset glass tile, and a footer
-   with last-session P&L plus a glowing one-tap "Add trade note" button.
-====================================================================== */
-.hero-cta-row { display: none; }
-@media (max-width: 760px) {
-  .dash-hero {
-    flex-direction: column !important; align-items: stretch !important; gap: 16px !important;
-    padding: 22px 18px 18px !important; border-radius: 32px !important;
-    background:
-      radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--primary) 30%, transparent), transparent 62%),
-      radial-gradient(90% 80% at 100% 100%, rgba(242,85,90,.20), transparent 65%),
-      var(--g-fill) !important;
-    border: 1px solid var(--g-line) !important;
-    -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-    box-shadow: inset 0 1px 0 var(--g-hi), 0 18px 44px rgba(0,0,0,.30) !important;
-  }
-  .dash-hero::before { animation: gl-drift 10s ease-in-out infinite alternate; }
-  .dash-hero::after { opacity: .45; }
-  @keyframes gl-drift { from { transform: translate(0,0) scale(1); } to { transform: translate(14%, 8%) scale(1.15); } }
-  .hero-label { font-size: 12px; letter-spacing: .08em; }
-  .hero-value { font-size: clamp(40px, 12.5vw, 54px) !important; margin-bottom: 10px; text-shadow: 0 6px 28px color-mix(in srgb, currentColor 35%, transparent); }
-  .hero-spark { width: 100% !important; padding: 12px 14px; border-radius: 20px; background: var(--g-fill); border: 1px solid var(--g-line); box-shadow: inset 0 1px 0 var(--g-hi); }
-
-  .hero-cta-row { display: flex; align-items: stretch; gap: 10px; position: relative; z-index: 1; }
-  .hero-day {
-    flex: 0 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 1px;
-    padding: 8px 18px; border-radius: 999px; background: var(--g-fill); border: 1px solid var(--g-line); box-shadow: inset 0 1px 0 var(--g-hi);
-  }
-  .hero-day-k { font-size: 11px; font-weight: 600; color: var(--text-dim); }
-  .hero-day-v { font-family: var(--mono); font-weight: 800; font-size: 17px; }
-  .hero-day-v.up { color: var(--green); } .hero-day-v.down { color: var(--red); }
-  .hero-cta {
-    flex: 1 1 auto; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 0 8px 0 22px; border-radius: 999px; border: 1px solid rgba(255,255,255,.22); cursor: pointer;
-    font: inherit; font-size: 17px; font-weight: 800; color: #fff; letter-spacing: -.01em;
-    background: linear-gradient(100deg, #e0393e 0%, #b3122a 45%, #2a0f1c 100%);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 10px 26px rgba(224,57,62,.40);
-    transition: transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .25s;
-    animation: gl-glow 3.2s ease-in-out infinite;
-  }
-  .hero-cta i { font-style: normal; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 26px; line-height: 1; background: rgba(15,16,24,.82); border: 1px solid rgba(255,255,255,.18); }
-  .hero-cta { text-decoration: none; }
-  .hero-cta:active { transform: scale(.96); }
-  @keyframes gl-glow { 0%,100% { box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 10px 26px rgba(224,57,62,.34); } 50% { box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 12px 34px rgba(224,57,62,.58); } }
-
-  /* KPI cards: glass tiles that rise in a stagger */
-  .kpi-grid.stat-grid { gap: 12px; }
-  /* The KPI grid is a gap layout of separate cards: no outer glass box, each card is its own glass tile. */
-  .kpi-grid.stat-grid { background: transparent !important; border: 0 !important; box-shadow: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0 !important; }
-  .kpi-card {
-    background: var(--g-fill) !important; border: 1px solid var(--g-line) !important; border-radius: 22px !important;
-    -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi), var(--g-shadow);
-    transition: transform .22s cubic-bezier(.34,1.56,.64,1);
-  }
-  .kpi-card:active { transform: scale(.97); }
-}
-@media (max-width: 760px) and (prefers-reduced-motion: reduce) {
-  .dash-hero::before, .hero-cta { animation: none !important; }
-}
-
-/* ======================================================================
-   GLASS SKIN, PART 5: Settings (integrations + account forms), phones.
-====================================================================== */
-@media (max-width: 760px) {
-  .int-card {
-    background: var(--g-fill) !important; border: 1px solid var(--g-line) !important; border-radius: 22px !important;
-    box-shadow: inset 0 1px 0 var(--g-hi), var(--g-shadow); transition: box-shadow .3s ease, background-color .3s ease;
-  }
-  .int-card.open { background: var(--g-fill-strong) !important; }
-  .int-row:active { background: color-mix(in srgb, var(--text) 6%, transparent); }
-  .int-icon { border-radius: 14px; background: color-mix(in srgb, var(--primary) 18%, transparent); color: var(--primary); box-shadow: inset 0 1px 0 var(--g-hi); }
-  .int-status-dot.on { box-shadow: 0 0 0 3px var(--green-soft), 0 0 12px var(--green); }
-  .int-chevron { transition: transform .3s cubic-bezier(.34,1.56,.64,1); }
-  .int-card.open .int-body { animation: gl-rise .35s cubic-bezier(.22,1,.36,1); border-top-color: var(--g-line); }
-  .int-disconnect { border-radius: 999px; padding: 6px 12px; }
-  .int-disconnect:active { background: var(--red-soft); }
-  .panel-box-head { border-bottom: 1px solid var(--g-line); }
-  .account-field { border-radius: 16px; }
-  .empty-state { border-radius: 22px; background: var(--g-fill); border: 1px dashed var(--g-line); }
-}
-@media (max-width: 760px) and (prefers-reduced-motion: reduce) { .int-card.open .int-body { animation: none !important; } }
-
-/* ======================================================================
-   GLASS SKIN, PART 6: CSV import page (phones). The flow already has a
-   phase line, progress bar, live success / failed / skipped / processing
-   counts and a per-trade status column; this restyles them as glass.
-====================================================================== */
-@media (max-width: 760px) {
-  .it-card {
-    background: var(--g-fill) !important; border: 1px solid var(--g-line) !important; border-radius: 26px !important;
-    -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi), var(--g-shadow);
-  }
-  .it-card .drop { background: var(--g-fill) !important; border: 1.5px dashed color-mix(in srgb, var(--primary) 45%, transparent) !important; border-radius: 22px !important; flex-wrap: wrap; }
-  .it-card input[type="text"], .it-card input[type="number"], .it-card input[type="date"], .it-card input[type="time"], .it-card select {
-    border-radius: 14px !important; padding: 11px 13px !important; font-size: 16px !important; background-color: var(--g-fill) !important; border: 1px solid var(--g-line) !important;
-  }
-  input[type="file"]::file-selector-button { border-radius: 999px; border: 1px solid var(--g-line); background: var(--g-fill); color: var(--text); padding: 0 16px; }
-  #run-btn { width: 100%; min-height: 54px; border-radius: 999px !important; font-size: 16px; font-weight: 800; }
-
-  /* Progress */
-  .progress-wrap { padding: 14px 16px; border-radius: 22px; background: var(--g-fill); border: 1px solid var(--g-line); box-shadow: inset 0 1px 0 var(--g-hi); }
-  .progress-bar-track { height: 12px !important; border-radius: 99px !important; background: var(--panel-3) !important; box-shadow: inset 0 1px 3px rgba(0,0,0,.25); }
-  .progress-bar-fill {
-    position: relative; overflow: hidden; border-radius: 99px !important;
-    background: linear-gradient(90deg, var(--primary), #e0393e) !important;
-    box-shadow: 0 0 16px color-mix(in srgb, var(--primary) 70%, transparent);
-    transition: width .5s cubic-bezier(.22,1,.36,1) !important;
-  }
-  .progress-bar-fill::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.45) 50%, transparent 70%); transform: translateX(-100%); animation: gl-shimmer 1.6s ease-in-out infinite; }
-  @keyframes gl-shimmer { to { transform: translateX(100%); } }
-  button.cancel { border-radius: 999px !important; background: var(--g-fill) !important; border-color: var(--g-line) !important; min-height: 36px; }
-  button.cancel:active { transform: scale(.95); }
-  #phase { padding: 9px 14px; border-radius: 14px; background: var(--g-fill); border: 1px solid var(--g-line); }
-  #phase:empty { display: none; }
-  #counts { gap: 8px !important; }
-  #counts span { padding: 5px 12px; border-radius: 999px; background: var(--g-fill); border: 1px solid var(--g-line); font-weight: 700; }
-  #counts .st-published { background: var(--green-soft); border-color: rgba(47,208,138,.35); }
-  #counts .st-failed { background: var(--red-soft); border-color: rgba(242,85,90,.35); }
-  #counts .st-skipped { background: var(--amber-soft); border-color: rgba(232,169,76,.35); }
-  #counts .st-processing { background: color-mix(in srgb, var(--blue) 16%, transparent); border-color: color-mix(in srgb, var(--blue) 40%, transparent); }
-  #activity { padding: 10px 14px; border-radius: 16px; background: var(--g-fill); border: 1px solid var(--g-line); }
-  #status.ok, #status.err { padding: 10px 14px; border-radius: 14px; background: var(--g-fill); border: 1px solid var(--g-line); }
-
-  /* Per-trade results: glass table, processing rows pulse softly */
-  .table-wrap { border-radius: 20px; border: 1px solid var(--g-line); background: var(--g-fill); }
-  #results th, #results td { border-bottom-color: var(--g-line) !important; }
-  #results td.st-processing { animation: gl-blink 1.4s ease-in-out infinite; }
-  @keyframes gl-blink { 50% { opacity: .45; } }
-  .note { border-radius: 18px !important; }
-}
-@media (max-width: 760px) and (prefers-reduced-motion: reduce) {
-  .progress-bar-fill::after, #results td.st-processing { animation: none !important; }
-}
-
-/* ======================================================================
-   GLASS SKIN, PART 7: load-error banner + empty states (phones).
-====================================================================== */
-@media (max-width: 760px) {
-  #load-banner {
-    border-radius: 20px !important; background: var(--g-fill-strong) !important; border: 1px solid rgba(232,169,76,.45) !important;
-    -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi), var(--g-shadow);
-    animation: gl-rise .4s cubic-bezier(.22,1,.36,1);
-  }
-  .empty-state button.btn-advanced, #load-banner .btn-advanced { margin-top: 8px; min-height: 36px; padding: 0 16px; }
-  .empty-state.small { border-radius: 18px; background: var(--g-fill); border: 1px solid var(--g-line); }
-}
-
-/* ======================================================================
-   GLASS SKIN, PART 5: desktop glass + richer glass everywhere.
-   (a) @media (min-width: 761px): the frosted-glass look the phone skin has
-       (parts 1-3), on desktop: translucent sidebar / top bar / cards /
-       inputs / tables / modals over a colour wash. Layout is untouched.
-   (b) Shared polish for every screen size: a specular sheen, soft depth
-       edges, a cursor spotlight (js/common.js sets --mx/--my), grain, and a
-       slowly shifting aurora behind the glass.
-   To turn it off, delete this block.
-====================================================================== */
-
-/* ---- (b) shared tokens ---- */
-:root {
-  --g-sheen: linear-gradient(145deg, rgba(255,255,255,.10) 0%, rgba(255,255,255,.03) 30%, rgba(255,255,255,0) 58%);
-  --g-spot: radial-gradient(460px circle at var(--mx, -999px) var(--my, -999px), rgba(255,255,255,.075), transparent 46%);
-  --g-depth: inset 1px 0 0 rgba(255,255,255,.035), inset 0 -1px 0 rgba(0,0,0,.16);
-}
-:root[data-theme="light"] {
-  --g-sheen: linear-gradient(145deg, rgba(255,255,255,.75) 0%, rgba(255,255,255,.22) 34%, rgba(255,255,255,0) 62%);
-  --g-spot: radial-gradient(460px circle at var(--mx, -999px) var(--my, -999px), rgba(255,255,255,.65), transparent 46%);
-  --g-depth: inset 1px 0 0 rgba(255,255,255,.5), inset 0 -1px 0 rgba(90,80,160,.06);
-}
-
-/* ---- (a) desktop tokens + wash ---- */
-@media (min-width: 761px) {
-  :root {
-    --g-fill: color-mix(in srgb, var(--panel) 52%, transparent);
-    --g-fill-strong: color-mix(in srgb, var(--panel) 78%, transparent);
-    --g-line: color-mix(in srgb, var(--text) 11%, transparent);
-    --g-hi: rgba(255,255,255,.10);
-    --g-shadow: 0 12px 34px rgba(0,0,0,.30);
-    --g-blur: blur(24px) saturate(175%);
-    --g-r: 20px;
-  }
-  :root:not([data-theme="light"]) {
-    --bg: #07080c;
-    --g-fill: rgba(30,33,44,.46);
-    --g-fill-strong: rgba(20,22,30,.72);
-    --g-line: rgba(255,255,255,.09);
-    --g-hi: rgba(255,255,255,.14);
-    --g-shadow: 0 14px 38px rgba(0,0,0,.42);
-    --panel-2: rgba(255,255,255,.055); --panel-3: rgba(255,255,255,.10);
-    --border: rgba(255,255,255,.11); --border-soft: rgba(255,255,255,.075);
-    --sidebar-bg: rgba(13,14,20,.58);
-  }
-  :root[data-theme="light"] {
-    --bg: #eef0f8;
-    --g-fill: rgba(255,255,255,.62);
-    --g-fill-strong: rgba(255,255,255,.82);
-    --g-line: rgba(90,80,160,.12);
-    --g-hi: rgba(255,255,255,.95);
-    --g-shadow: 0 12px 32px rgba(86,72,170,.13);
-    --panel-2: rgba(110,91,240,.07); --panel-3: rgba(110,91,240,.13);
-    --border: rgba(90,80,160,.18); --border-soft: rgba(90,80,160,.10);
-    --sidebar-bg: rgba(255,255,255,.66);
-  }
-
-  /* Colour wash the glass blurs against (the .dash-hero keeps its own) */
-  body::before {
-    background:
-      radial-gradient(38% 46% at 12% 14%, rgba(139,124,246,.34), transparent 70%),
-      radial-gradient(34% 40% at 88% 8%, rgba(34,211,238,.20), transparent 70%),
-      radial-gradient(40% 44% at 92% 72%, rgba(242,85,90,.20), transparent 72%),
-      radial-gradient(46% 42% at 40% 98%, rgba(47,208,138,.15), transparent 72%);
-  }
-  :root[data-theme="light"] body::before { opacity: .7; filter: saturate(.85); animation: driftGlow 26s ease-in-out infinite alternate; }
-
-  /* Frosted cards */
-  .card, .panel-box, .equity-panel, .day-group, .stat-grid, .pnl-breakdown, .streak-strip, .cal-summary-cells, .rr-strip,
-  .th-card, .calc-box, .calc-results, .tags-panel, .advanced-filters, .ts-card {
-    background: var(--g-spot), var(--g-sheen), var(--g-fill) !important;
-    -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-    border: 1px solid var(--g-line) !important;
-    border-radius: var(--g-r) !important;
-    box-shadow: inset 0 1px 0 var(--g-hi), var(--g-depth), var(--g-shadow);
-  }
-  .ts-card.tone-up { background: var(--g-spot), radial-gradient(130% 100% at 0% 0%, var(--green-soft), transparent 62%), var(--g-sheen), var(--g-fill) !important; }
-  .ts-card.tone-down { background: var(--g-spot), radial-gradient(130% 100% at 0% 0%, var(--red-soft), transparent 62%), var(--g-sheen), var(--g-fill) !important; }
-  /* Chart panel: no backdrop-filter (it would trap the fullscreen chart) -- denser fill instead */
-  .chart-panel {
-    background: var(--g-spot), var(--g-sheen), var(--g-fill-strong);
-    border: 1px solid var(--g-line); border-radius: var(--g-r);
-    box-shadow: inset 0 1px 0 var(--g-hi), var(--g-depth), var(--g-shadow);
-  }
-  .stat, .pnl-breakdown .cell, .streak-strip .cell, .cal-summary-cells .cell { background: transparent !important; }
-  .stat-grid, .pnl-breakdown, .streak-strip, .cal-summary-cells { gap: 0; overflow: hidden; }
-  .stat + .stat, .pnl-breakdown .cell + .cell, .streak-strip .cell + .cell, .cal-summary-cells .cell + .cell { box-shadow: -1px 0 0 var(--g-line); }
-  .stat:hover { background: color-mix(in srgb, var(--text) 4%, transparent) !important; }
-  .day-header { background: transparent; border-bottom-color: var(--g-line); }
-  .card:hover, .panel-box:hover, .chart-panel:hover, .equity-panel:hover, .day-group:hover {
-    border-color: color-mix(in srgb, var(--primary) 38%, var(--g-line)) !important;
-    box-shadow: inset 0 1px 0 var(--g-hi), var(--g-depth), 0 20px 50px -18px rgba(0,0,0,.55), 0 0 0 1px color-mix(in srgb, var(--primary) 16%, transparent);
-  }
-
-  /* Hero banners */
-  .dash-hero, .rw-hero, .pr-hero {
-    background:
-      radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--primary) 26%, transparent), transparent 62%),
-      radial-gradient(70% 110% at 100% 100%, rgba(242,85,90,.16), transparent 66%),
-      var(--g-sheen), var(--g-fill) !important;
-    -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-    border: 1px solid var(--g-line) !important;
-    border-radius: 24px !important;
-    box-shadow: inset 0 1px 0 var(--g-hi), var(--g-depth), 0 22px 56px rgba(0,0,0,.34);
-  }
-
-  /* Sidebar + top bar: glass rails */
-  .sidebar {
-    -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-    background: var(--g-sheen), var(--sidebar-bg);
-    border-right: 1px solid var(--g-line);
-    box-shadow: inset -1px 0 0 var(--g-hi), 14px 0 44px -22px rgba(0,0,0,.5);
-  }
-  .sidebar-bottom { border-top-color: var(--g-line); }
-  .nav-item { border-radius: 12px; transition: background-color .18s ease, box-shadow .18s ease, color .18s ease; }
-  .nav-item:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
-  .nav-item.active {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 26%, transparent), color-mix(in srgb, var(--primary) 12%, transparent));
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent), inset 0 1px 0 var(--g-hi), 0 6px 18px -8px color-mix(in srgb, var(--primary) 60%, transparent);
-  }
-  :root[data-theme="light"] .nav-item.active, :root[data-theme="light"] .nav-item.active svg { color: var(--primary-2); }
-  .topbar {
-    background: var(--g-fill-strong);
-    -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-    border-bottom: 1px solid var(--g-line);
-    box-shadow: inset 0 -1px 0 var(--g-line), 0 10px 30px -18px rgba(0,0,0,.45);
-  }
-  .icon-btn { border-radius: 12px; background: var(--g-fill); border: 1px solid var(--g-line); box-shadow: inset 0 1px 0 var(--g-hi); }
-  .icon-btn:hover { background: var(--g-fill-strong); border-color: color-mix(in srgb, var(--primary) 40%, var(--g-line)); }
-
-  /* Pills, inputs, switchers */
-  .tf-switcher, .eq-range-toggle, .qa-tabs, .ts-tabs { border-radius: 999px; background: var(--g-fill) !important; border: 1px solid var(--g-line) !important; padding: 3px; }
-  .tf-btn, .ts-tabs button { border-radius: 999px; }
-  .tf-btn.active, .ts-tabs button.on { background: color-mix(in srgb, var(--primary) 24%, transparent); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent), inset 0 1px 0 var(--g-hi); }
-  .filter-input, select, input[type="text"], input[type="search"], input[type="date"], input[type="number"], textarea {
-    border-radius: 12px; background: var(--g-fill); border: 1px solid var(--g-line);
-  }
-  .filter-input:focus, select:focus, input:focus, textarea:focus, .ui-modal-input:focus {
-    outline: none; border-color: color-mix(in srgb, var(--primary) 65%, transparent);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent);
-  }
-  .pill, .setup-tag, .tagpill { background: var(--g-fill); border-color: var(--g-line); }
-  .th-nav, .th-btn, .th-pager, .back-link, .trade-nav-link, .rpt-back, .btn-advanced, .filter-btn, .btn-icon, .cal-nav-btn {
-    background: var(--g-fill); border: 1px solid var(--g-line); border-radius: 12px; box-shadow: inset 0 1px 0 var(--g-hi);
-  }
-  .btn-advanced:hover, .filter-btn:hover, .btn-icon:hover, .cal-nav-btn:hover, .th-btn:hover { background: var(--g-fill-strong); border-color: color-mix(in srgb, var(--primary) 40%, var(--g-line)); }
-  .btn-confirm {
-    border-radius: 12px; border: 1px solid rgba(255,255,255,.22);
-    background: linear-gradient(135deg, var(--primary), var(--primary-2));
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 8px 22px -6px color-mix(in srgb, var(--primary) 55%, transparent);
-  }
-  .chart-fs-btn, .chart-zoom-btn, .cd-btn { background: var(--g-fill-strong) !important; border: 1px solid var(--g-line) !important; border-radius: 12px !important; -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); }
-
-  /* Tables */
-  .table-scroll, .trade-table { border-radius: 16px; }
-  .trade-table thead th, table.data-table thead th, .report-table thead th {
-    background: var(--g-fill-strong) !important; -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
-    border-bottom: 1px solid var(--g-line);
-  }
-  .trade-table tbody tr, table.data-table tbody tr, .report-table tbody tr { background: transparent; border-bottom: 1px solid var(--g-line); transition: background-color .15s ease; }
-  .trade-table tbody tr:hover, table.data-table tbody tr:hover, .report-table tbody tr:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); }
-  .trade-table tbody td, table.data-table tbody td { border-color: var(--g-line); }
-  .cal-cell, .rpt-local-card, .drill-inline-wrap, .rpt-dropzone-inner, .rpt-journal-row, .calc-chip, .calc-symbol-chip, .dow-chip {
-    background: var(--g-fill) !important; border: 1px solid var(--g-line) !important; box-shadow: inset 0 1px 0 var(--g-hi);
-  }
-  .cal-cell { border-radius: 12px !important; }
-  .calc-chip, .calc-symbol-chip, .dow-chip { border-radius: 999px !important; }
-
-  /* Overlays: modals, menus, search, chat, toasts */
-  .sidebar-backdrop, .ui-modal-overlay, .rpt-chart-modal-backdrop {
-    background: rgba(5,6,12,.42) !important; -webkit-backdrop-filter: blur(10px) saturate(130%); backdrop-filter: blur(10px) saturate(130%);
-  }
-  :root[data-theme="light"] .ui-modal-overlay { background: rgba(60,50,120,.22) !important; }
-  .ui-modal-box, .rpt-chart-modal-box {
-    background: var(--g-sheen), var(--g-fill-strong) !important; border: 1px solid var(--g-line) !important; border-radius: 24px !important;
-    -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi), 0 30px 70px rgba(0,0,0,.5);
-  }
-  .ds-menu, .header-search-panel, .qa-sheet {
-    background: var(--g-sheen), var(--g-fill-strong); border: 1px solid var(--g-line); border-radius: 18px;
-    -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi), var(--g-shadow);
-  }
-  .header-search-box { background: var(--g-fill); border: 1px solid var(--g-line); border-radius: 999px; box-shadow: inset 0 1px 0 var(--g-hi); }
-  .header-search-item { border-radius: 12px; }
-  .chatw-launcher, .chatw-panel { background: var(--g-fill-strong) !important; border: 1px solid var(--g-line) !important; -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi), var(--g-shadow); }
-  .chatw-panel { border-radius: 24px !important; }
-  .chatw-panel-head { border-bottom: 1px solid var(--g-line); background: transparent; }
-  .toast { background: var(--g-fill-strong) !important; border: 1px solid var(--g-line) !important; border-radius: 999px !important; -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); box-shadow: inset 0 1px 0 var(--g-hi), var(--g-shadow); }
-
-  .bar-track, .mini-bar-track, .score-row .track, .th-track { background: var(--panel-3) !important; border-radius: 99px; box-shadow: inset 0 1px 2px rgba(0,0,0,.18); }
-  .bar-fill, .mini-bar-fill { border-radius: 99px; }
-  hr, .divider { border-color: var(--g-line); }
-
-  /* Slim glass scrollbars (the phone skin hides them entirely) */
-  * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text) 22%, transparent) transparent; }
-  ::selection { background: color-mix(in srgb, var(--primary) 35%, transparent); }
-}
-
-/* ---- (b) shared polish, all sizes ---- */
-/* Grain: breaks up gradient banding and gives the glass something to refract */
-body::after {
-  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .05; mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-}
-:root[data-theme="light"] body::after { opacity: .035; mix-blend-mode: multiply; }
-
-/* Aurora: the wash slowly shifts hue behind the glass (dark theme only: light keeps its own tint) */
-@keyframes glAurora {
-  0%   { transform: translate3d(0,0,0) scale(1);        filter: hue-rotate(0deg); }
-  50%  { transform: translate3d(-1.5%,1.5%,0) scale(1.05); filter: hue-rotate(16deg); }
-  100% { transform: translate3d(1.5%,-1%,0) scale(1.03);  filter: hue-rotate(-12deg); }
-}
-:root:not([data-theme="light"]) body::before { animation: glAurora 38s ease-in-out infinite alternate; will-change: transform; }
-
-/* Richer blur on phones too, plus sheen / depth on the phone cards */
-@media (max-width: 760px) {
-  :root { --g-blur: blur(26px) saturate(185%); }
-  .card, .panel-box, .equity-panel, .day-group, .stat-grid, .pnl-breakdown, .streak-strip, .cal-summary-cells, .rr-strip, .th-card, .calc-box, .calc-results, .tags-panel, .advanced-filters {
-    background: var(--g-sheen), var(--g-fill) !important;
-    box-shadow: inset 0 1px 0 var(--g-hi), var(--g-depth), var(--g-shadow);
-  }
-  .chart-panel { background: var(--g-sheen), var(--g-fill-strong); }
-  .ui-modal-box, .rpt-chart-modal-box, .qa-sheet, .ds-menu, .header-search-panel, .chatw-panel { background-image: var(--g-sheen); }
-}
-
-/* Chart readouts are glass too */
-.equity-tooltip, .equity-yval-label {
-  background: var(--g-sheen), var(--g-fill-strong, var(--panel-2));
-  -webkit-backdrop-filter: blur(14px) saturate(160%); backdrop-filter: blur(14px) saturate(160%);
-  border: 1px solid var(--g-line, var(--border)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.1)), 0 10px 28px rgba(0,0,0,.35);
-}
-.equity-tooltip { border-radius: 12px; }
-
-@media (prefers-reduced-motion: reduce) {
-  :root:not([data-theme="light"]) body::before { animation: none; }
-}
-
-/* ======================================================================
-   GLASS SKIN, PART 6: motion. Smooth, springy, never in the way.
-   Page blocks glide in on a stagger (desktop too), cards float up under the
-   cursor, controls press and release with a spring, tabs and the sidebar
-   slide instead of snapping, bars grow, and the equity curve wipes in.
-   Everything is skipped for reduced-motion users. Delete this block to turn
-   it off.
-====================================================================== */
-:root { --spring: cubic-bezier(.34,1.56,.64,1); --glide: cubic-bezier(.22,1,.36,1); }
-
-@media (prefers-reduced-motion: no-preference) {
-  @keyframes glIn   { from { opacity: 0; transform: translateY(16px) scale(.985); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
-  @keyframes glCell { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  @keyframes glGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-  @keyframes glWipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
-  @keyframes glPop  { from { opacity: 0; transform: translateY(-6px) scale(.96); } to { opacity: 1; transform: none; } }
-  @keyframes glShine { from { background-position: 160% 0; } to { background-position: -60% 0; } }
-
-  /* ---- Page entrance (desktop; phones already have gl-rise) ---- */
-  @media (min-width: 761px) {
-    .content > *:not(.reveal-init):not(.reveal-in) { animation: glIn .6s var(--glide) backwards; }
-    .content > *:nth-child(2) { animation-delay: .06s; }
-    .content > *:nth-child(3) { animation-delay: .12s; }
-    .content > *:nth-child(4) { animation-delay: .18s; }
-    .content > *:nth-child(5) { animation-delay: .24s; }
-    .content > *:nth-child(6) { animation-delay: .30s; }
-    .content > *:nth-child(n+7) { animation-delay: .36s; }
-  }
-
-  /* ---- Inside a block: cells, rows and chips arrive one after another ---- */
-  .stat-grid > *, .pnl-breakdown > *, .streak-strip > *, .cal-summary-cells > * { animation: glCell .5s var(--glide) backwards; }
-  .stat-grid > *:nth-child(2), .pnl-breakdown > *:nth-child(2), .streak-strip > *:nth-child(2), .cal-summary-cells > *:nth-child(2) { animation-delay: .07s; }
-  .stat-grid > *:nth-child(3), .pnl-breakdown > *:nth-child(3), .streak-strip > *:nth-child(3), .cal-summary-cells > *:nth-child(3) { animation-delay: .14s; }
-  .stat-grid > *:nth-child(4), .pnl-breakdown > *:nth-child(4), .streak-strip > *:nth-child(4), .cal-summary-cells > *:nth-child(4) { animation-delay: .21s; }
-  .stat-grid > *:nth-child(n+5), .pnl-breakdown > *:nth-child(n+5), .streak-strip > *:nth-child(n+5), .cal-summary-cells > *:nth-child(n+5) { animation-delay: .28s; }
-  .trade-table tbody tr, table.data-table tbody tr { animation: glCell .4s var(--glide) backwards; }
-  .trade-table tbody tr:nth-child(2), table.data-table tbody tr:nth-child(2) { animation-delay: .03s; }
-  .trade-table tbody tr:nth-child(3), table.data-table tbody tr:nth-child(3) { animation-delay: .06s; }
-  .trade-table tbody tr:nth-child(4), table.data-table tbody tr:nth-child(4) { animation-delay: .09s; }
-  .trade-table tbody tr:nth-child(5), table.data-table tbody tr:nth-child(5) { animation-delay: .12s; }
-  .trade-table tbody tr:nth-child(6), table.data-table tbody tr:nth-child(6) { animation-delay: .15s; }
-  .trade-table tbody tr:nth-child(n+7), table.data-table tbody tr:nth-child(n+7) { animation-delay: .18s; }
-
-  /* ---- Data draws itself: bars grow, the equity curve wipes in left to right ---- */
-  .bar-fill, .mini-bar-fill { transform-origin: left center; animation: glGrow .9s var(--glide) .15s backwards; }
-  .equity-chart-wrap > svg:first-child { animation: glWipe 1.1s var(--glide) .1s backwards; }
-
-  /* ---- Hover / press: springy and consistent ---- */
-  .card, .panel-box, .equity-panel, .chart-panel, .day-group, a.card {
-    transition: transform .4s var(--spring), border-color .25s ease, box-shadow .4s ease, background-color .35s ease;
-  }
-  @media (hover: hover) {
-    .card:hover, .panel-box:hover, .chart-panel:hover, .equity-panel:hover, .day-group:hover { transform: translateY(-3px); }
-    .stat { transition: background-color .25s ease, transform .35s var(--spring); }
-    .nav-item svg, .nav-item .nav-icon { transition: transform .3s var(--spring); }
-    .nav-item:hover svg, .nav-item:hover .nav-icon { transform: translateX(2px) scale(1.12); }
-    .icon-btn:hover svg { transform: scale(1.12) rotate(-6deg); }
-    .icon-btn svg { transition: transform .3s var(--spring); }
-  }
-  .btn-confirm, .btn-advanced, .filter-btn, .btn-icon, .cal-nav-btn, .th-btn, .icon-btn, .pill, .tf-btn, .nav-item {
-    transition: transform .25s var(--spring), background-color .22s ease, border-color .22s ease, box-shadow .3s ease, color .2s ease, opacity .2s ease;
-  }
-  .btn-confirm:active, .btn-advanced:active, .filter-btn:active, .btn-icon:active, .cal-nav-btn:active, .th-btn:active,
-  .icon-btn:active, .pill:active, .tf-btn:active, .nav-item:active { transform: scale(.95); }
-  @media (min-width: 761px) {
-    .btn-confirm:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 12px 28px -6px color-mix(in srgb, var(--primary) 65%, transparent); }
-    /* a soft light sweep across the primary button on hover */
-    .btn-confirm { background-size: 100% 100%; position: relative; overflow: hidden; }
-    .btn-confirm::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0;
-      background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%); background-size: 250% 100%; background-position: 160% 0; }
-    .btn-confirm:hover::after { opacity: 1; animation: glShine .8s var(--glide); }
-  }
-
-  /* ---- Tabs and switchers: the highlight eases between options ---- */
-  .tf-btn, .ts-tabs button, .qa-tabs button { transition: background-color .3s var(--glide), color .25s ease, box-shadow .3s var(--glide), transform .25s var(--spring); }
-
-  /* ---- Overlays pop in ---- */
-  .ds-menu, .header-search-panel { animation: glPop .28s var(--glide) backwards; }
-  .toast { animation: glPop .35s var(--spring) backwards; }
-
-  /* ---- Layout motion ---- */
-  .sidebar { transition: width .38s var(--glide); }
-  .equity-tooltip { transition: opacity .15s ease; }
-
-  /* ---- Theme switch cross-fades (desktop; the phone skin already does) ---- */
-  @media (min-width: 761px) {
-    body, .sidebar, .topbar, .stat-grid, .pnl-breakdown, .streak-strip, .cal-summary-cells, .icon-btn, .filter-input {
-      transition: background-color .4s ease, border-color .4s ease, color .3s ease, box-shadow .4s ease;
-    }
-  }
-}
-
-/* ======================================================================
-   GLASS SKIN, PART 7: glass for the data. Calendar days become tinted glass
-   tiles that glow green / red with their P&L (the generic glass-card rule
-   had flattened them), the equity chart gets a luminous line, a lit
-   crosshair and pill readouts, and key numbers get a soft glow.
-   Delete this block to turn it off.
-====================================================================== */
-
-/* ---- Calendar: P&L-tinted glass tiles ---- */
-.cal-cell.win, .cal-cell.loss {
-  background:
-    var(--g-sheen),
-    linear-gradient(160deg, rgba(var(--c), calc(.16 + var(--pnl-i, .55) * .34)), rgba(var(--c), calc(.05 + var(--pnl-i, .55) * .12))) !important;
-  border: 1px solid rgba(var(--c), calc(.26 + var(--pnl-i, .55) * .40)) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.22),
-    0 8px 20px -10px rgba(var(--c), calc(.35 + var(--pnl-i, .55) * .45));
-}
-.cal-cell.win  { --c: 47, 208, 138; }
-.cal-cell.loss { --c: 242, 85, 90; }
-:root[data-theme="light"] .cal-cell.win  { --c: 24, 154, 99; }
-:root[data-theme="light"] .cal-cell.loss { --c: 213, 56, 63; }
-.cal-cell.win .cell-pnl  { text-shadow: 0 0 14px rgba(47,208,138,.45); }
-.cal-cell.loss .cell-pnl { text-shadow: 0 0 14px rgba(242,85,90,.45); }
-:root[data-theme="light"] .cal-cell .cell-pnl { text-shadow: none; }
-.cal-cell.has-trades { transition: transform .3s var(--spring), box-shadow .3s ease, border-color .25s ease; }
-@media (hover: hover) {
-  .cal-cell.has-trades:hover { transform: translateY(-2px) scale(1.03); z-index: 2; }
-  .cal-cell.win:hover  { box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 14px 28px -10px rgba(47,208,138,.65); }
-  .cal-cell.loss:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 14px 28px -10px rgba(242,85,90,.65); }
-}
-.cal-cell.selected { box-shadow: inset 0 0 0 1.5px var(--primary), 0 0 0 4px color-mix(in srgb, var(--primary) 22%, transparent), 0 10px 26px -8px color-mix(in srgb, var(--primary) 60%, transparent) !important; }
-
-/* ---- Equity chart: lit line, glass crosshair + readouts ---- */
-#equity-svg .equity-path { filter: drop-shadow(0 0 7px var(--glow-cyan)) drop-shadow(0 0 16px rgba(139,124,246,.28)); stroke-linecap: round; stroke-linejoin: round; }
-#equity-svg .equity-path.neg { filter: drop-shadow(0 0 7px rgba(242,85,90,.45)); }
-#equity-svg .equity-zero, #equity-svg .equity-ath { opacity: .55; }
-#equity-hover-dot { filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 0 12px rgba(139,124,246,.5)); }
-.equity-crosshair {
-  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--primary) 70%, transparent) 20%, color-mix(in srgb, var(--primary) 70%, transparent) 80%, transparent);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--primary) 45%, transparent);
-}
-.equity-crosshair-yline { background: linear-gradient(to right, color-mix(in srgb, var(--primary) 60%, transparent), transparent 85%); }
-.equity-yval-label { border-radius: 999px; padding: 2px 9px; color: var(--text); }
-.equity-tooltip .eq-bal { font-family: var(--mono); font-weight: 700; font-size: 14px; letter-spacing: -.01em; }
-.equity-tooltip .eq-date { color: var(--text-faint); font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; }
-.equity-tooltip .eq-hint { color: var(--primary); font-size: 10.5px; margin-top: 2px; }
-.eq-range-toggle button.active, .eq-range-toggle .active { background: color-mix(in srgb, var(--primary) 24%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent), inset 0 1px 0 var(--g-hi); border-radius: 999px; }
-
-/* Stats under the chart: glass chips */
-.equity-stats { gap: 8px; border-top: 1px solid var(--g-line, var(--border-soft)); }
-.equity-stats > span, .equity-stats > a {
-  display: inline-flex; align-items: baseline; gap: 4px; padding: 5px 11px; border-radius: 999px;
-  background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08));
-  color: inherit; text-decoration: none; transition: transform .25s var(--spring), border-color .2s ease;
-}
-.equity-stats > a:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--primary) 45%, var(--g-line, var(--border))); }
-
-/* ---- Numbers glow a touch ---- */
-:root:not([data-theme="light"]) .value.mono.up, :root:not([data-theme="light"]) .eq-stat-value.up { text-shadow: 0 0 18px rgba(47,208,138,.38); }
-:root:not([data-theme="light"]) .value.mono.down, :root:not([data-theme="light"]) .eq-stat-value.down { text-shadow: 0 0 18px rgba(242,85,90,.38); }
-
-/* ---- Score gauge ring + bar fills ---- */
-.score-wrap circle.fill, svg circle.fill { filter: drop-shadow(0 0 5px currentColor); stroke-linecap: round; }
-.bar-fill.up, .mini-bar-fill.up, .bar-fill.green { box-shadow: 0 0 12px -2px rgba(47,208,138,.6); }
-.bar-fill.down, .mini-bar-fill.down, .bar-fill.red { box-shadow: 0 0 12px -2px rgba(242,85,90,.6); }
-
-/* ======================================================================
-   GLASS SKIN, PART 8: Journal page. Glass chips and filters, a glass trade
-   table with lit rows and a glowing sort header, win/loss pills with a soft
-   glow, and a glass "load more". Delete this block to turn it off.
-====================================================================== */
-.date-chip, .preset-chip, .filters-toggle, .btn-load-more, .preset-save-btn {
-  background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); border-radius: 999px;
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08));
-  -webkit-backdrop-filter: blur(14px) saturate(160%); backdrop-filter: blur(14px) saturate(160%);
-  transition: transform .25s var(--spring), background-color .22s ease, border-color .22s ease, box-shadow .3s ease, color .2s ease;
-}
-.date-chip:hover, .preset-chip:hover, .filters-toggle:hover, .btn-load-more:hover {
-  background: var(--g-fill-strong, var(--panel-3)); border-color: color-mix(in srgb, var(--primary) 45%, var(--g-line, var(--border)));
-}
-.date-chip:active, .btn-load-more:active, .filters-toggle:active { transform: scale(.95); }
-.date-chip.active, .date-chip[aria-pressed="true"], .date-chip.on {
-  background: color-mix(in srgb, var(--primary) 26%, transparent); color: var(--text);
-  border-color: color-mix(in srgb, var(--primary) 55%, transparent);
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.14)), 0 6px 18px -8px color-mix(in srgb, var(--primary) 70%, transparent);
-}
-.btn-load-more { padding: 9px 20px; }
-
-/* Filter drawer */
-.filters { background: var(--g-sheen), var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); border-radius: 18px;
-  -webkit-backdrop-filter: var(--g-blur, blur(20px)); backdrop-filter: var(--g-blur, blur(20px)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)); }
-
-/* Table: lit rows, glowing sorted header */
-.headcell { transition: color .2s ease, text-shadow .3s ease; }
-.headcell.sorted { color: var(--text); text-shadow: 0 0 14px color-mix(in srgb, var(--primary) 60%, transparent); }
-tr.row-link { transition: background-color .18s ease, box-shadow .25s ease; cursor: pointer; }
-@media (min-width: 761px) {
-  tr.row-link:hover { background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 12%, transparent), color-mix(in srgb, var(--primary) 3%, transparent)) !important; box-shadow: inset 3px 0 0 var(--primary); }
-  tr.row-link:focus-visible { outline: none; box-shadow: inset 3px 0 0 var(--primary), inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent); }
-}
-.row-cb, #select-all-cb { accent-color: var(--primary); }
-
-/* Result pills glow with the outcome */
-.pill.win  { background: rgba(47,208,138,.14); border-color: rgba(47,208,138,.40); color: var(--green); box-shadow: 0 0 14px -4px rgba(47,208,138,.55); }
-.pill.loss { background: rgba(242,85,90,.14);  border-color: rgba(242,85,90,.40);  color: var(--red);   box-shadow: 0 0 14px -4px rgba(242,85,90,.55); }
-:root[data-theme="light"] .pill.win, :root[data-theme="light"] .pill.loss { box-shadow: none; }
-.tags-edit-btn { border-radius: 999px; transition: transform .25s var(--spring), background-color .2s ease; }
-.tags-edit-btn:hover { transform: scale(1.15) rotate(-8deg); background: var(--g-fill-strong, var(--panel-3)); }
-
-/* Progress + empty states + skeletons */
-.progress-track { background: var(--panel-3); border-radius: 99px; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.2); }
-.progress-fill { border-radius: 99px; background: linear-gradient(90deg, var(--primary), var(--primary-2)); box-shadow: 0 0 14px color-mix(in srgb, var(--primary) 60%, transparent); transition: width .4s var(--glide); }
-.empty-state { background: var(--g-sheen), var(--g-fill, transparent); border: 1px dashed var(--g-line, var(--border)); border-radius: 18px; }
-.skel-card { background: var(--g-sheen), var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); border-radius: 16px; }
-@media (prefers-reduced-motion: no-preference) {
-  .preset-chip, .date-chip { animation: glCell .4s var(--glide) backwards; }
-  tr.row-link { animation: glCell .35s var(--glide) backwards; }
-  tr.row-link:nth-child(2) { animation-delay: .03s; } tr.row-link:nth-child(3) { animation-delay: .06s; }
-  tr.row-link:nth-child(4) { animation-delay: .09s; } tr.row-link:nth-child(5) { animation-delay: .12s; }
-  tr.row-link:nth-child(n+6) { animation-delay: .15s; }
-}
-
-/* ======================================================================
-   GLASS SKIN, PART 9: Reports, Day view, Daily plan, Trade page.
-   Glass tab strip, insight and highlight cards, tinted P&L tags, glass
-   inputs and chips on the daily plan, and a glass pager / verdict bar on
-   the trade page. Delete this block to turn it off.
-====================================================================== */
-
-/* ---- Reports: tab strip becomes a glass segmented control ---- */
-.report-toptabs {
-  display: inline-flex; gap: 4px; padding: 4px; max-width: 100%; overflow-x: auto; border-bottom: 0;
-  background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); border-radius: 999px;
-  -webkit-backdrop-filter: var(--g-blur, blur(20px)); backdrop-filter: var(--g-blur, blur(20px));
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)); scrollbar-width: none;
-}
-.report-toptabs::-webkit-scrollbar { display: none; }
-.toptab-btn { padding: 8px 16px; border: 0; border-radius: 999px; font-weight: 600; white-space: nowrap;
-  transition: background-color .3s var(--glide), color .25s ease, box-shadow .3s var(--glide), transform .25s var(--spring); }
-.toptab-btn:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
-.toptab-btn:active { transform: scale(.95); }
-.toptab-btn.active { color: var(--text); border-bottom-color: transparent;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 30%, transparent), color-mix(in srgb, var(--primary) 14%, transparent));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent), inset 0 1px 0 var(--g-hi, rgba(255,255,255,.14)), 0 6px 18px -8px color-mix(in srgb, var(--primary) 70%, transparent); }
-.toptab-panel.active { animation: glCell .45s var(--glide) backwards; }
-
-/* ---- Report cards, insights, rows ---- */
-.highlight-card, .ins-note, .ins-lead {
-  background: var(--g-sheen), var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); border-radius: 16px;
-  -webkit-backdrop-filter: var(--g-blur, blur(20px)); backdrop-filter: var(--g-blur, blur(20px)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08));
-}
-.highlight-card { background: radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 60%), var(--g-sheen), var(--g-fill, var(--panel-2)); }
-.report-row, .bar-row { border-radius: 12px; transition: background-color .2s ease; }
-.report-row.drillable:hover, .bar-row.drillable:hover { background: color-mix(in srgb, var(--primary) 9%, transparent); cursor: pointer; }
-.report-table tbody tr.drillable:hover { background: color-mix(in srgb, var(--primary) 9%, transparent); }
-.drill-opt { border-radius: 999px; background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); transition: transform .25s var(--spring), border-color .2s ease; }
-.drill-opt:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--primary) 45%, var(--g-line, var(--border))); }
-.ins-rule-input { border-radius: 12px; background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); }
-.rpt-toolbar { gap: 8px; }
-
-/* ---- Day view ---- */
-.pnl-tag { border-radius: 999px; padding: 2px 9px; font-weight: 700; background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); }
-.pnl-tag.up   { color: var(--green); background: rgba(47,208,138,.13); border-color: rgba(47,208,138,.38); box-shadow: 0 0 14px -4px rgba(47,208,138,.5); }
-.pnl-tag.down { color: var(--red);   background: rgba(242,85,90,.13);  border-color: rgba(242,85,90,.38);  box-shadow: 0 0 14px -4px rgba(242,85,90,.5); }
-:root[data-theme="light"] .pnl-tag.up, :root[data-theme="light"] .pnl-tag.down { box-shadow: none; }
-.side-dot { box-shadow: 0 0 8px currentColor; }
-.tt-day { border-radius: 12px; }
-
-/* ---- Daily plan: glass fields, chips, badges ---- */
-.dn-in, .dn-ta { border-radius: 12px; background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.06)); transition: border-color .2s ease, box-shadow .25s ease; }
-.dn-in:focus, .dn-ta:focus { outline: none; border-color: color-mix(in srgb, var(--primary) 65%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent); }
-.dn-chips .tagpill, .dn-quickfill { border-radius: 999px; transition: transform .25s var(--spring), background-color .2s ease, box-shadow .3s ease; }
-.dn-chips .tagpill:hover, .dn-quickfill:hover { transform: translateY(-1px); }
-.dn-chips .tagpill.on { box-shadow: 0 0 14px -3px color-mix(in srgb, var(--primary) 65%, transparent); }
-.dn-badge, .dn-status, .dn-streak { border-radius: 999px; background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); }
-.dn-warn { border-radius: 14px; background: rgba(242,85,90,.10); border: 1px solid rgba(242,85,90,.34); box-shadow: 0 0 22px -8px rgba(242,85,90,.5); }
-.dn-stats, .dn-week { border-radius: 16px; }
-
-/* ---- Trade page: pager + verdict ---- */
-.th-bar { padding: 8px 10px; border-radius: 18px; background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft));
-  -webkit-backdrop-filter: var(--g-blur, blur(20px)); backdrop-filter: var(--g-blur, blur(20px)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)); }
-.th-nav, .th-btn { transition: transform .25s var(--spring), background-color .2s ease, border-color .2s ease; }
-.th-nav:hover:not(:disabled), .th-btn:hover { transform: translateY(-1px); }
-.th-nav:active, .th-btn:active { transform: scale(.95); }
-.th-verdict, .th-title-row { border-radius: 14px; }
-.th-verdict { background: var(--g-sheen), var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)); }
-.th-track { border-radius: 99px; background: var(--panel-3); overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.2); }
-.th-dot { box-shadow: 0 0 10px currentColor; }
-.legend-item .legend-swatch, .th-leg .th-dot { border-radius: 99px; }
-
-/* ======================================================================
-   GLASS SKIN, PART 10: the remaining pages (all screen sizes).
-   Accounts, Live trading, Scanner, Edge analysis, Performance (setup
-   bars), Backtester, Calculator, Rewind + Practice setup/stats, Search
-   and Report import. Each page already gets glass cards from the generic
-   rules above; this restyles the page-specific surfaces (cards, banners,
-   status pills, inputs, rows, gauges) to match. Nothing here puts a
-   backdrop-filter on an ancestor of a chart (it would trap fullscreen),
-   and the Practice phone dock is left alone. Delete this block to turn
-   it off.
-====================================================================== */
-
-/* ---- shared: glass tiles for secondary cards ---- */
-.int-card, .acc-card, .acc-period, .acc-table-wrap, .lt-pos-card, .lt-strategy-detail, .lt-params-editor,
-.run-card, .rpt-journal-row, .pr-resume-box, .quiz-history-row, .quiz-focus-item, .pr-stat-cell, .rewind-stat, .sr-list {
-  background: var(--g-sheen, none), var(--g-fill, var(--panel-2)) !important;
-  border: 1px solid var(--g-line, var(--border-soft)) !important;
-  border-radius: 16px;
-  -webkit-backdrop-filter: var(--g-blur, blur(20px)); backdrop-filter: var(--g-blur, blur(20px));
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08));
-}
-.quiz-history-row, .sr-list { border-radius: 14px; }
-.int-card, .acc-card, .acc-period, .lt-pos-card, .run-card { transition: transform .3s var(--spring, ease), border-color .25s ease, box-shadow .3s ease; }
-@media (hover: hover) {
-  .int-card:hover, .acc-card:hover, .run-card:hover, .lt-pos-card:hover {
-    transform: translateY(-2px); border-color: color-mix(in srgb, var(--primary) 38%, var(--g-line, var(--border))) !important;
-    box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.1)), 0 16px 38px -18px rgba(0,0,0,.5);
-  }
-}
-
-/* ---- Accounts ---- */
-.acc-card.combined {
-  background: radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--primary) 22%, transparent), transparent 62%), var(--g-sheen, none), var(--g-fill, var(--panel-2)) !important;
-  border-color: color-mix(in srgb, var(--primary) 50%, transparent) !important;
-}
-.acc-card.archived { opacity: .6; filter: saturate(.6); }
-.acc-dot { box-shadow: 0 0 10px currentColor; }
-.acc-balance { text-shadow: 0 0 22px color-mix(in srgb, var(--primary) 35%, transparent); }
-.acc-table thead th { background: transparent !important; border-bottom: 1px solid var(--g-line, var(--border)); }
-.acc-table td { border-bottom-color: var(--g-line, var(--border)); }
-.acc-table tbody tr:hover td { background: color-mix(in srgb, var(--primary) 8%, transparent); }
-.acc-table-wrap { overflow: hidden; }
-.acc-form { border-top-color: var(--g-line, var(--border-soft)); }
-.int-icon { background: color-mix(in srgb, var(--primary) 16%, transparent); border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent); border-radius: 12px; }
-.int-body { border-top-color: var(--g-line, var(--border-soft)); }
-.int-card.open { border-color: color-mix(in srgb, var(--primary) 35%, transparent) !important; }
-
-/* ---- Live trading + Scanner: glass status banners, fields, position cards ---- */
-.lt-mode-banner, .sc-banner {
-  border-radius: 14px; background: var(--g-sheen, none), var(--g-fill, var(--panel-2));
-  -webkit-backdrop-filter: var(--g-blur, blur(20px)); backdrop-filter: var(--g-blur, blur(20px));
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08));
-}
-.lt-mode-banner.paper { background: radial-gradient(120% 140% at 0% 0%, var(--blue-soft), transparent 70%), var(--g-fill, var(--panel-2)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)), 0 0 24px -10px var(--blue); }
-.lt-mode-banner.live  { background: radial-gradient(120% 140% at 0% 0%, var(--red-soft), transparent 70%), var(--g-fill, var(--panel-2)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)), 0 0 24px -8px var(--red); }
-.sc-banner.scanning { background: radial-gradient(120% 140% at 0% 0%, var(--green-soft), transparent 70%), var(--g-fill, var(--panel-2)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)), 0 0 24px -10px var(--green); }
-.lt-field input, .lt-params-grid input, .sc-search input {
-  border-radius: 12px; background: var(--g-fill, var(--panel)); border: 1px solid var(--g-line, var(--border));
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.06)); transition: border-color .2s ease, box-shadow .25s ease;
-}
-.lt-field input:focus, .sc-search input:focus { border-color: color-mix(in srgb, var(--primary) 65%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent); }
-.lt-run-card { border-top-color: var(--g-line, var(--border-soft)); }
-.lt-pos-card.state-in-position { background: radial-gradient(120% 100% at 0% 0%, var(--green-soft), transparent 62%), var(--g-sheen, none), var(--g-fill, var(--panel-2)) !important; border-color: rgba(47,208,138,.38) !important; }
-.lt-pos-card.state-pending { background: radial-gradient(120% 100% at 0% 0%, var(--amber-soft), transparent 62%), var(--g-sheen, none), var(--g-fill, var(--panel-2)) !important; border-color: rgba(232,169,76,.4) !important; }
-.lt-pos-state, .lt-pos-state.flat { border-radius: 999px; }
-.lt-pos-state.in-position { box-shadow: 0 0 14px -4px var(--green); }
-.lt-pos-state.pending { box-shadow: 0 0 14px -4px var(--amber); }
-.lt-pos-gauge-track { background: color-mix(in srgb, var(--text) 10%, transparent); box-shadow: inset 0 1px 2px rgba(0,0,0,.25); }
-.lt-pos-gauge-dot { box-shadow: 0 0 12px currentColor, 0 0 0 2px var(--g-fill-strong, var(--panel-2)); }
-.lt-pos-gauge-dot.up { color: var(--green); } .lt-pos-gauge-dot.down { color: var(--red); } .lt-pos-gauge-dot.pending-entry { color: var(--amber); }
-.lt-events { background: color-mix(in srgb, var(--text) 5%, transparent); border-radius: 12px; }
-.lt-pos-last-trade, .lt-params-group { border-color: var(--g-line, var(--border-soft)); }
-.btn-danger { border-radius: 12px; }
-
-/* Scanner table: glass strips, tinted symbols */
-#sc-table tbody tr { transition: background-color .2s ease; }
-#sc-table tbody tr:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); }
-.pill.amberbadge { box-shadow: 0 0 12px -4px var(--amber); }
-.sc-banner .sc-live-dot { box-shadow: 0 0 10px var(--green); }
-
-/* ---- Edge analysis ---- */
-.edge-intro {
-  background: radial-gradient(110% 130% at 0% 0%, color-mix(in srgb, var(--primary) 20%, transparent), transparent 62%), var(--g-sheen, none), var(--g-fill, var(--panel-2)) !important;
-  border: 1px solid var(--g-line, var(--border-soft)) !important; border-radius: 20px;
-  -webkit-backdrop-filter: var(--g-blur, blur(20px)); backdrop-filter: var(--g-blur, blur(20px));
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.1));
-}
-.edge-intro-icon, .edge-section-icon { border-radius: 12px; box-shadow: 0 0 18px -6px color-mix(in srgb, var(--primary) 70%, transparent); }
-.edge-jumpnav {
-  border-radius: 999px; background: var(--g-fill-strong, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft));
-  -webkit-backdrop-filter: var(--g-blur, blur(20px)); backdrop-filter: var(--g-blur, blur(20px));
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)), 0 10px 28px -14px rgba(0,0,0,.5);
-}
-.edge-jumpnav .pill.active { box-shadow: 0 0 16px -4px color-mix(in srgb, var(--primary) 70%, transparent); }
-.edge-row { border-radius: 12px; transition: background-color .2s ease; }
-.edge-row[data-clickable]:hover { background: color-mix(in srgb, var(--primary) 9%, transparent); }
-.edge-explain-body { background: color-mix(in srgb, var(--text) 5%, transparent); border: 1px solid var(--g-line, var(--border-soft)); border-radius: 14px; }
-.edge-explain-body code { background: color-mix(in srgb, var(--text) 9%, transparent); }
-#edge-content .bar-fill { box-shadow: 0 0 12px -3px currentColor; }
-
-/* ---- Performance: setup win-rate bars ---- */
-.setup-row { border-radius: 14px; }
-.setup-row:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); }
-.setup-row .setup-track { background: color-mix(in srgb, var(--text) 9%, transparent); }
-.setup-row .setup-seg.win { box-shadow: 0 0 12px -3px var(--green); }
-.setup-row .setup-seg.loss { box-shadow: 0 0 12px -3px var(--red); }
-.setup-legend .swatch { box-shadow: 0 0 8px currentColor; }
-
-/* ---- Backtester ---- */
-#bt-manual-details summary {
-  border-radius: 999px; background: var(--g-fill, var(--panel-2)); border-color: var(--g-line, var(--border));
-  -webkit-backdrop-filter: var(--g-blur, blur(20px)); backdrop-filter: var(--g-blur, blur(20px));
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08));
-}
-#bt-manual-details { border-top-color: var(--g-line, var(--border-soft)); }
-.progress-track { border-radius: 99px; background: color-mix(in srgb, var(--text) 9%, transparent); overflow: hidden; }
-.progress-fill { box-shadow: 0 0 14px -2px var(--primary); }
-.bt-section-icon { border-radius: 12px; box-shadow: 0 0 18px -6px color-mix(in srgb, var(--primary) 70%, transparent); }
-
-/* ---- Calculator ---- */
-.calc-stat { background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); border-radius: 14px; box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)); }
-.calc-r-row-btn:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
-#calc-r-target-row { background: color-mix(in srgb, var(--primary) 14%, transparent); box-shadow: inset 3px 0 0 var(--primary); }
-.calc-r-row-btn { border-top-color: var(--g-line, var(--border)); }
-
-/* ---- Rewind + Practice (setup, stats, history). Chart panels and the phone dock are untouched. ---- */
-.rewind-stat, .pr-stat-cell { border-radius: 14px; }
-.pr-resume-box { background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 66%), var(--g-fill, var(--panel-2)) !important; }
-.quiz-focus-item { border-radius: 999px; transition: transform .25s var(--spring, ease), border-color .2s ease; }
-.quiz-focus-item:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--primary) 45%, var(--g-line, var(--border))) !important; }
-.quiz-live-badge { border-radius: 999px; background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); }
-.quiz-live-badge.pos { box-shadow: 0 0 16px -4px var(--green); }
-.quiz-progress-track, .pp-progress-track, .rw-progress-bar { border-radius: 99px; background: color-mix(in srgb, var(--text) 9%, transparent); overflow: hidden; }
-.quiz-progress-fill, .pp-progress-fill, .rw-progress-fill { box-shadow: 0 0 12px -2px var(--primary); border-radius: 99px; }
-.side-pill.long { box-shadow: 0 0 12px -3px var(--green); } .side-pill.short { box-shadow: 0 0 12px -3px var(--red); }
-.pp-order-btn.buy { box-shadow: 0 8px 22px -10px var(--green); } .pp-order-btn.sell { box-shadow: 0 8px 22px -10px var(--red); }
-.pp-size-mode-btn.active { box-shadow: 0 0 14px -4px color-mix(in srgb, var(--primary) 70%, transparent); }
-.quiz-history-row, .quiz-breakdown-row, .pr-fill-row, .rw-progress-row { border-color: var(--g-line, var(--border-soft)); }
-.quiz-review-table th { background: transparent; }
-.quiz-review-table td, .quiz-review-table th { border-color: var(--g-line, var(--border-soft)); }
-
-/* ---- Search results ---- */
-.sr-list { padding: 4px; gap: 0; }
-.sr-row { border-radius: 12px; border-bottom-color: var(--g-line, var(--border-soft)); transition: background-color .2s ease; }
-.sr-row:hover { background: color-mix(in srgb, var(--primary) 9%, transparent); }
-.sr-row .sr-field-tag { border-radius: 999px; }
-.sr-list mark { background: color-mix(in srgb, var(--primary) 30%, transparent); color: inherit; border-radius: 4px; padding: 0 2px; }
-
-/* ---- Report import ---- */
-.rpt-dropzone-inner { border-radius: 20px; background: var(--g-sheen, none), var(--g-fill, var(--panel-2)); -webkit-backdrop-filter: var(--g-blur, blur(20px)); backdrop-filter: var(--g-blur, blur(20px)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)); }
-.rpt-dropzone-inner:hover, #rpt-drop-zone.drag-over .rpt-dropzone-inner { box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.1)), 0 0 30px -8px color-mix(in srgb, var(--primary) 70%, transparent); }
-.rpt-back { border-radius: 999px; }
-
-/* ---- entrance for page-specific cards (matches parts 6/8) ---- */
-@media (prefers-reduced-motion: no-preference) {
-  .int-card, .acc-card, .acc-period, .lt-pos-card, .run-card, .edge-intro, .sr-row, .pr-stat-cell, .rewind-stat { animation: glCell .5s var(--glide, ease) backwards; }
-  .acc-card:nth-child(2), .int-card:nth-child(2), .run-card:nth-child(2) { animation-delay: .05s; }
-  .acc-card:nth-child(3), .int-card:nth-child(3), .run-card:nth-child(3) { animation-delay: .1s; }
-  .acc-card:nth-child(n+4), .int-card:nth-child(n+4), .run-card:nth-child(n+4) { animation-delay: .15s; }
-}
-
-/* Part 10 fix: phone stacked tables on Accounts draw their own per-row cards, so no outer glass box */
-@media (max-width: 760px) {
-  .acc-table-wrap:has(> .mt-stack) { background: none !important; border: 0 !important; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; }
-}
-
-/* ======================================================================
-   GLASS SKIN, PART 11: dropdowns, menus, overlays and form controls.
-   Select triggers + option lists, account menu, tag picker, keyboard
-   shortcuts overlay, keycaps, quick-add sheet, chat bubbles, toasts and
-   native checkbox/radio/range accents. Menus that live inside the top bar
-   use a denser fill instead of a second blur (a blur nested in the top
-   bar's own blur shows nothing). Delete this block to turn it off.
-====================================================================== */
-:root { accent-color: var(--primary); color-scheme: dark; }
-:root[data-theme="light"] { color-scheme: light; }
-
-/* ---- Select: trigger + option list ---- */
-.ds-trigger {
-  border-radius: 12px; background: var(--g-sheen, none), var(--g-fill, var(--panel-2)); border-color: var(--g-line, var(--border));
-  -webkit-backdrop-filter: var(--g-blur, blur(20px)); backdrop-filter: var(--g-blur, blur(20px));
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08));
-  transition: border-color .2s ease, box-shadow .25s ease, background-color .2s ease, transform .25s var(--spring, ease);
-}
-.ds-trigger:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--g-line, var(--border))); }
-.ds-trigger:active { transform: scale(.985); }
-.ds.open .ds-trigger, .ds-native:focus ~ .ds-trigger, .ds-trigger:focus-visible {
-  border-color: color-mix(in srgb, var(--primary) 65%, transparent);
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)), 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent);
-}
-.ds-menu { padding: 6px; border-radius: 18px; scrollbar-color: color-mix(in srgb, var(--text) 22%, transparent) transparent; }
-.ds-opt { border-radius: 11px; transition: background-color .15s ease, color .15s ease, transform .2s var(--spring, ease); }
-.ds-opt.active { background: color-mix(in srgb, var(--text) 8%, transparent); }
-.ds-opt:active { transform: scale(.985); }
-.ds-opt.selected.active, .ds-opt.selected { background: color-mix(in srgb, var(--primary) 18%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 32%, transparent); }
-.ds-opt.selected .ds-check { filter: drop-shadow(0 0 4px var(--primary)); }
-.ds-group { border-top: 1px solid var(--g-line, var(--border-soft)); margin-top: 4px; }
-.ds-group:first-child { border-top: 0; margin-top: 0; }
-
-/* ---- Account menu (top bar) ---- */
-.account-trigger { border-radius: 999px; transition: background-color .2s ease, border-color .2s ease, transform .25s var(--spring, ease); }
-.account-trigger:active { transform: scale(.96); }
-.account-avatar, .account-panel-avatar { box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 12%, transparent), 0 4px 16px -2px var(--glow-violet, rgba(132,87,255,.55)); }
-.account-panel {
-  background: var(--g-sheen, none), color-mix(in srgb, var(--panel) 90%, transparent);
-  -webkit-backdrop-filter: var(--g-blur, blur(20px)); backdrop-filter: var(--g-blur, blur(20px));
-  border: 1px solid var(--g-line, var(--border)); border-radius: 20px;
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.1)), 0 24px 54px -16px rgba(0,0,0,.6);
-}
-.account-panel-head { border-bottom-color: var(--g-line, var(--border-soft)); background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--primary) 16%, transparent), transparent 70%); }
-.account-menu-item { border-radius: 12px; transition: background-color .15s ease, transform .2s var(--spring, ease); }
-.account-menu-item:active { transform: scale(.98); }
-@media (hover: hover) { .account-menu-item:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); } .account-menu-item:hover svg { color: var(--primary); } }
-.account-menu-divider { background: var(--g-line, var(--border-soft)); }
-
-/* ---- Tag picker ---- */
-.tags-toggle { border-radius: 12px; background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.06)); }
-.tags-panel { border-radius: 16px !important; background: var(--g-sheen, none), var(--g-fill-strong, var(--panel-2)) !important; }
-.tags-panel label { border-radius: 10px; transition: background-color .15s ease; }
-.tags-panel label:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
-.tags-edit-btn { border-radius: 999px; }
-
-/* ---- Keyboard shortcuts overlay + keycaps ---- */
-.shortcuts-overlay { background: rgba(5,6,12,.42); -webkit-backdrop-filter: blur(10px) saturate(130%); backdrop-filter: blur(10px) saturate(130%); }
-:root[data-theme="light"] .shortcuts-overlay { background: rgba(60,50,120,.22); }
-.shortcuts-box {
-  background: var(--g-sheen, none), var(--g-fill-strong, var(--panel)); border: 1px solid var(--g-line, var(--border)); border-radius: 24px;
-  -webkit-backdrop-filter: var(--g-blur, blur(24px)); backdrop-filter: var(--g-blur, blur(24px));
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.1)), 0 30px 70px rgba(0,0,0,.5);
-}
-.shortcuts-row { border-radius: 12px; }
-.shortcuts-keys kbd, .header-search-kbd, .pp-shortcut-key, .quiz-answer-btn .kbd {
-  border-radius: 8px; background: var(--g-sheen, none), color-mix(in srgb, var(--text) 8%, transparent);
-  border: 1px solid var(--g-line, var(--border)); border-bottom-width: 2px; box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.1));
-}
-
-/* ---- Quick-add sheet ---- */
-.qa-tabs { border-radius: 999px; padding: 4px; background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)); }
-.qa-tabs button { border-radius: 999px; transition: background-color .25s ease, color .2s ease, box-shadow .3s ease, transform .25s var(--spring, ease); }
-.qa-tabs button:active { transform: scale(.96); }
-.qa-tabs button.on { background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 30%, transparent), color-mix(in srgb, var(--primary) 14%, transparent)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent), 0 6px 16px -8px var(--primary); }
-.qa-pick, .qa-text, .qa-custom { border-radius: 16px; background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.06)); }
-.qa-text:focus, .qa-pick:focus, .qa-custom:focus { outline: none; border-color: color-mix(in srgb, var(--primary) 65%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent); }
-.qa-chip, .qa-rules button { border-radius: 999px; background: var(--g-fill, var(--panel-2)); transition: transform .25s var(--spring, ease), background-color .2s ease, box-shadow .3s ease; }
-.qa-chip:active, .qa-rules button:active { transform: scale(.95); }
-.qa-chip.on { box-shadow: 0 0 14px -3px color-mix(in srgb, var(--primary) 65%, transparent); }
-.qa-rules button.on { box-shadow: 0 0 14px -3px var(--green); } .qa-rules button.on.bad { box-shadow: 0 0 14px -3px var(--red); }
-.qa-save { border-radius: 16px; background: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,0) 55%), linear-gradient(135deg, var(--violet, #8457ff), var(--primary-2, #6e5bf0)); box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 10px 26px -10px var(--glow-violet, rgba(132,87,255,.6)); }
-.qa-x { border-radius: 50%; }
-
-/* ---- Chat ---- */
-.chat-msg-ai .chat-bubble { background: var(--g-sheen, none), var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); border-radius: 18px 18px 18px 6px; box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)); }
-.chat-msg-user .chat-bubble { background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,0) 55%), linear-gradient(135deg, var(--violet, #8457ff), var(--primary-2, #6e5bf0)); border: 1px solid rgba(255,255,255,.16); border-radius: 18px 18px 6px 18px; box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 10px 24px -12px var(--glow-violet, rgba(132,87,255,.6)); color: #fff; }
-.chat-avatar { box-shadow: 0 0 14px -3px color-mix(in srgb, var(--primary) 60%, transparent); }
-.chat-input { border-radius: 999px; background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.06)); }
-.chat-input:focus { border-color: color-mix(in srgb, var(--primary) 65%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent); }
-.chat-send-btn { border-radius: 50%; box-shadow: inset 0 1px 0 rgba(255,255,255,.28), 0 8px 22px -8px var(--glow-violet, rgba(132,87,255,.6)); }
-.chat-data-status { border-radius: 999px; }
-
-/* ---- Toasts ---- */
-.toast-action { border-radius: 999px; background: color-mix(in srgb, var(--primary) 22%, transparent); border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent); transition: transform .25s var(--spring, ease), background-color .2s ease; }
-.toast-action:hover { background: color-mix(in srgb, var(--primary) 34%, transparent); transform: translateY(-1px); }
-.toast.error { box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)), 0 0 26px -8px var(--red); }
-
-/* ---- Native controls ---- */
-input[type="range"] { accent-color: var(--primary); }
-input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
-::selection { background: color-mix(in srgb, var(--primary) 35%, transparent); }
-:focus-visible { outline-color: color-mix(in srgb, var(--primary) 70%, transparent); }
-
-/* ======================================================================
-   GLASS SKIN, PART 12: consistency + polish (all screen sizes).
-   One radius scale for the small controls that still had 3-8px corners,
-   glass fills for leftover solid surfaces on Practice / Rewind / Calculator,
-   tabular numbers for money, glass skeletons + loader, a glass status
-   pill, consistent summaries, links, touch behaviour and text wrapping.
-   No backdrop-filter is added near charts. Delete this block to turn it off.
-====================================================================== */
-:root { --r-xs: 8px; --r-sm: 12px; --r-md: 16px; --r-lg: 20px; --r-xl: 24px; }
-
-/* ---- Typography + numbers ---- */
-html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
-h1, h2, h3, .title, .page-title { text-wrap: balance; }
-p, .hint-text, .edge-explain-blurb { text-wrap: pretty; }
-td, th, .mono, .stat .value, .stat-value, .acc-balance, .acc-meta b, [class*="pnl"], [class*="-num"], [class*="price"], .kv, kbd { font-variant-numeric: tabular-nums; }
-.section-label { letter-spacing: .08em; color: color-mix(in srgb, var(--text-faint) 88%, var(--primary)); }
-
-/* ---- Touch: no 300ms delay, no grey tap flash ---- */
-button, a, summary, label, select, [role="button"], .tf-btn, .nav-item, .bn-item { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-
-/* ---- Links ---- */
-a:not([class]) { color: var(--primary); text-decoration-color: color-mix(in srgb, var(--primary) 35%, transparent); text-underline-offset: 3px; transition: text-decoration-color .2s ease, color .2s ease; }
-a:not([class]):hover { text-decoration-color: currentColor; }
-.back-link { border-radius: 999px; padding: 6px 12px 6px 9px; transition: background-color .2s ease, color .2s ease, transform .25s var(--spring, ease); }
-.back-link:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); transform: translateX(-2px); }
-
-/* ---- Brand + status pill ---- */
-.brand .mark, .page-loader-mark { box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 0 0 1px color-mix(in srgb, var(--primary) 30%, transparent), 0 8px 28px -4px color-mix(in srgb, var(--primary) 55%, transparent); }
-.pipeline-status { padding: 7px 12px; border-radius: 999px; background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.06)); }
-.pipeline-status .dot { box-shadow: 0 0 10px var(--green); }
-
-/* ---- Skeletons: a glass sheen sweeps across instead of flat grey ---- */
-.skel { background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.10) 50%, transparent 70%), var(--g-fill, var(--panel-2)); background-size: 250% 100%, auto; border-radius: var(--r-sm); }
-:root[data-theme="light"] .skel { background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.85) 50%, transparent 70%), var(--g-fill, var(--panel-2)); background-size: 250% 100%, auto; }
-.skel-line { border-radius: 999px; } .skel-avatar { border-radius: var(--r-sm); }
-
-/* ---- Empty states on every screen size ---- */
-.empty-state, .empty-state-hero { border-radius: var(--r-lg); }
-.empty-state-hero { background: var(--g-sheen, none), var(--g-fill, transparent); border: 1px dashed var(--g-line, var(--border)); }
-.empty-state-hero-icon { color: var(--primary); opacity: .75; filter: drop-shadow(0 0 14px color-mix(in srgb, var(--primary) 50%, transparent)); }
-.empty-state-hero-action { border-radius: 999px; }
-
-/* ---- One radius scale for the small controls ---- */
-.setup-tag, .pill, .tagpill { border-radius: 999px; }
-.rr-strip, .dow-chip, .tags-field .filter-input { border-radius: var(--r-sm); }
-.calc-input-wrap .filter-input { border-radius: var(--r-sm); }
-.calc-stepper { right: 4px; } .calc-stepper button { border-radius: 8px; transition: background-color .15s ease, color .15s ease; }
-.calc-stepper button:hover { background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--text); }
-.be-track { background: color-mix(in srgb, var(--text) 8%, transparent); border-color: var(--g-line, var(--border)); }
-.score-row .track, .mini-bar-track, .bar-track, .progress-track { border-radius: 999px; }
-.page-loader-mark { border-radius: 16px; }
-
-/* ---- Summaries / disclosure rows look the same everywhere ---- */
-#lt-advanced summary, .lt-params-details summary {
-  display: inline-flex; align-items: center; gap: 9px; list-style: none; padding: 8px 14px; border-radius: 999px; margin-top: 8px;
-  background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border)); color: var(--text-dim); font-weight: 600;
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)); transition: background-color .2s ease, color .2s ease, border-color .2s ease;
-}
-#lt-advanced summary:hover, .lt-params-details summary:hover { color: var(--text); border-color: color-mix(in srgb, var(--primary) 40%, var(--g-line, var(--border))); }
-#lt-advanced summary::-webkit-details-marker, .lt-params-details summary::-webkit-details-marker { display: none; }
-#lt-advanced summary::before, .lt-params-details summary::before { content: "▸"; font-size: 10px; transition: transform .2s var(--glide, ease); }
-#lt-advanced[open] > summary::before, .lt-params-details[open] > summary::before { transform: rotate(90deg); }
-
-/* ---- Practice + Rewind: leftover solid surfaces become glass (no blur: they sit beside charts) ---- */
-.pp-position-block, .pp-fill-log-block, .pr-recap-col, .quiz-stop-panel, .quiz-replay-panel, .pp-live-block, .pp-progress-block, .quiz-risk-preview, .quiz-replay-row {
-  background: var(--g-sheen, none), var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); border-radius: var(--r-md);
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.06));
-}
-.pp-stepper-btn, .pp-size-row input[type="number"], .pp-size-mode-btn, .quiz-preset-btn, .qz-speed-btn, .quiz-speed-btn, .quiz-answer-btn, .qz-move-stop-btn, .quiz-watch-btn, .pp-shortcut-btn {
-  border-radius: var(--r-sm); transition: transform .25s var(--spring, ease), border-color .2s ease, background-color .2s ease, box-shadow .3s ease;
-}
-.quiz-preset-btn:active, .qz-speed-btn:active, .quiz-speed-btn:active, .quiz-answer-btn:active, .pp-size-mode-btn:active, .pp-stepper-btn:active { transform: scale(.96); }
-.quiz-preset-btn.active, .qz-speed-btn.active, .quiz-speed-btn.active { box-shadow: 0 0 14px -4px color-mix(in srgb, var(--primary) 70%, transparent); }
-.quiz-answer-btn.enter { box-shadow: 0 8px 22px -12px var(--green); }
-.quiz-answer-btn.exit  { box-shadow: 0 8px 22px -12px var(--red); }
-.pp-chart-wrap, .quiz-chart-wrap { border-radius: var(--r-md); border-color: var(--g-line, var(--border-soft)); }
-#pp-live-price, #pp-pos-summary, .pp-acct-line b { font-variant-numeric: tabular-nums; }
-
-/* ---- Tables everywhere: first/last row rounding + calmer rules ---- */
-table.data-table, .trade-table, .report-table, .acc-table { border-collapse: separate; border-spacing: 0; }
-table.data-table tbody tr:last-child td, .trade-table tbody tr:last-child td, .report-table tbody tr:last-child td { border-bottom: 0; }
-table.data-table thead th, .trade-table thead th, .report-table thead th { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; }
-
-/* ---- Cards: a calm, consistent lift on hover for every glass tile (desktop pointers only) ---- */
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .th-card, .calc-box, .calc-results, .ts-card, .rpt-local-card { transition: transform .3s var(--spring, ease), border-color .25s ease, box-shadow .3s ease; }
-  .th-card:hover, .ts-card:hover, .rpt-local-card:hover { transform: translateY(-2px); }
-}
-
-/* ---- Reduced motion: no springs, no sweeps ---- */
-@media (prefers-reduced-motion: reduce) {
-  .skel { animation: none; }
-  .back-link:hover { transform: none; }
-}
-
-/* ======================================================================
-   GLASS SKIN, PART 13: pieces built from JavaScript.
-   Chart marker tooltips (inline-styled solid dark, unreadable in light
-   theme), the account-scope switcher (its CSS is injected by accounts.js,
-   so it's overridden here with a more specific selector), the fullscreen
-   drawing toolbar + colour popover, and the Today strip. Delete this block
-   to turn it off.
-====================================================================== */
-
-/* ---- Chart marker tooltips: glass + theme-aware text (overrides the inline styles) ---- */
-.pointer-tooltip {
-  background: var(--g-sheen, none), var(--g-fill-strong, var(--panel)) !important; color: var(--text) !important;
-  border-radius: 14px !important; -webkit-backdrop-filter: blur(14px) saturate(160%); backdrop-filter: blur(14px) saturate(160%);
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.1)), 0 14px 34px rgba(0,0,0,.4) !important;
-}
-
-/* ---- Account scope switcher (top bar) ---- */
-.topbar .scope-btn {
-  background: var(--g-sheen, none), var(--g-fill, var(--panel-2)); border-color: var(--g-line, var(--border));
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08));
-  transition: border-color .2s ease, background-color .2s ease, transform .25s var(--spring, ease), box-shadow .3s ease;
-}
-.topbar .scope-btn:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--g-line, var(--border))); }
-.topbar .scope-btn:active { transform: scale(.96); }
-.topbar .scope-btn.filtered { background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 28%, transparent), color-mix(in srgb, var(--primary) 10%, transparent)); border-color: color-mix(in srgb, var(--primary) 55%, transparent); box-shadow: 0 0 16px -5px var(--primary); }
-.topbar .scope-dot { box-shadow: 0 0 10px currentColor; }
-.topbar .scope-panel {
-  background: var(--g-sheen, none), color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--g-line, var(--border)); border-radius: 20px;
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.1)), 0 24px 54px -16px rgba(0,0,0,.6);
-}
-.topbar .scope-row, .topbar .scope-links a { border-radius: 12px; transition: background-color .15s ease; }
-.topbar .scope-row:hover, .topbar .scope-links a:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
-.topbar .scope-links { border-top-color: var(--g-line, var(--border-soft)); }
-
-/* ---- Fullscreen chart: glass drawing toolbar + colour popover (descendants of the chart, so blur is safe) ---- */
-.chart-fs .chart-draw-bar {
-  background: var(--g-sheen, none), var(--g-fill-strong, color-mix(in srgb, var(--panel) 90%, transparent)); border-color: var(--g-line, var(--border-soft)); border-radius: 16px;
-  -webkit-backdrop-filter: var(--g-blur, blur(20px)); backdrop-filter: var(--g-blur, blur(20px));
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.1)), 0 14px 34px -14px rgba(0,0,0,.55);
-}
-.cd-btn { border-radius: 12px; transition: background-color .15s ease, color .15s ease, transform .25s var(--spring, ease), box-shadow .3s ease; }
-.cd-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 9%, transparent); }
-.cd-btn:active:not(:disabled) { transform: scale(.92); }
-.cd-btn.on { background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 30%, transparent), color-mix(in srgb, var(--primary) 12%, transparent)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.12)), 0 0 14px -4px var(--primary); }
-.cd-sep { background: var(--g-line, var(--border-soft)); }
-.cd-dot, .cd-swatch { border-color: var(--g-fill-strong, var(--panel)); box-shadow: 0 0 0 1px var(--g-line, var(--border)), 0 2px 8px rgba(0,0,0,.35); }
-.cd-swatch { transition: transform .25s var(--spring, ease); } .cd-swatch:hover { transform: scale(1.12); }
-.chart-fs .cd-pop.open {
-  background: var(--g-sheen, none), var(--g-fill-strong, var(--panel)); border-color: var(--g-line, var(--border)); border-radius: 18px;
-  -webkit-backdrop-filter: var(--g-blur, blur(20px)); backdrop-filter: var(--g-blur, blur(20px));
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.1)), 0 18px 40px -12px rgba(0,0,0,.6);
-}
-
-/* ---- Today strip ---- */
-.ts-chip { border-radius: 999px; background: var(--g-fill, var(--panel-2)); border-color: var(--g-line, var(--border-soft)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.06)); }
-.ts-banner { border-radius: 14px; }
-.ts-banner.bad  { background: radial-gradient(120% 140% at 0% 0%, var(--red-soft), transparent 70%), var(--g-fill, var(--red-soft)); border-color: color-mix(in srgb, var(--red) 55%, transparent); box-shadow: 0 0 22px -8px var(--red); }
-.ts-banner.good { background: radial-gradient(120% 140% at 0% 0%, var(--green-soft), transparent 70%), var(--g-fill, var(--green-soft)); border-color: color-mix(in srgb, var(--green) 55%, transparent); box-shadow: 0 0 22px -8px var(--green); }
-.ts-plan { border-top-color: var(--g-line, var(--border-soft)); }
-.ts-track { border-radius: 999px; background: color-mix(in srgb, var(--text) 9%, transparent); box-shadow: inset 0 1px 2px rgba(0,0,0,.2); }
-.ts-track i { border-radius: 999px; box-shadow: 0 0 12px -2px currentColor; }
-.ts-meter .ts-track i { color: var(--green); } .ts-meter.warn .ts-track i { color: var(--amber); } .ts-meter.bad .ts-track i { color: var(--red); } .ts-meter.hit .ts-track i { color: var(--primary); }
-.ts-ghost, .ts-btn { border-radius: 14px; background: var(--g-sheen, none), var(--g-fill, var(--panel-2)); border-color: var(--g-line, var(--border)); box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.08)); transition: transform .25s var(--spring, ease), border-color .2s ease, background-color .2s ease; }
-.ts-ghost:hover, .ts-btn:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--g-line, var(--border))); transform: translateY(-1px); }
-.ts-ghost:active, .ts-btn:active { transform: scale(.97); }
-.ts-btn.primary { border-color: rgba(255,255,255,.22); background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,0) 55%), linear-gradient(135deg, var(--primary), var(--primary-2)); box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 10px 26px -10px var(--glow-violet, rgba(132,87,255,.6)); }
-.ts-item { border-radius: 12px; transition: background-color .15s ease; }
-.ts-item:hover { background: color-mix(in srgb, var(--primary) 8%, transparent); }
-.ts-check summary b { border-radius: 999px; }
-
-/* ======================================================================
-   GLASS SKIN, PART 14: accessibility + performance fallbacks.
-   - prefers-reduced-transparency: solid surfaces, no blur, still-colour wash.
-   - prefers-contrast: more: crisper edges, stronger secondary text.
-   - Touch devices: skip the blur on small controls (dozens of tiny
-     backdrop-filters are what makes glass scroll badly on older phones);
-     cards, sheets, the top bar and the tab bar keep theirs.
-   Delete this block to turn it off.
-====================================================================== */
-@media (prefers-reduced-transparency: reduce) {
-  :root, :root[data-theme="light"] {
-    --g-fill: color-mix(in srgb, var(--panel) 96%, transparent);
-    --g-fill-strong: var(--panel);
-    --g-blur: none;
-    --g-sheen: none;
-    --g-spot: none;
-  }
-  *, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
-  body::before { animation: none !important; opacity: .35; }
-  body::after { display: none; }
-}
-
-@media (prefers-contrast: more) {
-  :root { --g-line: color-mix(in srgb, var(--text) 38%, transparent); --btn-edge: color-mix(in srgb, var(--text) 38%, transparent); --text-faint: var(--text-dim); }
-  :root[data-theme="light"] { --g-line: color-mix(in srgb, var(--text) 45%, transparent); }
-  .card, .panel-box, .stat-grid, .th-card, .calc-box, .calc-results, .ts-card, .ds-menu, .ui-modal-box { border-width: 1.5px !important; }
-  :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-  body::before { opacity: .35; }
-}
-
-@media (hover: none) {
-  :root .btn-advanced, :root .filter-btn, :root .icon-btn, :root .btn-icon, :root .cal-nav-btn, :root .sidebar-toggle,
-  :root .sr-run-btn, :root .btn-danger, :root .ds-trigger, :root .pipeline-status, :root .tags-toggle,
-  :root .tf-switcher, :root .eq-range-toggle, :root .calc-toggle, :root .pr-view-tabs, :root .quiz-mode-row, :root .qa-tabs,
-  :root .report-toptabs, :root .th-bar, :root .edge-jumpnav, :root .back-link, :root .quiz-live-badge,
-  :root .lt-mode-banner, :root .sc-banner, :root #bt-manual-details summary, :root .int-card, :root .acc-card,
-  :root .acc-period, :root .lt-pos-card, :root .run-card, :root .pr-stat-cell, :root .rewind-stat, :root .calc-stat {
-    -webkit-backdrop-filter: none; backdrop-filter: none;
-  }
 }
