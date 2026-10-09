@@ -161,22 +161,55 @@ g[data-drill]:focus-visible, circle[data-drill]:focus-visible { outline-offset: 
 /* Trades behind a clicked row / number, dropped open right under it as a plain table. */
 [data-drill][aria-expanded="true"] { background: var(--panel-2); }
 .drill-inline-row > td { padding: 0 !important; border-bottom: 1px solid var(--border); background: var(--panel-2); }
-.drill-inline { padding: 10px 14px 12px; border-left: 2px solid var(--primary); }
-.drill-inline-wrap { margin: 6px 0 12px; background: var(--panel-2); border-radius: 6px; }
-.drill-inline-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
-.drill-inline-title { font-size: 13px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
-.drill-inline-sub { font-size: 12px; color: var(--text-dim); }
-.drill-inline-close {
-  margin-left: auto; width: 28px; height: 28px; line-height: 1; font-size: 18px; cursor: pointer;
-  background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--text-dim);
+.drill-inline { padding: 14px 16px 12px; border-left: 2px solid var(--primary); min-width: 0; }
+.drill-inline-wrap {
+  margin: 10px 0 16px; background: var(--panel-2); border: 1px solid var(--border-soft);
+  border-radius: 14px; overflow: hidden; min-width: 0;
 }
-.drill-inline-close:hover { color: var(--text); border-color: var(--border); }
-.drill-inline .drill-table { background: transparent; }
+/* Title, then the one-line description beside it (wraps under on a narrow screen), close button far right. */
+.drill-inline-head { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 12px; margin-bottom: 10px; padding-right: 36px; position: relative; min-height: 28px; }
+.drill-inline-title { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: -.005em; overflow-wrap: anywhere; }
+.drill-inline-sub { font-size: 12px; line-height: 1.35; color: var(--text-dim); }
+.drill-inline-title + .drill-inline-sub { padding-left: 12px; border-left: 1px solid var(--border); }
+@media (max-width: 760px) {
+  .drill-inline-title + .drill-inline-sub { flex-basis: 100%; padding-left: 0; border-left: 0; }
+}
+.drill-inline-close {
+  position: absolute; top: 0; right: 0; display: grid; place-items: center;
+  width: 28px; height: 28px; padding: 0; font-size: 17px; line-height: 1; cursor: pointer;
+  background: var(--panel-3, transparent); border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-dim);
+  transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+}
+.drill-inline-close:hover { color: var(--text); border-color: var(--border); background: var(--panel-3, transparent); }
+.drill-inline-close:focus-visible { outline: 1.5px solid var(--primary); outline-offset: 1px; }
+
+/* The table: quiet header, hairline rows, numbers lined up -- no per-cell boxes. */
+.drill-inline .drill-table { background: transparent; width: 100%; border-collapse: collapse; font-size: 13px; }
+.drill-inline .drill-table thead th {
+  padding: 6px 10px 8px; font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-faint); text-align: left; white-space: nowrap; border-bottom: 1px solid var(--border);
+}
+.drill-inline .drill-table td { padding: 9px 10px; border-bottom: 1px solid var(--border-soft); vertical-align: middle; white-space: nowrap; }
 .drill-inline .drill-table tbody tr:last-child td { border-bottom: 1px solid var(--border); }
-.drill-inline .drill-table tfoot td { font-weight: 600; border-bottom: none; color: var(--text-dim); }
+.drill-inline .drill-table tbody tr:hover td { background: color-mix(in srgb, var(--primary) 6%, transparent); }
+.drill-inline .drill-table th.num, .drill-inline .drill-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.drill-inline .drill-table td.mono { color: var(--text-dim); }
+.drill-inline .drill-table td.num.up, .drill-inline .drill-table td.num.down { font-weight: 600; }
+.drill-inline .drill-table td.up { color: var(--green); }
+.drill-inline .drill-table td.down { color: var(--red); }
+.drill-inline .drill-table tfoot td { padding-top: 11px; font-weight: 600; border-bottom: none; color: var(--text-dim); }
 .drill-inline .drill-table tfoot td.up { color: var(--green); }
 .drill-inline .drill-table tfoot td.down { color: var(--red); }
 .drill-table .drill-sym { font-weight: 700; color: var(--text); text-decoration: none; }
-.drill-table .drill-sym:hover { color: var(--primary); }
+.drill-table .drill-sym:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
 .drill-table th.num, .drill-table td.num { text-align: right; }
-.drill-more-wrap { text-align: center; padding: 10px 0 2px; }
+/* Long / short as a small word with a dot, setup as one soft tag -- the cell itself stays plain. */
+.drill-side { display: inline-flex; align-items: center; gap: 6px; text-transform: capitalize; color: var(--text); }
+.drill-side::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); }
+.drill-side.long::before { background: var(--green); }
+.drill-side.short::before { background: var(--red); }
+.drill-tag {
+  display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; line-height: 1.5;
+  color: var(--primary); background: var(--primary-soft); border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
+}
+.drill-more-wrap { text-align: center; padding: 12px 0 2px; }

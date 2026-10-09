@@ -79,8 +79,8 @@
     return `<tr>
       <td class="mono">${escapeHtml(t.trade_date || "\u2014")}</td>
       <td><a href="${href}" class="drill-sym">${escapeHtml(t.symbol || "?")}</a></td>
-      <td class="drill-opt">${escapeHtml(t.side ? String(t.side) : "\u2014")}</td>
-      <td class="drill-opt">${t.setup_type ? escapeHtml(prettifyTag(t.setup_type)) : "\u2014"}</td>
+      <td class="drill-opt">${t.side ? `<span class="drill-side ${/^s/i.test(String(t.side)) ? "short" : "long"}">${escapeHtml(String(t.side))}</span>` : "\u2014"}</td>
+      <td class="drill-opt">${t.setup_type ? `<span class="drill-tag">${escapeHtml(prettifyTag(t.setup_type))}</span>` : "\u2014"}</td>
       <td class="mono">${entry}</td>
       <td class="mono drill-opt">${hold != null ? App.fmtDurationPrecise(hold) : "\u2014"}</td>
       <td class="mono num drill-opt">${t.shares != null ? Number(t.shares).toLocaleString() : "\u2014"}</td>
@@ -95,7 +95,7 @@
         <th scope="col">Date</th><th scope="col">Symbol</th><th scope="col" class="drill-opt">Side</th><th scope="col" class="drill-opt">Setup</th>
         <th scope="col">Entry</th><th scope="col" class="drill-opt">Hold</th><th scope="col" class="num drill-opt">Shares</th><th scope="col" class="num">Net P&amp;L</th>
       </tr></thead><tbody>${sorted.slice(0, shown).map(drillRowHtml).join("")}</tbody>
-      <tfoot><tr><td colspan="7">${sorted.length} trade${sorted.length === 1 ? "" : "s"}</td><td class="mono num ${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</td></tr></tfoot></table></div>
+      <tfoot><tr><td colspan="2">${sorted.length} trade${sorted.length === 1 ? "" : "s"}</td><td class="drill-opt" colspan="2"></td><td></td><td class="drill-opt" colspan="2"></td><td class="mono num ${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</td></tr></tfoot></table></div>
       ${remaining > 0 ? `<div class="drill-more-wrap"><button type="button" class="btn-load-more drill-more">Show more (${remaining} left)</button></div>` : ""}`;
   }
   function paintDrillPanel(panel) {
@@ -106,7 +106,14 @@
     const panel = el && el._drillPanel;
     if (!panel) return;
     if (panel._drill.key && panel._drill.key._drillEl === el) panel._drill.key._drillEl = null;
-    panel.remove();
+    // Fold shut, then remove -- the state below is cleared straight away, so reopening
+    // (or opening a sibling) while it is still folding behaves as if it were already gone.
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      panel.remove();
+    } else {
+      panel.classList.add("drill-closing");
+      setTimeout(() => panel.remove(), 180);
+    }
     el._drillPanel = null;
     el.setAttribute("aria-expanded", "false");
     el.classList.remove("drill-open");
@@ -159,6 +166,7 @@
     el._drillPanel = panel;
     el.setAttribute("aria-expanded", "true");
     el.classList.add("drill-open");
+    panel.setAttribute("data-fresh", "");
     paintDrillPanel(panel);
     // Charts / stat strips open their panel below the whole chart or strip, which can
     // be a long way down on a phone -- bring it into view instead of making you hunt.
@@ -183,6 +191,7 @@
           if (owner && owner.focus && document.contains(owner)) { try { owner.focus({ preventScroll: true }); } catch (err) { owner.focus(); } }
         } else {
           panel._drill.shown += DRILL_PAGE;
+          panel.removeAttribute("data-fresh"); // only a newly opened panel staggers its rows in
           paintDrillPanel(panel);
         }
         return;
