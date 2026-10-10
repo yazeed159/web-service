@@ -837,4 +837,12 @@
     return { render: render };
   })();
   window.DataFresh = Fresh;
+
+  // ---- Phone: tap a folded intro blurb to read the rest (CSS does the folding, see common.css).
+  document.addEventListener("click", function (e) {
+    if (!phone.matches || !e.target.closest) return;
+    if (e.target.closest("a, button")) return;
+    var el = e.target.closest(".content > .panel-head .sub, .edge-intro p, .calc-intro, .rw-hero p, .acc-help");
+    if (el) el.classList.toggle("m-open");
+  });
 })();

@@ -98,6 +98,8 @@
   // into a visible, honest "couldn't load" state instead of leaving
   // the person staring at a spinner that will never resolve.
   function clearStrandedLoadingStates() {
+    // Tab modules still loading (SPA navigation): the placeholders are waiting, not stranded.
+    if (!(App.tabs.dashboard.renderStats && App.tabs.dayview.renderCalendar)) return;
     document.querySelectorAll(".loading-line").forEach((el) => {
       // The Reports tab renders on demand (see loadReportsModule below), so
       // its placeholders are still waiting, not stranded.
@@ -544,6 +546,16 @@
     });
   }
 
+  function modulesRegistered() {
+    return !!(App.tabs.dashboard.renderStats && App.tabs.dashboard.renderScore && App.tabs.dayview.renderCalendar);
+  }
+  function whenModulesReady(cb, tries) {
+    tries = tries || 0;
+    if (cancelled) return;
+    if (modulesRegistered() || tries > 120) { cb(); return; } // ~6s, then draw anyway so a real failure is visible
+    setTimeout(() => whenModulesReady(cb, tries + 1), 50);
+  }
+
   function loadAndRender(manual) {
     if (cancelled || loadInFlight) return Promise.resolve();
     loadInFlight = true;
@@ -558,7 +570,14 @@
       hideLoadBanner();
       if (window.TradeCache) { window.TradeCache.set("trades", results[0]); window.TradeCache.set("ledger", results[1]); }
       if (window.announceData) window.announceData("fresh", Date.now());
-      try { renderAll(results[0], results[1]); } catch (err) { onRenderFailed(err); }
+      // On an in-app (SPA) navigation this file runs BEFORE app-dashboard.js /
+      // app-dayview.js have loaded, so a fast (cached) fetch could finish first,
+      // draw nothing, and the sweep below would stamp "Couldn't load this
+      // section" over every placeholder. Wait for the modules to register.
+      whenModulesReady(() => {
+        if (cancelled) return;
+        try { renderAll(results[0], results[1]); } catch (err) { onRenderFailed(err); }
+      });
     }, (err) => {
       loadInFlight = false;
       if (cancelled) return;

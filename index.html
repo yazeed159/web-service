@@ -143,7 +143,7 @@
         <div class="dash-two-col">
           <div class="panel-box">
             <div class="panel-box-head">
-              <span class="title">Trader score</span>
+              <span class="title">Form guide</span>
             </div>
             <div class="score-wrap" id="score-wrap">
               <div class="loading-line skel skel-block" style="height:150px;"></div>
@@ -279,6 +279,18 @@
 
       <!-- ===================== REPORTS TAB ===================== -->
       <section class="tab-panel" id="tab-reports">
+        <!-- Phone only: the filters collapse behind one summary bar, and the
+             headline numbers for whatever is filtered sit right under it. -->
+        <button type="button" class="rpt-filters-toggle" id="rpt-filters-toggle" aria-expanded="false" aria-controls="rpt-filter-sheet">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"></path></svg>
+          <span class="rft-label">Filters</span>
+          <span class="rft-count" id="rpt-filters-count"></span>
+          <span class="rft-sum" id="rpt-filters-sum"></span>
+          <span class="rft-chev" aria-hidden="true">&#9662;</span>
+        </button>
+        <div class="rpt-kpis" id="rpt-kpis" aria-live="polite"></div>
+
+        <div class="rpt-filter-sheet" id="rpt-filter-sheet">
         <div class="reports-filter-bar">
           <div class="filter-field">
             <label>Symbol</label>
@@ -310,8 +322,8 @@
             </div>
           </div>
           <button type="button" class="btn-advanced" id="report-filter-advanced" aria-expanded="false" aria-controls="report-advanced-panel">Advanced</button>
-          <button class="btn-icon" id="report-filter-clear" title="Clear filters">🗑</button>
-          <button class="btn-icon btn-confirm" id="report-filter-apply" title="Apply">✓</button>
+          <button class="btn-icon rpt-act-clear" id="report-filter-clear" title="Clear filters">🗑<span class="rpt-act-label">Clear</span></button>
+          <button class="btn-icon btn-confirm rpt-act-apply" id="report-filter-apply" title="Apply">✓<span class="rpt-act-label">Apply filters</span></button>
         </div>
 
         <!-- Extra filters, opened by the "Advanced" button above. Same model as
@@ -378,6 +390,7 @@
             </div>
           </div>
         </div>
+        </div><!-- /rpt-filter-sheet -->
 
         <div class="report-toptabs" id="report-toptabs">
           <button class="toptab-btn" data-toptab="overview">Overview</button>
@@ -390,7 +403,7 @@
           <button class="toptab-btn" data-toptab="advanced">Advanced</button>
         </div>
 
-        <div class="report-hint">Tip: click any stat, number, bar, row or chart point to see the trades behind it. Inside the panel, tap a tile or a chip to narrow it down further.</div>
+        <div class="report-hint">Items marked <span class="hint-chev">&#8250;</span> open the trades behind them. Everything else is just a number.</div>
 
         <div class="toptab-panel active" id="toptab-detailed">
         <div class="section-label">Detailed stats</div>

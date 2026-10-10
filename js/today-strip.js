@@ -237,7 +237,7 @@
     const planLink = p.kind === "day" ? `daily.html?date=${p.date}` : "daily.html";
 
     mount.innerHTML = `
-      <div class="ts-card${s.n ? (s.net >= 0 ? " tone-up" : " tone-down") : ""}">
+      <div class="ts-card">
         <div class="ts-tabs" role="tablist" aria-label="Period">
           ${periods.map((x) => `<button type="button" role="tab" data-tab="${x.id}" aria-selected="${x.id === p.id}" class="${x.id === p.id ? "on" : ""}">${esc(x.tab)}</button>`).join("")}
         </div>

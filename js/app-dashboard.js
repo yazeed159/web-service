@@ -185,33 +185,62 @@
       )
       .join("");
   }
+  // "Form guide": replaces the old 0-100 Trader score gauge. Reads like a
+  // sports form line -- where you are right now (streak), how the last 20
+  // trades actually looked (size-scaled bars), and whether recent form is
+  // better or worse than your long-run average.
   function renderScore() {
+    const trades = App.state.trades;
+    const n = trades.length;
     const s = App.computeStats();
-    const winRateScore = Math.max(0, Math.min(100, s.winRate));
-    const pfScore = s.profitFactor === Infinity ? 100 : Math.max(0, Math.min(100, (s.profitFactor / 3) * 100));
-    const ratio = s.avgLoss !== 0 ? s.avgWin / Math.abs(s.avgLoss) : 0;
-    const avgWLScore = Math.max(0, Math.min(100, (ratio / 2) * 100));
-    const overall = Math.round((winRateScore + pfScore + avgWLScore) / 3);
 
-    const color = overall >= 70 ? "var(--green)" : overall >= 40 ? "var(--amber)" : "var(--red)";
-    const r = 58, c = 2 * Math.PI * r;
-    const dash = (overall / 100) * c;
+    let streak = 0, streakWin = null;
+    for (let i = n - 1; i >= 0; i--) {
+      const w = !!trades[i].win;
+      if (streakWin === null) { streakWin = w; streak = 1; }
+      else if (w === streakWin) streak++;
+      else break;
+    }
+    const streakCls = streakWin === null ? "" : streakWin ? "up" : "down";
+    const streakText = streakWin === null ? "No trades yet"
+      : `${streak} ${streakWin ? (streak === 1 ? "win" : "wins") : (streak === 1 ? "loss" : "losses")} in a row`;
+
+    const recent = trades.slice(-20);
+    const maxAbs = Math.max(1, ...recent.map((t) => Math.abs(t.pnl_after_comm)));
+    const bars = recent.map((t) => {
+      const h = Math.max(10, Math.round((Math.abs(t.pnl_after_comm) / maxAbs) * 100));
+      const up = !!t.win;
+      const tip = `${t.symbol || ""} ${t.trade_date || ""}: ${fmtMoney(t.pnl_after_comm)}`;
+      return `<a class="fg-col" href="trade.html?id=${encodeURIComponent(t.id)}" title="${escapeHtml(tip)}">
+        <span class="fg-up">${up ? `<i class="up" style="height:${h}%"></i>` : ""}</span>
+        <span class="fg-dn">${!up ? `<i class="down" style="height:${h}%"></i>` : ""}</span></a>`;
+    }).join("");
+
+    const last10 = trades.slice(-10);
+    const wr10 = last10.length ? (last10.filter((t) => t.win).length / last10.length) * 100 : 0;
+    const wrDelta = wr10 - s.winRate;
+    const expectancy = n ? s.netPnl / n : 0;
+    const payoff = s.avgLoss !== 0 ? s.avgWin / Math.abs(s.avgLoss) : null;
+    const dTone = Math.abs(wrDelta) < 1 ? "" : wrDelta > 0 ? "up" : "down";
 
     document.getElementById("score-wrap").innerHTML = `
-      <div class="score-gauge">
-        <svg viewBox="0 0 132 132">
-          <circle class="track" cx="66" cy="66" r="${r}"></circle>
-          <circle class="fill" cx="66" cy="66" r="${r}" stroke="${color}" stroke-dasharray="${dash.toFixed(1)} ${c.toFixed(1)}"></circle>
-        </svg>
-        <div class="center">
-          <span class="num" style="color:${color}">${overall}</span>
-          <span class="lbl">Score</span>
+      <div class="fg">
+        <div class="fg-head">
+          <span class="fg-streak ${streakCls}">${streakText}</span>
+          <span class="fg-sub">Last ${recent.length} trade${recent.length === 1 ? "" : "s"}</span>
         </div>
-      </div>
-      <div class="score-breakdown">
-        ${scoreRow("Win rate", winRateScore, s.winRate.toFixed(0) + "%")}
-        ${scoreRow("Profit factor", pfScore, s.profitFactor === Infinity ? "∞" : s.profitFactor.toFixed(2))}
-        ${scoreRow("Avg win/loss", avgWLScore, ratio.toFixed(2))}
+        <div class="fg-bars" role="img" aria-label="Net P&L of your last ${recent.length} trades">${bars}</div>
+        <div class="fg-stats">
+          <div class="fg-stat"><span class="k">Last 10 win rate</span>
+            <b>${wr10.toFixed(0)}%</b>
+            <em class="${dTone}">${Math.abs(wrDelta) < 1 ? "on par" : (wrDelta > 0 ? "+" : "−") + Math.abs(wrDelta).toFixed(0) + "pt vs all-time"}</em></div>
+          <div class="fg-stat"><span class="k">Per trade</span>
+            <b class="${expectancy >= 0 ? "up" : "down"}">${fmtMoney(expectancy)}</b>
+            <em>average net</em></div>
+          <div class="fg-stat"><span class="k">Payoff</span>
+            <b>${payoff === null ? "—" : payoff.toFixed(2) + "×"}</b>
+            <em>avg win ÷ avg loss</em></div>
+        </div>
       </div>
     `;
 
@@ -247,14 +276,6 @@
           </div>`;
       }
     }
-  }
-  function scoreRow(label, pct, display) {
-    const color = pct >= 70 ? "var(--green)" : pct >= 40 ? "var(--amber)" : "var(--red)";
-    return `<div class="score-row">
-      <span class="k">${label}</span>
-      <span class="track"><span class="fill" style="width:${Math.max(4, pct).toFixed(0)}%; background:${color}"></span></span>
-      <span class="v">${display}</span>
-    </div>`;
   }
   function renderMiniCal() {
     const y = App.state.calYear, m = App.state.calMonth;

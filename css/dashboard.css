@@ -141,17 +141,26 @@
 ===================================================== */
 [data-drill] { cursor: pointer; }
 .report-hint { font-size: 13px; color: var(--text-dim); margin: 2px 0 14px; }
+/* Clickable vs plain: anything that opens the trades behind it carries a
+   primary-coloured "›" and a left accent; plain numbers have neither. */
 .stat-line[data-drill], .kv-row[data-drill] { border-radius: 6px; }
-.stat-line[data-drill] .v, .streak-strip .cell[data-drill] .value, .kv-row[data-drill] .v,
-td[data-drill], th[data-drill], span[data-drill], b[data-drill], .ins-note b[data-drill] {
-  text-decoration: underline dotted; text-decoration-color: var(--text-faint); text-underline-offset: 3px;
+.stat-line[data-drill] .v::after, .kv-row[data-drill] .v::after,
+.streak-strip .cell[data-drill] .value::after, td[data-drill]:last-child::after,
+tr[data-drill] > td:last-child::after, .bar-row[data-drill] .bar-label::after {
+  content: "\203A"; margin-left: 7px; color: var(--primary); font-weight: 700; font-family: var(--sans, inherit);
 }
-/* A number inside a sentence (Insights): looks like text, reads as a link on hover. */
-b.ins-link[data-drill] { text-decoration-color: var(--text-dim); border-radius: 3px; }
+.stat-line[data-drill], .kv-row[data-drill], .bar-row[data-drill] { box-shadow: inset 2px 0 0 var(--primary); }
+.streak-strip .cell[data-drill] { box-shadow: inset 0 -2px 0 var(--primary); }
+tr[data-drill] > td:first-child { box-shadow: inset 2px 0 0 var(--primary); }
+td[data-drill], th[data-drill] { background: color-mix(in srgb, var(--primary) 7%, transparent); }
+/* A number inside a sentence (Insights): link-coloured so it reads as tappable. */
+b.ins-link[data-drill], .ins-note b[data-drill], span[data-drill] {
+  color: var(--primary); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--primary) 45%, transparent); text-underline-offset: 3px; border-radius: 3px;
+}
 @media (hover: hover) {
   .stat-line[data-drill]:hover, .kv-row[data-drill]:hover, .streak-strip .cell[data-drill]:hover,
   tr[data-drill]:hover td, td[data-drill]:hover, th[data-drill]:hover { background: var(--panel-2); }
-  b.ins-link[data-drill]:hover, span[data-drill]:hover { color: var(--primary); text-decoration-style: solid; }
+  b.ins-link[data-drill]:hover, span[data-drill]:hover { text-decoration-color: var(--primary); }
   g[data-drill]:hover { opacity: 0.8; }
   circle[data-drill]:hover { opacity: 0.85; }
 }
@@ -236,3 +245,27 @@ g[data-drill]:focus-visible, circle[data-drill]:focus-visible { outline-offset: 
   .drill-inline .drill-table th, .drill-inline .drill-table td { padding: 8px 6px; font-size: 12.5px; }
   .drill-inline .drill-table thead th { font-size: 10px; letter-spacing: .04em; }
 }
+
+
+/* ---- Dashboard "Form guide" (replaces the Trader score gauge) ---- */
+.fg { width: 100%; display: grid; gap: 14px; }
+.fg-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.fg-streak { font-family: var(--display, inherit); font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.fg-streak.up, .fg-stat b.up, .fg-stat em.up { color: var(--green); }
+.fg-streak.down, .fg-stat b.down, .fg-stat em.down { color: var(--red); }
+.fg-sub { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); }
+.fg-bars { display: flex; gap: 4px; height: 84px; }
+.fg-col { flex: 1 1 0; min-width: 0; display: grid; grid-template-rows: 1fr 1fr; text-decoration: none; border-radius: 4px; }
+.fg-up, .fg-dn { display: flex; justify-content: center; }
+.fg-up { align-items: flex-end; }
+.fg-dn { align-items: flex-start; border-top: 1px solid var(--border); }
+.fg-col i { display: block; width: 100%; max-width: 14px; border-radius: 3px; transition: transform .15s ease, opacity .15s ease; }
+.fg-col i.up { background: var(--green); } .fg-col i.down { background: var(--red); }
+.fg-col:hover i { transform: scaleY(1.06); opacity: .85; }
+.fg-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.fg-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fg-stat .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-faint); }
+.fg-stat b { font-family: var(--mono); font-size: 18px; font-weight: 700; }
+.fg-stat em { font-style: normal; font-size: 11px; color: var(--text-faint); }
+@media (max-width: 480px) { .fg-stat b { font-size: 16px; } .fg-bars { height: 72px; } }
+.report-hint .hint-chev { color: var(--primary); font-weight: 700; }
