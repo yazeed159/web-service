@@ -456,7 +456,17 @@
     const crosshair = container.querySelector(".mlc-crosshair");
     const tooltip = container.querySelector(".mlc-tooltip");
     const dot = container.querySelector(".mlc-hover-dot");
+    const coarse = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+    const tradeAt = (i) => (opts.trades && opts.trades[i]) || null; // series[i] <-> opts.trades[i]
 
+    // One AbortController per render: re-rendering this container (range toggle,
+    // filters) drops the previous chart's listeners instead of stacking them.
+    if (container._mlcCtl) container._mlcCtl.abort();
+    const ctl = (container._mlcCtl = new AbortController());
+    (opts.signal || App.signal).addEventListener("abort", () => ctl.abort(), { once: true, signal: ctl.signal });
+    const sig = ctl.signal;
+
+    let shownIdx = -1;
     function nearestIndex(clientX) {
       const rect = wrap.getBoundingClientRect();
       const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
@@ -464,6 +474,7 @@
     }
     function showAt(clientX) {
       const i = nearestIndex(clientX);
+      shownIdx = i;
       const [cx, cy] = coords[i];
       const rect = wrap.getBoundingClientRect();
       const pxX = (cx / W) * rect.width;
@@ -474,7 +485,13 @@
       dot.setAttribute("cy", cy.toFixed(1));
       dot.setAttribute("stroke", values[i] >= 0 ? "var(--green)" : "var(--red)");
       const p = series[i];
-      tooltip.innerHTML = `<div class="eq-date">${escapeHtml(p.x)}</div><div class="eq-bal">${valueFmt(p.y)}</div>${opts.trades && opts.trades.length ? `<div class="eq-date" style="margin-top:2px;">Click for this day's trades</div>` : ""}`;
+      const t = tradeAt(i);
+      let html = `<div class="eq-date">${escapeHtml(p.x)}</div><div class="eq-bal">${valueFmt(p.y)}</div>`;
+      if (t) {
+        html += `<div class="eq-trade">${escapeHtml(t.symbol)} <span class="${t.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></div>`;
+        html += `<div class="eq-hint">${coarse ? "Tap again to open trade" : "Click to open trade"} \u2192</div>`;
+      }
+      tooltip.innerHTML = html;
       tooltip.style.display = "block";
       const ttWidth = tooltip.offsetWidth || 120;
       let left = pxX + 10;
@@ -483,27 +500,68 @@
       tooltip.style.left = `${left}px`;
     }
     function hide() {
+      shownIdx = -1;
       crosshair.style.display = "none";
       tooltip.style.display = "none";
       dot.style.display = "none";
     }
-    const sig = opts.signal || App.signal;
-    wrap.addEventListener("pointermove", (e) => showAt(e.clientX), { signal: sig });
-    wrap.addEventListener("pointerleave", hide, { signal: sig });
-    // opts.trades (one entry per plotted point's trade): click a point to
-    // open that day's trades, with the chart's value at that moment.
-    if (opts.trades && opts.trades.length) {
-      wrap.addEventListener("click", (e) => {
-        const i = nearestIndex(e.clientX);
-        const date = series[i].x;
-        const dayTrades = opts.trades.filter((t) => t.trade_date === date);
-        toggleInline(wrap, { title: date, sub: `${opts.context || "Chart"} \u00b7 ${valueFmt(series[i].y)} after this point`, trades: dayTrades });
-      }, { signal: sig });
-      wrap.addEventListener("pointermove", (e) => {
-        const d = series[nearestIndex(e.clientX)].x;
-        wrap.style.cursor = opts.trades.some((t) => t.trade_date === d) ? "pointer" : "default";
-      }, { signal: sig });
-    }
+
+    // Mouse: hover as before. Touch: press and hold (~200ms) then drag to scrub
+    // along the curve; a quick swipe still scrolls the page. A plain tap shows
+    // that point, and tapping the same point again opens the trade.
+    wrap.addEventListener("pointermove", (e) => { if (e.pointerType !== "touch") showAt(e.clientX); }, { signal: sig });
+    wrap.addEventListener("pointerleave", (e) => { if (e.pointerType !== "touch") hide(); }, { signal: sig });
+
+    let holdTimer = null, scrubbing = false, suppressClick = false;
+    let sx = 0, sy = 0, lastX = 0;
+    const endHold = () => { clearTimeout(holdTimer); holdTimer = null; };
+    wrap.addEventListener("touchstart", (e) => {
+      if (e.touches.length !== 1) { endHold(); return; }
+      sx = lastX = e.touches[0].clientX; sy = e.touches[0].clientY;
+      endHold();
+      holdTimer = setTimeout(() => {
+        holdTimer = null; scrubbing = true;
+        wrap.classList.add("scrubbing");
+        try { if (navigator.vibrate) navigator.vibrate(8); } catch (err) {}
+        showAt(lastX);
+      }, 200);
+    }, { passive: true, signal: sig });
+    wrap.addEventListener("touchmove", (e) => {
+      const t = e.touches[0];
+      if (!t) return;
+      lastX = t.clientX;
+      if (scrubbing) {
+        if (e.cancelable) e.preventDefault(); // keep the page from scrolling while scrubbing
+        showAt(t.clientX);
+      } else if (Math.abs(t.clientX - sx) > 8 || Math.abs(t.clientY - sy) > 8) {
+        endHold(); // finger moved before the hold registered: it is a scroll
+      }
+    }, { passive: false, signal: sig });
+    const touchDone = () => {
+      endHold();
+      if (scrubbing) {
+        scrubbing = false;
+        wrap.classList.remove("scrubbing");
+        suppressClick = true; // the click synthesised on release must not open the trade
+        setTimeout(() => { suppressClick = false; }, 400);
+      }
+    };
+    wrap.addEventListener("touchend", touchDone, { signal: sig });
+    wrap.addEventListener("touchcancel", touchDone, { signal: sig });
+    wrap.addEventListener("contextmenu", (e) => { if (coarse) e.preventDefault(); }, { signal: sig });
+    // Tapping anywhere else clears the readout left on screen.
+    document.addEventListener("touchstart", (e) => { if (!wrap.contains(e.target)) hide(); }, { passive: true, signal: sig });
+
+    // Click / tap goes straight to that trade's page (no dropdown). On a phone
+    // the first tap only shows the point; tapping the same point again opens it.
+    wrap.addEventListener("click", (e) => {
+      if (suppressClick) return;
+      const i = nearestIndex(e.clientX);
+      const t = tradeAt(i);
+      if (!t || !t.id) return;
+      if (coarse && shownIdx !== i) { showAt(e.clientX); return; }
+      window.location.href = `trade.html?id=${encodeURIComponent(t.id)}`;
+    }, { signal: sig });
   }
   // ----------------------------------------------------------------
   // Reports — click-to-expand trade lists (same pattern as patterns.html's
@@ -652,6 +710,21 @@
       App.state.trades = fullTrades;
     }
   }
+  // initReportFilters() runs once per render pass that (re)builds the filter
+  // bar -- and Reports can render twice on arrival (the cached on-device
+  // snapshot first, then the fresh network data). Each run used to stack a
+  // second set of listeners on the SAME buttons, so on a phone the Filters
+  // button opened the sheet and the duplicate closed it again in the same tap
+  // (and Advanced, Tags and the weekday chips cancelled themselves out the
+  // same way). Every run now drops the previous run's listeners first; they
+  // still all die with App.signal when the page is torn down.
+  let filterInitCtl = null;
+  function freshFilterSignal() {
+    if (filterInitCtl) filterInitCtl.abort();
+    const ctl = (filterInitCtl = new AbortController());
+    App.signal.addEventListener("abort", () => ctl.abort(), { once: true, signal: ctl.signal });
+    return ctl.signal;
+  }
   function initReportFilters() {
     const symbolInput = document.getElementById("report-filter-symbol");
     const setupSel = document.getElementById("report-filter-setup");
@@ -662,6 +735,7 @@
     const tagsToggle = document.getElementById("report-filter-tags-toggle");
     const tagsPanel = document.getElementById("report-filter-tags-panel");
     if (!symbolInput || !setupSel || !durMinInput || !durMaxInput || !dateFromInput || !dateToInput || !tagsToggle || !tagsPanel) return;
+    const sig = freshFilterSignal();
 
     const setups = Array.from(new Set(App.state.trades.map((t) => t.setup_type).filter(Boolean))).sort();
     setupSel.innerHTML =
@@ -795,23 +869,23 @@
       advBtn.addEventListener("click", () => {
         const open = advPanel.classList.toggle("open");
         advBtn.setAttribute("aria-expanded", String(open));
-      }, { signal: App.signal });
-      advEls.side.addEventListener("change", (e) => { reportFilters.side = e.target.value; updateAdvancedBadge(); }, { signal: App.signal });
-      advEls.result.addEventListener("change", (e) => { reportFilters.result = e.target.value; updateAdvancedBadge(); }, { signal: App.signal });
+      }, { signal: sig });
+      advEls.side.addEventListener("change", (e) => { reportFilters.side = e.target.value; updateAdvancedBadge(); }, { signal: sig });
+      advEls.result.addEventListener("change", (e) => { reportFilters.result = e.target.value; updateAdvancedBadge(); }, { signal: sig });
       advNumKeys.forEach((k) => {
-        advEls[k].addEventListener("input", (e) => { reportFilters[k] = parseNum(e.target.value); updateAdvancedBadge(); }, { signal: App.signal });
+        advEls[k].addEventListener("input", (e) => { reportFilters[k] = parseNum(e.target.value); updateAdvancedBadge(); }, { signal: sig });
       });
       ["timeFrom", "timeTo"].forEach((k) => {
         const onTime = (e) => { reportFilters[k] = e.target.value || ""; updateAdvancedBadge(); };
-        advEls[k].addEventListener("input", onTime, { signal: App.signal });
-        advEls[k].addEventListener("change", onTime, { signal: App.signal });
+        advEls[k].addEventListener("input", onTime, { signal: sig });
+        advEls[k].addEventListener("change", onTime, { signal: sig });
       });
       dowChips.forEach((chip) => chip.addEventListener("click", () => {
         const d = Number(chip.dataset.dow);
         reportFilters.days = reportFilters.days.includes(d) ? reportFilters.days.filter((x) => x !== d) : reportFilters.days.concat(d);
         chip.classList.toggle("on", reportFilters.days.includes(d));
         updateAdvancedBadge();
-      }, { signal: App.signal }));
+      }, { signal: sig }));
     }
 
     // ---- Phone filter bar: one summary row that opens the whole form (basic + Advanced fields).
@@ -836,34 +910,34 @@
       rftBtn.setAttribute("aria-expanded", String(open));
     }
     if (rftBtn && rftSheet) {
-      rftBtn.addEventListener("click", () => setSheet(!rftSheet.classList.contains("open")), { signal: App.signal });
+      rftBtn.addEventListener("click", () => setSheet(!rftSheet.classList.contains("open")), { signal: sig });
       // Apply / Clear both re-render; on a phone that should also fold the form away so the results are in view.
       ["report-filter-apply", "report-filter-clear"].forEach((id) => {
         const b = document.getElementById(id);
-        if (b) b.addEventListener("click", () => { if (window.matchMedia("(max-width: 760px)").matches) setSheet(false); }, { signal: App.signal });
+        if (b) b.addEventListener("click", () => { if (window.matchMedia("(max-width: 760px)").matches) setSheet(false); }, { signal: sig });
       });
     }
     updateFiltersToggle();
 
-    symbolInput.addEventListener("input", (e) => { reportFilters.symbol = e.target.value.trim(); }, { signal: App.signal });
-    setupSel.addEventListener("change", (e) => { reportFilters.setup = e.target.value; }, { signal: App.signal });
-    durMinInput.addEventListener("input", (e) => { reportFilters.durationMin = parseNum(e.target.value); }, { signal: App.signal });
-    durMaxInput.addEventListener("input", (e) => { reportFilters.durationMax = parseNum(e.target.value); }, { signal: App.signal });
-    dateFromInput.addEventListener("change", (e) => { reportFilters.dateFrom = e.target.value || defaultFrom; }, { signal: App.signal });
-    dateToInput.addEventListener("change", (e) => { reportFilters.dateTo = e.target.value || defaultTo; }, { signal: App.signal });
+    symbolInput.addEventListener("input", (e) => { reportFilters.symbol = e.target.value.trim(); }, { signal: sig });
+    setupSel.addEventListener("change", (e) => { reportFilters.setup = e.target.value; }, { signal: sig });
+    durMinInput.addEventListener("input", (e) => { reportFilters.durationMin = parseNum(e.target.value); }, { signal: sig });
+    durMaxInput.addEventListener("input", (e) => { reportFilters.durationMax = parseNum(e.target.value); }, { signal: sig });
+    dateFromInput.addEventListener("change", (e) => { reportFilters.dateFrom = e.target.value || defaultFrom; }, { signal: sig });
+    dateToInput.addEventListener("change", (e) => { reportFilters.dateTo = e.target.value || defaultTo; }, { signal: sig });
 
     tagsToggle.addEventListener("click", (e) => {
       e.stopPropagation();
       tagsPanel.classList.toggle("open");
-    }, { signal: App.signal });
+    }, { signal: sig });
     document.addEventListener("click", (e) => {
       if (!e.target.closest(".tags-field")) tagsPanel.classList.remove("open");
-    }, { signal: App.signal });
+    }, { signal: sig });
     tagsPanel.addEventListener("change", () => {
       const checked = Array.from(tagsPanel.querySelectorAll("input:checked")).map((cb) => cb.value);
       reportFilters.tags = checked;
       tagsToggle.textContent = checked.length ? `${checked.length} selected` : "All tags";
-    }, { signal: App.signal });
+    }, { signal: sig });
 
     const clearBtn = document.getElementById("report-filter-clear");
     if (clearBtn) clearBtn.addEventListener("click", () => {
@@ -879,13 +953,13 @@
       tagsToggle.textContent = "All tags";
       persistFilters();
       applyReportFiltersAndRender();
-    }, { signal: App.signal });
+    }, { signal: sig });
 
     const applyBtn = document.getElementById("report-filter-apply");
     if (applyBtn) applyBtn.addEventListener("click", () => {
       persistFilters();
       applyReportFiltersAndRender();
-    }, { signal: App.signal });
+    }, { signal: sig });
 
     // Daily/Weekly/Monthly/Yearly rollup switcher for the "Trade
     // distribution & performance by <period>" charts -- same underlying
@@ -899,7 +973,7 @@
       periodSelect.addEventListener("change", () => {
         reportPeriodTimeframe = periodSelect.value;
         applyReportFiltersAndRender();
-      }, { signal: App.signal });
+      }, { signal: sig });
     }
   }
   // Phone: the headline numbers for the filtered set, shown above the tabs.
