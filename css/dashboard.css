@@ -161,238 +161,78 @@ g[data-drill]:focus-visible, circle[data-drill]:focus-visible { outline-offset: 
 /* Trades behind a clicked row / number, dropped open right under it as a plain table. */
 [data-drill][aria-expanded="true"] { background: var(--panel-2); }
 .drill-inline-row > td { padding: 0 !important; border-bottom: 1px solid var(--border); background: var(--panel-2); }
-.drill-inline { padding: 10px 14px 12px; border-left: 2px solid var(--primary); }
-.drill-inline-wrap { margin: 6px 0 12px; background: var(--panel-2); border-radius: 6px; }
-.drill-inline-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
-.drill-inline-title { font-size: 13px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
-.drill-inline-sub { font-size: 12px; color: var(--text-dim); }
-.drill-inline-close {
-  margin-left: auto; width: 28px; height: 28px; line-height: 1; font-size: 18px; cursor: pointer;
-  background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--text-dim);
+.drill-inline { padding: 14px 16px 12px; border-left: 2px solid var(--primary); min-width: 0; }
+.drill-inline-wrap {
+  margin: 10px 0 16px; background: var(--panel-2); border: 1px solid var(--border-soft);
+  border-radius: 14px; overflow: hidden; min-width: 0;
 }
-.drill-inline-close:hover { color: var(--text); border-color: var(--border); }
-.drill-inline .drill-table { background: transparent; }
+/* Title, then the one-line description beside it (wraps under on a narrow screen), close button far right. */
+.drill-inline-head { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 12px; margin-bottom: 10px; padding-right: 36px; position: relative; min-height: 28px; }
+.drill-inline-title { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: -.005em; overflow-wrap: anywhere; }
+.drill-inline-sub { font-size: 12px; line-height: 1.35; color: var(--text-dim); }
+.drill-inline-title + .drill-inline-sub { padding-left: 12px; border-left: 1px solid var(--border); }
+@media (max-width: 760px) {
+  .drill-inline-title + .drill-inline-sub { flex-basis: 100%; padding-left: 0; border-left: 0; }
+}
+.drill-inline-close {
+  position: absolute; top: 0; right: 0; display: grid; place-items: center;
+  width: 28px; height: 28px; padding: 0; font-size: 17px; line-height: 1; cursor: pointer;
+  background: var(--panel-3, transparent); border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text-dim);
+  transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+}
+.drill-inline-close:hover { color: var(--text); border-color: var(--border); background: var(--panel-3, transparent); }
+.drill-inline-close:focus-visible { outline: 1.5px solid var(--primary); outline-offset: 1px; }
+
+/* The table: quiet header, hairline rows, numbers lined up -- no per-cell boxes. */
+.drill-inline .drill-table { background: transparent; width: 100%; border-collapse: collapse; font-size: 13px; }
+.drill-inline .drill-table thead th {
+  padding: 6px 10px 8px; font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-faint); text-align: left; white-space: nowrap; border-bottom: 1px solid var(--border);
+}
+.drill-inline .drill-table td { padding: 9px 10px; border-bottom: 1px solid var(--border-soft); vertical-align: middle; white-space: nowrap; }
 .drill-inline .drill-table tbody tr:last-child td { border-bottom: 1px solid var(--border); }
-.drill-inline .drill-table tfoot td { font-weight: 600; border-bottom: none; color: var(--text-dim); }
+.drill-inline .drill-table tbody tr:hover td { background: color-mix(in srgb, var(--primary) 6%, transparent); }
+.drill-inline .drill-table th.num, .drill-inline .drill-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.drill-inline .drill-table td.mono { color: var(--text-dim); }
+.drill-inline .drill-table td.num.up, .drill-inline .drill-table td.num.down { font-weight: 600; }
+.drill-inline .drill-table td.up { color: var(--green); }
+.drill-inline .drill-table td.down { color: var(--red); }
+.drill-inline .drill-table tfoot td { padding-top: 11px; font-weight: 600; border-bottom: none; color: var(--text-dim); }
 .drill-inline .drill-table tfoot td.up { color: var(--green); }
 .drill-inline .drill-table tfoot td.down { color: var(--red); }
 .drill-table .drill-sym { font-weight: 700; color: var(--text); text-decoration: none; }
-.drill-table .drill-sym:hover { color: var(--primary); }
+.drill-table .drill-sym:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
 .drill-table th.num, .drill-table td.num { text-align: right; }
-.drill-more-wrap { text-align: center; padding: 10px 0 2px; }
-
-/* =====================================================================
-   DASHBOARD DECK -- the remade Dashboard tab (hero, KPI tiles, panels).
-   Cards use the glass tokens when they exist (phones define --g-*;
-   desktop falls back to --glass*), so both themes and both screen
-   sizes follow the rest of the app automatically.
-===================================================================== */
-.dk-grid {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 16px;
-  align-items: stretch;
+/* Long / short as a small word with a dot, setup as one soft tag -- the cell itself stays plain. */
+.drill-side { display: inline-flex; align-items: center; gap: 6px; text-transform: capitalize; color: var(--text); }
+.drill-side::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); }
+.drill-side.long::before { background: var(--green); }
+.drill-side.short::before { background: var(--red); }
+.drill-tag {
+  display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; line-height: 1.5;
+  color: var(--primary); background: var(--primary-soft); border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
 }
-.dk-grid > * { min-width: 0; }
+.drill-more-wrap { text-align: center; padding: 12px 0 2px; }
 
-.dk-card {
-  position: relative;
-  padding: 18px 20px;
-  background: var(--g-fill, var(--glass, var(--panel)));
-  border: 1px solid var(--g-line, var(--glass-border, var(--border)));
-  border-radius: 22px;
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.06)), var(--g-shadow, 0 10px 30px rgba(0,0,0,.22));
-  -webkit-backdrop-filter: var(--g-blur, blur(16px) saturate(150%));
-  backdrop-filter: var(--g-blur, blur(16px) saturate(150%));
+/* "How this number is made": the actual inputs behind the stat that was clicked, shown above the trades. */
+.drill-calc { margin: 0 0 12px; }
+.drill-calc-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.drill-calc-item {
+  display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 12px;
+  background: var(--panel); border: 1px solid var(--border-soft); border-radius: 10px;
 }
-.dk-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
-.dk-card-head h3 { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .02em; color: var(--text); }
-.dk-card-sub { font-size: 11.5px; color: var(--text-faint); }
-.dk-card .up, .dk-tile .up, .dk-hero .up { color: var(--green); }
-.dk-card .down, .dk-tile .down, .dk-hero .down { color: var(--red); }
-.dk-empty { padding: 14px 4px; font-size: 12.5px; color: var(--text-dim); line-height: 1.5; }
-
-/* ---- grid placement (desktop) ---- */
-.dk-hero    { grid-column: 1 / -1; }
-.dk-kpis    { grid-column: 1 / -1; }
-.dk-equity  { grid-column: span 8; margin: 0; }
-.dk-score   { grid-column: span 4; }
-.dk-form    { grid-column: span 4; }
-.dk-timing  { grid-column: span 4; }
-.dk-symbols { grid-column: span 4; }
-.dk-cal     { grid-column: span 5; }
-.dk-recent  { grid-column: span 7; }
-.dk-today   { grid-column: 1 / -1; margin: 0 !important; }
-
-/* ---- hero ---- */
-.dk-hero { padding: 22px 26px 20px; overflow: hidden; }
-.dk-hero::before {
-  content: ""; position: absolute; inset: -40% auto auto -8%; width: 55%; height: 200%;
-  background: radial-gradient(closest-side, var(--glow-violet, rgba(139,124,246,.35)), transparent 70%);
-  opacity: .45; pointer-events: none;
-}
-.dk-hero > * { position: relative; }
-.dk-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.dk-greet { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.dk-hello { font-size: 15px; font-weight: 700; color: var(--text); }
-.dk-status { font-size: 12.5px; color: var(--text-dim); }
-.dk-seg {
-  display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px;
-  background: color-mix(in srgb, var(--text) 7%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-}
-.dk-seg button {
-  appearance: none; border: 0; background: transparent; color: var(--text-dim); cursor: pointer;
-  font: inherit; font-size: 12px; font-weight: 700; padding: 6px 14px; border-radius: 999px; min-width: 44px;
-}
-.dk-seg button:hover { color: var(--text); }
-.dk-seg button.active {
-  color: var(--text);
-  background: color-mix(in srgb, var(--primary, #8b7cf6) 26%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary, #8b7cf6) 55%, transparent);
-}
-.dk-hero-body { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; margin-top: 18px; }
-.dk-hero-main { flex: 1 1 auto; min-width: 0; }
-.dk-eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); }
-.dk-eyebrow span { text-transform: none; letter-spacing: 0; font-weight: 500; }
-.dk-big {
-  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 56px; line-height: 1.05; font-weight: 700; letter-spacing: -.02em; margin: 6px 0 8px;
-  font-variant-numeric: tabular-nums;
-}
-.dk-hero-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-height: 22px; }
-.dk-hero-meta .dim { font-size: 11.5px; color: var(--text-faint); }
-.dk-chip {
-  font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
-  background: color-mix(in srgb, currentColor 14%, transparent);
-}
-.dk-hero-sub { margin-top: 8px; font-size: 12px; color: var(--text-dim); font-family: var(--mono, ui-monospace, monospace); }
-.dk-hero-bars { flex: 0 1 46%; min-width: 220px; }
-.dk-mini-label { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 6px; }
-.dk-hero-bars svg { display: block; width: 100%; height: 84px; }
-.dk-hero-bars svg .zero { stroke: color-mix(in srgb, var(--text) 18%, transparent); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.dk-hero-bars svg rect.up { fill: var(--green); }
-.dk-hero-bars svg rect.down { fill: var(--red); }
-.dk-hero-cta { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
-.dk-btn {
-  display: inline-flex; align-items: center; gap: 8px; text-decoration: none; cursor: pointer;
-  font-size: 13px; font-weight: 700; padding: 10px 18px; border-radius: 14px; color: var(--text);
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
-}
-.dk-btn:hover { background: color-mix(in srgb, var(--text) 13%, transparent); }
-.dk-btn.primary {
-  color: #fff; border-color: transparent;
-  background: linear-gradient(135deg, var(--violet, #8457ff), var(--primary-2, #6e5bf0));
-  box-shadow: 0 8px 22px color-mix(in srgb, var(--primary-2, #6e5bf0) 38%, transparent);
-}
-.dk-btn.primary i { font-style: normal; font-size: 16px; line-height: 1; }
-.dk-hero-skel { display: grid; gap: 12px; }
-.dk-skel-big { height: 56px; width: min(320px, 70%); border-radius: 12px; }
-
-/* ---- KPI tiles ---- */
-.dk-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
-.dk-kpi-skel { display: contents; }
-.dk-skel-tile { height: 104px; border-radius: 18px; }
-.dk-tile {
-  padding: 14px 16px; border-radius: 18px;
-  background: var(--g-fill, var(--glass, var(--panel)));
-  border: 1px solid var(--g-line, var(--glass-border, var(--border)));
-  box-shadow: inset 0 1px 0 var(--g-hi, rgba(255,255,255,.05));
-  -webkit-backdrop-filter: var(--g-blur, blur(14px) saturate(140%));
-  backdrop-filter: var(--g-blur, blur(14px) saturate(140%));
-  display: flex; flex-direction: column; gap: 6px; min-width: 0;
-}
-.dk-tile-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.dk-tile-label { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; text-transform: uppercase; color: var(--text-faint); }
-.dk-tile-icon { display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center; border-radius: 9px; color: var(--primary, #8b7cf6); background: color-mix(in srgb, var(--primary, #8b7cf6) 14%, transparent); flex: none; }
-.dk-tile-icon svg { width: 15px; height: 15px; }
-.dk-tile-value { font-family: var(--mono, ui-monospace, monospace); font-size: 26px; line-height: 1.1; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.dk-tile-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 11.5px; color: var(--text-dim); min-height: 18px; }
-.dk-tile-sub { color: var(--text-faint); }
-
-/* ---- Form ---- */
-.dk-dots { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 14px; }
-.dk-dot { width: 18px; height: 18px; border-radius: 6px; background: var(--green); opacity: .92; }
-.dk-dot.down { background: var(--red); }
-.dk-pairs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
-.dk-pair { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.dk-pair .k { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
-.dk-pair .v { font-family: var(--mono, ui-monospace, monospace); font-size: 14px; font-weight: 700; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
-.dk-pair small, .dk-bar-val small, .dk-sym-name small, .dk-bar-name small { font-family: inherit; font-weight: 500; font-size: 11px; color: var(--text-faint); }
-
-/* ---- Timing ---- */
-.dk-bars { display: flex; flex-direction: column; gap: 12px; }
-.dk-bar-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
-.dk-bar-name { display: flex; flex-direction: column; font-size: 12.5px; font-weight: 700; color: var(--text); }
-.dk-bar-track { height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--text) 8%, transparent); overflow: hidden; }
-.dk-bar-track span { display: block; height: 100%; border-radius: 999px; background: var(--green); }
-.dk-bar-track span.down { background: var(--red); }
-.dk-bar-row.best .dk-bar-name span::after { content: " ★"; color: var(--amber); }
-.dk-bar-val { display: flex; flex-direction: column; align-items: flex-end; font-family: var(--mono, ui-monospace, monospace); font-size: 12.5px; font-weight: 700; text-align: right; }
-
-/* ---- Symbols ---- */
-.dk-group-label { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-faint); margin: 6px 0 4px; }
-.dk-sym { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
-.dk-sym-name { flex: 1 1 auto; display: flex; flex-direction: column; font-size: 13px; font-weight: 700; min-width: 0; }
-.dk-sym-pnl { font-family: var(--mono, ui-monospace, monospace); font-size: 13px; font-weight: 700; }
-
-/* ---- reused blocks inside the new cards ---- */
-.dk-card .score-wrap { margin: 0; }
-.dk-cal .cal-mini-wrap { margin: 0; }
-/* Use the card's full width and give the weekly-total column room (common.css caps the mini grid at 320px). */
-.dk-cal .cal-grid.cal-mini { max-width: 460px; gap: 6px; grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 1.3fr); }
-.dk-cal .cal-grid.cal-mini .cal-cell .cell-pnl, .dk-cal .cal-grid.cal-mini .cal-week-box .week-pnl { font-size: 12.5px; }
-.dk-recent .table-scroll { margin: 0 -6px; }
-@media (min-width: 761px) { .dk-recent .tt-recent th, .dk-recent .tt-recent td { padding-left: 8px; padding-right: 8px; } .dk-recent .tt-recent .stars, .dk-recent .tt-recent [class*="star"] { letter-spacing: -1px; } }
-@media (min-width: 761px) { .dk-recent .tt-recent th:nth-child(5), .dk-recent .tt-recent td:nth-child(5) { display: none; } } /* Shares: least useful column in a half-width card */
-
-@media (min-width: 761px) and (max-width: 900px), (min-width: 1181px) and (max-width: 1320px) { .dk-recent .tt-recent th:nth-child(7), .dk-recent .tt-recent td:nth-child(7) { display: none; } }
-
-/* ---- tablet ---- */
-@media (max-width: 1180px) {
-  .dk-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .dk-equity { grid-column: 1 / -1; }
-  .dk-score  { grid-column: span 6; }
-  .dk-form   { grid-column: span 6; }
-  .dk-timing, .dk-symbols { grid-column: span 6; }
-  .dk-cal, .dk-recent { grid-column: 1 / -1; }
-  .dk-hero-bars { flex-basis: 40%; }
-}
-
-/* ---- phone ---- */
+.drill-calc-k { font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); }
+.drill-calc-v { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.drill-calc-note { margin-top: 8px; font-size: 12.5px; line-height: 1.45; color: var(--text-dim); }
+.drill-reveal-wrap { text-align: left; padding: 2px 0 0; }
+/* The column the clicked stat is about (hold time / commission / per-share) stands out and never hides on a phone. */
+.drill-inline .drill-table th.drill-focus { color: var(--primary); }
+.drill-inline .drill-table td.drill-focus { color: var(--text); font-weight: 600; }
+/* Inside the big stat table the panel is a full-width row of the grid, flush with its borders. */
+.stat-table-grid > .drill-inline-wrap.drill-in-grid { grid-column: 1 / -1; margin: 0; border: 0; border-radius: 0; }
 @media (max-width: 760px) {
-  .dk-grid { gap: 12px; }
-  .dk-grid > * { grid-column: 1 / -1 !important; }
-  .dk-card { padding: 16px; border-radius: 24px; }
-  .dk-hero { padding: 18px 16px 16px; }
-  .dk-hero-top { align-items: stretch; flex-direction: column; gap: 12px; }
-  .dk-seg { display: flex; width: 100%; }
-  .dk-seg button { flex: 1 1 0; padding: 8px 0; }
-  .dk-hero-body { flex-direction: column; align-items: stretch; gap: 14px; margin-top: 14px; }
-  .dk-big { font-size: 42px; }
-  .dk-hero-bars { flex: none; min-width: 0; }
-  .dk-hero-bars svg { height: 64px; }
-  .dk-hero-cta { margin-top: 14px; }
-  .dk-hero-cta .dk-btn { flex: 1 1 0; justify-content: center; }
-  .dk-hero-cta .dk-btn.primary { flex: 2 1 0; }
-  .dk-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .dk-tile { padding: 12px 14px; border-radius: 20px; }
-  .dk-tile-value { font-size: 22px; }
-  .dk-bar-row { grid-template-columns: 78px minmax(0, 1fr) auto; gap: 8px; }
-  /* phone reading order: pulse first, then the deeper panels */
-  .dk-hero { order: 1; } .dk-kpis { order: 2; } .dk-equity { order: 3; } .dk-form { order: 4; }
-  .dk-cal { order: 5; } .dk-recent { order: 6; } .dk-symbols { order: 7; } .dk-timing { order: 8; }
-  .dk-score { order: 9; } .dk-today { order: 10; }
+  .drill-calc-item { flex: 1 1 calc(50% - 8px); }
+  /* Tighter cells so Date / Symbol / Entry / the stat's own column / Net P&L all fit a phone without sideways scrolling. */
+  .drill-inline .drill-table th, .drill-inline .drill-table td { padding: 8px 6px; font-size: 12.5px; }
+  .drill-inline .drill-table thead th { font-size: 10px; letter-spacing: .04em; }
 }
-@media (max-width: 380px) {
-  .dk-big { font-size: 36px; }
-  .dk-tile-value { font-size: 20px; }
-  .dk-pairs { grid-template-columns: 1fr; }
-}
-
-/* Tiny week labels in the mini calendar: lift them above AA on the green/red tinted boxes. */
-.dk-cal .cal-week-box .week-label, .dk-cal .cal-week-box .week-count { color: var(--text-dim); }
-
-/* Cards that haven't been filled (e.g. a brand-new account with no trades) shouldn't show as empty slivers. */
-.dk-grid > :empty { display: none; }

@@ -171,15 +171,24 @@
   // Runs a page's scripts against the DOM that was just swapped in:
   // shared utilities first (only if missing), then this page's own
   // external script(s) in order, then its inline block(s) in order.
-  function runPageScripts(cfg, newDoc) {
+  //
+  // `stale()` reports that a newer navigation has started since this one
+  // did. Clicking two sidebar links quickly used to run BOTH swaps to the end
+  // in whatever order their fetches happened to finish, so the slower, older
+  // page could land last and sit on screen under the wrong URL/title -- the
+  // "have to refresh to get the right page" behaviour. A stale swap now stops
+  // before it touches the DOM or runs another script.
+  function runPageScripts(cfg, newDoc, stale) {
     var chain = Promise.resolve();
+    stale = stale || function () { return false; };
     (cfg.shared || []).forEach(function (src) {
-      chain = chain.then(function () { return loadScriptOnce(src); });
+      chain = chain.then(function () { return stale() ? null : loadScriptOnce(src); });
     });
     (cfg.owned || []).forEach(function (src) {
-      chain = chain.then(function () { return loadScriptFresh(src); });
+      chain = chain.then(function () { return stale() ? null : loadScriptFresh(src); });
     });
     return chain.then(function () {
+      if (stale()) return;
       var inline = newDoc.querySelectorAll("body > script:not([src])");
       inline.forEach(function (old) {
         var s = document.createElement("script");
@@ -340,7 +349,11 @@
     });
   }
 
+  var navSeq = 0; // bumped by every swap; a swap whose number is no longer current is stale
+
   function swapTo(url, cfg, push) {
+    var mySeq = ++navSeq;
+    function stale() { return mySeq !== navSeq; }
     // A page whose own script wired up a window.__<page>Teardown() hook
     // (currently just app.js's window.__appTeardown, guarding index.html's
     // trade-data fetch/render pass and its nav/hashchange listeners) gets
@@ -356,6 +369,7 @@
         return res.text();
       })
       .then(function (html) {
+        if (stale()) return; // a newer click superseded this one while it was in flight
         var newDoc = new DOMParser().parseFromString(html, "text/html");
 
         // Everything that mutates the live page. With view transitions this
@@ -373,7 +387,8 @@
           swapContent(newDoc);
           swapSidebarMain(newDoc);
           swapSidebarBottom(newDoc);
-          return runPageScripts(cfg, newDoc).then(function () {
+          return runPageScripts(cfg, newDoc, stale).then(function () {
+            if (stale()) return; // the newer swap owns the scroll position, decor and loader now
             window.scrollTo(0, 0);
             if (window.__rebootDecor) window.__rebootDecor();
             hideLoader();
@@ -387,6 +402,7 @@
         return apply();
       })
       .catch(function () {
+        if (stale()) return; // a newer click already took over; don't hijack it
         // Any failure (network, parse, missing .main) falls back to a
         // real navigation instead of leaving the page stuck mid-swap.
         window.location.href = url.href;

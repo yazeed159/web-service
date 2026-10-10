@@ -359,8 +359,6 @@
     document.getElementById("report-dow").innerHTML = '<div class="empty-state small">No data yet.</div>';
     document.getElementById("report-timeofday").innerHTML = '<div class="empty-state small">No data yet.</div>';
     document.getElementById("report-duration").innerHTML = '<div class="empty-state small">No data yet.</div>';
-    document.getElementById("report-most-traded").innerHTML = '<div class="empty-state small">No data yet.</div>';
-    document.getElementById("report-most-profitable").innerHTML = '<div class="empty-state small">No data yet.</div>';
     document.getElementById("report-sector").innerHTML = '<div class="empty-state small">No data yet.</div>';
     document.getElementById("report-country").innerHTML = '<div class="empty-state small">No data yet.</div>';
     document.getElementById("detailed-stat-grid").innerHTML = "";

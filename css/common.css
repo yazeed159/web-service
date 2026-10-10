@@ -1398,6 +1398,20 @@ table.data-table a.row-link { color: var(--text); text-decoration: none; display
 .compare-table th.num, .compare-table td.num { text-align: right; white-space: nowrap; }
 .compare-table th .range { display: block; margin-top: 2px; text-transform: none; letter-spacing: 0; font-weight: 400; font-family: var(--mono); font-size: 10.5px; }
 .compare-table td.strong { font-weight: 700; }
+/* Compare tab: a proper ruled table -- outline, shaded header, row lines, column dividers, zebra rows. */
+.compare-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.compare-table thead th { background: var(--panel-2); padding: 12px 18px; border-bottom: 1px solid var(--border); vertical-align: bottom; }
+.compare-table th + th, .compare-table td + td { border-left: 1px solid var(--border-soft); }
+.compare-table tbody td { padding: 11px 18px; border-bottom: 1px solid var(--border-soft); }
+.compare-table tbody tr:last-child td { border-bottom: 0; }
+.compare-table tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--panel-2) 55%, transparent); }
+.compare-table tbody td:first-child { color: var(--text); font-weight: 500; }
+/* Change column is the answer, so it sits in its own tinted band. */
+.compare-table th:last-child, .compare-table td:last-child { border-left: 1px solid var(--border); background-image: linear-gradient(color-mix(in srgb, var(--primary) 6%, transparent), color-mix(in srgb, var(--primary) 6%, transparent)); }
+/* The dotted "clickable" underline made every number look smeared in a dense table; a hover tint says the same thing. */
+.compare-table td[data-drill] { text-decoration: none; }
+@media (max-width: 760px) { .compare-table thead th, .compare-table tbody td { padding: 10px 8px; } .compare-table th, .compare-table th .range { white-space: normal; } .compare-table th .range { font-size: 10px; } .compare-table { table-layout: fixed; } .compare-table th:first-child, .compare-table td:first-child { width: 28%; } .compare-table td.num { font-size: 11.5px; } }
+@media (hover: hover) { .compare-table tbody td[data-drill]:hover { background-color: color-mix(in srgb, var(--primary) 10%, transparent); } }
 .report-table th.num, .report-table td.num { text-align: right; white-space: nowrap; }
 .ins-lead { font-size: 13.5px; line-height: 1.55; margin: 0 0 14px; }
 .ins-sub { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); font-weight: 600; margin: 18px 0 6px; }
@@ -1905,8 +1919,11 @@ body::before {
 
 /* ---------- Scroll-reveal (driven by modern.js) ---------- */
 .reveal-init { opacity: 0; transform: translateY(14px); }
-.reveal-in { animation: revealIn 0.6s var(--ease) forwards; }
-@keyframes revealIn { to { opacity: 1; transform: translateY(0); } }
+/* The resting state is set directly (not only by the animation's end frame), so a
+   competing `animation` rule -- e.g. the phone page-entrance on `.content > *` -- can
+   never leave a revealed panel stuck at opacity 0. */
+.reveal-in { opacity: 1; transform: none; animation: revealIn 0.6s var(--ease) backwards; }
+@keyframes revealIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   .reveal-init { opacity: 1; transform: none; }
   .reveal-in { animation: none; }
