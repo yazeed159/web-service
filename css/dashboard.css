@@ -213,3 +213,26 @@ g[data-drill]:focus-visible, circle[data-drill]:focus-visible { outline-offset: 
   color: var(--primary); background: var(--primary-soft); border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
 }
 .drill-more-wrap { text-align: center; padding: 12px 0 2px; }
+
+/* "How this number is made": the actual inputs behind the stat that was clicked, shown above the trades. */
+.drill-calc { margin: 0 0 12px; }
+.drill-calc-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.drill-calc-item {
+  display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 8px 12px;
+  background: var(--panel); border: 1px solid var(--border-soft); border-radius: 10px;
+}
+.drill-calc-k { font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); }
+.drill-calc-v { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.drill-calc-note { margin-top: 8px; font-size: 12.5px; line-height: 1.45; color: var(--text-dim); }
+.drill-reveal-wrap { text-align: left; padding: 2px 0 0; }
+/* The column the clicked stat is about (hold time / commission / per-share) stands out and never hides on a phone. */
+.drill-inline .drill-table th.drill-focus { color: var(--primary); }
+.drill-inline .drill-table td.drill-focus { color: var(--text); font-weight: 600; }
+/* Inside the big stat table the panel is a full-width row of the grid, flush with its borders. */
+.stat-table-grid > .drill-inline-wrap.drill-in-grid { grid-column: 1 / -1; margin: 0; border: 0; border-radius: 0; }
+@media (max-width: 760px) {
+  .drill-calc-item { flex: 1 1 calc(50% - 8px); }
+  /* Tighter cells so Date / Symbol / Entry / the stat's own column / Net P&L all fit a phone without sideways scrolling. */
+  .drill-inline .drill-table th, .drill-inline .drill-table td { padding: 8px 6px; font-size: 12.5px; }
+  .drill-inline .drill-table thead th { font-size: 10px; letter-spacing: .04em; }
+}
