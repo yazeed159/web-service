@@ -76,6 +76,54 @@
     };
   }
 
+  // Rest-then-swipe on a phone chart.
+  // The chart library arms a long-press crosshair once a finger has rested on it
+  // for ~0.24s; from then on it owns the drag and cancels the page scroll. So
+  // "put a finger down, then swipe up" -- how most people start a scroll -- got
+  // stuck on the chart whenever the finger paused for a moment first. This gate
+  // hands a casual rest followed by a clearly VERTICAL drag back to the page,
+  // while a deliberate press-and-hold (>= HOLD_MS) still gives the full crosshair
+  // and horizontal drags / pinch are untouched. Not used in fullscreen or in
+  // Practice's "capture" mode, where the chart is meant to own every gesture.
+  function installRestSwipeGate(el, chart) {
+    if (!el || !chart || !isTouchy() || el._restSwipeGate) return;
+    if (el.classList.contains("chart-touch-capture")) return;
+    el._restSwipeGate = true;
+    const ARMED_MS = 235;  // just under the library's 240ms long-press timer
+    const HOLD_MS = 500;   // pressed at least this long = a deliberate crosshair
+    const DECIDE_PX = 10;  // how far the finger travels before we judge its direction
+    const inFullscreen = () => !!(el.closest && el.closest(".chart-fs")) || el.classList.contains("chart-fs");
+    let g = null; // { x, y, t, mode: "pending" | "scroll" | "chart" }
+    el.addEventListener("touchstart", (e) => {
+      g = (e.touches.length === 1 && !inFullscreen())
+        ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: performance.now(), mode: "pending" }
+        : null;
+    }, { passive: true, capture: true });
+    el.addEventListener("touchmove", (e) => {
+      if (!g) return;
+      if (e.touches.length !== 1) { g = null; return; } // second finger = pinch: hands off
+      if (g.mode === "scroll") { e.stopImmediatePropagation(); return; }
+      if (g.mode === "chart") return;
+      const t = e.touches[0];
+      const dx = Math.abs(t.clientX - g.x), dy = Math.abs(t.clientY - g.y);
+      const age = performance.now() - g.t;
+      if (age < ARMED_MS) { if (dx + dy >= DECIDE_PX) g.mode = "chart"; return; } // crosshair not armed: normal handling
+      // Armed: the library may already be in crosshair mode, so hold its moves
+      // back until we know which way the finger is going.
+      if (dx + dy < DECIDE_PX) { e.stopImmediatePropagation(); return; }
+      if (age < HOLD_MS && dy > dx) {
+        g.mode = "scroll";
+        e.stopImmediatePropagation(); // nobody cancels this move, so the browser scrolls the page
+        try { chart.clearCrosshairPosition(); } catch (err) { /* older builds */ }
+      } else {
+        g.mode = "chart";
+      }
+    }, { passive: true, capture: true });
+    const done = () => { g = null; };
+    el.addEventListener("touchend", done, { capture: true });
+    el.addEventListener("touchcancel", done, { capture: true });
+  }
+
   // Fullscreen toggle (every screen size; drawing tools live in fullscreen --
   // see chart-draw.js). Pins the chart container over the
   // whole viewport, gives it every gesture, and resizes the chart to the
@@ -731,6 +779,7 @@
       host: opts.fullscreenHost, onFit: opts.onFullscreenFit, onResetPrice: resetPriceZoom, onFocus: opts.onFocus,
       autoLandscape: opts.autoLandscape, draw,
     }) : null;
+    if (opts.touchMode !== "capture") installRestSwipeGate(el, chart);
     // A ResizeObserver tied to the container (rather than a page-level
     // window "resize" listener) disposes cleanly along with everything
     // else in teardownStandardChart() -- no separate "have I already
@@ -777,6 +826,7 @@
     teardownStandardChart,
     isPhone,
     isTouchy,
+    installRestSwipeGate,
     isLandscapePhone,
     phoneChartHeight,
     touchChartOpts,

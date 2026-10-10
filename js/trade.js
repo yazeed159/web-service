@@ -1486,6 +1486,7 @@
     // hard-coded 110, which overflowed the box and clipped the bottom axis.
     const macdChart = LightweightCharts.createChart(macdEl, { ...macdCommonOpts, width: macdEl.clientWidth, height: macdEl.clientHeight || 110 });
     currentMacdChart = macdChart;
+    if (window.ChartIndicators && window.ChartIndicators.installRestSwipeGate) window.ChartIndicators.installRestSwipeGate(macdEl, macdChart);
     const macdHistSeries = macdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } });
     macdHistSeries.setData(histData);
     const macdLineSeries = macdChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });

@@ -1265,6 +1265,7 @@
     setTimeout(repositionPointers, 0);
 
     rptMacdChart = LightweightCharts.createChart(macdEl, { ...macdCommonOpts, width: macdEl.clientWidth, height: macdEl.clientHeight || 100 });
+    if (window.ChartIndicators && window.ChartIndicators.installRestSwipeGate) window.ChartIndicators.installRestSwipeGate(macdEl, rptMacdChart);
     const macdHistSeries = rptMacdChart.addHistogramSeries({ priceFormat: { type: "price", precision: 3 } });
     macdHistSeries.setData(histData);
     const macdLineSeries = rptMacdChart.addLineSeries({ color: "#5b93f0", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
