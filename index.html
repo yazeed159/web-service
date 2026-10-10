@@ -121,51 +121,24 @@
 
       <!-- ===================== DASHBOARD TAB ===================== -->
       <section class="tab-panel active" id="tab-dashboard">
-        <div class="dash-hero" id="dash-hero">
-          <div class="loading-line hero-skel">
-            <div class="hero-skel-text">
+        <div class="dk-grid">
+
+          <!-- Hero: period switcher, headline P&L, daily bars (filled by renderStats) -->
+          <header class="dk-card dk-hero" id="dash-hero">
+            <div class="loading-line dk-hero-skel">
               <div class="skel skel-line w40"></div>
+              <div class="skel dk-skel-big"></div>
               <div class="skel skel-line w60"></div>
             </div>
-            <div class="skel skel-block" style="width:220px; height:56px;"></div>
-          </div>
-        </div>
+          </header>
 
-        <div class="kpi-grid stat-grid" id="stat-grid">
-          <div class="loading-line kpi-skel">
-            <div class="skel"></div>
-            <div class="skel"></div>
-            <div class="skel"></div>
-            <div class="skel"></div>
-          </div>
-        </div>
-
-        <div class="dash-two-col">
-          <div class="panel-box">
-            <div class="panel-box-head">
-              <span class="title">Trader score</span>
-            </div>
-            <div class="score-wrap" id="score-wrap">
-              <div class="loading-line skel skel-block" style="height:150px;"></div>
-            </div>
-            <div class="score-month-extra" id="score-month-extra"></div>
+          <!-- KPI tiles -->
+          <div class="dk-kpis" id="stat-grid">
+            <div class="loading-line dk-kpi-skel"><div class="skel dk-skel-tile"></div><div class="skel dk-skel-tile"></div><div class="skel dk-skel-tile"></div><div class="skel dk-skel-tile"></div><div class="skel dk-skel-tile"></div><div class="skel dk-skel-tile"></div></div>
           </div>
 
-          <div class="panel-box panel-box-square">
-            <div class="panel-box-head">
-              <span class="title">This month</span>
-              <button class="link" data-goto="dayview">Open Day View →</button>
-            </div>
-            <div class="cal-mini-wrap">
-              <div class="section-label" id="mini-cal-label" style="margin-top:0;"></div>
-              <div class="cal-grid cal-mini" id="mini-cal">
-                <div class="loading-line cal-skel cal-skel-mini"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="equity-panel">
+          <!-- Equity curve (existing chart engine; ids unchanged) -->
+        <div class="equity-panel dk-card dk-equity">
           <div class="equity-head">
             <span class="label" id="equity-label">Equity curve — account balance</span>
             <span class="value mono" id="equity-total"></span>
@@ -188,54 +161,57 @@
           <div id="equity-hint"></div>
         </div>
 
-        <div class="panel-box" style="margin-top:18px;">
-          <div class="panel-box-head">
-            <span class="title">Recent trades</span>
-            <a class="link" href="journal.html">View all →</a>
+          <!-- Trader score -->
+          <div class="dk-card dk-score">
+            <div class="dk-card-head"><h3>Trader score</h3></div>
+            <div class="score-wrap" id="score-wrap">
+              <div class="loading-line skel skel-block" style="height:150px;"></div>
+            </div>
+            <div class="score-month-extra" id="score-month-extra"></div>
           </div>
-          <div id="recent-trades">
-            <div class="loading-line">
-            <div class="skel-row">
-              <div class="skel skel-avatar"></div>
-              <div class="skel-rowbody">
-                <div class="skel skel-line w40"></div>
-                <div class="skel skel-line w60"></div>
-              </div>
-            </div>
-            <div class="skel-row">
-              <div class="skel skel-avatar"></div>
-              <div class="skel-rowbody">
-                <div class="skel skel-line w40"></div>
-                <div class="skel skel-line w60"></div>
-              </div>
-            </div>
-            <div class="skel-row">
-              <div class="skel skel-avatar"></div>
-              <div class="skel-rowbody">
-                <div class="skel skel-line w40"></div>
-                <div class="skel skel-line w60"></div>
-              </div>
-            </div>
-            <div class="skel-row">
-              <div class="skel skel-avatar"></div>
-              <div class="skel-rowbody">
-                <div class="skel skel-line w40"></div>
-                <div class="skel skel-line w60"></div>
-              </div>
-            </div>
-            <div class="skel-row">
-              <div class="skel skel-avatar"></div>
-              <div class="skel-rowbody">
-                <div class="skel skel-line w40"></div>
-                <div class="skel skel-line w60"></div>
-              </div>
-            </div>
-            </div>
-          </div>
-        </div>
 
-        <!-- Today strip (notes / plan card): filled by js/today-strip.js -->
-        <div class="ts-mount" id="today-strip" aria-live="polite" style="margin-top:18px;"></div>
+          <!-- Form: last 20 trades, streak, best/worst -->
+          <div class="dk-card dk-form" id="dk-form"></div>
+
+          <!-- Timing: P&L by time of day -->
+          <div class="dk-card dk-timing" id="dk-timing"></div>
+
+          <!-- Symbols: best and worst -->
+          <div class="dk-card dk-symbols" id="dk-symbols"></div>
+
+          <!-- Month calendar -->
+          <div class="dk-card dk-cal">
+            <div class="dk-card-head">
+              <h3>This month</h3>
+              <button class="link" data-goto="dayview">Open Day View →</button>
+            </div>
+            <div class="cal-mini-wrap">
+              <div class="section-label" id="mini-cal-label" style="margin-top:0;"></div>
+              <div class="cal-grid cal-mini" id="mini-cal">
+                <div class="loading-line cal-skel cal-skel-mini"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent trades -->
+          <div class="dk-card dk-recent">
+            <div class="dk-card-head">
+              <h3>Recent trades</h3>
+              <a class="link" href="journal.html">View all →</a>
+            </div>
+            <div id="recent-trades">
+              <div class="loading-line">
+                <div class="skel-row"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div></div>
+                <div class="skel-row"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div></div>
+                <div class="skel-row"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Today strip (notes / plan card): filled by js/today-strip.js -->
+          <div class="ts-mount dk-today" id="today-strip" aria-live="polite"></div>
+
+        </div>
       </section>
 
       <!-- ===================== DAY VIEW TAB ===================== -->

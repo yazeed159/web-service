@@ -92,99 +92,290 @@
   function kpiIcon(name) {
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${KPI_ICONS[name]}</svg>`;
   }
-  // Phone hero footer: last session's P&L (labelled "Today" when it is) and a
-  // one-tap link to the daily plan / end-of-day review (the CSS hides this row on desktop).
-  function heroCtaRow() {
+  // ======================================================================
+  // Dashboard "deck": period switcher, hero, KPI tiles, and the Form /
+  // Timing / Symbols panels. Everything is computed from App.state.trades.
+  // The period is anchored to the most recent logged trade (same rule the
+  // equity curve's 30D/90D toggle uses), not to wall-clock "today".
+  // ======================================================================
+  const DK_PERIODS = [["7", "7D", 7], ["30", "30D", 30], ["90", "90D", 90], ["all", "All", null]];
+  const DK_PERIOD_WORDS = { "7": "last 7 days", "30": "last 30 days", "90": "last 90 days", all: "all time" };
+  const DK_STORE = "trade.log:dash-period";
+  let dkPeriod = "all";
+  try { const v = localStorage.getItem(DK_STORE); if (DK_PERIODS.some((p) => p[0] === v)) dkPeriod = v; } catch (e) {}
+
+  const DK_ICONS = {
+    coins: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.6 9.6c0-.9 1-1.6 2.4-1.6s2.4.7 2.4 1.6-1 1.4-2.4 1.7c-1.4.3-2.4.8-2.4 1.7s1 1.6 2.4 1.6 2.4-.7 2.4-1.6"/>',
+    bars: '<path d="M5 20V11M12 20V4M19 20v-6"/>',
+    drawdown: '<path d="M3 6l6 6 4-4 8 9"/><path d="M21 12v5h-5"/>',
+  };
+  function dkIcon(name) {
+    const inner = DK_ICONS[name] || KPI_ICONS[name] || "";
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+  }
+  const dkDayKey = (d) => d.toLocaleDateString("en-CA");
+  const dkEsc = (v) => (window.escapeHtml ? window.escapeHtml(String(v)) : String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])));
+
+  // computeStats() plus the three numbers the deck adds.
+  function dkMetrics(list) {
+    const s = App.computeStats(list);
+    let cum = 0, peak = 0, maxDD = 0;
+    list.forEach((t) => {
+      cum += Number(t.pnl_after_comm) || 0;
+      if (cum > peak) peak = cum;
+      if (peak - cum > maxDD) maxDD = peak - cum;
+    });
+    s.expectancy = list.length ? s.netPnl / list.length : 0;
+    s.payoff = s.avgLoss < 0 ? s.avgWin / Math.abs(s.avgLoss) : (s.avgWin > 0 ? Infinity : 0);
+    s.maxDD = maxDD;
+    return s;
+  }
+  // The selected period's trades, and what to compare them with.
+  function dkWindow() {
+    const all = App.state.trades || [];
+    const days = DK_PERIODS.find((p) => p[0] === dkPeriod)[2];
+    if (!all.length) return { cur: [], cmp: null };
+    if (!days) {
+      const w = tradeWindows();
+      return { cur: all, cmp: w ? { c: dkMetrics(all.slice(-w.n)), p: dkMetrics(all.slice(-2 * w.n, -w.n)), label: `last ${w.n} vs the ${w.n} before` } : null };
+    }
+    const a = new Date(all[all.length - 1].trade_date + "T12:00:00");
+    const s1 = new Date(a); s1.setDate(a.getDate() - days + 1);
+    const s0 = new Date(a); s0.setDate(a.getDate() - 2 * days + 1);
+    const k1 = dkDayKey(s1), k0 = dkDayKey(s0);
+    const cur = all.filter((t) => t.trade_date >= k1);
+    const prev = all.filter((t) => t.trade_date >= k0 && t.trade_date < k1);
+    return { cur, cmp: prev.length >= 2 && cur.length >= 2 ? { c: dkMetrics(cur), p: dkMetrics(prev), label: `vs the previous ${days} days` } : null };
+  }
+  function dkByDay(list) {
+    const m = new Map();
+    list.forEach((t) => m.set(t.trade_date, (m.get(t.trade_date) || 0) + (Number(t.pnl_after_comm) || 0)));
+    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([date, net]) => ({ date, net }));
+  }
+  const dkSigned = (v) => `<span class="${v >= 0 ? "up" : "down"}">${fmtMoney(v)}</span>`;
+  function dkShortDate(key) {
+    try { return new Date(key + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch (e) { return key; }
+  }
+
+  function dkGreeting() {
+    const h = new Date().getHours();
+    return h < 5 ? "Late night" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  }
+  // One line: how today (or the last session) went.
+  function dkStatusLine() {
     const tr = App.state.trades || [];
-    let lastDay = null;
-    tr.forEach((t) => { if (t.trade_date && (!lastDay || t.trade_date > lastDay)) lastDay = t.trade_date; });
-    let day = "";
-    let isToday = false;
-    if (lastDay) {
-      const pnl = tr.filter((t) => t.trade_date === lastDay).reduce((a, t) => a + (Number(t.pnl_after_comm) || 0), 0);
-      let label = "Last session";
-      try {
-        isToday = lastDay === new Date().toLocaleDateString("en-CA");
-        label = isToday ? "Today"
-          : new Date(lastDay + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
-      } catch (e) {}
-      day = `<div class="hero-day"><span class="hero-day-k">${label}</span><span class="hero-day-v ${pnl >= 0 ? "up" : "down"}">${fmtMoney(pnl)}</span></div>`;
+    if (!tr.length) return "Nothing logged yet";
+    const today = dkDayKey(new Date());
+    const todays = tr.filter((t) => t.trade_date === today);
+    if (todays.length) {
+      const pnl = todays.reduce((a, t) => a + (Number(t.pnl_after_comm) || 0), 0);
+      return `Today ${dkSigned(pnl)} · ${todays.length} trade${todays.length === 1 ? "" : "s"}`;
     }
-    return `<div class="hero-cta-row">${day}<a class="hero-cta" id="hero-add" href="daily.html"><span>${isToday ? "Review today" : "Plan today"}</span><i aria-hidden="true">\u203A</i></a></div>`;
+    const last = tr[tr.length - 1].trade_date;
+    const pnl = tr.filter((t) => t.trade_date === last).reduce((a, t) => a + (Number(t.pnl_after_comm) || 0), 0);
+    return `No trades today · last session ${dkShortDate(last)} ${dkSigned(pnl)}`;
   }
-  function renderStats() {
-    const s = App.computeStats();
-    const w = tradeWindows();
-    const pfDisplay = s.profitFactor === Infinity ? "∞" : s.profitFactor.toFixed(2);
-    const streak = currentStreak();
+  // Daily P&L bars for the hero. Zero line in the middle; wins up, losses down.
+  function dkDayBars(days) {
+    const list = days.slice(-45);
+    if (!list.length) return "";
+    const W = 600, H = 84, mid = H / 2;
+    const max = Math.max(1, ...list.map((d) => Math.abs(d.net)));
+    const slot = W / list.length, bw = Math.max(2, Math.min(18, slot * 0.64));
+    const bars = list.map((d, i) => {
+      const h = Math.max(2, (Math.abs(d.net) / max) * (mid - 3));
+      const x = i * slot + (slot - bw) / 2;
+      const y = d.net >= 0 ? mid - h : mid;
+      return `<rect class="${d.net >= 0 ? "up" : "down"}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="${Math.min(3, bw / 2).toFixed(1)}"><title>${dkShortDate(d.date)}  ${fmtMoney(d.net)}</title></rect>`;
+    }).join("");
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Daily net P&amp;L, ${list.length} trading days"><line class="zero" x1="0" x2="${W}" y1="${mid}" y2="${mid}"/>${bars}</svg>`;
+  }
 
-    // ---------- Hero: the one number that matters most, up top ----------
+  function dkRenderHero(win, S) {
     const heroEl = document.getElementById("dash-hero");
-    if (heroEl) {
-      const heroDelta = w ? deltaChip(w.recent.netPnl, w.prior.netPnl, fmtMoney) : "";
-      const sparkTrades = App.state.trades.slice(-14);
-      const streakChip = streak && streak.count >= 2
-        ? `<span class="hero-streak ${streak.win ? "up" : "down"}">${streak.count} ${streak.win ? "win" : "loss"} streak</span>`
-        : "";
-      heroEl.innerHTML = `
-        <div class="hero-main">
-          <div class="hero-label">Net P&amp;L <span class="dim" style="font-weight:500; text-transform:none; letter-spacing:0;">· all time</span></div>
-          <div class="hero-value ${s.netPnl >= 0 ? "up" : "down"}">${fmtMoney(s.netPnl)}</div>
-          <div class="hero-meta">
-            ${heroDelta ? `${heroDelta}<span class="dim" style="font-size:11.5px;">vs prior ${w.n} trades</span>` : ""}
-            ${streakChip}
-          </div>
-          <div class="hero-sub">gross ${fmtMoney(s.grossPnl)} · comm $${s.totalComm.toFixed(2)} · ${s.count} trades</div>
+    if (!heroEl) return;
+    const days = dkByDay(win.cur);
+    const word = DK_PERIOD_WORDS[dkPeriod];
+    const delta = win.cmp ? deltaChip(win.cmp.c.netPnl, win.cmp.p.netPnl, fmtMoney) : "";
+    const streak = currentStreak();
+    const streakChip = streak && streak.count >= 2 ? `<span class="dk-chip ${streak.win ? "up" : "down"}">${streak.count}-${streak.win ? "win" : "loss"} streak</span>` : "";
+    const tr = App.state.trades || [];
+    const isToday = tr.length && tr[tr.length - 1].trade_date === dkDayKey(new Date());
+    const seg = DK_PERIODS.map((p) => `<button type="button" role="tab" data-dk-period="${p[0]}" aria-selected="${p[0] === dkPeriod}" class="${p[0] === dkPeriod ? "active" : ""}">${p[1]}</button>`).join("");
+    const empty = !win.cur.length;
+    heroEl.innerHTML = `
+      <div class="dk-hero-top">
+        <div class="dk-greet"><span class="dk-hello">${dkGreeting()}</span><span class="dk-status">${dkStatusLine()}</span></div>
+        <div class="dk-seg" role="tablist" aria-label="Period">${seg}</div>
+      </div>
+      <div class="dk-hero-body">
+        <div class="dk-hero-main">
+          <div class="dk-eyebrow">Net P&amp;L <span>· ${word}</span></div>
+          <div class="dk-big ${S.netPnl >= 0 ? "up" : "down"}">${empty ? "—" : fmtMoney(S.netPnl)}</div>
+          <div class="dk-hero-meta">${delta ? `${delta}<span class="dim">${win.cmp.label}</span>` : ""}${streakChip}</div>
+          <div class="dk-hero-sub">${empty ? "No trades in this period" : `gross ${fmtMoney(S.grossPnl)} · comm $${S.totalComm.toFixed(2)} · ${S.count} trade${S.count === 1 ? "" : "s"} · ${S.dayCount} day${S.dayCount === 1 ? "" : "s"}`}</div>
         </div>
-        <div class="hero-spark">
-          <div class="hero-spark-label">Last ${sparkTrades.length} trades</div>
-          ${svgTradeSparkline(sparkTrades)}
+        <div class="dk-hero-bars">
+          <div class="dk-mini-label">Daily P&amp;L</div>
+          ${empty ? `<div class="dk-empty">Nothing to chart yet</div>` : dkDayBars(days)}
         </div>
-        ${heroCtaRow()}
-      `;
-      // Count the big number up once per page load (skipped for reduced-motion).
-      const hv = heroEl.querySelector(".hero-value");
-      let reduced = false;
-      try { reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
-      if (hv && !window.__heroCounted && !reduced && isFinite(s.netPnl) && s.netPnl !== 0) {
-        window.__heroCounted = true;
-        const t0 = performance.now(), dur = 900, target = s.netPnl;
-        const step = (now) => {
-          const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
-          hv.textContent = fmtMoney(target * e);
-          if (k < 1) requestAnimationFrame(step); else hv.textContent = fmtMoney(target);
-        };
-        requestAnimationFrame(step);
-      }
+      </div>
+      <div class="dk-hero-cta">
+        <a class="dk-btn primary" id="hero-add" href="daily.html">${isToday ? "Review today" : "Plan today"}<i aria-hidden="true">›</i></a>
+        <a class="dk-btn" href="journal.html">Journal</a>
+      </div>`;
+    // Count the big number up once per page load (skipped for reduced motion).
+    const hv = heroEl.querySelector(".dk-big");
+    let reduced = false;
+    try { reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+    if (hv && !window.__heroCounted && !reduced && isFinite(S.netPnl) && S.netPnl !== 0 && !empty) {
+      window.__heroCounted = true;
+      const t0 = performance.now(), dur = 900, target = S.netPnl;
+      const step = (now) => {
+        const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+        hv.textContent = fmtMoney(target * e);
+        if (k < 1) requestAnimationFrame(step); else hv.textContent = fmtMoney(target);
+      };
+      requestAnimationFrame(step);
     }
-
-    // ---------- Supporting KPI cards ----------
-    const cards = [
-      { label: "Trade win %", value: s.winRate.toFixed(0) + "%", cls: s.winRate >= 50 ? "up" : "down", sub: `${App.state.trades.length} trades`, icon: "target",
-        delta: w ? deltaChip(w.recent.winRate, w.prior.winRate, (d) => (d >= 0 ? "+" : "") + d.toFixed(0) + "pt") : "" },
-      { label: "Profit factor", value: pfDisplay, cls: s.profitFactor >= 1 ? "up" : "down", sub: s.profitFactor >= 1 ? "profitable" : "below 1.0", icon: "scale",
-        delta: w ? deltaChip(w.recent.profitFactor, w.prior.profitFactor, (d) => (d >= 0 ? "+" : "") + d.toFixed(2)) : "" },
-      { label: "Day win %", value: s.dayWinRate.toFixed(0) + "%", cls: s.dayWinRate >= 50 ? "up" : "down", sub: `${s.dayCount} trading days`, icon: "calendarCheck",
-        delta: w ? deltaChip(w.recent.dayWinRate, w.prior.dayWinRate, (d) => (d >= 0 ? "+" : "") + d.toFixed(0) + "pt") : "" },
-      { label: "Avg win", value: fmtMoney(s.avgWin), cls: "up", sub: `${s.wins.length} wins`, icon: "trendUp",
-        delta: w ? deltaChip(w.recent.avgWin, w.prior.avgWin, fmtMoney) : "" },
-      { label: "Avg loss", value: fmtMoney(s.avgLoss), cls: "down", sub: `${s.losses.length} losses`, icon: "trendDown",
-        delta: w ? deltaChip(w.recent.avgLoss, w.prior.avgLoss, fmtMoney) : "" },
-    ];
-
-    statGrid.innerHTML = cards
-      .map(
-        (c) => `<div class="stat kpi-card">
-          <div class="label-row"><span class="kpi-icon">${kpiIcon(c.icon)}</span><span class="label">${c.label}</span></div>
-          <div class="value ${c.cls}">${c.value}</div>
-          <div class="kpi-foot">
-            ${c.delta}
-            ${c.sub ? `<span class="sub-value">${c.sub}</span>` : ""}
-          </div>
-        </div>`
-      )
-      .join("");
+    heroEl.querySelectorAll("[data-dk-period]").forEach((b) => b.addEventListener("click", () => dkSetPeriod(b.getAttribute("data-dk-period"))));
   }
+
+  function dkSetPeriod(k) {
+    if (k === dkPeriod || !DK_PERIODS.some((p) => p[0] === k)) return;
+    dkPeriod = k;
+    try { localStorage.setItem(DK_STORE, k); } catch (e) {}
+    renderStats();
+    // Keep the equity curve's own range in step (it has no 7-day option).
+    const eq = { "7": "30", "30": "30", "90": "90", all: "all" }[k];
+    const btn = document.querySelector(`#eq-range-toggle button[data-range="${eq}"]`);
+    if (btn && !btn.classList.contains("active")) btn.click();
+  }
+
+  function dkRenderTiles(win, S) {
+    const c = win.cmp;
+    const d = (f, fmt) => (c ? deltaChip(c.c[f], c.p[f], fmt) : "");
+    const pt = (x) => (x >= 0 ? "+" : "") + x.toFixed(0) + "pt";
+    const empty = !win.cur.length;
+    const dash = "—";
+    const pf = S.profitFactor === Infinity ? "∞" : S.profitFactor.toFixed(2);
+    const payoff = S.payoff === Infinity ? "∞" : S.payoff.toFixed(2);
+    const tiles = [
+      { label: "Win rate", icon: "target", v: S.winRate.toFixed(0) + "%", cls: S.winRate >= 50 ? "up" : "down", sub: `${S.wins.length}W · ${S.losses.length}L`, delta: d("winRate", pt) },
+      { label: "Profit factor", icon: "scale", v: pf, cls: S.profitFactor >= 1 ? "up" : "down", sub: S.profitFactor >= 1 ? "profitable" : "below 1.0", delta: d("profitFactor", (x) => (x >= 0 ? "+" : "") + x.toFixed(2)) },
+      { label: "Expectancy", icon: "coins", v: fmtMoney(S.expectancy), cls: S.expectancy >= 0 ? "up" : "down", sub: "per trade", delta: d("expectancy", fmtMoney) },
+      { label: "Payoff ratio", icon: "bars", v: payoff, cls: S.payoff >= 1 ? "up" : "down", sub: "avg win ÷ avg loss", delta: d("payoff", (x) => (x >= 0 ? "+" : "") + x.toFixed(2)) },
+      { label: "Day win rate", icon: "calendarCheck", v: S.dayWinRate.toFixed(0) + "%", cls: S.dayWinRate >= 50 ? "up" : "down", sub: `${S.dayCount} trading day${S.dayCount === 1 ? "" : "s"}`, delta: d("dayWinRate", pt) },
+      { label: "Max drawdown", icon: "drawdown", v: S.maxDD > 0 ? "-$" + S.maxDD.toFixed(2) : "$0.00", cls: S.maxDD > 0 ? "down" : "up", sub: "peak to trough", delta: "" },
+    ];
+    document.getElementById("stat-grid").innerHTML = tiles.map((t) => `
+      <div class="dk-tile">
+        <div class="dk-tile-top"><span class="dk-tile-label">${t.label}</span><span class="dk-tile-icon">${dkIcon(t.icon)}</span></div>
+        <div class="dk-tile-value ${empty ? "" : t.cls}">${empty ? dash : t.v}</div>
+        <div class="dk-tile-foot">${empty ? "" : t.delta}<span class="dk-tile-sub">${empty ? "no trades" : t.sub}</span></div>
+      </div>`).join("");
+  }
+
+  function dkRenderForm(win) {
+    const el = document.getElementById("dk-form");
+    if (!el) return;
+    const all = App.state.trades || [];
+    const last = all.slice(-20);
+    const streak = currentStreak();
+    const dots = last.map((t) => `<span class="dk-dot ${t.win ? "up" : "down"}" title="${dkEsc(t.symbol || "")}  ${fmtMoney(Number(t.pnl_after_comm) || 0)}"></span>`).join("");
+    const lastWins = last.filter((t) => t.win).length;
+    const days = dkByDay(win.cur);
+    let bestDay = null, worstDay = null, best = null, worst = null;
+    days.forEach((x) => { if (!bestDay || x.net > bestDay.net) bestDay = x; if (!worstDay || x.net < worstDay.net) worstDay = x; });
+    win.cur.forEach((t) => { const v = Number(t.pnl_after_comm) || 0; if (!best || v > best.v) best = { v, t }; if (!worst || v < worst.v) worst = { v, t }; });
+    const cell = (k, body) => `<div class="dk-pair"><span class="k">${k}</span><span class="v">${body}</span></div>`;
+    el.innerHTML = `
+      <div class="dk-card-head"><h3>Form</h3><span class="dk-card-sub">${last.length ? `last ${last.length} trades · ${lastWins}W ${last.length - lastWins}L` : ""}</span></div>
+      ${last.length ? `<div class="dk-dots">${dots}</div>` : `<div class="dk-empty">Log a few trades and your recent form shows up here.</div>`}
+      <div class="dk-pairs">
+        ${cell("Current streak", streak ? `<span class="${streak.win ? "up" : "down"}">${streak.count} ${streak.win ? "win" : "loss"}${streak.count === 1 ? "" : "s"}</span>` : "—")}
+        ${cell("Best day", bestDay ? `${dkSigned(bestDay.net)}<small>${dkShortDate(bestDay.date)}</small>` : "—")}
+        ${cell("Worst day", worstDay ? `${dkSigned(worstDay.net)}<small>${dkShortDate(worstDay.date)}</small>` : "—")}
+        ${cell("Best trade", best ? `${dkSigned(best.v)}<small>${dkEsc(best.t.symbol || "")}</small>` : "—")}
+        ${cell("Worst trade", worst ? `${dkSigned(worst.v)}<small>${dkEsc(worst.t.symbol || "")}</small>` : "—")}
+      </div>`;
+  }
+
+  // Entry-time buckets (minutes after midnight).
+  const DK_BUCKETS = [
+    { key: "pre", label: "Pre-market", from: 0, to: 570 },
+    { key: "open", label: "Open", sub: "9:30–10:00", from: 570, to: 600 },
+    { key: "morn", label: "Morning", sub: "10:00–11:30", from: 600, to: 690 },
+    { key: "mid", label: "Midday", sub: "11:30–2:00", from: 690, to: 840 },
+    { key: "close", label: "Close", sub: "2:00–4:00", from: 840, to: 960 },
+    { key: "after", label: "After hours", from: 960, to: 1441 },
+  ];
+  function dkRenderTiming(win) {
+    const el = document.getElementById("dk-timing");
+    if (!el) return;
+    const rows = DK_BUCKETS.map((b) => ({ b, net: 0, n: 0, w: 0 }));
+    win.cur.forEach((t) => {
+      const m = /^(\d{1,2}):(\d{2})/.exec(t.entry_time || "");
+      if (!m) return;
+      const mins = Number(m[1]) * 60 + Number(m[2]);
+      const r = rows.find((x) => mins >= x.b.from && mins < x.b.to);
+      if (!r) return;
+      r.net += Number(t.pnl_after_comm) || 0; r.n++; if (t.win) r.w++;
+    });
+    const used = rows.filter((r) => r.n);
+    if (!used.length) {
+      el.innerHTML = `<div class="dk-card-head"><h3>Timing</h3><span class="dk-card-sub">by entry time</span></div><div class="dk-empty">Entry times show up here once trades are logged.</div>`;
+      return;
+    }
+    const max = Math.max(1, ...used.map((r) => Math.abs(r.net)));
+    const bestKey = used.reduce((a, r) => (r.net > a.net ? r : a), used[0]).b.key;
+    el.innerHTML = `
+      <div class="dk-card-head"><h3>Timing</h3><span class="dk-card-sub">net P&amp;L by entry time</span></div>
+      <div class="dk-bars">
+        ${used.map((r) => `
+          <div class="dk-bar-row${r.b.key === bestKey && r.net > 0 ? " best" : ""}">
+            <div class="dk-bar-name"><span>${r.b.label}</span>${r.b.sub ? `<small>${r.b.sub}</small>` : ""}</div>
+            <div class="dk-bar-track"><span class="${r.net >= 0 ? "up" : "down"}" style="width:${Math.max(4, (Math.abs(r.net) / max) * 100).toFixed(0)}%"></span></div>
+            <div class="dk-bar-val">${dkSigned(r.net)}<small>${r.n} trade${r.n === 1 ? "" : "s"} · ${Math.round((r.w / r.n) * 100)}% win</small></div>
+          </div>`).join("")}
+      </div>`;
+  }
+
+  function dkRenderSymbols(win) {
+    const el = document.getElementById("dk-symbols");
+    if (!el) return;
+    const m = new Map();
+    win.cur.forEach((t) => {
+      const k = (t.symbol || "?").toUpperCase();
+      const e = m.get(k) || { sym: k, net: 0, n: 0 };
+      e.net += Number(t.pnl_after_comm) || 0; e.n++; m.set(k, e);
+    });
+    const list = Array.from(m.values()).sort((a, b) => b.net - a.net);
+    if (!list.length) {
+      el.innerHTML = `<div class="dk-card-head"><h3>Symbols</h3><span class="dk-card-sub">best &amp; worst</span></div><div class="dk-empty">No trades in this period.</div>`;
+      return;
+    }
+    const nb = Math.min(3, Math.ceil(list.length / 2)), nw = Math.min(3, Math.floor(list.length / 2));
+    const best = list.slice(0, nb).filter((x) => x.net > 0 || list.length === 1);
+    const worst = nw ? list.slice(list.length - nw).reverse().filter((x) => x.net < 0) : [];
+    const row = (x) => `<div class="dk-sym">${symbolAvatarHtml(x.sym)}<span class="dk-sym-name">${dkEsc(x.sym)}<small>${x.n} trade${x.n === 1 ? "" : "s"}</small></span><span class="dk-sym-pnl">${dkSigned(x.net)}</span></div>`;
+    el.innerHTML = `
+      <div class="dk-card-head"><h3>Symbols</h3><span class="dk-card-sub">${list.length} traded · ${DK_PERIOD_WORDS[dkPeriod]}</span></div>
+      ${best.length ? `<div class="dk-group-label">Best</div>${best.map(row).join("")}` : ""}
+      ${worst.length ? `<div class="dk-group-label">Worst</div>${worst.map(row).join("")}` : ""}
+      ${!best.length && !worst.length ? `<div class="dk-empty">No clear winners or losers yet.</div>` : ""}`;
+  }
+
+  function renderStats() {
+    const win = dkWindow();
+    const S = dkMetrics(win.cur);
+    dkRenderHero(win, S);
+    dkRenderTiles(win, S);
+    dkRenderForm(win);
+    dkRenderTiming(win);
+    dkRenderSymbols(win);
+  }
+
   function renderScore() {
     const s = App.computeStats();
     const winRateScore = Math.max(0, Math.min(100, s.winRate));

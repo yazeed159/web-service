@@ -141,7 +141,7 @@
 
   /* ---- Staggered fade-up as a page's blocks arrive (backwards fill: no lingering transform) ---- */
   @keyframes gl-rise { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
-  .content > *:not(.reveal-init):not(.reveal-in) { animation: gl-rise .5s cubic-bezier(.22,1,.36,1) backwards; }
+  .content > * { animation: gl-rise .5s cubic-bezier(.22,1,.36,1) backwards; }
   .content > *:nth-child(2) { animation-delay: .05s; }
   .content > *:nth-child(3) { animation-delay: .10s; }
   .content > *:nth-child(4) { animation-delay: .15s; }
@@ -903,8 +903,8 @@ tr.row-link { transition: background-color .18s ease, box-shadow .25s ease; curs
 .report-row, .bar-row { border-radius: 12px; transition: background-color .2s ease; }
 .report-row.drillable:hover, .bar-row.drillable:hover { background: color-mix(in srgb, var(--primary) 9%, transparent); cursor: pointer; }
 .report-table tbody tr.drillable:hover { background: color-mix(in srgb, var(--primary) 9%, transparent); }
-/* .drill-opt only marks the optional drilldown columns that a phone hides (see common.css); it used to be
-   styled as a glass pill here, which boxed every Side / Setup / Hold / Shares table cell. */
+.drill-opt { border-radius: 999px; background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); transition: transform .25s var(--spring), border-color .2s ease; }
+.drill-opt:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--primary) 45%, var(--g-line, var(--border))); }
 .ins-rule-input { border-radius: 12px; background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border-soft)); }
 .rpt-toolbar { gap: 8px; }
 
@@ -1412,66 +1412,4 @@ table.data-table thead th, .trade-table thead th, .report-table thead th { font-
   :root .acc-period, :root .lt-pos-card, :root .run-card, :root .pr-stat-cell, :root .rewind-stat, :root .calc-stat {
     -webkit-backdrop-filter: none; backdrop-filter: none;
   }
-}
-
-/* ======================================================================
-   MOTION PASS
-   One set of easing curves, and every transition that used to snap now
-   eases. All of it sits inside prefers-reduced-motion: no-preference, so
-   anyone who asks the OS for less motion gets the instant behaviour.
-====================================================================== */
-@media (prefers-reduced-motion: no-preference) {
-  :root { --m-out: cubic-bezier(.22,1,.36,1); --m-in: cubic-bezier(.5,0,.9,.4); }
-
-  /* ---- Page changes -------------------------------------------------
-     The page itself only fades (old out fast, new in a beat later). The
-     movement comes from the blocks rising in one after another, so there
-     is no second, competing slide on top of it. The top bar and the phone
-     tab bar are their own layers: they stay put and just cross-fade their
-     contents, so the chrome reads as one app and only the page changes. */
-  ::view-transition-old(root) { animation: m-fade-out .14s var(--m-in) both; }
-  ::view-transition-new(root) { animation: m-fade-in .24s ease .05s both; }
-  @keyframes m-fade-out { to { opacity: 0; } }
-  @keyframes m-fade-in  { from { opacity: 0; } }
-
-  .topbar { view-transition-name: topbar; }
-  ::view-transition-group(topbar) { animation-duration: .2s; animation-timing-function: ease; }
-  .bottom-nav { view-transition-name: bottom-nav; }
-  ::view-transition-group(bottom-nav) { animation: none; }
-  ::view-transition-old(bottom-nav) { display: none; }
-  ::view-transition-new(bottom-nav) { animation: none; }
-  /* The tab bar's slide-up is for the first open only, not for every page change. */
-  html:active-view-transition .bottom-nav { animation: none; }
-
-  /* ---- Phone drawer: glides, and the dim layer fades instead of popping ---- */
-  @media (max-width: 760px) {
-    .sidebar { transition: transform .34s var(--m-out), box-shadow .34s ease; }
-    .sidebar:not(.mobile-open) { box-shadow: none; }
-    .sidebar-backdrop {
-      display: block; opacity: 0; visibility: hidden; pointer-events: none;
-      transition: opacity .28s ease, visibility 0s linear .28s;
-      -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
-    }
-    body:has(.sidebar.mobile-open) .sidebar-backdrop {
-      opacity: 1; visibility: visible; pointer-events: auto; transition: opacity .28s ease, visibility 0s;
-    }
-  }
-
-  /* ---- Drilldown panel: eases open, folds shut, rows arrive in turn ---- */
-  .drill-inline { animation: m-drill-in .28s var(--m-out) both; }
-  @keyframes m-drill-in { from { opacity: 0; transform: translateY(-8px); } }
-  .drill-closing { pointer-events: none; }
-  .drill-closing .drill-inline { animation: m-drill-out .17s var(--m-in) both; }
-  @keyframes m-drill-out { to { opacity: 0; transform: translateY(-8px); } }
-  [data-fresh] .drill-table tbody tr { animation: m-row-in .34s var(--m-out) backwards; }
-  [data-fresh] .drill-table tbody tr:nth-child(1) { animation-delay: .06s; }
-  [data-fresh] .drill-table tbody tr:nth-child(2) { animation-delay: .10s; }
-  [data-fresh] .drill-table tbody tr:nth-child(3) { animation-delay: .14s; }
-  [data-fresh] .drill-table tbody tr:nth-child(4) { animation-delay: .18s; }
-  [data-fresh] .drill-table tbody tr:nth-child(n+5) { animation-delay: .22s; }
-  @keyframes m-row-in { from { opacity: 0; transform: translateX(-6px); } }
-  [data-drill] { transition: background-color .2s ease, opacity .15s ease; }
-
-  /* ---- Tabs: panels fade up, the pill row slides its highlight colour ---- */
-  .toptab-btn, .subtab-btn, .filter-btn, .pill { transition: background-color .2s ease, color .2s ease, border-color .2s ease, transform .22s var(--m-out), box-shadow .2s ease; }
 }

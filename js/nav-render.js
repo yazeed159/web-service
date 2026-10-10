@@ -454,7 +454,7 @@
   // that already have a tab are left out (they are one tap away anyway), and
   // so is the page you are on.
   const RECENT_KEEP = 8;
-  const RECENT_SHOW = 2;
+  const RECENT_SHOW = 4;
   function trackRecent() {
     if (!document.getElementById("sidebar")) return;
     const id = currentId();
