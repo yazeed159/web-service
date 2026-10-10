@@ -579,6 +579,37 @@
     const ema200Series = chart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema200Series.setData(ema200Data);
 
+    // ---- Vertical drag in fullscreen -------------------------------------
+    // The library does handle a vertical one-finger drag in fullscreen, but the
+    // price scale is on autoscale, which snaps the range straight back, so the
+    // chart looked locked: candles cut off at the top and no way to bring them
+    // into view. The first clearly-vertical move of a drag now switches
+    // autoscale off so the drag sticks (TradingView does the same). Horizontal
+    // pans leave autoscale alone; the reset button (\u21BA) turns it back on.
+    // Registered before the axis / pinch handlers below so it still sees touches
+    // they swallow, and it never cancels anything itself.
+    (function () {
+      let vg = null; // { x, y, done }
+      const skip = (t) => !!(t && t.closest && t.closest(".chart-fs-btn, .chart-zoom-tools, .chart-fs-only, .chart-draw-bar, .cd-pop"));
+      el.addEventListener("touchstart", (e) => {
+        vg = (e.touches.length === 1 && fs && fs.isOn() && !skip(e.target))
+          ? { x: e.touches[0].clientX, y: e.touches[0].clientY, done: false }
+          : null;
+      }, { passive: true, capture: true });
+      el.addEventListener("touchmove", (e) => {
+        if (!vg || vg.done) return;
+        if (e.touches.length !== 1) { vg = null; return; }
+        const t = e.touches[0];
+        const dx = Math.abs(t.clientX - vg.x), dy = Math.abs(t.clientY - vg.y);
+        if (dx + dy < 8) return;
+        vg.done = true;
+        if (dy > dx) { try { chart.priceScale("right").applyOptions({ autoScale: false }); } catch (err) { /* ignore */ } }
+      }, { passive: true, capture: true });
+      const vend = () => { vg = null; };
+      el.addEventListener("touchend", vend, { capture: true });
+      el.addEventListener("touchcancel", vend, { capture: true });
+    })();
+
     // ---- Vertical (price) zoom ------------------------------------------
     // The mouse wheel only zoomed time, and dragging the thin price axis was
     // the only way to scale price. Wheel over the price axis now zooms the
