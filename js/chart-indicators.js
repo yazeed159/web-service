@@ -76,27 +76,31 @@
     };
   }
 
-  // Rest-then-swipe on a phone chart.
+  // Vertical swipes on a phone chart always belong to the page.
   // The chart library arms a long-press crosshair once a finger has rested on it
   // for ~0.24s; from then on it owns the drag and cancels the page scroll. So
   // "put a finger down, then swipe up" -- how most people start a scroll -- got
-  // stuck on the chart whenever the finger paused for a moment first. This gate
-  // hands a casual rest followed by a clearly VERTICAL drag back to the page,
-  // while a deliberate press-and-hold (>= HOLD_MS) still gives the full crosshair
-  // and horizontal drags / pinch are untouched. Not used in fullscreen or in
-  // Practice's "capture" mode, where the chart is meant to own every gesture.
+  // stuck on the chart whenever the finger paused first. (An earlier version of
+  // this gate only rescued rests shorter than 0.5s, so a slower scroll still
+  // locked.) The gate now holds every touch back from the library until the
+  // finger has clearly moved, then decides ONCE for the whole gesture:
+  //   - mostly vertical  -> the page scrolls and the chart never sees the drag,
+  //                         however long the finger rested first;
+  //   - mostly horizontal-> the chart gets it (pan, or crosshair drag after a
+  //                         press-and-hold).
+  // A press-and-hold with no movement still shows the crosshair, a pinch is
+  // untouched. Not used in fullscreen or in Practice's "capture" mode, where the
+  // chart is meant to own every gesture.
   function installRestSwipeGate(el, chart) {
     if (!el || !chart || !isTouchy() || el._restSwipeGate) return;
     if (el.classList.contains("chart-touch-capture")) return;
     el._restSwipeGate = true;
-    const ARMED_MS = 235;  // just under the library's 240ms long-press timer
-    const HOLD_MS = 500;   // pressed at least this long = a deliberate crosshair
     const DECIDE_PX = 10;  // how far the finger travels before we judge its direction
     const inFullscreen = () => !!(el.closest && el.closest(".chart-fs")) || el.classList.contains("chart-fs");
-    let g = null; // { x, y, t, mode: "pending" | "scroll" | "chart" }
+    let g = null; // { x, y, mode: "pending" | "scroll" | "chart" }
     el.addEventListener("touchstart", (e) => {
       g = (e.touches.length === 1 && !inFullscreen())
-        ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: performance.now(), mode: "pending" }
+        ? { x: e.touches[0].clientX, y: e.touches[0].clientY, mode: "pending" }
         : null;
     }, { passive: true, capture: true });
     el.addEventListener("touchmove", (e) => {
@@ -106,14 +110,12 @@
       if (g.mode === "chart") return;
       const t = e.touches[0];
       const dx = Math.abs(t.clientX - g.x), dy = Math.abs(t.clientY - g.y);
-      const age = performance.now() - g.t;
-      if (age < ARMED_MS) { if (dx + dy >= DECIDE_PX) g.mode = "chart"; return; } // crosshair not armed: normal handling
-      // Armed: the library may already be in crosshair mode, so hold its moves
-      // back until we know which way the finger is going.
+      // Not sure yet which way the finger is going: keep the library out of it.
+      // (Nothing here cancels the move, so the browser stays free to scroll.)
       if (dx + dy < DECIDE_PX) { e.stopImmediatePropagation(); return; }
-      if (age < HOLD_MS && dy > dx) {
+      if (dy > dx) {
         g.mode = "scroll";
-        e.stopImmediatePropagation(); // nobody cancels this move, so the browser scrolls the page
+        e.stopImmediatePropagation();
         try { chart.clearCrosshairPosition(); } catch (err) { /* older builds */ }
       } else {
         g.mode = "chart";
