@@ -918,6 +918,8 @@
       });
     }
     updateFiltersToggle();
+    // Desktop shows the same summary bar (active count + date range) but starts open.
+    if (!window.matchMedia("(max-width: 760px)").matches) setSheet(true);
 
     symbolInput.addEventListener("input", (e) => { reportFilters.symbol = e.target.value.trim(); }, { signal: sig });
     setupSel.addEventListener("change", (e) => { reportFilters.setup = e.target.value; }, { signal: sig });

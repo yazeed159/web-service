@@ -275,7 +275,6 @@
    big animated P&L, recent-form bars in an inset glass tile, and a footer
    with last-session P&L plus a glowing one-tap "Add trade note" button.
 ====================================================================== */
-.hero-cta-row { display: none; }
 @media (max-width: 760px) {
   .dash-hero {
     flex-direction: column !important; align-items: stretch !important; gap: 16px !important;
@@ -1491,4 +1490,28 @@ table.data-table thead th, .trade-table thead th, .report-table thead th { font-
 @media (max-width: 760px) {
   .th-track { padding: 12px 14px !important; gap: 8px; }
   .th-leg-p { font-size: 16px; }
+}
+
+
+/* Dashboard hero footer on desktop: last-session P&L + one-tap Plan / Review today
+   (same content as the phone card -- see heroCtaRow() in js/app-dashboard.js). */
+@media (min-width: 761px) {
+  .dash-hero { flex-wrap: wrap; }
+  .hero-cta-row {
+    flex: 1 0 100%; display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    margin-top: 4px; padding-top: 16px; border-top: 1px solid var(--g-line, var(--border-soft)); position: relative; z-index: 1;
+  }
+  .hero-day { display: flex; flex-direction: column; gap: 1px; }
+  .hero-day-k { font-size: 11px; font-weight: 600; color: var(--text-dim); }
+  .hero-day-v { font-family: var(--mono); font-weight: 800; font-size: 18px; }
+  .hero-day-v.up { color: var(--green); } .hero-day-v.down { color: var(--red); }
+  .hero-cta {
+    display: inline-flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 6px 0 20px; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.22); text-decoration: none; font-size: 14.5px; font-weight: 800; color: #fff; letter-spacing: -.01em;
+    background: linear-gradient(100deg, color-mix(in srgb, var(--primary) 100%, #fff 6%) 0%, color-mix(in srgb, var(--primary) 78%, #1a1040) 55%, color-mix(in srgb, var(--primary) 45%, #0c0a24) 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 8px 22px color-mix(in srgb, var(--primary) 34%, transparent);
+    transition: transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .25s;
+  }
+  .hero-cta i { font-style: normal; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; line-height: 1; background: rgba(15,16,24,.82); border: 1px solid rgba(255,255,255,.18); }
+  .hero-cta:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 12px 28px color-mix(in srgb, var(--primary) 50%, transparent); }
 }

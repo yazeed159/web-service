@@ -4010,3 +4010,55 @@ a.th-nav:active { transform: translateY(1px); }
   @keyframes caOpen { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 }
 @media (prefers-reduced-motion: reduce) { .ca-body { animation: none; } .ca-chev { transition: none; } }
+
+
+/* ======================================================================
+   Desktop parity: content that used to exist only in the phone layout.
+   ====================================================================== */
+@media (min-width: 761px) {
+  /* Reports: headline numbers for the filtered set */
+  .rpt-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .rpt-kpis .kpi { background: var(--panel); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 12px 16px; min-width: 0; }
+  .rpt-kpis .kpi .l { font-size: 11px; color: var(--text-faint); font-weight: 600; }
+  .rpt-kpis .kpi .n { margin-top: 4px; font-family: var(--mono); font-size: 20px; font-weight: 700; white-space: nowrap; }
+  .rpt-kpis .kpi .n.up { color: var(--green); } .rpt-kpis .kpi .n.down { color: var(--red); }
+  /* Journal: "Resume your last view" chip */
+  .journal-resume { display: flex; align-items: stretch; max-width: 560px; margin: 0 0 12px; background: var(--primary-soft); border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent); border-radius: 12px; }
+  .journal-resume .jr-go { flex: 1 1 auto; min-height: 40px; padding: 0 14px; text-align: left; font: inherit; font-size: 13.5px; font-weight: 700; color: var(--primary); background: none; border: 0; cursor: pointer; }
+  .journal-resume .jr-go span { font-weight: 500; color: var(--text-dim); }
+  .journal-resume .jr-x { width: 40px; font-size: 13px; color: var(--text-faint); background: none; border: 0; cursor: pointer; }
+  /* Sidebar: recently visited pages (hidden when the sidebar is collapsed to icons) */
+  .sidebar-recent { display: block; flex: none; padding: 10px 12px 2px; border-bottom: 1px solid var(--border-soft); }
+  .sidebar-recent[hidden], .sidebar.collapsed .sidebar-recent { display: none; }
+  .sidebar-recent .nav-section-label { padding-top: 0; }
+  .sidebar-recent-list { display: flex; flex-direction: column; gap: 2px; padding: 2px 0 8px; }
+  .recent-item { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 32px; padding: 0 10px; border-radius: 8px; color: var(--text-dim); text-decoration: none; font-size: 13px; font-weight: 600; }
+  .recent-item svg { width: 15px; height: 15px; flex: none; color: var(--text-faint); }
+  .recent-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .recent-item:hover { background: var(--panel-2); color: var(--text); }
+}
+
+
+/* ======================================================================
+   Desktop parity, part 2: sorting + filtering. The same Sort dropdown and
+   collapsible Filters bar (with active-filter count) the phone has, next to
+   the clickable column headers; filters start open on desktop.
+   ====================================================================== */
+@media (min-width: 761px) {
+  .mobile-sort, .sc-mobile-sort { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-dim); }
+  .mobile-sort select, .sc-mobile-sort select { min-height: 32px; max-width: 190px; }
+  .sc-mobile-sort .filter-btn { min-width: 34px; }
+  .filters-toggle, .rpt-filters-toggle {
+    display: inline-flex; align-items: center; gap: 8px; min-width: 170px; min-height: 38px; padding: 0 14px; margin-bottom: 12px;
+    font: inherit; font-size: 13.5px; font-weight: 600; color: var(--text); text-align: left;
+    background: var(--panel); border: 1px solid var(--border-soft); border-radius: 10px; cursor: pointer;
+  }
+  .rpt-filters-toggle svg { width: 15px; height: 15px; flex: none; color: var(--text-dim); }
+  .filters-toggle.has-active, .rpt-filters-toggle.has-active { border-color: var(--primary); }
+  .filters-toggle-count:not(:empty), .rft-count:not(:empty) { min-width: 20px; padding: 1px 6px; border-radius: 10px; text-align: center; font-size: 11.5px; color: var(--primary); background: var(--primary-soft); }
+  .filters-toggle-chev, .rft-chev { margin-left: auto; transition: transform .15s; color: var(--text-dim); }
+  .filters-toggle[aria-expanded="true"] .filters-toggle-chev, .rpt-filters-toggle[aria-expanded="true"] .rft-chev { transform: rotate(180deg); }
+  .rft-sum { margin-left: 10px; font-size: 12px; font-weight: 500; color: var(--text-dim); white-space: nowrap; }
+  #journal-filters:not(.open) { display: none; }
+  .rpt-filter-sheet:not(.open) { display: none; }
+}

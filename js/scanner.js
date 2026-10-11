@@ -182,6 +182,9 @@
       const th = el.closest("th");
       if (th) th.setAttribute("aria-sort", active ? (sortAsc ? "ascending" : "descending") : "none");
     });
+    const sel = document.getElementById("sc-mobile-sort"), dir = document.getElementById("sc-mobile-dir");
+    if (sel && sel.value !== sortKey) sel.value = sortKey;
+    if (dir) dir.textContent = sortAsc ? "\u2191" : "\u2193";
   }
 
   async function refresh() {

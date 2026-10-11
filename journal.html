@@ -1048,7 +1048,6 @@
   // A chip rather than auto-applying, so a fresh visit never hides trades by surprise.
   (function resumeChip() {
     if (!lastView || location.search || (smSnap && smSnap.back)) return;
-    if (!window.matchMedia || !window.matchMedia("(max-width: 760px)").matches) return;
     let q;
     try { q = new URLSearchParams(lastView.split("?")[1] || ""); } catch (e) { return; }
     const filters = ["symbol", "from", "to", "setup", "result", "rvol", "avgvol", "float", "tag", "grade", "flagged", "tfrom", "tto"]
@@ -1112,6 +1111,11 @@
     btn.addEventListener("click", () => setOpen(!box.classList.contains("open")));
     // Coming back from a trade? Keep the panel the way it was left.
     try { if (smSnap && smSnap.back && sessionStorage.getItem("tl:journal:filters-open") === "1") setOpen(true); } catch (e) { /* ignore */ }
+    // Desktop shows the same Filters bar (with the active-filter count) but starts open.
+    if (!(window.matchMedia && window.matchMedia("(max-width: 760px)").matches)) {
+      let saved = null; try { saved = sessionStorage.getItem("tl:journal:filters-open"); } catch (e) { /* ignore */ }
+      setOpen(saved !== "0");
+    }
     box.addEventListener("input", refresh);
     box.addEventListener("change", refresh);
     refresh();

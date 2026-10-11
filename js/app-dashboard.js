@@ -92,8 +92,8 @@
   function kpiIcon(name) {
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${KPI_ICONS[name]}</svg>`;
   }
-  // Phone hero footer: last session's P&L (labelled "Today" when it is) and a
-  // one-tap link to the daily plan / end-of-day review (the CSS hides this row on desktop).
+  // Hero footer (phone and desktop): last session's P&L (labelled "Today" when it is) and a
+  // one-tap link to the daily plan / end-of-day review.
   function heroCtaRow() {
     const tr = App.state.trades || [];
     let lastDay = null;
