@@ -592,7 +592,10 @@
       let vg = null; // { x, y, done }
       const skip = (t) => !!(t && t.closest && t.closest(".chart-fs-btn, .chart-zoom-tools, .chart-fs-only, .chart-draw-bar, .cd-pop"));
       el.addEventListener("touchstart", (e) => {
-        vg = (e.touches.length === 1 && fs && fs.isOn() && !skip(e.target))
+        // A touch that starts on the price axis is the axis swipe (price zoom), not a chart drag.
+        let onAxis = false;
+        try { const r = el.getBoundingClientRect(); onAxis = e.touches.length === 1 && e.touches[0].clientX >= r.right - ((chart.priceScale("right").width() || 0) + 14); } catch (err) { /* ignore */ }
+        vg = (e.touches.length === 1 && fs && fs.isOn() && !skip(e.target) && !onAxis)
           ? { x: e.touches[0].clientX, y: e.touches[0].clientY, done: false }
           : null;
       }, { passive: true, capture: true });
@@ -617,12 +620,18 @@
     // Implemented as an autoscale override so the library keeps owning the
     // scale (drag-pan, axis drag and pinch all still work and take over).
     const priceZoom = { manual: null, margins: null };
-    series.applyOptions({
-      autoscaleInfoProvider: (orig) => {
-        const r = orig();
-        if (!priceZoom.manual) return r;
-        return { priceRange: { minValue: priceZoom.manual.min, maxValue: priceZoom.manual.max }, margins: { above: 0, below: 0 } };
-      },
+    // The price scale shows the UNION of every series on it. The VWAP / EMA lines
+    // autoscale to their own data (EMA200 is often far from price), so with only
+    // the candles overridden the manual range could never shrink below the lines'
+    // extent and got dragged toward them: zooming in stalled and the view drifted.
+    // Every series on the scale gets the same override, so the manual range wins.
+    const manualRange = (orig) => {
+      const r = orig();
+      if (!priceZoom.manual) return r;
+      return { priceRange: { minValue: priceZoom.manual.min, maxValue: priceZoom.manual.max }, margins: { above: 0, below: 0 } };
+    };
+    [series, vwapSeries, ema9Series, ema20Series, ema200Series].forEach((sr) => {
+      try { sr.applyOptions({ autoscaleInfoProvider: manualRange }); } catch (err) { /* ignore */ }
     });
     function resetPriceZoom() {
       if (!priceZoom.manual) return;
