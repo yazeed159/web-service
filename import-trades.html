@@ -176,6 +176,7 @@
           <label for="import-account">Import into account</label>
           <select id="import-account" class="filter-input" style="width:100%; max-width:320px;"></select>
         </div>
+        <div id="import-sync-hint" style="display:none; margin:-6px 0 14px; font-size:12px; color:var(--text-faint); line-height:1.5;"></div>
         <label for="csv-file">Trade CSV</label>
         <div class="drop">
           <input type="file" id="csv-file">
@@ -242,6 +243,7 @@
 <script src="js/vendor/supabase.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/accounts.js"></script>
+<script src="js/broker-connections.js"></script>
   <script>
     (function () {
       "use strict";
@@ -589,6 +591,31 @@
       })();
 
       // Which account (real or broker paper) new trades land in (only shown when there's more than one).
+      // Hint under the picker: does the chosen account already auto-sync from its own IBKR Flex Query?
+      function updateSyncHint() {
+        var hint = document.getElementById("import-sync-hint");
+        if (!hint || !window.Accounts || !window.BrokerConnections || !window.BrokerConnections.isAvailable()) return;
+        var sel = document.getElementById("import-account");
+        var A = window.Accounts;
+        var id = sel && sel.value ? sel.value : (A.defaultLive() || {}).id;
+        var a = id ? A.byId(id) : null;
+        if (!a) { hint.style.display = "none"; return; }
+        var st = window.BrokerConnections.get(id);
+        if (st.connected) {
+          hint.innerHTML = "\u201c" + escapeHtml(a.name) + "\u201d syncs automatically from its own IBKR Flex Query. A manual import is for filling gaps.";
+        } else {
+          hint.innerHTML = "\u201c" + escapeHtml(a.name) + "\u201d isn\u2019t connected to IBKR. <a href=\"accounts.html?broker=" + encodeURIComponent(id) + "\" style=\"color:var(--primary)\">Connect it</a> to have it sync daily.";
+        }
+        hint.style.display = "block";
+      }
+      if (window.Accounts && window.BrokerConnections) {
+        Promise.all([window.Accounts.ready, window.BrokerConnections.ready]).then(function () {
+          updateSyncHint();
+          var sel = document.getElementById("import-account");
+          if (sel) sel.addEventListener("change", updateSyncHint);
+        });
+      }
+
       if (window.Accounts) {
         window.Accounts.ready.then(function () {
           if (!window.Accounts.isAvailable()) return;
@@ -603,6 +630,7 @@
             return '<option value="' + escapeHtml(a.id) + '"' + (a.id === preferred ? " selected" : "") + ">" + escapeHtml(a.name) + (window.Accounts.isBrokerPaper(a) ? " (paper)" : "") + "</option>";
           }).join("");
           document.getElementById("import-account-row").style.display = "block";
+          updateSyncHint();
         });
       }
 

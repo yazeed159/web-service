@@ -176,10 +176,28 @@
         </p>
       </div>
 
+      <div class="panel-box mb-16" id="broker-section">
+        <div class="panel-box-head">
+          <span class="title">Broker connections (IBKR)</span>
+          <span class="pill" id="bc-progress">&nbsp;</span>
+        </div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px; margin-bottom:18px;">
+          Each account &mdash; real or paper &mdash; pulls from <b>its own</b> IBKR Flex Query, so a paper
+          login can never feed your real account. Paste the Flex token and query ID that belong to
+          that account. Tokens are write-only: once saved they can&rsquo;t be read back here.
+          Add or archive accounts on <a href="accounts.html" style="color:var(--primary)">Trading accounts</a>.
+        </p>
+        <div class="int-list" id="bc-list"></div>
+        <details id="bc-archived-wrap" style="margin-top:14px; display:none;">
+          <summary style="cursor:pointer; font-size:12.5px; color:var(--text-dim);">Archived accounts</summary>
+          <div class="int-list" id="bc-archived-list" style="margin-top:10px;"></div>
+        </details>
+      </div>
+
       <div class="panel-box mb-16">
         <div class="panel-box-head">
           <span class="title">Integrations</span>
-          <span class="pill" id="int-progress">0 of 6 connected</span>
+          <span class="pill" id="int-progress">0 of 2 connected</span>
         </div>
         <p style="color:var(--text-faint); font-size:12px; margin-top:-8px; margin-bottom:18px;">
           Personal keys the automation pipelines (import, alerts) run under. Scoped to your
@@ -199,6 +217,7 @@
 <script src="js/vendor/supabase.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/accounts.js"></script>
+<script src="js/broker-connections.js"></script>
 <script>
 (function () {
   "use strict";
@@ -332,7 +351,7 @@
   //   create table broker_accounts (
   //     id uuid primary key default gen_random_uuid(),
   //     user_id uuid not null unique references auth.users(id) on delete cascade,
-  //     ibkr_flex_token text, ibkr_flex_query_id text, telegram_chat_id text,
+  //     ibkr_flex_token text, ibkr_flex_query_id text, telegram_chat_id text,  -- ibkr_* now live per account in account_flex (sql/002_account_flex.sql)
   //     openai_api_key text, gemini_api_key text, anthropic_api_key text,
   //     custom_llm_base_url text, custom_llm_api_key text, custom_llm_model text,
   //     llm_provider text,
@@ -367,18 +386,6 @@
   const EYE_CLOSED = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.6 21.6 0 0 1 5.06-6.06M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 8 11 8a21.6 21.6 0 0 1-2.61 3.81M14.12 14.12a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
 
   const INTEGRATIONS = [
-    {
-      id: "ibkr",
-      name: "IBKR Flex Query",
-      desc: "Lets the daily sync pull fills straight from your IBKR account instead of a manual CSV.",
-      icon: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M7 14l4-4 3 3 5-6"></path></svg>',
-      fields: [
-        { key: "ibkr_flex_token", label: "Flex Web Service Token", placeholder: "e.g. 187xxxxxxxxxxxxxxx", secret: true },
-        { key: "ibkr_flex_query_id", label: "Flex Query ID", placeholder: "e.g. 912345", secret: false },
-      ],
-      helpText: "Where do I find this?",
-      helpUrl: "https://www.interactivebrokers.com/campus/ibkr-api-page/flex-web-service/",
-    },
     {
       id: "telegram",
       name: "Telegram Alerts",
@@ -731,6 +738,90 @@
       render();
     });
   });
+})();
+</script>
+
+<script>
+(function () {
+  "use strict";
+  // Per-account IBKR Flex connections (js/broker-connections.js). One card per
+  // real / broker-paper account; the editor renders when a card is opened.
+  const listEl = document.getElementById("bc-list");
+  const archEl = document.getElementById("bc-archived-list");
+  const archWrap = document.getElementById("bc-archived-wrap");
+  const progEl = document.getElementById("bc-progress");
+  let openId = null;
+
+  const ICON = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M7 14l4-4 3 3 5-6"></path></svg>';
+
+  function cardHtml(a) {
+    const A = window.Accounts, B = window.BrokerConnections;
+    const st = B.get(a.id);
+    const open = openId === a.id;
+    const kind = A.isBrokerPaper(a) ? "Paper account" : "Real account";
+    const sub = st.connected ? "Query " + st.queryId + (st.accountRef ? " \u00b7 " + st.accountRef : "") : kind;
+    return `
+      <div class="int-card${open ? " open" : ""}" data-card="${escapeHtml(a.id)}">
+        <div class="int-row" data-toggle="${escapeHtml(a.id)}">
+          <div class="int-icon" style="color:${escapeHtml(a.color || "var(--text-dim)")}">${ICON}</div>
+          <div class="int-main">
+            <div class="int-name">${escapeHtml(a.name)}${A.isBrokerPaper(a) ? ' <span class="pill">paper</span>' : ""}</div>
+            <div class="int-desc">${escapeHtml(sub)}</div>
+          </div>
+          ${B.chipHtml(a.id)}
+          <span class="int-chevron"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
+        </div>
+        <div class="int-body" data-slot="${escapeHtml(a.id)}" style="padding-top:14px"></div>
+      </div>`;
+  }
+
+  function render() {
+    const A = window.Accounts, B = window.BrokerConnections;
+    const all = A.liveAll();
+    const active = all.filter((a) => a.status !== "archived");
+    const archived = all.filter((a) => a.status === "archived");
+    // real accounts first, then paper
+    const ordered = active.filter((a) => !A.isBrokerPaper(a)).concat(active.filter((a) => A.isBrokerPaper(a)));
+
+    const n = B.connectedCount(active.map((a) => a.id));
+    progEl.textContent = n + " of " + active.length + " connected";
+    progEl.classList.toggle("int-progress-full", active.length > 0 && n === active.length);
+    progEl.classList.toggle("int-progress-partial", n > 0 && n < active.length);
+
+    listEl.innerHTML = ordered.length ? ordered.map(cardHtml).join("") : '<div class="empty-state small">No accounts yet. Create one on Trading accounts.</div>';
+    archEl.innerHTML = archived.map(cardHtml).join("");
+    archWrap.style.display = archived.length ? "" : "none";
+
+    document.querySelectorAll("#broker-section [data-slot]").forEach((slot) => {
+      if (slot.getAttribute("data-slot") === openId) B.renderEditor(slot, openId, { onChange: render });
+    });
+  }
+
+  document.getElementById("broker-section").addEventListener("click", (ev) => {
+    const row = ev.target.closest("[data-toggle]");
+    if (!row) return;
+    const id = row.getAttribute("data-toggle");
+    openId = openId === id ? null : id;
+    render();
+  });
+
+  window.AUTH_READY.then((session) => {
+    if (!session) { listEl.innerHTML = '<div class="empty-state small">Sign in to manage broker connections.</div>'; return; }
+    return window.Accounts.ready.then(() => {
+      if (!window.Accounts.isAvailable()) {
+        listEl.innerHTML = '<div class="empty-state small">Accounts aren\u2019t set up in your database yet. Run <b>001_accounts.sql</b>, then <b>sql/002_account_flex.sql</b> in the Supabase SQL editor.</div>';
+        return;
+      }
+      return window.BrokerConnections.ready.then(() => {
+        if (!window.BrokerConnections.isAvailable()) {
+          progEl.textContent = "not set up";
+          listEl.innerHTML = '<div class="empty-state small">Run <b>sql/002_account_flex.sql</b> in the Supabase SQL editor, then reload.</div>';
+          return;
+        }
+        render();
+      });
+    });
+  }).catch((e) => { listEl.innerHTML = '<div class="empty-state small">Couldn\u2019t load broker connections: ' + escapeHtml(e && e.message ? e.message : String(e)) + "</div>"; });
 })();
 </script>
 

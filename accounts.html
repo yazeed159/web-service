@@ -117,7 +117,7 @@
           <span class="title">Real accounts</span>
           <button type="button" class="btn-confirm" id="acc-new-live">+ New real account</button>
         </div>
-        <p class="acc-help">Real-money broker accounts only. Each real account keeps its own trades, deposits and equity curve. The switcher in the top bar (or <b>View</b> below) decides what every page shows &mdash; one account, a few, or all of them combined.</p>
+        <p class="acc-help">Real-money broker accounts only. Each real account keeps its own trades, deposits and equity curve. The switcher in the top bar (or <b>View</b> below) decides what every page shows &mdash; one account, a few, or all of them combined. Each account has its own <b>Broker sync</b> (its own IBKR Flex token and query).</p>
         <div id="acc-live-grid" class="acc-grid"></div>
       </div>
 
@@ -167,6 +167,7 @@
 <script src="js/vendor/supabase.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/accounts.js"></script>
+<script src="js/broker-connections.js"></script>
 
 <style>
   .acc-help{color:var(--text-dim);font-size:12.5px;margin:-8px 0 16px;line-height:1.55}
@@ -219,6 +220,10 @@
   .acc-period-stats b{color:var(--text);font:500 13px var(--mono);margin-left:4px}
   .acc-reflection{width:100%;margin-top:6px}
   .acc-empty{color:var(--text-faint);font-size:13px;padding:10px 2px}
+  .acc-chip{margin-left:auto}
+  .acc-card:has(.acc-conn){grid-column:1/-1}
+  .acc-conn{border-top:1px solid var(--border-soft);padding-top:12px;margin-top:2px}
+  .acc-actions .filter-btn.active{border-color:var(--primary);background:var(--primary-soft)}
   .up{color:var(--green)}.down{color:var(--red)}
 </style>
 
@@ -236,6 +241,7 @@
   let allTrades = [];
   let ledger = [];
   let pickedId = null;
+  let openConnId = null; // account whose Broker sync editor is open
 
   $("acc-date").value = today();
 
@@ -254,6 +260,7 @@
       ? '<button type="button" class="filter-btn" data-act="view-all">View combined</button>'
       : '<button type="button" class="filter-btn" data-act="view" data-id="' + escapeHtml(a.id) + '">View</button>' +
         (a.status === "archived" ? "" : '<button type="button" class="filter-btn" data-act="import" data-id="' + escapeHtml(a.id) + '">Import</button>') +
+        '<button type="button" class="filter-btn' + (openConnId === a.id ? " active" : "") + '" data-act="broker" data-id="' + escapeHtml(a.id) + '">Broker sync</button>' +
         '<button type="button" class="filter-btn" data-act="money" data-id="' + escapeHtml(a.id) + '">Deposits &amp; periods</button>' +
         '<button type="button" class="filter-btn" data-act="rename" data-id="' + escapeHtml(a.id) + '">Rename</button>' +
         '<button type="button" class="filter-btn" data-act="archive" data-id="' + escapeHtml(a.id) + '">' + (a.status === "archived" ? "Restore" : "Archive") + "</button>" +
@@ -262,13 +269,25 @@
         '<button type="button" class="filter-btn danger-btn" data-act="delete" data-id="' + escapeHtml(a.id) + '">Delete account</button>';
     return '<div class="acc-card' + (opts.combined ? " combined" : "") + (a && a.status === "archived" ? " archived" : "") + '">' +
       '<div class="acc-card-h"><span class="acc-dot" style="background:' + (opts.combined ? "var(--primary)" : escapeHtml(a.color || "#8b7cf6")) + '"></span>' +
-      escapeHtml(opts.combined ? "All real accounts" : a.name) + (a && opts.paper ? ' <span class="pill">paper</span>' : "") + (a && a.status === "archived" ? ' <span class="pill">archived</span>' : "") + "</div>" +
+      escapeHtml(opts.combined ? "All real accounts" : a.name) + (a && opts.paper ? ' <span class="pill">paper</span>' : "") + (a && a.status === "archived" ? ' <span class="pill">archived</span>' : "") +
+      (a && window.BrokerConnections ? ' <span class="acc-chip">' + window.BrokerConnections.chipHtml(a.id) + "</span>" : "") + "</div>" +
       '<div class="acc-balance">' + fmtUsd(bal) + "</div>" +
       '<div class="acc-meta"><div>Trading P&amp;L<b class="' + sign(p) + '">' + fmtMoney(p) + "</b></div>" +
       "<div>Net deposited<b>" + fmtUsd(net(entries)) + "</b></div>" +
       "<div>Trades<b>" + trades.length + "</b></div><div>Win rate<b>" + winRate(trades) + "</b></div>" +
       "<div>Last trade<b>" + escapeHtml(last) + "</b></div></div>" +
-      '<div class="acc-actions">' + acts + "</div></div>";
+      '<div class="acc-actions">' + acts + "</div>" +
+      (a && openConnId === a.id ? '<div class="acc-conn" data-slot="' + escapeHtml(a.id) + '"></div>' : "") + "</div>";
+  }
+
+  // The per-account IBKR Flex editor (js/broker-connections.js) opens inside its card.
+  function mountEditors() {
+    if (!openConnId || !window.BrokerConnections) return;
+    const slot = document.querySelector('.acc-conn[data-slot="' + openConnId + '"]');
+    if (!slot) return;
+    window.BrokerConnections.renderEditor(slot, openConnId, {
+      onChange: () => { toast("Broker connection saved."); renderLive(); },
+    });
   }
 
   function renderLive() {
@@ -285,7 +304,8 @@
     const paper = A.brokerPaper();
     $("acc-paper-grid").innerHTML = paper.length
       ? paper.map((a) => cardHtml(a, tradesOf(a.id), ledgerOf(a.id), { paper: true })).join("")
-      : '<div class="acc-empty">No paper accounts yet. Add one, then import its trades from Import Trades (pick it as the account).</div>';
+      : '<div class="acc-empty">No paper accounts yet. Add one, then connect its own IBKR paper login under Broker sync (or import its trades from Import Trades).</div>';
+    mountEditors();
   }
 
   // ---------------- delete / undo helpers ----------------
@@ -351,6 +371,11 @@
     try {
       if (act === "view-all") { A.setScope({ ids: [] }, { reload: false }); window.location.href = "index.html"; }
       else if (act === "view") { A.setScope({ ids: [id] }, { reload: false }); window.location.href = "index.html"; }
+      else if (act === "broker") {
+        openConnId = openConnId === id ? null : id;
+        renderLive();
+        if (openConnId) { const sl = document.querySelector('.acc-conn[data-slot="' + id + '"]'); if (sl) sl.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
+      }
       else if (act === "import") { window.location.href = "import-trades.html?account=" + encodeURIComponent(id); }
       else if (act === "money") { pickedId = id; $("acc-pick").value = id; renderMoney(); $("acc-money-box").scrollIntoView({ behavior: "smooth" }); }
       else if (act === "rename") {
@@ -401,6 +426,7 @@
         ledger = ledger.filter((e) => A.ledgerAccountId(e) !== id);
         saveLedger();
         if (pickedId === id) pickedId = null;
+        if (openConnId === id) openConnId = null;
         refreshAll();
         toast("Account deleted.");
       }
@@ -412,14 +438,14 @@
   $("acc-new-paper").addEventListener("click", async () => {
     const name = await UIModal.prompt("Name for the paper account (e.g. \"IBKR paper\"):", "", { title: "New paper account", confirmLabel: "Create" });
     if (name === null) return;
-    try { const a = await window.Accounts.create({ name, kind: "live", brokerPaper: true }); pickedId = a.id; refreshAll(); toast("Paper account created. Import its trades from Import Trades and pick it as the account."); }
+    try { const a = await window.Accounts.create({ name, kind: "live", brokerPaper: true }); pickedId = a.id; openConnId = a.id; refreshAll(); toast("Paper account created. Paste its own IBKR Flex token and query ID below to auto-sync it."); }
     catch (e) { toast(e.message || String(e), "error"); }
   });
 
   $("acc-new-live").addEventListener("click", async () => {
     const name = await UIModal.prompt("Name for the new real account (e.g. the broker, or \"Fresh start 2027\"):", "", { title: "New real account", confirmLabel: "Create" });
     if (name === null) return;
-    try { const a = await window.Accounts.create({ name, kind: "live" }); pickedId = a.id; refreshAll(); toast("Account created. Import trades into it from Import Trades."); }
+    try { const a = await window.Accounts.create({ name, kind: "live" }); pickedId = a.id; openConnId = a.id; refreshAll(); toast("Account created. Paste its own IBKR Flex token and query ID below to auto-sync it, or import trades from Import Trades."); }
     catch (e) { toast(e.message || String(e), "error"); }
   });
 
@@ -547,7 +573,10 @@
         document.querySelector(".content").insertAdjacentHTML("afterbegin", '<div class="panel-box mb-16"><div class="empty-state small">Accounts aren\u2019t set up in your database yet. Run <b>001_accounts.sql</b> in the Supabase SQL editor, then reload.</div></div>');
         return;
       }
-      const reload = () => window.Accounts.fetchAllTrades().then((rows) => {
+      // ?broker=<account id> (from Import Trades) opens that account's Broker sync editor.
+      const wantBroker = new URLSearchParams(location.search).get("broker");
+      if (wantBroker && window.Accounts.byId(wantBroker)) openConnId = wantBroker;
+      const reload = () => Promise.all([window.Accounts.fetchAllTrades(), window.BrokerConnections ? window.BrokerConnections.ready : null]).then(([rows]) => {
         allTrades = rows;
         ledger = window.Accounts.getLedger();
         refreshAll();

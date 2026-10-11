@@ -76,27 +76,31 @@
     };
   }
 
-  // Rest-then-swipe on a phone chart.
+  // Vertical swipes on a phone chart always belong to the page.
   // The chart library arms a long-press crosshair once a finger has rested on it
   // for ~0.24s; from then on it owns the drag and cancels the page scroll. So
   // "put a finger down, then swipe up" -- how most people start a scroll -- got
-  // stuck on the chart whenever the finger paused for a moment first. This gate
-  // hands a casual rest followed by a clearly VERTICAL drag back to the page,
-  // while a deliberate press-and-hold (>= HOLD_MS) still gives the full crosshair
-  // and horizontal drags / pinch are untouched. Not used in fullscreen or in
-  // Practice's "capture" mode, where the chart is meant to own every gesture.
+  // stuck on the chart whenever the finger paused first. (An earlier version of
+  // this gate only rescued rests shorter than 0.5s, so a slower scroll still
+  // locked.) The gate now holds every touch back from the library until the
+  // finger has clearly moved, then decides ONCE for the whole gesture:
+  //   - mostly vertical  -> the page scrolls and the chart never sees the drag,
+  //                         however long the finger rested first;
+  //   - mostly horizontal-> the chart gets it (pan, or crosshair drag after a
+  //                         press-and-hold).
+  // A press-and-hold with no movement still shows the crosshair, a pinch is
+  // untouched. Not used in fullscreen or in Practice's "capture" mode, where the
+  // chart is meant to own every gesture.
   function installRestSwipeGate(el, chart) {
     if (!el || !chart || !isTouchy() || el._restSwipeGate) return;
     if (el.classList.contains("chart-touch-capture")) return;
     el._restSwipeGate = true;
-    const ARMED_MS = 235;  // just under the library's 240ms long-press timer
-    const HOLD_MS = 500;   // pressed at least this long = a deliberate crosshair
     const DECIDE_PX = 10;  // how far the finger travels before we judge its direction
     const inFullscreen = () => !!(el.closest && el.closest(".chart-fs")) || el.classList.contains("chart-fs");
-    let g = null; // { x, y, t, mode: "pending" | "scroll" | "chart" }
+    let g = null; // { x, y, mode: "pending" | "scroll" | "chart" }
     el.addEventListener("touchstart", (e) => {
       g = (e.touches.length === 1 && !inFullscreen())
-        ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: performance.now(), mode: "pending" }
+        ? { x: e.touches[0].clientX, y: e.touches[0].clientY, mode: "pending" }
         : null;
     }, { passive: true, capture: true });
     el.addEventListener("touchmove", (e) => {
@@ -106,14 +110,12 @@
       if (g.mode === "chart") return;
       const t = e.touches[0];
       const dx = Math.abs(t.clientX - g.x), dy = Math.abs(t.clientY - g.y);
-      const age = performance.now() - g.t;
-      if (age < ARMED_MS) { if (dx + dy >= DECIDE_PX) g.mode = "chart"; return; } // crosshair not armed: normal handling
-      // Armed: the library may already be in crosshair mode, so hold its moves
-      // back until we know which way the finger is going.
+      // Not sure yet which way the finger is going: keep the library out of it.
+      // (Nothing here cancels the move, so the browser stays free to scroll.)
       if (dx + dy < DECIDE_PX) { e.stopImmediatePropagation(); return; }
-      if (age < HOLD_MS && dy > dx) {
+      if (dy > dx) {
         g.mode = "scroll";
-        e.stopImmediatePropagation(); // nobody cancels this move, so the browser scrolls the page
+        e.stopImmediatePropagation();
         try { chart.clearCrosshairPosition(); } catch (err) { /* older builds */ }
       } else {
         g.mode = "chart";
@@ -577,6 +579,40 @@
     const ema200Series = chart.addLineSeries({ color: "#b57bee", lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     ema200Series.setData(ema200Data);
 
+    // ---- Vertical drag in fullscreen -------------------------------------
+    // The library does handle a vertical one-finger drag in fullscreen, but the
+    // price scale is on autoscale, which snaps the range straight back, so the
+    // chart looked locked: candles cut off at the top and no way to bring them
+    // into view. The first clearly-vertical move of a drag now switches
+    // autoscale off so the drag sticks (TradingView does the same). Horizontal
+    // pans leave autoscale alone; the reset button (\u21BA) turns it back on.
+    // Registered before the axis / pinch handlers below so it still sees touches
+    // they swallow, and it never cancels anything itself.
+    (function () {
+      let vg = null; // { x, y, done }
+      const skip = (t) => !!(t && t.closest && t.closest(".chart-fs-btn, .chart-zoom-tools, .chart-fs-only, .chart-draw-bar, .cd-pop"));
+      el.addEventListener("touchstart", (e) => {
+        // A touch that starts on the price axis is the axis swipe (price zoom), not a chart drag.
+        let onAxis = false;
+        try { const r = el.getBoundingClientRect(); onAxis = e.touches.length === 1 && e.touches[0].clientX >= r.right - ((chart.priceScale("right").width() || 0) + 14); } catch (err) { /* ignore */ }
+        vg = (e.touches.length === 1 && fs && fs.isOn() && !skip(e.target) && !onAxis)
+          ? { x: e.touches[0].clientX, y: e.touches[0].clientY, done: false }
+          : null;
+      }, { passive: true, capture: true });
+      el.addEventListener("touchmove", (e) => {
+        if (!vg || vg.done) return;
+        if (e.touches.length !== 1) { vg = null; return; }
+        const t = e.touches[0];
+        const dx = Math.abs(t.clientX - vg.x), dy = Math.abs(t.clientY - vg.y);
+        if (dx + dy < 8) return;
+        vg.done = true;
+        if (dy > dx) { try { chart.priceScale("right").applyOptions({ autoScale: false }); } catch (err) { /* ignore */ } }
+      }, { passive: true, capture: true });
+      const vend = () => { vg = null; };
+      el.addEventListener("touchend", vend, { capture: true });
+      el.addEventListener("touchcancel", vend, { capture: true });
+    })();
+
     // ---- Vertical (price) zoom ------------------------------------------
     // The mouse wheel only zoomed time, and dragging the thin price axis was
     // the only way to scale price. Wheel over the price axis now zooms the
@@ -584,12 +620,18 @@
     // Implemented as an autoscale override so the library keeps owning the
     // scale (drag-pan, axis drag and pinch all still work and take over).
     const priceZoom = { manual: null, margins: null };
-    series.applyOptions({
-      autoscaleInfoProvider: (orig) => {
-        const r = orig();
-        if (!priceZoom.manual) return r;
-        return { priceRange: { minValue: priceZoom.manual.min, maxValue: priceZoom.manual.max }, margins: { above: 0, below: 0 } };
-      },
+    // The price scale shows the UNION of every series on it. The VWAP / EMA lines
+    // autoscale to their own data (EMA200 is often far from price), so with only
+    // the candles overridden the manual range could never shrink below the lines'
+    // extent and got dragged toward them: zooming in stalled and the view drifted.
+    // Every series on the scale gets the same override, so the manual range wins.
+    const manualRange = (orig) => {
+      const r = orig();
+      if (!priceZoom.manual) return r;
+      return { priceRange: { minValue: priceZoom.manual.min, maxValue: priceZoom.manual.max }, margins: { above: 0, below: 0 } };
+    };
+    [series, vwapSeries, ema9Series, ema20Series, ema200Series].forEach((sr) => {
+      try { sr.applyOptions({ autoscaleInfoProvider: manualRange }); } catch (err) { /* ignore */ }
     });
     function resetPriceZoom() {
       if (!priceZoom.manual) return;

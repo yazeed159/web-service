@@ -46,7 +46,7 @@ there's no session) → the page's own script.
 - **`daily.html`** — daily plan (max loss, goal, checklist) and end-of-day review, plus a weekly table and discipline score
 - **`accounts.html`** ("Trading accounts") — real accounts, deposits/withdrawals, **periods**, and paper-trading attempts (see "Accounts, periods & paper attempts" below)
 
-- **`settings.html`** — capital ledger (deposits/withdrawals), account prefs
+- **`settings.html`** — profile/password, **Broker connections** (one IBKR Flex token + query per account), Telegram and AI-provider keys
 
 **Per-trade / support:**
 - **`trade.html?id=<trade_id>`** — full trade detail: interactive candlestick chart, AI verdict, Support/Resistance (on-demand), star grade, and your own journal card (planned stop/target, setup, mistakes, rules followed, notes)
@@ -183,6 +183,43 @@ Supabase SQL editor. Until it runs, the site behaves exactly as before.
 - Backend (`chart-service`): `/import-trades` accepts an optional `account_id` form
   field (validated against the caller); `publish.py` recomputes `equity_after` per
   account.
+
+## Per-account IBKR Flex keys
+
+Every account (real **and** broker-paper) has its own IBKR Flex Web Service token + Flex Query ID,
+because an IBKR paper account is a separate login. Run `sql/002_account_flex.sql` once (after
+`001_accounts.sql`).
+
+- **Table**: `account_flex` (one row per `accounts.id`): `ibkr_flex_token`, `ibkr_flex_query_id`, optional
+  `token_expires_on`, optional `ibkr_account_ref` (expected IBKR account no., `DU...` = paper), and
+  `last_sync_at / last_sync_status / last_sync_message` for the sync to write back.
+- **Token is write-only** from the browser (no SELECT privilege on that column). The site reads
+  `account_flex_status`, which only exposes `has_ibkr_flex_token`.
+- **UI**: `js/broker-connections.js` (`window.BrokerConnections`) renders the editor. It appears on
+  `accounts.html` (a **Broker sync** button + status chip on every account card; new accounts open it
+  straight away; `?broker=<account id>` deep-links to it) and `settings.html` (Broker connections panel).
+  `import-trades.html` shows whether the chosen account already auto-syncs.
+- **Guards in the editor**: query ID must be digits, token must be one unbroken string, the same query ID
+  on two accounts asks first, and an account number that looks like paper on a real account (or the
+  reverse) asks first.
+- **The old single `broker_accounts` Flex columns** are no longer edited anywhere. The SQL copies an
+  existing saved token onto the account the sync was feeding (or your oldest real account).
+  Check it on Accounts after running.
+
+### What the daily sync (`chart-service`, not in this repo) has to do
+
+The site side is done; the sync must read the new table or only the old single token is used.
+
+1. With the service role, select `account_flex` rows that have a token + query ID, joined to
+   `accounts` where `status = 'active'` (skip archived accounts).
+2. For each row, run the Flex request with **that row's** token and query ID, then publish the fills with
+   `account_id = row.account_id` (and recompute `equity_after` per account, as `publish.py` already does).
+3. If `ibkr_account_ref` is set and the statement's `accountId` differs, do not publish; write
+   `last_sync_status = 'skipped'` with a message.
+4. After each account, write `last_sync_at`, `last_sync_status` (`ok` / `failed`) and `last_sync_message`
+   so the chip on the Accounts page reflects reality.
+5. Keep the old `broker_accounts` path only as a fallback for users with no `account_flex` rows.
+6. IBKR throttles Flex requests per token, so run accounts one after another with a short pause.
 
 ## Phone daily-use features
 
