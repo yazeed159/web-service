@@ -3970,3 +3970,43 @@ a.th-nav:active { transform: translateY(1px); }
   .dn-chips button, #dn-followed button { min-height: 38px; padding: 0 14px; font-size: 13px; }
   .dn-in, .dn-ta { font-size: 16px; }
 }
+
+
+/* ======================================================================
+   DAY VIEW on phones: compact heat-map stays as the month navigator, and
+   a week-grouped list of full day cards (js/app-dayview.js renderAgenda)
+   carries the numbers the desktop cells have. Hidden on desktop.
+   ====================================================================== */
+.cal-agenda { display: none; }
+@media (max-width: 760px) {
+  #day-detail-panel { display: none !important; }
+  .cal-agenda { display: block; margin-top: 20px; }
+  .ca-empty { color: var(--text-faint); font-size: 13px; padding: 14px 4px; }
+  .ca-week { margin-bottom: 20px; }
+  .ca-week-h { display: grid; grid-template-columns: 1fr auto; row-gap: 3px; padding: 0 6px 9px; align-items: baseline; }
+  .ca-week-t { font-weight: 700; font-size: 14px; }
+  .ca-week-n { font: 700 15px var(--mono); }
+  .ca-week-s { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 12px; color: var(--text-faint); }
+  .ca-week-s b { font: 600 12px var(--mono); color: var(--text); }
+  .ca-week-s b.up { color: var(--green); } .ca-week-s b.down { color: var(--red); }
+  .ca-day { margin-bottom: 10px; border-radius: 18px; overflow: hidden; scroll-margin-top: 74px;
+    background: var(--g-fill, var(--panel-2)); border: 1px solid var(--g-line, var(--border));
+    -webkit-backdrop-filter: var(--g-blur, none); backdrop-filter: var(--g-blur, none); }
+  .ca-day.win { box-shadow: inset 4px 0 0 var(--green); background: color-mix(in srgb, var(--green) 7%, var(--g-fill, var(--panel-2))); }
+  .ca-day.loss { box-shadow: inset 4px 0 0 var(--red); background: color-mix(in srgb, var(--red) 7%, var(--g-fill, var(--panel-2))); }
+  .ca-day.open { border-color: var(--primary); }
+  .ca-day-h { display: grid; grid-template-columns: 1fr auto 18px; align-items: center; gap: 10px 8px; width: 100%;
+    padding: 13px 14px 13px 18px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .ca-date { font-weight: 700; font-size: 15px; }
+  .ca-net { font: 700 19px var(--mono); letter-spacing: -.01em; }
+  .ca-net.up, .ca-week-n.up { color: var(--green); } .ca-net.down, .ca-week-n.down { color: var(--red); }
+  .ca-chev { width: 18px; height: 18px; color: var(--text-dim); transition: transform .22s ease; }
+  .ca-day.open .ca-chev { transform: rotate(180deg); }
+  .ca-stats { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; font-size: 11px; color: var(--text-faint); }
+  .ca-stats b { display: block; margin-top: 2px; font: 600 12.5px var(--mono); color: var(--text); white-space: nowrap; }
+  .ca-stats b.up, .ca-stats i.up { color: var(--green); } .ca-stats b.down, .ca-stats i.down { color: var(--red); }
+  .ca-stats i { font-style: normal; }
+  .ca-body { padding: 0 8px 8px; border-top: 1px solid var(--g-line, var(--border-soft)); animation: caOpen .22s ease; }
+  @keyframes caOpen { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+}
+@media (prefers-reduced-motion: reduce) { .ca-body { animation: none; } .ca-chev { transition: none; } }

@@ -76,21 +76,88 @@
     document.getElementById("cal-grid").innerHTML = App.buildMonthGridHtml(y, m, { clickable: true, selectedDay: App.state.selectedDay });
 
     document.querySelectorAll("#cal-grid .cal-cell.has-trades").forEach((cell) => {
-      cell.addEventListener("click", () => {
-        const key = cell.dataset.day;
-        App.state.selectedDay = App.state.selectedDay === key ? null : key;
-        NavState.set({ day: App.state.selectedDay });
-        renderCalendar();
-        if (App.state.selectedDay) showDayDetail(App.state.selectedDay, map.get(App.state.selectedDay));
-        else document.getElementById("day-detail-panel").style.display = "none";
-      }, { signal: App.signal });
+      cell.addEventListener("click", () => selectDay(cell.dataset.day), { signal: App.signal });
     });
+    renderAgenda(map);
   }
-  function showDayDetail(key, entry) {
-    const panel = document.getElementById("day-detail-panel");
-    panel.classList.remove("hidden"); panel.style.display = "block";
-    const dateLabel = new Date(key + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", year: "numeric" });
-    document.getElementById("day-detail-title").textContent = `${dateLabel} — ${fmtMoney(entry.net)} · ${entry.count} trade${entry.count === 1 ? "" : "s"} · Gross ${fmtMoney(entry.gross)} · Comm $${entry.comm.toFixed(2)}`;
+  function selectDay(key) {
+    const map = App.pnlByDay();
+    App.state.selectedDay = App.state.selectedDay === key ? null : key;
+    NavState.set({ day: App.state.selectedDay });
+    renderCalendar();
+    if (App.state.selectedDay) showDayDetail(App.state.selectedDay, map.get(App.state.selectedDay));
+    else document.getElementById("day-detail-panel").style.display = "none";
+  }
+
+  // ---- Phone: week-grouped day cards (the grid only has room for a number) ----
+  // Same figures the desktop cells carry (net, trades, gross, commission) plus
+  // win/loss count, and tapping a card opens that day's trades right under it.
+  const phoneMq = window.matchMedia ? window.matchMedia("(max-width: 760px)") : { matches: false };
+  const agendaHost = (function () {
+    let h = document.getElementById("cal-agenda");
+    if (!h) {
+      h = document.createElement("div");
+      h.id = "cal-agenda"; h.className = "cal-agenda";
+      const grid = document.getElementById("cal-grid");
+      grid.parentNode.insertBefore(h, grid.nextSibling);
+    }
+    return h;
+  })();
+  agendaHost.addEventListener("click", (e) => {
+    const head = e.target.closest(".ca-day-h");
+    if (head) selectDay(head.closest(".ca-day").dataset.day);
+  }, { signal: App.signal });
+  function scrollAgenda(key) {
+    const el = document.getElementById("ca-day-" + key);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  const ud = (v) => (v >= 0 ? "up" : "down");
+  const shortDate = (d) => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  function renderAgenda(map) {
+    const y = App.state.calYear, m = App.state.calMonth;
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const weeks = new Map();
+    for (let d = daysInMonth; d >= 1; d--) {
+      const key = App.dateKey(y, m, d), entry = map.get(key);
+      if (!entry) continue;
+      const date = new Date(y, m, d);
+      const mon = new Date(y, m, d - ((date.getDay() + 6) % 7));
+      const wk = App.dateKey(mon.getFullYear(), mon.getMonth(), mon.getDate());
+      if (!weeks.has(wk)) weeks.set(wk, { mon, days: [], net: 0, gross: 0, comm: 0, count: 0 });
+      const w = weeks.get(wk);
+      w.days.push({ key, date, entry });
+      w.net += entry.net; w.gross += entry.gross; w.comm += entry.comm; w.count += entry.count;
+    }
+    if (!weeks.size) { agendaHost.innerHTML = '<div class="ca-empty">No trades this month.</div>'; return; }
+    const chev = '<svg class="ca-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>';
+    agendaHost.innerHTML = [...weeks.values()].map((w) => {
+      const fri = new Date(w.mon.getFullYear(), w.mon.getMonth(), w.mon.getDate() + 4);
+      const days = w.days.map(({ key, date, entry }) => {
+        const open = App.state.selectedDay === key;
+        const wins = entry.trades.filter((t) => t.win).length;
+        const dateTxt = date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+        return `<div class="ca-day ${entry.net >= 0 ? "win" : "loss"}${open ? " open" : ""}" id="ca-day-${key}" data-day="${key}">
+          <button type="button" class="ca-day-h" aria-expanded="${open}">
+            <span class="ca-date">${escapeHtml(dateTxt)}</span>
+            <span class="ca-net ${ud(entry.net)}">${fmtMoney(entry.net)}</span>${chev}
+            <span class="ca-stats">
+              <span>Trades<b>${entry.count}</b></span>
+              <span>Win / loss<b><i class="up">${wins}</i> / <i class="down">${entry.count - wins}</i></b></span>
+              <span>Gross<b class="${ud(entry.gross)}">${fmtMoney(entry.gross)}</b></span>
+              <span>Comm<b>$${entry.comm.toFixed(2)}</b></span>
+            </span>
+          </button>
+          ${open ? `<div class="ca-body">${tradesTableHtml(entry)}</div>` : ""}
+        </div>`;
+      }).join("");
+      return `<section class="ca-week">
+        <div class="ca-week-h"><span class="ca-week-t">${escapeHtml(shortDate(w.mon))} \u2013 ${escapeHtml(shortDate(fri))}</span><span class="ca-week-n ${ud(w.net)}">${fmtMoney(w.net)}</span>
+          <span class="ca-week-s"><span>${w.count} trade${w.count === 1 ? "" : "s"}</span><span>Gross <b class="${ud(w.gross)}">${fmtMoney(w.gross)}</b></span><span>Comm <b>$${w.comm.toFixed(2)}</b></span></span></div>
+        ${days}</section>`;
+    }).join("");
+    agendaHost.querySelectorAll(".ca-body").forEach((b) => App.bindTradeRows(b));
+  }
+  function tradesTableHtml(entry) {
     const sorted = entry.trades.slice().sort((a, b) => String(a.entry_time || "").localeCompare(String(b.entry_time || "")));
     const rowHtml = (t) => `
       <tr data-id="${escapeHtml(t.id)}">
@@ -114,10 +181,17 @@
         return `<tr data-id="${escapeHtml(t && t.id)}"><td class="sym">${escapeHtml(t && t.symbol)}</td><td class="dim" colspan="8">Couldn't display this trade's details — click to open it.</td></tr>`;
       }
     }).join("");
+    return `<div class="table-scroll"><table class="trade-table tt-day"><thead><tr><th>Symbol</th><th>Price</th><th>C/Share</th><th>Shares</th><th>Hold</th><th>Gross</th><th>Comm</th><th>Net P&amp;L</th><th>Entry/Exit</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  function showDayDetail(key, entry) {
+    const panel = document.getElementById("day-detail-panel");
+    panel.classList.remove("hidden"); panel.style.display = "block";
+    const dateLabel = new Date(key + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric", year: "numeric" });
+    document.getElementById("day-detail-title").textContent = `${dateLabel} — ${fmtMoney(entry.net)} · ${entry.count} trade${entry.count === 1 ? "" : "s"} · Gross ${fmtMoney(entry.gross)} · Comm $${entry.comm.toFixed(2)}`;
     const body = document.getElementById("day-detail-body");
-    body.innerHTML = `<div class="table-scroll"><table class="trade-table tt-day"><thead><tr><th>Symbol</th><th>Price</th><th>C/Share</th><th>Shares</th><th>Hold</th><th>Gross</th><th>Comm</th><th>Net P&amp;L</th><th>Entry/Exit</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    body.innerHTML = tradesTableHtml(entry);
     App.bindTradeRows(body);
-    panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (phoneMq.matches) scrollAgenda(key); else panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   document.getElementById("day-detail-close").addEventListener("click", () => {

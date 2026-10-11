@@ -307,15 +307,15 @@
     flex: 1 1 auto; min-height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
     padding: 0 8px 0 22px; border-radius: 999px; border: 1px solid rgba(255,255,255,.22); cursor: pointer;
     font: inherit; font-size: 17px; font-weight: 800; color: #fff; letter-spacing: -.01em;
-    background: linear-gradient(100deg, #e0393e 0%, #b3122a 45%, #2a0f1c 100%);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 10px 26px rgba(224,57,62,.40);
+    background: linear-gradient(100deg, color-mix(in srgb, var(--primary) 100%, #fff 6%) 0%, color-mix(in srgb, var(--primary) 78%, #1a1040) 55%, color-mix(in srgb, var(--primary) 45%, #0c0a24) 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 10px 26px color-mix(in srgb, var(--primary) 42%, transparent);
     transition: transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .25s;
     animation: gl-glow 3.2s ease-in-out infinite;
   }
   .hero-cta i { font-style: normal; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 26px; line-height: 1; background: rgba(15,16,24,.82); border: 1px solid rgba(255,255,255,.18); }
   .hero-cta { text-decoration: none; }
   .hero-cta:active { transform: scale(.96); }
-  @keyframes gl-glow { 0%,100% { box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 10px 26px rgba(224,57,62,.34); } 50% { box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 12px 34px rgba(224,57,62,.58); } }
+  @keyframes gl-glow { 0%,100% { box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 10px 26px color-mix(in srgb, var(--primary) 34%, transparent); } 50% { box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 12px 34px color-mix(in srgb, var(--primary) 56%, transparent); } }
 
   /* KPI cards: glass tiles that rise in a stagger */
   .kpi-grid.stat-grid { gap: 12px; }

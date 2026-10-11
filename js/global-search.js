@@ -157,8 +157,14 @@
     // fight the panel's own position:fixed transition.
     requestAnimationFrame(() => inputEl.focus());
     document.addEventListener("keydown", onEsc, true);
+    // Phone/browser Back should close the search, not leave the page.
+    if (!pushed) { try { history.pushState({ gsearch: 1 }, ""); pushed = true; } catch (e) { pushed = false; } }
   }
+  let pushed = false;
+  function onPop() { if (pushed) { pushed = false; if (root.classList.contains("mobile-open")) closeMobile(); } }
+  window.addEventListener("popstate", onPop);
   function closeMobile() {
+    if (pushed) { pushed = false; try { history.back(); } catch (e) {} }
     root.classList.remove("mobile-open");
     root.style.removeProperty("--hs-kb");
     root.style.removeProperty("--hs-vvh");

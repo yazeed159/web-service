@@ -117,7 +117,7 @@
           <span class="title">Real accounts</span>
           <button type="button" class="btn-confirm" id="acc-new-live">+ New real account</button>
         </div>
-        <p class="acc-help">Real-money broker accounts only. Each real account keeps its own trades, deposits and equity curve. The switcher in the top bar (or <b>View</b> below) decides what every page shows &mdash; one account, a few, or all of them combined. Each account has its own <b>Broker sync</b> (its own IBKR Flex token and query).</p>
+        <p class="acc-help">Tap an account to open it everywhere on the site. Use <b>⋯</b> for import, broker sync, deposits and other options.</p>
         <div id="acc-live-grid" class="acc-grid"></div>
       </div>
 
@@ -126,7 +126,7 @@
           <span class="title">Paper accounts (from your broker)</span>
           <button type="button" class="btn-confirm" id="acc-new-paper">+ New paper account</button>
         </div>
-        <p class="acc-help">Your broker&rsquo;s paper-trading account, tracked on its own. It&rsquo;s left out of &ldquo;All real accounts&rdquo; everywhere &mdash; pick it in the top-bar switcher (or <b>View</b> below) when you want to look at it. This is separate from the Practice simulator on this site.</p>
+        <p class="acc-help">Tracked on their own and left out of &ldquo;All real accounts&rdquo;. Tap one to view it.</p>
         <div id="acc-paper-grid" class="acc-grid"></div>
       </div>
 
@@ -135,7 +135,7 @@
           <span class="title">Money in &amp; out, and periods</span>
           <select class="filter-input" id="acc-pick" aria-label="Account"></select>
         </div>
-        <p class="acc-help">A <b>period</b> starts whenever you add money after a break (or any time you choose) and runs until the next one starts. Each period can be viewed on its own across the whole site, and has a place for what you reflected on.</p>
+        <p class="acc-help">A <b>period</b> starts when you add money after a break. Each period can be viewed on its own and keeps your reflection.</p>
 
         <div id="acc-period-list"></div>
 
@@ -182,13 +182,6 @@
   .acc-table tbody tr:hover td{background:var(--panel-3)}
   .acc-table td.mono{font-size:13px}
   @media (min-width:761px){.acc-table thead th{position:static!important}}
-  /* Phone: account cards - big balance, one primary action, the rest in a tidy 2-up grid */
-  @media (max-width:760px){
-    .acc-balance{font-size:26px}
-    .acc-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-    .acc-actions button{width:100%;font-size:13px}
-    .acc-actions button:first-child{grid-column:1/-1;background:var(--primary-soft);border-color:var(--primary);color:var(--text);font-weight:600}
-  }
   /* Phone: the ledger becomes one card per entry (js/mobile-tables.js adds .mt-stack) */
   @media (max-width:760px){
     .acc-table-wrap:has(> .mt-stack){border:0;background:none;border-radius:0}
@@ -200,14 +193,11 @@
   .acc-card{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
   .acc-card.combined{border-color:var(--primary);background:var(--primary-soft)}
   .acc-card.archived{opacity:.65}
-  .acc-actions .danger-btn{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent)}
   .acc-card-h{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px}
   .acc-dot{width:10px;height:10px;border-radius:50%;flex:none}
   .acc-balance{font:600 22px var(--mono);letter-spacing:-.01em}
   .acc-meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:12px;color:var(--text-faint)}
   .acc-meta b{display:block;color:var(--text);font:500 13px var(--mono)}
-  .acc-actions{display:flex;flex-wrap:wrap;gap:6px}
-  .acc-actions button{font-size:12px;padding:6px 10px}
   .acc-form{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:20px 0 18px;padding-top:18px;border-top:1px solid var(--border-soft)}
   .acc-form label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:4px}
   .acc-form-row{flex-basis:100%;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -221,10 +211,45 @@
   .acc-reflection{width:100%;margin-top:6px}
   .acc-empty{color:var(--text-faint);font-size:13px;padding:10px 2px}
   .acc-chip{margin-left:auto}
-  .acc-card:has(.acc-conn){grid-column:1/-1}
-  .acc-conn{border-top:1px solid var(--border-soft);padding-top:12px;margin-top:2px}
-  .acc-actions .filter-btn.active{border-color:var(--primary);background:var(--primary-soft)}
   .up{color:var(--green)}.down{color:var(--red)}
+
+  .acc-card[data-act]{cursor:pointer;position:relative;-webkit-tap-highlight-color:transparent}
+  .acc-card[data-act]:active{transform:scale(.985)}
+  .acc-card[data-act]:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+  .acc-card-h .acc-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .acc-more{flex:none;width:34px;height:34px;margin:-6px -8px -6px 0;border-radius:50%;border:0;background:transparent;color:var(--text-dim);display:grid;place-items:center;cursor:pointer}
+  .acc-more:hover,.acc-more:active{background:var(--panel-3);color:var(--text)}
+  .acc-bal-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .acc-delta{font:500 13px var(--mono)}
+  .acc-meta{grid-template-columns:repeat(3,1fr)}
+  .acc-sync{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-faint)}
+  .acc-grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+  @media (max-width:760px){.acc-grid{grid-template-columns:1fr}.acc-balance{font-size:28px}}
+  /* Manage sheet */
+  .acc-sheet-ov{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:rgba(5,6,12,.5);opacity:0;transition:opacity .2s}
+  .acc-sheet-ov.open{opacity:1}
+  .acc-sheet{width:min(440px,100%);max-height:86vh;overflow:auto;background:var(--g-fill,var(--panel));-webkit-backdrop-filter:var(--g-blur,none);backdrop-filter:var(--g-blur,none);border:1px solid var(--g-line,var(--border));border-radius:var(--r-xl,22px);box-shadow:var(--g-shadow,0 20px 50px rgba(0,0,0,.4));padding:6px 0 10px;transform:translateY(14px) scale(.98);transition:transform .28s var(--glide,ease)}
+  .acc-sheet-ov.open .acc-sheet{transform:none}
+  @media (max-width:760px){
+    .acc-sheet-ov{align-items:flex-end}
+    .acc-sheet{width:100%;border-radius:24px 24px 0 0;border-bottom:0;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateY(100%)}
+    .acc-sheet::before{content:"";display:block;width:38px;height:4px;border-radius:2px;background:var(--text-faint);opacity:.5;margin:6px auto 2px}
+  }
+  .acc-sheet-h{display:flex;align-items:center;gap:10px;padding:12px 18px 8px}
+  .acc-sheet-h .t{flex:1;min-width:0;font-weight:600;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .acc-sheet-h button{border:0;background:none;color:var(--text-dim);font-size:22px;line-height:1;padding:4px 8px;cursor:pointer;border-radius:8px}
+  .acc-grp{padding:6px 10px 2px}
+  .acc-grp+.acc-grp{border-top:1px solid var(--g-line,var(--border-soft));margin-top:6px}
+  .acc-grp-t{font-size:12px;color:var(--text-faint);padding:6px 10px 4px}
+  .acc-row{display:flex;align-items:center;gap:12px;width:100%;padding:11px 10px;border:0;background:none;color:var(--text);font:inherit;font-size:14.5px;text-align:left;border-radius:12px;cursor:pointer}
+  .acc-row:hover,.acc-row:active{background:var(--panel-3)}
+  .acc-row svg{flex:none;width:19px;height:19px;color:var(--text-dim)}
+  .acc-row .tx{flex:1;min-width:0}
+  .acc-row .sub{display:block;font-size:12px;color:var(--text-faint);margin-top:1px}
+  .acc-row.danger,.acc-row.danger svg{color:var(--red)}
+  .acc-back{display:flex;align-items:center;gap:6px;border:0;background:none;color:var(--primary);font:inherit;font-size:14px;padding:4px 18px 0;cursor:pointer}
+  .acc-sheet .acc-slot{padding:8px 18px 14px}
+  @media (prefers-reduced-motion:reduce){.acc-sheet,.acc-sheet-ov{transition:none}}
 </style>
 
 <script src="js/ui-modal.js"></script>
@@ -253,41 +278,87 @@
   function winRate(trades) { return trades.length ? Math.round((trades.filter((t) => (t.pnl_after_comm || 0) > 0).length / trades.length) * 100) + "%" : "\u2014"; }
 
   // ---------------- real accounts ----------------
+  const ICO = {
+    more:'<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+    imp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg>',
+    sync:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.5 6.2M3 12A9 9 0 0 1 18.5 5.8M18 2v4h-4M6 22v-4h4"/></svg>',
+    money:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/></svg>',
+    edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+    arch:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11h14V8M10 12h4"/></svg>',
+    undo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6M3.5 13A9 9 0 1 0 6 6.3"/></svg>',
+    trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
+    chev:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M9 18l6-6-6-6"/></svg>',
+  };
+
   function cardHtml(a, trades, entries, opts) {
     const p = pnl(trades), bal = net(entries) + p;
-    const last = trades.length ? trades[trades.length - 1].trade_date : "\u2014";
-    const acts = opts.combined
-      ? '<button type="button" class="filter-btn" data-act="view-all">View combined</button>'
-      : '<button type="button" class="filter-btn" data-act="view" data-id="' + escapeHtml(a.id) + '">View</button>' +
-        (a.status === "archived" ? "" : '<button type="button" class="filter-btn" data-act="import" data-id="' + escapeHtml(a.id) + '">Import</button>') +
-        '<button type="button" class="filter-btn' + (openConnId === a.id ? " active" : "") + '" data-act="broker" data-id="' + escapeHtml(a.id) + '">Broker sync</button>' +
-        '<button type="button" class="filter-btn" data-act="money" data-id="' + escapeHtml(a.id) + '">Deposits &amp; periods</button>' +
-        '<button type="button" class="filter-btn" data-act="rename" data-id="' + escapeHtml(a.id) + '">Rename</button>' +
-        '<button type="button" class="filter-btn" data-act="archive" data-id="' + escapeHtml(a.id) + '">' + (a.status === "archived" ? "Restore" : "Archive") + "</button>" +
-        (lastImportFor(a.id, trades) ? '<button type="button" class="filter-btn" data-act="undo-import" data-id="' + escapeHtml(a.id) + '">Undo last import</button>' : "") +
-        (trades.length ? '<button type="button" class="filter-btn" data-act="del-trades" data-id="' + escapeHtml(a.id) + '">Delete trades\u2026</button>' : "") +
-        '<button type="button" class="filter-btn danger-btn" data-act="delete" data-id="' + escapeHtml(a.id) + '">Delete account</button>';
-    return '<div class="acc-card' + (opts.combined ? " combined" : "") + (a && a.status === "archived" ? " archived" : "") + '">' +
+    const id = a ? escapeHtml(a.id) : "";
+    const attrs = opts.combined ? 'data-act="view-all"' : 'data-act="view" data-id="' + id + '"';
+    const label = opts.combined ? "All real accounts" : a.name;
+    return '<div class="acc-card' + (opts.combined ? " combined" : "") + (a && a.status === "archived" ? " archived" : "") + '" ' + attrs + ' role="link" tabindex="0" aria-label="Open ' + escapeHtml(label) + '">' +
       '<div class="acc-card-h"><span class="acc-dot" style="background:' + (opts.combined ? "var(--primary)" : escapeHtml(a.color || "#8b7cf6")) + '"></span>' +
-      escapeHtml(opts.combined ? "All real accounts" : a.name) + (a && opts.paper ? ' <span class="pill">paper</span>' : "") + (a && a.status === "archived" ? ' <span class="pill">archived</span>' : "") +
-      (a && window.BrokerConnections ? ' <span class="acc-chip">' + window.BrokerConnections.chipHtml(a.id) + "</span>" : "") + "</div>" +
-      '<div class="acc-balance">' + fmtUsd(bal) + "</div>" +
-      '<div class="acc-meta"><div>Trading P&amp;L<b class="' + sign(p) + '">' + fmtMoney(p) + "</b></div>" +
-      "<div>Net deposited<b>" + fmtUsd(net(entries)) + "</b></div>" +
-      "<div>Trades<b>" + trades.length + "</b></div><div>Win rate<b>" + winRate(trades) + "</b></div>" +
-      "<div>Last trade<b>" + escapeHtml(last) + "</b></div></div>" +
-      '<div class="acc-actions">' + acts + "</div>" +
-      (a && openConnId === a.id ? '<div class="acc-conn" data-slot="' + escapeHtml(a.id) + '"></div>' : "") + "</div>";
+      '<span class="acc-name">' + escapeHtml(label) + "</span>" + (a && opts.paper ? '<span class="pill">paper</span>' : "") + (a && a.status === "archived" ? '<span class="pill">archived</span>' : "") +
+      (a ? '<button type="button" class="acc-more" data-more data-id="' + id + '" aria-label="Manage ' + escapeHtml(a.name) + '">' + ICO.more + "</button>" : "") + "</div>" +
+      '<div class="acc-bal-row"><span class="acc-balance">' + fmtUsd(bal) + '</span><span class="acc-delta ' + sign(p) + '">' + fmtMoney(p) + " P&amp;L</span></div>" +
+      '<div class="acc-meta"><div>Trades<b>' + trades.length + "</b></div><div>Win rate<b>" + winRate(trades) + "</b></div><div>Deposited<b>" + fmtUsd(net(entries)) + "</b></div></div>" +
+      (a && window.BrokerConnections ? '<div class="acc-sync">Broker sync ' + window.BrokerConnections.chipHtml(a.id) + "</div>" : "") + "</div>";
   }
 
-  // The per-account IBKR Flex editor (js/broker-connections.js) opens inside its card.
-  function mountEditors() {
-    if (!openConnId || !window.BrokerConnections) return;
-    const slot = document.querySelector('.acc-conn[data-slot="' + openConnId + '"]');
-    if (!slot) return;
-    window.BrokerConnections.renderEditor(slot, openConnId, {
-      onChange: () => { toast("Broker connection saved."); renderLive(); },
-    });
+  // ---------------- manage sheet (all the per-account actions) ----------------
+  let sheetEl = null;
+  function closeSheet() {
+    if (!sheetEl) return;
+    const el = sheetEl; sheetEl = null; openConnId = null;
+    el.classList.remove("open"); setTimeout(() => el.remove(), 220);
+    document.removeEventListener("keydown", sheetKey);
+  }
+  function sheetKey(e) { if (e.key === "Escape") closeSheet(); }
+  function row(act, ico, text, sub, cls) {
+    return '<button type="button" class="acc-row' + (cls ? " " + cls : "") + '" data-sact="' + act + '">' + ICO[ico] + '<span class="tx">' + text + (sub ? '<span class="sub">' + sub + "</span>" : "") + "</span>" + ICO.chev + "</button>";
+  }
+  function openSheet(id, view) {
+    const A = window.Accounts, a = A.byId(id);
+    if (!a) return;
+    if (!sheetEl) {
+      sheetEl = document.createElement("div");
+      sheetEl.className = "acc-sheet-ov";
+      sheetEl.innerHTML = '<div class="acc-sheet" role="dialog" aria-modal="true"></div>';
+      document.body.appendChild(sheetEl);
+      sheetEl.addEventListener("click", (e) => { if (e.target === sheetEl) closeSheet(); });
+      sheetEl.addEventListener("click", onSheetClick);
+      document.addEventListener("keydown", sheetKey);
+      requestAnimationFrame(() => sheetEl && sheetEl.classList.add("open"));
+    }
+    sheetEl.dataset.id = id;
+    const box = sheetEl.firstChild, trades = tradesOf(id);
+    const head = '<div class="acc-sheet-h"><span class="acc-dot" style="background:' + escapeHtml(a.color || "#8b7cf6") + '"></span><span class="t">' + escapeHtml(a.name) + '</span><button type="button" data-sact="close" aria-label="Close">&times;</button></div>';
+    if (view === "broker") {
+      openConnId = id;
+      box.innerHTML = head + '<button type="button" class="acc-back" data-sact="menu">\u2039 Back</button><div class="acc-slot" id="acc-sheet-slot"></div>';
+      window.BrokerConnections && window.BrokerConnections.renderEditor(box.querySelector("#acc-sheet-slot"), id, { onChange: () => { toast("Broker connection saved."); renderLive(); } });
+      return;
+    }
+    openConnId = null;
+    const arch = a.status === "archived";
+    box.innerHTML = head +
+      '<div class="acc-grp"><div class="acc-grp-t">Data</div>' +
+        (arch ? "" : row("import", "imp", "Import trades", "From an IBKR CSV")) +
+        row("broker", "sync", "Broker sync", window.BrokerConnections ? window.BrokerConnections.chipHtml(id) : "") +
+        row("money", "money", "Deposits &amp; periods", "Money in and out, reflections") + "</div>" +
+      '<div class="acc-grp"><div class="acc-grp-t">Account</div>' + row("rename", "edit", "Rename") + row("archive", "arch", arch ? "Restore" : "Archive") + "</div>" +
+      '<div class="acc-grp"><div class="acc-grp-t">Danger zone</div>' +
+        (lastImportFor(id, trades) ? row("undo-import", "undo", "Undo last import", "", "danger") : "") +
+        (trades.length ? row("del-trades", "trash", "Delete trades\u2026", "", "danger") : "") +
+        row("delete", "trash", "Delete account", "", "danger") + "</div>";
+  }
+  function onSheetClick(e) {
+    const b = e.target.closest("[data-sact]");
+    if (!b || !sheetEl) return;
+    const act = b.getAttribute("data-sact"), id = sheetEl.dataset.id;
+    if (act === "close") closeSheet();
+    else if (act === "menu") openSheet(id);
+    else if (act === "broker") openSheet(id, "broker");
+    else { closeSheet(); runAct(act, id); }
   }
 
   function renderLive() {
@@ -305,7 +376,6 @@
     $("acc-paper-grid").innerHTML = paper.length
       ? paper.map((a) => cardHtml(a, tradesOf(a.id), ledgerOf(a.id), { paper: true })).join("")
       : '<div class="acc-empty">No paper accounts yet. Add one, then connect its own IBKR paper login under Broker sync (or import its trades from Import Trades).</div>';
-    mountEditors();
   }
 
   // ---------------- delete / undo helpers ----------------
@@ -362,20 +432,11 @@
     });
   }
 
-  async function onCardClick(ev) {
-    const btn = ev.target.closest("button[data-act]");
-    if (!btn) return;
-    const id = btn.getAttribute("data-id");
+  async function runAct(act, id) {
     const A = window.Accounts;
-    const act = btn.getAttribute("data-act");
     try {
       if (act === "view-all") { A.setScope({ ids: [] }, { reload: false }); window.location.href = "index.html"; }
       else if (act === "view") { A.setScope({ ids: [id] }, { reload: false }); window.location.href = "index.html"; }
-      else if (act === "broker") {
-        openConnId = openConnId === id ? null : id;
-        renderLive();
-        if (openConnId) { const sl = document.querySelector('.acc-conn[data-slot="' + id + '"]'); if (sl) sl.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
-      }
       else if (act === "import") { window.location.href = "import-trades.html?account=" + encodeURIComponent(id); }
       else if (act === "money") { pickedId = id; $("acc-pick").value = id; renderMoney(); $("acc-money-box").scrollIntoView({ behavior: "smooth" }); }
       else if (act === "rename") {
@@ -426,26 +487,34 @@
         ledger = ledger.filter((e) => A.ledgerAccountId(e) !== id);
         saveLedger();
         if (pickedId === id) pickedId = null;
-        if (openConnId === id) openConnId = null;
+        
         refreshAll();
         toast("Account deleted.");
       }
     } catch (e) { toast(e.message || String(e), "error"); }
   }
-  $("acc-live-grid").addEventListener("click", onCardClick);
-  $("acc-paper-grid").addEventListener("click", onCardClick);
+  function onCardClick(ev) {
+    const more = ev.target.closest("[data-more]");
+    if (more) { ev.stopPropagation(); openSheet(more.getAttribute("data-id")); return; }
+    const card = ev.target.closest(".acc-card[data-act]");
+    if (card) runAct(card.getAttribute("data-act"), card.getAttribute("data-id"));
+  }
+  function onCardKey(ev) {
+    if ((ev.key === "Enter" || ev.key === " ") && ev.target.classList.contains("acc-card")) { ev.preventDefault(); onCardClick(ev); }
+  }
+  ["acc-live-grid", "acc-paper-grid"].forEach((g) => { $(g).addEventListener("click", onCardClick); $(g).addEventListener("keydown", onCardKey); });
 
   $("acc-new-paper").addEventListener("click", async () => {
     const name = await UIModal.prompt("Name for the paper account (e.g. \"IBKR paper\"):", "", { title: "New paper account", confirmLabel: "Create" });
     if (name === null) return;
-    try { const a = await window.Accounts.create({ name, kind: "live", brokerPaper: true }); pickedId = a.id; openConnId = a.id; refreshAll(); toast("Paper account created. Paste its own IBKR Flex token and query ID below to auto-sync it."); }
+    try { const a = await window.Accounts.create({ name, kind: "live", brokerPaper: true }); pickedId = a.id; refreshAll(); openSheet(a.id, "broker"); toast("Paper account created. Add its own IBKR Flex token and query ID to auto-sync it."); }
     catch (e) { toast(e.message || String(e), "error"); }
   });
 
   $("acc-new-live").addEventListener("click", async () => {
     const name = await UIModal.prompt("Name for the new real account (e.g. the broker, or \"Fresh start 2027\"):", "", { title: "New real account", confirmLabel: "Create" });
     if (name === null) return;
-    try { const a = await window.Accounts.create({ name, kind: "live" }); pickedId = a.id; openConnId = a.id; refreshAll(); toast("Account created. Paste its own IBKR Flex token and query ID below to auto-sync it, or import trades from Import Trades."); }
+    try { const a = await window.Accounts.create({ name, kind: "live" }); pickedId = a.id; refreshAll(); openSheet(a.id, "broker"); toast("Account created. Add its IBKR Flex token and query ID to auto-sync, or import trades from the menu."); }
     catch (e) { toast(e.message || String(e), "error"); }
   });
 
@@ -575,11 +644,12 @@
       }
       // ?broker=<account id> (from Import Trades) opens that account's Broker sync editor.
       const wantBroker = new URLSearchParams(location.search).get("broker");
-      if (wantBroker && window.Accounts.byId(wantBroker)) openConnId = wantBroker;
+      
       const reload = () => Promise.all([window.Accounts.fetchAllTrades(), window.BrokerConnections ? window.BrokerConnections.ready : null]).then(([rows]) => {
         allTrades = rows;
         ledger = window.Accounts.getLedger();
         refreshAll();
+        if (wantBroker && !sheetEl && window.Accounts.byId(wantBroker)) openSheet(wantBroker, "broker");
       });
       // Phones: pull down at the top to re-fetch in place (js/mobile-extras.js).
       if (window.PullRefresh) window.PullRefresh.set(reload);
