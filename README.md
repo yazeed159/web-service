@@ -127,7 +127,6 @@ Built in `js/nav-render.js` (+ `js/global-search.js`, styles at the end of `css/
 
 - **Editable tab bar** -- the bar is four pages of your choosing, a centre "+" quick note, Search, and More. Press and hold any tab, or use "Customize tab bar" at the foot of the drawer, to pick four pages (the order you tap them is the order on the bar; Reset restores Home / Journal / Daily / Practice). Stored per device in `localStorage["trade.log:bottom-tabs"]`. The choices come from the sidebar item lists, so a page added there is selectable automatically; long names get a short form on the bar via `BAR_SHORT`.
 - **Search in the bar** -- the top-right search icon is hidden on phones. The Search tab opens the same control (`window.GlobalSearch.open/close/toggle`) as a sheet docked to the bottom edge and lifted above the keyboard. While open it is moved to `<body>`, because the topbar's `backdrop-filter` would otherwise make it the containing block for `position: fixed`.
-- **Recent pages** -- the last pages visited (`localStorage["trade.log:recent-pages"]`) are listed above the drawer's scrolling list. Pages that already have a tab, and the page you are on, are left out.
 
 ## Installable app + seamless page transitions
 

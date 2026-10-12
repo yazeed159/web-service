@@ -428,6 +428,7 @@ button { font-family: var(--sans); }
   text-decoration: none;
   box-sizing: border-box;
 }
+.nav-item { flex-shrink: 0; }
 .nav-item svg { flex: none; width: 18px; height: 18px; }
 /* Icon color is a constant brand accent on every tab, not an
    active-state indicator -- active/hover get their own separate
@@ -3478,10 +3479,9 @@ html.has-ptr .data-fresh { cursor: pointer; }
 
 /* ======================================================================
    PHONE NAVIGATION PASS -- js/nav-render.js + js/global-search.js
-   Editable bottom tabs, Search in the bottom bar, Recent pages in the
-   drawer. Everything here is phone-only; desktop is untouched.
+   Editable bottom tabs and Search in the bottom bar. Everything here is phone-only; desktop is untouched.
 ====================================================================== */
-.sidebar-recent, .sidebar-edit-tabs, .tabedit-backdrop, .tabedit-sheet { display: none; }
+.sidebar-edit-tabs, .tabedit-backdrop, .tabedit-sheet { display: none; }
 
 @media (max-width: 760px) {
   /* -- Bottom bar: five slots (3 tabs, Search, More) -- */
@@ -3512,19 +3512,6 @@ html.has-ptr .data-fresh { cursor: pointer; }
   .header-search.mobile-open .header-search-results { max-height: min(50dvh, calc(var(--hs-vvh, 100dvh) - 120px)); }
   .header-search.mobile-open .header-search-box { height: 44px; }
 
-  /* -- Recent pages: pinned above the drawer's scrolling list -- */
-  .sidebar-recent { display: block; flex: none; padding: 10px 12px 2px; border-bottom: 1px solid var(--border-soft); }
-  .sidebar-recent[hidden] { display: none; }
-  .sidebar-recent .nav-section-label { padding-top: 0; }
-  .sidebar-recent-list { display: flex; flex-direction: column; gap: 2px; padding: 2px 0 8px; }
-  .recent-item {
-    display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 38px; padding: 0 10px;
-    border-radius: 10px; color: var(--text); text-decoration: none;
-    font-size: 14px; font-weight: 600;
-  }
-  .recent-item svg { width: 16px; height: 16px; flex: none; color: var(--text-faint); }
-  .recent-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .recent-item:active { background: var(--panel-2); }
 
   /* -- "Customize tab bar" row at the foot of the drawer -- */
   .sidebar-edit-tabs {
@@ -4027,15 +4014,6 @@ a.th-nav:active { transform: translateY(1px); }
   .journal-resume .jr-go { flex: 1 1 auto; min-height: 40px; padding: 0 14px; text-align: left; font: inherit; font-size: 13.5px; font-weight: 700; color: var(--primary); background: none; border: 0; cursor: pointer; }
   .journal-resume .jr-go span { font-weight: 500; color: var(--text-dim); }
   .journal-resume .jr-x { width: 40px; font-size: 13px; color: var(--text-faint); background: none; border: 0; cursor: pointer; }
-  /* Sidebar: recently visited pages (hidden when the sidebar is collapsed to icons) */
-  .sidebar-recent { display: block; flex: none; padding: 10px 12px 2px; border-bottom: 1px solid var(--border-soft); }
-  .sidebar-recent[hidden], .sidebar.collapsed .sidebar-recent { display: none; }
-  .sidebar-recent .nav-section-label { padding-top: 0; }
-  .sidebar-recent-list { display: flex; flex-direction: column; gap: 2px; padding: 2px 0 8px; }
-  .recent-item { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 32px; padding: 0 10px; border-radius: 8px; color: var(--text-dim); text-decoration: none; font-size: 13px; font-weight: 600; }
-  .recent-item svg { width: 15px; height: 15px; flex: none; color: var(--text-faint); }
-  .recent-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .recent-item:hover { background: var(--panel-2); color: var(--text); }
 }
 
 

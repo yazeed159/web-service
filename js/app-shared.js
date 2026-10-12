@@ -695,9 +695,14 @@
       location.hash = tab;
     }
   }
-  document.querySelectorAll(".nav-item[data-tab]").forEach((btn) => {
-    btn.addEventListener("click", () => goToTab(btn.dataset.tab), { signal });
-  });
+  // Delegated: the sidebar items are rendered by nav-render.js (and re-rendered
+  // on SPA navigation), so they can't be bound one by one.
+  document.addEventListener("click", (e) => {
+    const item = e.target.closest && e.target.closest(".sidebar .nav-item[data-tab]");
+    if (!item) return;
+    e.preventDefault();
+    goToTab(item.dataset.tab);
+  }, { signal });
   document.querySelectorAll("[data-goto]").forEach((btn) => {
     btn.addEventListener("click", () => goToTab(btn.dataset.goto), { signal });
   });
