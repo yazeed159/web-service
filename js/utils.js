@@ -479,15 +479,28 @@ window.prettifyTag = function prettifyTag(s) {
 // tag/uid into the URL) -- app.js's copy is the same shape minus the
 // URL-sync step, which is why bindTradeToggles below takes that step
 // as an optional onChange callback instead of assuming it.
-window.TRADE_LIST_PAGE_SIZE = 25;
+window.TRADE_LIST_PAGE_SIZE = 5; // lists open on 5; see moreButtonsHtml for the buttons
 window.tradeListState = new Map(); // uid -> { rows, shown }
 
 window.tradeListItemHtml = function tradeListItemHtml(r) {
   return `<li><a href="trade.html?id=${encodeURIComponent(r.id)}">${escapeHtml(r.symbol)} — ${escapeHtml(r.trade_date)} <span class="${r.win ? "up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></a></li>`;
 };
 
-window.tradeListMoreHtml = function tradeListMoreHtml(uid, remaining) {
-  return `<li class="tag-trade-list-more"><button type="button" class="btn-load-more" data-load-more="${uid}">Load more (${remaining} left)</button></li>`;
+// One rule for every "show more" control in Reports: lists open on 5. Up to 15 in total it is
+// just "Show 5 more"; past 15 it offers "Load 20 more" or "Load all". `attrs` is the extra HTML
+// attributes to put on each button (how the owning list finds it); data-step is 5 | 20 | "all".
+window.moreButtonsHtml = function moreButtonsHtml(attrs, remaining, total, cls) {
+  const b = (step, label) => `<button type="button" class="btn-load-more ${cls || ""}" ${attrs || ""} data-step="${step}">${label}</button>`;
+  const left = `<span class="drill-left">${remaining} left</span>`;
+  if (total <= 15) return b(5, `Show ${Math.min(5, remaining)} more`) + left;
+  return (remaining > 20 ? b(20, "Load 20 more") : "") + b("all", `Load all (${remaining})`) + left;
+};
+window.moreStep = function moreStep(btn, remaining) {
+  const v = btn.getAttribute("data-step");
+  return v === "all" ? remaining : Math.min(Number(v) || window.TRADE_LIST_PAGE_SIZE, remaining);
+};
+window.tradeListMoreHtml = function tradeListMoreHtml(uid, remaining, total) {
+  return `<li class="tag-trade-list-more">${window.moreButtonsHtml(`data-load-more="${uid}"`, remaining, total == null ? remaining + window.TRADE_LIST_PAGE_SIZE : total)}</li>`;
 };
 
 window.tradeListHtml = function tradeListHtml(rowsList, uid) {
@@ -495,7 +508,7 @@ window.tradeListHtml = function tradeListHtml(rowsList, uid) {
   const shown = Math.min(window.TRADE_LIST_PAGE_SIZE, sorted.length);
   window.tradeListState.set(uid, { rows: sorted, shown });
   const items = sorted.slice(0, shown).map(window.tradeListItemHtml).join("");
-  const more = shown < sorted.length ? window.tradeListMoreHtml(uid, sorted.length - shown) : "";
+  const more = shown < sorted.length ? window.tradeListMoreHtml(uid, sorted.length - shown, sorted.length) : "";
   return `<ul class="tag-trade-list" id="${uid}">${items}${more}</ul>`;
 };
 
@@ -520,25 +533,57 @@ window.bindTradeToggles = function bindTradeToggles(container, onChange) {
       if (onChange) onChange(uid, nowOpen);
     });
   });
-  container.querySelectorAll("[data-load-more]").forEach((btn) => {
+  const attach = (btn) => {
     btn.addEventListener("click", (ev) => {
       ev.stopPropagation();
       const uid = btn.getAttribute("data-load-more");
       const state = window.tradeListState.get(uid);
       if (!state) return;
-      const nextShown = Math.min(state.shown + window.TRADE_LIST_PAGE_SIZE, state.rows.length);
+      const nextShown = state.shown + window.moreStep(btn, state.rows.length - state.shown);
       const newItemsHtml = state.rows.slice(state.shown, nextShown).map(window.tradeListItemHtml).join("");
       state.shown = nextShown;
       const moreLi = btn.closest("li");
       moreLi.insertAdjacentHTML("beforebegin", newItemsHtml);
-      if (state.shown < state.rows.length) {
-        btn.textContent = `Load more (${state.rows.length - state.shown} left)`;
+      const left = state.rows.length - state.shown;
+      if (left > 0) {
+        moreLi.innerHTML = window.moreButtonsHtml(`data-load-more="${uid}"`, left, state.rows.length);
+        moreLi.querySelectorAll("[data-load-more]").forEach(attach);
       } else {
         moreLi.remove();
       }
       if (onChange) onChange(uid);
     });
+  };
+  container.querySelectorAll("[data-load-more]").forEach(attach);
+};
+
+// Generic pager for a list that is already rendered (table rows or bar rows): hides everything
+// past the first 5 and adds the same Show-5 / Load-20 / Load-all controls underneath.
+window.paginateReportList = function paginateReportList(container, itemSel) {
+  if (!container) return;
+  const all = [...container.querySelectorAll(itemSel)].filter((el) => !el.closest(".drill-inline-row, .drill-inline-wrap, .pg-row"));
+  const total = all.length;
+  if (total <= 5) return;
+  let shown = 5;
+  const isRow = all[0].tagName === "TR";
+  const ctrl = document.createElement(isRow ? "tr" : "div");
+  ctrl.className = "pg-row";
+  ctrl.innerHTML = isRow ? '<td colspan="99"><div class="pg-ctl"></div></td>' : '<div class="pg-ctl"></div>';
+  all[all.length - 1].parentElement.appendChild(ctrl);
+  const apply = () => {
+    all.forEach((el, i) => el.classList.toggle("pg-hide", i >= shown));
+    const left = total - shown;
+    if (left <= 0) { ctrl.remove(); return; }
+    ctrl.querySelector(".pg-ctl").innerHTML = window.moreButtonsHtml("", left, total);
+  };
+  ctrl.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-step]");
+    if (!b) return;
+    e.stopPropagation();
+    shown += window.moreStep(b, total - shown);
+    apply();
   });
+  apply();
 };
 
 // Lightweight single-touch swipe helper -- shared by anywhere a page wants

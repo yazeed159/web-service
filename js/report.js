@@ -254,7 +254,7 @@
   // trade.html?id= to link to though, so each item opens the same
   // interactive chart modal the "Practice"/"Rewind" buttons hang off of
   // (openTradeChart, defined below) instead of navigating anywhere.
-  const BT_TRADE_LIST_PAGE_SIZE = 25;
+  const BT_TRADE_LIST_PAGE_SIZE = 5; // 5 first, then +5 or +20
   const btTradeListState = new Map(); // uid -> { rows, shown }
   let btReportRowSeq = 0;
 
@@ -267,15 +267,15 @@
       ? `<li><a href="#" data-bt-open-chart="${idx}">${label}</a></li>`
       : `<li style="color:var(--text-faint);">${label} <span style="font-size:11px;">(no chart yet)</span></li>`;
   }
-  function btTradeListMoreHtml(uid, remaining) {
-    return `<li class="tag-trade-list-more"><button type="button" class="btn-load-more" data-bt-load-more="${uid}">Load more (${remaining} left)</button></li>`;
+  function btTradeListMoreHtml(uid, remaining, total) {
+    return `<li class="tag-trade-list-more">${window.moreButtonsHtml(`data-bt-load-more="${uid}"`, remaining, total)}</li>`;
   }
   function btTradeListHtml(rowsList, uid) {
     const sorted = rowsList.slice().sort((a, b) => (b.date || b.trade_date || "").localeCompare(a.date || a.trade_date || ""));
     const shown = Math.min(BT_TRADE_LIST_PAGE_SIZE, sorted.length);
     btTradeListState.set(uid, { rows: sorted, shown });
     const items = sorted.slice(0, shown).map((t, i) => btTradeListItemHtml(t, i)).join("");
-    const more = shown < sorted.length ? btTradeListMoreHtml(uid, sorted.length - shown) : "";
+    const more = shown < sorted.length ? btTradeListMoreHtml(uid, sorted.length - shown, sorted.length) : "";
     return `<ul class="tag-trade-list" id="${uid}">${items}${more}</ul>`;
   }
   // data-bt-bound marks elements already wired up so repeated calls (a
@@ -307,14 +307,14 @@
         const uid = btn.getAttribute("data-bt-load-more");
         const st = btTradeListState.get(uid);
         if (!st) return;
-        const nextShown = Math.min(st.shown + BT_TRADE_LIST_PAGE_SIZE, st.rows.length);
+        const nextShown = st.shown + window.moreStep(btn, st.rows.length - st.shown);
         const newItemsHtml = st.rows.slice(st.shown, nextShown).map((t, i) => btTradeListItemHtml(t, st.shown + i)).join("");
         st.shown = nextShown;
         const moreLi = btn.closest("li");
         moreLi.insertAdjacentHTML("beforebegin", newItemsHtml);
-        if (st.shown < st.rows.length) {
-          btn.textContent = `Load more (${st.rows.length - st.shown} left)`;
-        } else {
+        const left = st.rows.length - st.shown;
+        if (left > 0) {
+          moreLi.innerHTML = btTradeListMoreHtml(uid, left, st.rows.length).replace(/^<li[^>]*>|<\/li>$/g, "");        } else {
           moreLi.remove();
         }
         bindBtTradeToggles(document.getElementById(uid)); // wire up the newly inserted items

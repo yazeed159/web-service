@@ -60,9 +60,16 @@
     // every trade in view with no working is just the Journal again.
     if (!opts.calc && !opts.note && trades.length === (App.state.trades || []).length) return "";
     const id = "d" + drillSeq++;
+    if (!opts.focus) {
+      const hint = String(opts.sub || "") + " " + String(title);
+      if (/commission flips/i.test(hint)) opts = { ...opts, focus: "flip" };
+      else if (/hold/i.test(hint)) opts = { ...opts, focus: "hold" };
+      else if (/position size/i.test(hint)) opts = { ...opts, focus: "size" };
+      else if (/entry time/i.test(hint)) opts = { ...opts, focus: "entry" };
+    }
     drillRegistry.set(id, {
       title: String(title), sub: opts.sub || "", trades,
-      focus: opts.focus || "",        // "hold" | "comm" | "share": the column this stat is actually about
+      focus: opts.focus || "",        // "hold" | "comm" | "share" | "size" | "entry" | "flip": what this stat is about -- decides which columns the list shows
       calc: opts.calc || null,        // [[label, value], ...] -- how the number was made, from these trades
       note: opts.note || "",          // one plain-language line about what the number means
       collapse: Boolean(opts.collapse), // whole-history stats: show the working first, trade list on request
@@ -79,7 +86,7 @@
   // as a plain table (same look as the other report tables) -- click again,
   // or the x, to fold it back up. Things with no trades behind them never get
   // data-drill (drillAttr returns "" for an empty list), so they don't react.
-  const DRILL_PAGE = 25;
+  const DRILL_PAGE = 5; // lists open on 5 trades; the buttons add 5 or 20 more
   const drillNum = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   const drillStamp = (t) => `${t.trade_date || ""} ${t.entry_time || ""}`;
   const drillNewestFirst = (a, b) => drillStamp(b).localeCompare(drillStamp(a));
@@ -91,26 +98,89 @@
     if (focus === "hold") return App.durationMinutes(t);
     if (focus === "comm") return Number(t.commission) || 0;
     if (focus === "share") return drillPerShare(t);
+    if (focus === "flip") return Number(t.commission) || 0;
+    if (focus === "size") return Number(t.shares) || 0;
     return null;
+  }
+  // ---- executions + commission split -------------------------------------------------------
+  // A trade stores ONE commission total, not a per-side figure, so "commission in / out" is that
+  // total split by shares across the entries and exits (an estimate, labelled as one).
+  const fmtQty = (n) => Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const drillUsd = (v) => (v == null || !Number.isFinite(v) ? "\u2014" : "$" + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const drillPx = (v) => "$" + Number(v).toFixed(Number(v) < 1 ? 4 : 2);
+  function drillExecs(t) {
+    const fills = Array.isArray(t.fills) ? t.fills : [];
+    const agg = new Map();
+    const add = (kind, time, price, qty) => {
+      if (!time || price == null) return;
+      const k = `${kind}|${time}|${Number(price).toFixed(4)}`;
+      const cur = agg.get(k) || { kind, time: String(time), price: Number(price), qty: 0 };
+      cur.qty += Number(qty) || 0;
+      agg.set(k, cur);
+    };
+    fills.forEach((f) => { add("entry", f.entry_time, f.entry_price, f.qty); add("exit", f.exit_time, f.exit_price, f.qty); });
+    return [...agg.values()].sort((x, y) => (x.time < y.time ? -1 : x.time > y.time ? 1 : x.kind === y.kind ? 0 : x.kind === "entry" ? -1 : 1));
+  }
+  function drillComm(t) {
+    const total = Number(t.commission) || 0;
+    const ex = drillExecs(t);
+    let e = ex.filter((x) => x.kind === "entry").reduce((n, x) => n + x.qty, 0);
+    let o = ex.filter((x) => x.kind === "exit").reduce((n, x) => n + x.qty, 0);
+    if (!(e + o)) { e = o = Number(t.shares) || 0; }
+    const denom = e + o;
+    const inn = denom ? total * e / denom : total / 2;
+    return { total, inn, out: total - inn, ex, per: (q) => (denom ? total * q / denom : 0),
+      entries: ex.filter((x) => x.kind === "entry").length, exits: ex.filter((x) => x.kind === "exit").length };
+  }
+  const drillCanExpand = (t) => { const c = drillComm(t); return c.entries > 1 || c.exits > 1; };
+  function drillExecRowHtml(t, ncols) {
+    const c = drillComm(t);
+    const lines = c.ex.map((x) => `<div class="drill-exec ${x.kind}"><span class="k">${x.kind === "entry" ? "Entry" : "Exit"}</span><span class="mono dim">${escapeHtml(x.time)}</span><span class="mono">${fmtQty(x.qty)} sh @ ${drillPx(x.price)}</span><span class="mono">$${c.per(x.qty).toFixed(2)}</span></div>`).join("");
+    return `<tr class="drill-exec-row" hidden><td colspan="${ncols}"><div class="drill-exec-list"><div class="drill-exec head"><span></span><span>Time</span><span>Shares @ price</span><span>Comm. (est.)</span></div>${lines}</div></td></tr>`;
   }
   function drillColumns(focus) {
     const pnl = (t) => drillNum(t.pnl_after_comm);
-    const cols = [
-      { label: "Date", cls: "mono", cell: (t) => escapeHtml(t.trade_date || "—") },
-      { label: "Symbol", cell: (t) => `<a href="trade.html?id=${encodeURIComponent(t.id)}" class="drill-sym">${escapeHtml(t.symbol || "?")}</a>` },
-      { label: "Side", opt: true, cell: (t) => (t.side ? `<span class="drill-side ${/^s/i.test(String(t.side)) ? "short" : "long"}">${escapeHtml(String(t.side))}</span>` : "—") },
-      { label: "Setup", opt: true, cell: (t) => (t.setup_type ? `<span class="drill-tag">${escapeHtml(prettifyTag(t.setup_type))}</span>` : "—") },
-      { label: "Entry", cls: "mono", opt: Boolean(focus), cell: (t) => (typeof t.entry_time === "string" && t.entry_time ? t.entry_time.slice(0, 5) : "—") },
-      { label: "Hold", cls: "mono", opt: focus !== "hold", focus: focus === "hold", cell: (t) => { const h = App.durationMinutes(t); return h != null ? App.fmtDurationPrecise(h) : "—"; },
-        foot: (ts) => { const v = ts.map(App.durationMinutes).filter((x) => x != null); return v.length ? "avg " + fmtDuration(v.reduce((a, b) => a + b, 0) / v.length) : ""; } },
-      { label: "Shares", cls: "mono num", opt: true, cell: (t) => (t.shares != null ? Number(t.shares).toLocaleString() : "—") },
-    ];
-    if (focus === "comm") cols.push({ label: "Comm.", cls: "mono num", focus: true, cell: (t) => "$" + (Number(t.commission) || 0).toFixed(2),
-      foot: (ts) => "$" + ts.reduce((a, t) => a + (Number(t.commission) || 0), 0).toFixed(2) });
-    if (focus === "share") cols.push({ label: "P&amp;L / share", cls: "mono num", focus: true, cell: (t) => { const v = drillPerShare(t); return v == null ? "—" : fmtMoney(v); },
-      foot: (ts) => { const v = ts.map(drillPerShare).filter((x) => x != null); return v.length ? "avg " + fmtMoney(v.reduce((a, b) => a + b, 0) / v.length) : ""; } });
-    cols.push({ label: "Net P&amp;L", cls: "mono num", cell: (t) => `<span class="${pnl(t) >= 0 ? "up" : "down"}">${fmtMoney(pnl(t))}</span>`, pnlCol: true });
-    return cols;
+    const sumNum = (ts, f) => ts.reduce((a, t) => a + (f(t) || 0), 0);
+    const value = (t) => (Number(t.shares) > 0 && Number.isFinite(Number(t.entry_price)) ? Number(t.shares) * Number(t.entry_price) : null);
+    const symLink = (t) => `<a href="trade.html?id=${encodeURIComponent(t.id)}" class="drill-sym">${escapeHtml(t.symbol || "?")}</a>`;
+    const date = { label: "Date", cls: "mono", cell: (t) => escapeHtml(t.trade_date || "\u2014") };
+    const sym = { label: "Symbol", cell: symLink };
+    const symExec = { label: "Symbol", cell: (t) => {
+      if (!drillCanExpand(t)) return symLink(t);
+      const c = drillComm(t);
+      return `${symLink(t)}<button type="button" class="drill-exec-toggle" aria-expanded="false" title="Show every entry and exit">${c.entries} in \u00b7 ${c.exits} out <i aria-hidden="true">\u25be</i></button>`;
+    } };
+    const net = { label: "Net P&amp;L", cls: "mono num", cell: (t) => `<span class="${pnl(t) >= 0 ? "up" : "down"}">${fmtMoney(pnl(t))}</span>`, pnlCol: true };
+    const shares = { label: "Shares", cls: "mono num", cell: (t) => (t.shares != null ? Number(t.shares).toLocaleString() : "\u2014"), foot: (ts) => fmtQty(sumNum(ts, (t) => Number(t.shares))) };
+    const valueCol = { label: "Total value", cls: "mono num", cell: (t) => drillUsd(value(t)), foot: (ts) => drillUsd(sumNum(ts, value)) };
+    const time = (key) => (t) => (typeof t[key] === "string" && t[key] ? t[key].slice(0, 8) : "\u2014");
+    switch (focus) {
+      case "comm":
+        return [date, symExec, shares, valueCol,
+          { label: "Comm. in (est.)", cls: "mono num", cell: (t) => "$" + drillComm(t).inn.toFixed(2), foot: (ts) => "$" + sumNum(ts, (t) => drillComm(t).inn).toFixed(2) },
+          { label: "Comm. out (est.)", cls: "mono num", cell: (t) => "$" + drillComm(t).out.toFixed(2), foot: (ts) => "$" + sumNum(ts, (t) => drillComm(t).out).toFixed(2) },
+          { label: "Total comm.", cls: "mono num", focus: true, cell: (t) => "$" + drillComm(t).total.toFixed(2), foot: (ts) => "$" + sumNum(ts, (t) => Number(t.commission)).toFixed(2) }];
+      case "flip":
+        return [date, sym,
+          { label: "Gross P&amp;L", cls: "mono num", cell: (t) => fmtMoney(pnl(t) + (Number(t.commission) || 0)) },
+          { label: "Commission", cls: "mono num", focus: true, cell: (t) => "$" + (Number(t.commission) || 0).toFixed(2), foot: (ts) => "$" + sumNum(ts, (t) => Number(t.commission)).toFixed(2) }, net];
+      case "hold":
+        return [date, sym, { label: "In", cls: "mono", cell: time("entry_time") },
+          { label: "Out", cls: "mono", cell: (t) => { const x = drillExecs(t).filter((e) => e.kind === "exit"); return x.length ? escapeHtml(x[x.length - 1].time.slice(0, 8)) : "\u2014"; } },
+          { label: "Hold", cls: "mono num", focus: true, cell: (t) => { const h = App.durationMinutes(t); return h != null ? App.fmtDurationPrecise(h) : "\u2014"; },
+            foot: (ts) => { const v = ts.map(App.durationMinutes).filter((x) => x != null); return v.length ? "avg " + fmtDuration(v.reduce((a, b) => a + b, 0) / v.length) : ""; } }];
+      case "share":
+        return [date, sym, shares,
+          { label: "Entry \u2192 exit", cls: "mono num", cell: (t) => `${fmtPrice(t.entry_price)} \u2192 ${fmtPrice(t.exit_price)}` },
+          { label: "P&amp;L / share", cls: "mono num", focus: true, cell: (t) => { const v = drillPerShare(t); return v == null ? "\u2014" : fmtMoney(v); },
+            foot: (ts) => { const v = ts.map(drillPerShare).filter((x) => x != null); return v.length ? "avg " + fmtMoney(v.reduce((a, b) => a + b, 0) / v.length) : ""; } }];
+      case "size":
+        return [date, sym, Object.assign({}, shares, { focus: true }), valueCol, net];
+      case "entry":
+        return [date, sym, { label: "Entry time", cls: "mono num", focus: true, cell: time("entry_time") }, net];
+      default:
+        return [date, sym, net]; // a plain "these are the trades" list: when, what, and what it made
+    }
   }
   function drillSort(trades, entry) {
     const out = trades.slice();
@@ -136,20 +206,25 @@
     const sorted = drillSort(trades, entry);
     const net = sorted.reduce((sum, t) => sum + drillNum(t.pnl_after_comm), 0);
     const remaining = sorted.length - Math.min(shown, sorted.length);
-    const th = (c) => `<th scope="col" class="${c.cls && /num/.test(c.cls) ? "num" : ""}${c.opt ? " drill-opt" : ""}${c.focus ? " drill-focus" : ""}">${c.label}</th>`;
-    const td = (c, t) => `<td class="${c.cls || ""}${c.opt ? " drill-opt" : ""}${c.focus ? " drill-focus" : ""}">${c.cell(t)}</td>`;
-    // Footer: trade count under Date+Symbol, the focus total under its own column, net P&L at the end.
+    const th = (c) => `<th scope="col" class="${c.cls && /num/.test(c.cls) ? "num" : ""}${c.focus ? " drill-focus" : ""}"${/est\./.test(c.label) ? ' title="Commission is stored per trade, so in/out is split by shares"' : ""}>${c.label}</th>`;
+    const td = (c, t) => `<td class="${c.cls || ""}${c.focus ? " drill-focus" : ""}">${c.cell(t)}</td>`;
+    // Footer: trade count under Date+Symbol, a total for every column that has one, net P&L where shown.
     const foot = cols.map((c, i) => {
       if (i === 0) return `<td colspan="2">${sorted.length} trade${sorted.length === 1 ? "" : "s"}</td>`;
       if (i === 1) return "";
-      const cls = `${c.cls && /num/.test(c.cls) ? "num " : ""}${c.opt ? "drill-opt" : ""}${c.focus ? " drill-focus" : ""}`;
+      const cls = `${c.cls && /num/.test(c.cls) ? "num " : ""}${c.focus ? "drill-focus" : ""}`;
       if (c.pnlCol) return `<td class="mono num ${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</td>`;
-      return `<td class="${cls}">${c.foot && c.focus ? c.foot(sorted) : ""}</td>`;
+      return `<td class="${cls}">${c.foot ? c.foot(sorted) : ""}</td>`;
     }).join("");
+    const expandable = entry.focus === "comm";
+    const rows = sorted.slice(0, shown).map((t) => `<tr>${cols.map((c) => td(c, t)).join("")}</tr>${expandable && drillCanExpand(t) ? drillExecRowHtml(t, cols.length) : ""}`).join("");
+    const more = remaining > 0
+      ? `<div class="drill-more-wrap">${window.moreButtonsHtml("", remaining, sorted.length, "drill-more")}</div>`
+      : "";
+    const note = expandable ? '<div class="drill-est-note">Commission is saved once per trade, so in / out is split by shares. Open a trade\u2019s \u201cin \u00b7 out\u201d to see each entry and exit.</div>' : "";
     return `<div class="table-scroll"><table class="report-table drill-table no-stack"><thead><tr>${cols.map(th).join("")}</tr></thead>
-      <tbody>${sorted.slice(0, shown).map((t) => `<tr>${cols.map((c) => td(c, t)).join("")}</tr>`).join("")}</tbody>
-      <tfoot><tr>${foot}</tr></tfoot></table></div>
-      ${remaining > 0 ? `<div class="drill-more-wrap"><button type="button" class="btn-load-more drill-more">Show more (${remaining} left)</button></div>` : ""}`;
+      <tbody>${rows}</tbody>
+      <tfoot><tr>${foot}</tr></tfoot></table></div>${note}${more}`;
   }
   function paintDrillPanel(panel) {
     const d = panel._drill;
@@ -249,6 +324,12 @@
   const reportsRoot = document.getElementById("tab-reports");
   if (reportsRoot) {
     reportsRoot.addEventListener("click", (e) => {
+      const execBtn = e.target.closest(".drill-exec-toggle");
+      if (execBtn) {
+        const row = execBtn.closest("tr") && execBtn.closest("tr").nextElementSibling;
+        if (row && row.classList.contains("drill-exec-row")) { row.hidden = !row.hidden; execBtn.setAttribute("aria-expanded", String(!row.hidden)); }
+        return;
+      }
       const closeBtn = e.target.closest(".drill-inline-close");
       const more = e.target.closest(".drill-more, .drill-reveal");
       const panel = (closeBtn || more) && (closeBtn || more).closest(".drill-inline-row, .drill-inline-wrap");
@@ -261,7 +342,7 @@
           closeInline(owner);
           if (owner && owner.focus && document.contains(owner)) { try { owner.focus({ preventScroll: true }); } catch (err) { owner.focus(); } }
         } else {
-          panel._drill.shown += DRILL_PAGE;
+          panel._drill.shown += more && more.dataset.step === "all" ? 1e9 : Number(more && more.dataset.step) || DRILL_PAGE;
           panel.removeAttribute("data-fresh"); // only a newly opened panel staggers its rows in
           paintDrillPanel(panel);
         }
@@ -585,7 +666,7 @@
   // making the Reports page slow to load. Same fix as tradeListHtml's
   // Load More above, just at the row level instead of the nested
   // trade-list level.
-  const BREAKDOWN_PAGE_SIZE = 25;
+  const BREAKDOWN_PAGE_SIZE = 5; // first page; see moreButtonsHtml for the buttons
   const breakdownTableState = new Map(); // elId -> { rowsHtml, shown }
   function renderPaginatedBreakdownTable(elId, entries, colLabel, rowHtmlFn) {
     const el = document.getElementById(elId);
@@ -605,17 +686,16 @@
     const shown = Math.min(state.shown, state.rowsHtml.length);
     const remaining = state.rowsHtml.length - shown;
     const moreHtml = remaining > 0
-      ? `<tr class="report-row-more"><td colspan="4" style="text-align:center; padding:10px;"><button type="button" class="btn-load-more" data-load-more-table="${elId}">Load more (${remaining} left)</button></td></tr>`
+      ? `<tr class="report-row-more"><td colspan="4" style="text-align:center; padding:10px;">${window.moreButtonsHtml(`data-load-more-table="${elId}"`, remaining, state.rowsHtml.length)}</td></tr>`
       : "";
     tbody.innerHTML = state.rowsHtml.slice(0, shown).join("") + moreHtml;
     bindTradeToggles(tbody);
-    const btn = tbody.querySelector("[data-load-more-table]");
-    if (btn) {
+    tbody.querySelectorAll("[data-load-more-table]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        state.shown += BREAKDOWN_PAGE_SIZE;
+        state.shown += window.moreStep(btn, state.rowsHtml.length - shown);
         renderBreakdownTablePage(elId);
       }, { signal: App.signal });
-    }
+    });
   }
 
   // ----------------------------------------------------------------
@@ -1331,9 +1411,11 @@
     const winEl = document.getElementById("wld-top-win");
     winEl.innerHTML = dayTableHtml(winDays.slice().sort((a, b) => b.net - a.net).slice(0, 8));
     bindTradeToggles(winEl);
+    window.paginateReportList(winEl, "tbody > tr");
     const lossEl = document.getElementById("wld-top-loss");
     lossEl.innerHTML = dayTableHtml(lossDays.slice().sort((a, b) => a.net - b.net).slice(0, 8));
     bindTradeToggles(lossEl);
+    window.paginateReportList(lossEl, "tbody > tr");
   }
   // Walks the equity curve (real account balance -- `_balance`, see
   // computeAccountBalances in auth.js; already chronological) tracking the
@@ -1414,6 +1496,7 @@
         <td>${p.recover ? `<a href="trade.html?id=${encodeURIComponent(p.recover.id)}">${p.recover.trade_date}</a>` : `<span class="dim">Ongoing</span>`}</td>
       </tr>`).join("");
     periodsEl.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Peak</th><th scope="col">Trough</th><th scope="col">Drawdown</th><th scope="col">Recovered</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    window.paginateReportList(periodsEl, "tbody > tr");
   }
   function periodStats(startDate, endDate) {
     if (!startDate || !endDate) return null;
@@ -1875,6 +1958,7 @@
     if (!el) return;
     el.innerHTML = bucketBreakdownTableHtml(buckets, labelHeader);
     bindTradeToggles(el);
+    window.paginateReportList(el, "tbody > tr");
   }
   function renderDetailSubtabs() {
     App.safeRender(renderDetailHour, "renderDetailHour");
@@ -2019,6 +2103,7 @@
         <div class="bar-count">${e.count}x</div>
       </div>`;
     }).join("");
+    window.paginateReportList(el, ".bar-row");
     bindTradeToggles(el);
   }
   // ---- Win/Loss/Expectation ----

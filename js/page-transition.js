@@ -273,9 +273,8 @@
     });
   }
 
-  // NOTE: every page, index.html included, now uses the same empty
-  // #sidebar-main-section mount, so this swap is effectively a no-op kept
-  // only as a safety net. (Historical note: this section used to be the one part of the persistent sidebar whose markup differs by
+  // The sidebar's "Journal" section (Dashboard/Day View/Reports/Journal)
+  // is the one part of the persistent sidebar whose markup differs by
   // page: index.html hand-writes real <button data-tab> elements there
   // (app.js needs to bind to actual elements, not ones nav-render.js
   // templates in later), while every other page just holds an empty

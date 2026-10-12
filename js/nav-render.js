@@ -33,17 +33,17 @@
     {
       href: "index.html", title: "Dashboard",
       icon: '<rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect>',
-      label: "Dashboard", tab: "dashboard",
+      label: "Dashboard",
     },
     {
       href: "index.html#dayview", title: "Day View",
       icon: '<rect x="3" y="4.5" width="18" height="16" rx="2"></rect><line x1="3" y1="9.5" x2="21" y2="9.5"></line><line x1="8" y1="2.5" x2="8" y2="6.5"></line><line x1="16" y1="2.5" x2="16" y2="6.5"></line>',
-      label: "Day View", tab: "dayview",
+      label: "Day View",
     },
     {
       href: "index.html#reports", title: "Reports",
       icon: '<line x1="5" y1="21" x2="5" y2="10"></line><line x1="12" y1="21" x2="12" y2="4"></line><line x1="19" y1="21" x2="19" y2="14"></line>',
-      label: "Reports", tab: "reports",
+      label: "Reports",
     },
     {
       href: "journal.html", title: "Journal",
@@ -208,18 +208,11 @@
       SIDEBAR_MAIN_ITEMS.map((item) => {
         const hrefFile = normalizeFile(item.href.split("?")[0].split("#")[0]);
         const hrefHash = (item.href.split("#")[1] || "");
-        // "#dashboard" is the same tab as no hash at all.
-        const curTab = currentHash === "dashboard" ? "" : currentHash;
         const isActive =
-          (hrefFile === currentFile && (hrefFile !== "index" || hrefHash === curTab)) ||
+          (hrefFile === currentFile && (hrefFile !== "index" || hrefHash === currentHash)) ||
           (item.extraActiveFiles || []).some((f) => normalizeFile(f) === currentFile);
-        // On index.html the three tabs switch in place (app-shared.js binds
-        // [data-tab]); a hash href keeps the router from reloading the page.
-        const onIndex = currentFile === "index" && item.tab;
-        const href = onIndex ? "index.html#" + item.tab : item.href;
-        const tabAttr = item.tab ? ` data-tab="${item.tab}"` : "";
         return (
-          `<a class="nav-item${isActive ? " active" : ""}"${tabAttr} href="${href}" title="${item.title}">` +
+          `<a class="nav-item${isActive ? " active" : ""}" href="${item.href}" title="${item.title}">` +
           `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${item.icon}</svg>` +
           `<span class="nav-label">${item.label}</span>` +
           `</a>`
@@ -314,6 +307,7 @@
   // is a per-device choice, and the bar has to render synchronously on
   // load, before any network-backed store could answer).
   const TABS_KEY = "trade.log:bottom-tabs";
+  const RECENT_KEY = "trade.log:recent-pages";
   const TAB_COUNT = 3;
   const DEFAULT_TABS = ["index", "journal", "daily"];
 
@@ -328,7 +322,7 @@
   BAR_ICONS["index#dayview"] = '<circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline>';
   const BAR_LABELS = { index: "Home" };
   // Seven slots share a 360-390px bar, so long names get a short form there
-  // (the editor keeps the full name).
+  // (the editor and the Recent list keep the full name).
   const BAR_SHORT = {
     "index#dayview": "Day", "stats": "Stats", "edge-analysis": "Edge", "live-trading": "Live",
     "backtester": "Backtest", "calculator": "Calc", "import-trades": "Import",
@@ -337,7 +331,7 @@
   function fileOf(href) {
     return String(href || "").split("?")[0].split("#")[0].replace(/\.html$/, "").toLowerCase();
   }
-  // Every page that can go on the bar, built from
+  // Every page that can go on the bar or show up under "Recent", built from
   // the sidebar lists above so a page added there is available here too.
   // Day View / Reports live on index.html behind a #hash, so they are keyed
   // as "index#dayview" / "index#reports" and compared by hash. Import Trades
@@ -454,6 +448,47 @@
     });
   }
 
+  // ---- Recent pages (phone drawer) -------------------------------------
+  // The last few pages visited, pinned above the drawer's scrolling list so
+  // getting back to one does not mean scrolling the whole sidebar. Pages
+  // that already have a tab are left out (they are one tap away anyway), and
+  // so is the page you are on.
+  const RECENT_KEEP = 8;
+  const RECENT_SHOW = 2;
+  function trackRecent() {
+    if (!document.getElementById("sidebar")) return;
+    const id = currentId();
+    if (!id) return;
+    const list = (readJson(RECENT_KEY) || []).filter((x) => typeof x === "string" && x !== id);
+    list.unshift(id);
+    writeJson(RECENT_KEY, list.slice(0, RECENT_KEEP));
+  }
+  function renderRecent() {
+    const sidebarEl = document.getElementById("sidebar");
+    if (!sidebarEl) return;
+    let box = document.getElementById("sidebar-recent-section");
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "sidebar-recent-section";
+      box.className = "sidebar-recent";
+      // A sibling ahead of .sidebar-nav (like the pinned group), so the SPA
+      // router's rewrite of the nav's contents never wipes it.
+      sidebarEl.insertBefore(box, sidebarEl.querySelector(".sidebar-nav") || null);
+    }
+    const cur = currentId();
+    const tabs = getTabs();
+    const items = (readJson(RECENT_KEY) || [])
+      .filter((id) => id !== cur && tabs.indexOf(id) === -1)
+      .map(catalogItem).filter(Boolean).slice(0, RECENT_SHOW);
+    box.hidden = !items.length;
+    box.innerHTML = items.length
+      ? `<div class="nav-section-label">Recent</div><div class="sidebar-recent-list">` +
+        items.map((i) =>
+          `<a class="recent-item" href="${i.href}" title="${i.label}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${i.icon}</svg><span>${i.label}</span></a>`
+        ).join("") + `</div>`
+      : "";
+  }
+
   // ---- Tab editor (bottom sheet) ---------------------------------------
   // Pick exactly three pages. Tapping a page adds it to the end of the bar;
   // tapping it again (or its chip in the preview) removes it, so the order on
@@ -525,6 +560,7 @@
           setTabs(picked);
           const nav = document.getElementById("bottom-nav");
           if (nav) { paintTabs(nav); bottomNav(); }
+          renderRecent();
           close();
           return;
         }
@@ -561,12 +597,13 @@
   function refresh() {
     renderNav();
     bottomNav();
+    trackRecent();
+    renderRecent();
     renderEditLink();
   }
-  try { localStorage.removeItem("trade.log:recent-pages"); } catch (e) { /* ignore */ }
   window.__renderSidebarNav = refresh;
   refresh();
   // Day View / Reports are hash tabs on index.html, which change without a
   // page load, so keep the bar's highlight in step with them.
-  window.addEventListener("hashchange", function () { bottomNav(); });
+  window.addEventListener("hashchange", function () { bottomNav(); trackRecent(); renderRecent(); });
 })();
