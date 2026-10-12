@@ -108,37 +108,44 @@
   const fmtQty = (n) => Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
   const drillUsd = (v) => (v == null || !Number.isFinite(v) ? "\u2014" : "$" + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
   const drillPx = (v) => "$" + Number(v).toFixed(Number(v) < 1 ? 4 : 2);
-  function drillExecs(t) {
-    const fills = Array.isArray(t.fills) ? t.fills : [];
+  // Real commission split: the sync saves what the broker charged on the way in and on the way
+  // out (trades.commission_in / commission_out). Older trades don't have it -> "no split".
+  const drillHasSplit = (t) => t.commission_in != null && t.commission_out != null && Number.isFinite(Number(t.commission_in)) && Number.isFinite(Number(t.commission_out));
+  // Every entry / exit execution of ONE trade with its own commission, from the saved fills
+  // (fetched on demand: the trade list itself doesn't carry fills).
+  function drillExecListHtml(d) {
+    const fills = Array.isArray(d && d.fills) ? d.fills : [];
     const agg = new Map();
-    const add = (kind, time, price, qty) => {
+    const add = (kind, time, price, qty, comm) => {
       if (!time || price == null) return;
       const k = `${kind}|${time}|${Number(price).toFixed(4)}`;
-      const cur = agg.get(k) || { kind, time: String(time), price: Number(price), qty: 0 };
+      const cur = agg.get(k) || { kind, time: String(time), price: Number(price), qty: 0, comm: 0, hasComm: true };
       cur.qty += Number(qty) || 0;
+      if (Number.isFinite(Number(comm))) cur.comm += Number(comm); else cur.hasComm = false;
       agg.set(k, cur);
     };
-    fills.forEach((f) => { add("entry", f.entry_time, f.entry_price, f.qty); add("exit", f.exit_time, f.exit_price, f.qty); });
-    return [...agg.values()].sort((x, y) => (x.time < y.time ? -1 : x.time > y.time ? 1 : x.kind === y.kind ? 0 : x.kind === "entry" ? -1 : 1));
+    fills.forEach((f) => { add("entry", f.entry_time, f.entry_price, f.qty, f.commission_entry); add("exit", f.exit_time, f.exit_price, f.qty, f.commission_exit); });
+    const list = [...agg.values()].sort((x, y) => (x.time < y.time ? -1 : x.time > y.time ? 1 : x.kind === y.kind ? 0 : x.kind === "entry" ? -1 : 1));
+    if (!list.length) return '<div class="drill-exec-list dim">No fill detail saved for this trade.</div>';
+    const lines = list.map((x) => `<div class="drill-exec ${x.kind}"><span class="k">${x.kind === "entry" ? "Entry" : "Exit"}</span><span class="mono dim">${escapeHtml(x.time)}</span><span class="mono">${fmtQty(x.qty)} sh @ ${drillPx(x.price)}</span><span class="mono">${x.hasComm ? "$" + x.comm.toFixed(2) : "\u2014"}</span></div>`).join("");
+    return `<div class="drill-exec-list"><div class="drill-exec head"><span></span><span>Time</span><span>Shares @ price</span><span>Commission</span></div>${lines}</div>`;
   }
-  function drillComm(t) {
-    const total = Number(t.commission) || 0;
-    const ex = drillExecs(t);
-    let e = ex.filter((x) => x.kind === "entry").reduce((n, x) => n + x.qty, 0);
-    let o = ex.filter((x) => x.kind === "exit").reduce((n, x) => n + x.qty, 0);
-    if (!(e + o)) { e = o = Number(t.shares) || 0; }
-    const denom = e + o;
-    const inn = denom ? total * e / denom : total / 2;
-    return { total, inn, out: total - inn, ex, per: (q) => (denom ? total * q / denom : 0),
-      entries: ex.filter((x) => x.kind === "entry").length, exits: ex.filter((x) => x.kind === "exit").length };
+  function toggleExec(btn) {
+    const tr = btn.closest("tr");
+    if (!tr) return;
+    let row = tr.nextElementSibling;
+    if (row && row.classList.contains("drill-exec-row")) { row.hidden = !row.hidden; btn.setAttribute("aria-expanded", String(!row.hidden)); return; }
+    row = document.createElement("tr");
+    row.className = "drill-exec-row";
+    row.innerHTML = `<td colspan="${tr.cells.length}"><div class="drill-exec-list dim">Loading\u2026</div></td>`;
+    tr.after(row);
+    btn.setAttribute("aria-expanded", "true");
+    const cell = row.firstChild;
+    Promise.resolve(window.fetchTradeDetail ? window.fetchTradeDetail(btn.dataset.id) : null)
+      .then((d) => { cell.innerHTML = drillExecListHtml(d); })
+      .catch(() => { cell.innerHTML = '<div class="drill-exec-list dim">Couldn\u2019t load the fills.</div>'; });
   }
-  const drillCanExpand = (t) => { const c = drillComm(t); return c.entries > 1 || c.exits > 1; };
-  function drillExecRowHtml(t, ncols) {
-    const c = drillComm(t);
-    const lines = c.ex.map((x) => `<div class="drill-exec ${x.kind}"><span class="k">${x.kind === "entry" ? "Entry" : "Exit"}</span><span class="mono dim">${escapeHtml(x.time)}</span><span class="mono">${fmtQty(x.qty)} sh @ ${drillPx(x.price)}</span><span class="mono">$${c.per(x.qty).toFixed(2)}</span></div>`).join("");
-    return `<tr class="drill-exec-row" hidden><td colspan="${ncols}"><div class="drill-exec-list"><div class="drill-exec head"><span></span><span>Time</span><span>Shares @ price</span><span>Comm. (est.)</span></div>${lines}</div></td></tr>`;
-  }
-  function drillColumns(focus) {
+  function drillColumns(focus, trades) {
     const pnl = (t) => drillNum(t.pnl_after_comm);
     const sumNum = (ts, f) => ts.reduce((a, t) => a + (f(t) || 0), 0);
     const value = (t) => (Number(t.shares) > 0 && Number.isFinite(Number(t.entry_price)) ? Number(t.shares) * Number(t.entry_price) : null);
@@ -146,27 +153,31 @@
     const date = { label: "Date", cls: "mono", cell: (t) => escapeHtml(t.trade_date || "\u2014") };
     const sym = { label: "Symbol", cell: symLink };
     const symExec = { label: "Symbol", cell: (t) => {
-      if (!drillCanExpand(t)) return symLink(t);
-      const c = drillComm(t);
-      return `${symLink(t)}<button type="button" class="drill-exec-toggle" aria-expanded="false" title="Show every entry and exit">${c.entries} in \u00b7 ${c.exits} out <i aria-hidden="true">\u25be</i></button>`;
+      if (!drillHasSplit(t) || !(Number(t.fill_count) > 1)) return symLink(t);
+      return `${symLink(t)}<button type="button" class="drill-exec-toggle" aria-expanded="false" data-id="${escapeHtml(t.id)}" title="Show every entry and exit">Entries &amp; exits <i aria-hidden="true">\u25be</i></button>`;
     } };
     const net = { label: "Net P&amp;L", cls: "mono num", cell: (t) => `<span class="${pnl(t) >= 0 ? "up" : "down"}">${fmtMoney(pnl(t))}</span>`, pnlCol: true };
     const shares = { label: "Shares", cls: "mono num", cell: (t) => (t.shares != null ? Number(t.shares).toLocaleString() : "\u2014"), foot: (ts) => fmtQty(sumNum(ts, (t) => Number(t.shares))) };
     const valueCol = { label: "Total value", cls: "mono num", cell: (t) => drillUsd(value(t)), foot: (ts) => drillUsd(sumNum(ts, value)) };
     const time = (key) => (t) => (typeof t[key] === "string" && t[key] ? t[key].slice(0, 8) : "\u2014");
     switch (focus) {
-      case "comm":
-        return [date, symExec, shares, valueCol,
-          { label: "Comm. in (est.)", cls: "mono num", cell: (t) => "$" + drillComm(t).inn.toFixed(2), foot: (ts) => "$" + sumNum(ts, (t) => drillComm(t).inn).toFixed(2) },
-          { label: "Comm. out (est.)", cls: "mono num", cell: (t) => "$" + drillComm(t).out.toFixed(2), foot: (ts) => "$" + sumNum(ts, (t) => drillComm(t).out).toFixed(2) },
-          { label: "Total comm.", cls: "mono num", focus: true, cell: (t) => "$" + drillComm(t).total.toFixed(2), foot: (ts) => "$" + sumNum(ts, (t) => Number(t.commission)).toFixed(2) }];
+      case "comm": {
+        const split = (trades || []).some(drillHasSplit);
+        const cols = [date, split ? symExec : sym, shares, valueCol];
+        if (split) {
+          cols.push({ label: "Comm. in", cls: "mono num", cell: (t) => (drillHasSplit(t) ? "$" + Number(t.commission_in).toFixed(2) : "\u2014"), foot: (ts) => "$" + sumNum(ts.filter(drillHasSplit), (t) => Number(t.commission_in)).toFixed(2) });
+          cols.push({ label: "Comm. out", cls: "mono num", cell: (t) => (drillHasSplit(t) ? "$" + Number(t.commission_out).toFixed(2) : "\u2014"), foot: (ts) => "$" + sumNum(ts.filter(drillHasSplit), (t) => Number(t.commission_out)).toFixed(2) });
+        }
+        cols.push({ label: "Total comm.", cls: "mono num", focus: true, cell: (t) => "$" + (Number(t.commission) || 0).toFixed(2), foot: (ts) => "$" + sumNum(ts, (t) => Number(t.commission)).toFixed(2) });
+        return cols;
+      }
       case "flip":
         return [date, sym,
           { label: "Gross P&amp;L", cls: "mono num", cell: (t) => fmtMoney(pnl(t) + (Number(t.commission) || 0)) },
           { label: "Commission", cls: "mono num", focus: true, cell: (t) => "$" + (Number(t.commission) || 0).toFixed(2), foot: (ts) => "$" + sumNum(ts, (t) => Number(t.commission)).toFixed(2) }, net];
       case "hold":
         return [date, sym, { label: "In", cls: "mono", cell: time("entry_time") },
-          { label: "Out", cls: "mono", cell: (t) => { const x = drillExecs(t).filter((e) => e.kind === "exit"); return x.length ? escapeHtml(x[x.length - 1].time.slice(0, 8)) : "\u2014"; } },
+          { label: "Out", cls: "mono", cell: time("exit_time") },
           { label: "Hold", cls: "mono num", focus: true, cell: (t) => { const h = App.durationMinutes(t); return h != null ? App.fmtDurationPrecise(h) : "\u2014"; },
             foot: (ts) => { const v = ts.map(App.durationMinutes).filter((x) => x != null); return v.length ? "avg " + fmtDuration(v.reduce((a, b) => a + b, 0) / v.length) : ""; } }];
       case "share":
@@ -202,7 +213,7 @@
   }
   function drillTableHtml(entry, shown) {
     const trades = entry.trades;
-    const cols = drillColumns(entry.focus);
+    const cols = drillColumns(entry.focus, entry.trades);
     const sorted = drillSort(trades, entry);
     const net = sorted.reduce((sum, t) => sum + drillNum(t.pnl_after_comm), 0);
     const remaining = sorted.length - Math.min(shown, sorted.length);
@@ -216,12 +227,12 @@
       if (c.pnlCol) return `<td class="mono num ${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</td>`;
       return `<td class="${cls}">${c.foot ? c.foot(sorted) : ""}</td>`;
     }).join("");
-    const expandable = entry.focus === "comm";
-    const rows = sorted.slice(0, shown).map((t) => `<tr>${cols.map((c) => td(c, t)).join("")}</tr>${expandable && drillCanExpand(t) ? drillExecRowHtml(t, cols.length) : ""}`).join("");
+    const rows = sorted.slice(0, shown).map((t) => `<tr>${cols.map((c) => td(c, t)).join("")}</tr>`).join("");
     const more = remaining > 0
       ? `<div class="drill-more-wrap">${window.moreButtonsHtml("", remaining, sorted.length, "drill-more")}</div>`
       : "";
-    const note = expandable ? '<div class="drill-est-note">Commission is saved once per trade, so in / out is split by shares. Open a trade\u2019s \u201cin \u00b7 out\u201d to see each entry and exit.</div>' : "";
+    const missing = entry.focus === "comm" && sorted.some(drillHasSplit) ? sorted.filter((t) => !drillHasSplit(t)).length : 0;
+    const note = missing ? `<div class="drill-est-note">${missing} older trade${missing === 1 ? "" : "s"} only have the total \u2014 the in / out split is saved for trades synced after the update.</div>` : "";
     return `<div class="table-scroll"><table class="report-table drill-table no-stack"><thead><tr>${cols.map(th).join("")}</tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr>${foot}</tr></tfoot></table></div>${note}${more}`;
@@ -325,11 +336,7 @@
   if (reportsRoot) {
     reportsRoot.addEventListener("click", (e) => {
       const execBtn = e.target.closest(".drill-exec-toggle");
-      if (execBtn) {
-        const row = execBtn.closest("tr") && execBtn.closest("tr").nextElementSibling;
-        if (row && row.classList.contains("drill-exec-row")) { row.hidden = !row.hidden; execBtn.setAttribute("aria-expanded", String(!row.hidden)); }
-        return;
-      }
+      if (execBtn) { toggleExec(execBtn); return; }
       const closeBtn = e.target.closest(".drill-inline-close");
       const more = e.target.closest(".drill-more, .drill-reveal");
       const panel = (closeBtn || more) && (closeBtn || more).closest(".drill-inline-row, .drill-inline-wrap");

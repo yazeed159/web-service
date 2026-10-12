@@ -434,6 +434,7 @@
         <div class="cell">
           <div class="label">Commission</div>
           <div class="value">-$${trade.commission.toFixed(2)}</div>
+          ${(() => { const c = commissionSplit(trade); return c ? `<div class="label" style="margin-top:2px; font-size:11px; text-transform:none;">in $${c.inn.toFixed(2)} \u00b7 out $${c.out.toFixed(2)}</div>` : ""; })()}
         </div>
         <div class="cell">
           <div class="label">Net P&amp;L</div>
@@ -834,16 +835,19 @@
     if (!fills.length) return [];
     const isLong = String(trade.side || "long").toLowerCase() !== "short";
     const agg = new Map();
-    const add = (kind, time, price, qty) => {
+    // comm = what the broker really charged on this execution (saved per fill by the sync;
+    // trades synced before that have none -> hasComm false and nothing is shown).
+    const add = (kind, time, price, qty, comm) => {
       if (!time || price == null) return;
       const k = `${kind}|${time}|${Number(price).toFixed(4)}`;
-      const cur = agg.get(k) || { kind, time: String(time), price: Number(price), qty: 0 };
+      const cur = agg.get(k) || { kind, time: String(time), price: Number(price), qty: 0, comm: 0, hasComm: true };
       cur.qty += Number(qty) || 0;
+      if (comm != null && Number.isFinite(Number(comm))) cur.comm += Number(comm); else cur.hasComm = false;
       agg.set(k, cur);
     };
     fills.forEach((f) => {
-      add("entry", f.entry_time, f.entry_price, f.qty);
-      add("exit", f.exit_time, f.exit_price, f.qty);
+      add("entry", f.entry_time, f.entry_price, f.qty, f.commission_entry);
+      add("exit", f.exit_time, f.exit_price, f.qty, f.commission_exit);
     });
     const list = [...agg.values()].sort((a, b) =>
       a.time < b.time ? -1 : a.time > b.time ? 1 : (a.kind === b.kind ? 0 : a.kind === "entry" ? -1 : 1));
@@ -859,6 +863,8 @@
       if (prev && prev.kind === e.kind && secs(e.time) - prev._lastSecs <= ORDER_GAP_S) {
         prev._cost += e.price * e.qty;
         prev.qty += e.qty;
+        prev.comm += e.comm;
+        prev.hasComm = prev.hasComm && e.hasComm;
         prev.price = prev.qty ? prev._cost / prev.qty : prev.price;
         prev.fillCount += 1;
         prev.parts.push({ time: e.time, price: e.price, qty: e.qty });
@@ -886,6 +892,16 @@
       }
     });
     return list;
+  }
+  // Real commission paid on the way in / out (saved by the sync); null for older trades.
+  function commissionSplit(trade) {
+    const ok = (v) => v != null && Number.isFinite(Number(v));
+    if (ok(trade.commission_in) && ok(trade.commission_out)) return { inn: Number(trade.commission_in), out: Number(trade.commission_out) };
+    const fills = Array.isArray(trade.fills) ? trade.fills : [];
+    if (fills.length && fills.every((f) => ok(f.commission_entry) && ok(f.commission_exit))) {
+      return { inn: fills.reduce((n, f) => n + Number(f.commission_entry), 0), out: fills.reduce((n, f) => n + Number(f.commission_exit), 0) };
+    }
+    return null;
   }
   function fmtQty(n) {
     return Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -920,7 +936,7 @@
       <div class="fill-row" style="padding:10px 0; ${i < ex.length - 1 ? "border-bottom:1px solid var(--border-soft);" : ""}">
         <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:12.5px; margin-bottom:6px;">
           <span><span style="opacity:.45; margin-right:6px;">${i + 1}</span><b style="color:${color};">${e.role.toUpperCase()}</b> <span style="opacity:.8;">${escapeHtml(e.action)}</span> \u00b7 <b>${fmtQty(e.qty)} sh</b>${levels.length > 1 ? ` @ avg <b>${px(e.price)}</b>` : ""}</span>
-          <span style="font-size:11.5px; opacity:.6; white-space:nowrap;">position after: ${fmtQty(e.posAfter)} sh</span>
+          <span style="font-size:11.5px; opacity:.6; white-space:nowrap;">${e.hasComm ? `commission $${e.comm.toFixed(2)} \u00b7 ` : ""}position after: ${fmtQty(e.posAfter)} sh</span>
         </div>
         <div style="padding-left:16px; border-left:2px solid ${color}55;">${levelRows}</div>
       </div>`;

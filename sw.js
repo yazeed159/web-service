@@ -20,7 +20,7 @@
 //    tunnel, POSTs) is never touched -- it goes straight to the network.
 //
 // Bump CACHE_VERSION only if you ever want to force-purge every cached file.
-var CACHE_VERSION = "v47";
+var CACHE_VERSION = "v51";
 var CACHE = "tradelog-shell-" + CACHE_VERSION;
 
 var SHELL = [

@@ -492,8 +492,9 @@ window.tradeListItemHtml = function tradeListItemHtml(r) {
 window.moreButtonsHtml = function moreButtonsHtml(attrs, remaining, total, cls) {
   const b = (step, label) => `<button type="button" class="btn-load-more ${cls || ""}" ${attrs || ""} data-step="${step}">${label}</button>`;
   const left = `<span class="drill-left">${remaining} left</span>`;
-  if (total <= 15) return b(5, `Show ${Math.min(5, remaining)} more`) + left;
-  return (remaining > 20 ? b(20, "Load 20 more") : "") + b("all", `Load all (${remaining})`) + left;
+  const small = total <= 15, step = small ? 5 : 20;
+  // A "show N more" button only when it would stop short of the end; "all" is always there.
+  return (remaining > step ? b(step, small ? "Show 5 more" : "Load 20 more") : "") + b("all", `${small ? "Show" : "Load"} all (${remaining})`) + left;
 };
 window.moreStep = function moreStep(btn, remaining) {
   const v = btn.getAttribute("data-step");
