@@ -221,14 +221,14 @@
     const net = sorted.reduce((sum, t) => sum + drillNum(t.pnl_after_comm), 0);
     const remaining = sorted.length - Math.min(shown, sorted.length);
     const th = (c) => `<th scope="col" class="${c.cls && /num/.test(c.cls) ? "num" : ""}${c.focus ? " drill-focus" : ""}"${/est\./.test(c.label) ? ' title="Commission is stored per trade, so in/out is split by shares"' : ""}>${c.label}</th>`;
-    const td = (c, t) => `<td class="${c.cls || ""}${c.focus ? " drill-focus" : ""}">${c.cell(t)}</td>`;
+    const td = (c, t) => `<td class="${c.cls || ""}${c.focus ? " drill-focus" : ""}" data-label="${c.label}">${c.cell(t)}</td>`;
     // Footer: trade count under Date+Symbol, a total for every column that has one, net P&L where shown.
     const foot = cols.map((c, i) => {
       if (i === 0) return `<td colspan="2">${sorted.length} trade${sorted.length === 1 ? "" : "s"}</td>`;
       if (i === 1) return "";
       const cls = `${c.cls && /num/.test(c.cls) ? "num " : ""}${c.focus ? "drill-focus" : ""}`;
-      if (c.pnlCol) return `<td class="mono num ${net >= 0 ? "up" : "down"}">${fmtMoney(net)}</td>`;
-      return `<td class="${cls}">${c.foot ? c.foot(sorted) : ""}</td>`;
+      if (c.pnlCol) return `<td class="mono num ${net >= 0 ? "up" : "down"}" data-label="${c.label}">${fmtMoney(net)}</td>`;
+      return `<td class="${cls}" data-label="${c.label}">${c.foot ? c.foot(sorted) : ""}</td>`;
     }).join("");
     const rows = sorted.slice(0, shown).map((t) => `<tr>${cols.map((c) => td(c, t)).join("")}</tr>`).join("");
     const more = remaining > 0
@@ -1400,7 +1400,7 @@
       <td style="font-weight:600;">${escapeHtml(ven)}</td><td class="mono dim">${e.trades}</td>
       <td class="mono">${Math.round(e.sh).toLocaleString()}</td><td class="mono">$${e.comm.toFixed(2)}</td>
       <td class="mono">${e.sh ? "$" + (e.comm / e.sh).toFixed(4) : "\u2014"}</td></tr>`).join("");
-    el.innerHTML = `<div class="table-scroll"><table class="report-table no-stack"><thead><tr><th>Exchange</th><th class="num">Trades</th><th class="num">Shares</th><th class="num">Commission</th><th class="num">Per share</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    el.innerHTML = `<div class="table-scroll"><table class="report-table no-stack"><thead><tr><th>Exchange</th><th class="num">Trades</th><th class="num">Shares</th><th class="num">Comm.</th><th class="num">Per sh.</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     window.paginateReportList(el, "tbody > tr");
   }
   function dailyAgg() {

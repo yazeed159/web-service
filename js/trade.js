@@ -952,9 +952,9 @@
           </div>`).join("");
       return `
       <div class="fill-row" style="padding:10px 0; ${i < ex.length - 1 ? "border-bottom:1px solid var(--border-soft);" : ""}">
-        <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:12.5px; margin-bottom:6px;">
+        <div class="fill-head" style="display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:12.5px; margin-bottom:6px;">
           <span><span style="opacity:.45; margin-right:6px;">${i + 1}</span><b style="color:${color};">${e.role.toUpperCase()}</b> <span style="opacity:.8;">${escapeHtml(e.action)}</span> \u00b7 <b>${fmtQty(e.qty)} sh</b>${levels.length > 1 ? ` @ avg <b>${px(e.price)}</b>` : ""}</span>
-          <span style="font-size:11.5px; opacity:.6; white-space:nowrap;">${e.hasComm ? `commission $${e.comm.toFixed(2)} \u00b7 ` : ""}${e.fillCount > 1 ? `${e.fillCount} fills \u00b7 ` : ""}position after: ${fmtQty(e.posAfter)} sh</span>
+          <span class="fill-meta" style="font-size:11.5px; opacity:.6; white-space:nowrap;">${e.hasComm ? `commission $${e.comm.toFixed(2)} \u00b7 ` : ""}${e.fillCount > 1 ? `${e.fillCount} fills \u00b7 ` : ""}position after: ${fmtQty(e.posAfter)} sh</span>
         </div>
         <div style="padding-left:16px; border-left:2px solid ${color}55;">${levelRows}</div>
       </div>`;

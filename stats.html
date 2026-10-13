@@ -332,6 +332,16 @@
       </div>
 
       <div class="panel-box mb-16">
+        <div class="panel-box-head"><span class="title">Win Rate by Country</span></div>
+        <div id="country-breakdown"></div>
+      </div>
+
+      <div class="panel-box mb-16">
+        <div class="panel-box-head"><span class="title">Win Rate by Stock Type</span></div>
+        <div id="subtype-breakdown"></div>
+      </div>
+
+      <div class="panel-box mb-16">
         <div class="panel-box-head"><span class="title">Money Left on the Table</span></div>
         <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Sum of (suggested better price − actual fill) × shares, across every trade with a flagged better entry/exit.</p>
         <div id="slippage-breakdown"></div>
@@ -856,7 +866,34 @@
     `;
   }
 
+  // Same rows as "by setup", grouped by what the broker says about the stock (country / ADR vs common).
+  function renderFactBreakdown(elId, sorted, keyFn, emptyMsg) {
+    const groups = {};
+    for (const r of sorted) { const k = keyFn(r); if (!k) continue; (groups[k] = groups[k] || []).push(r); }
+    const el = document.getElementById(elId);
+    const entries = Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
+    if (!entries.length) { el.innerHTML = `<div class="empty-state small">${emptyMsg}</div>`; return; }
+    const rowsHtml = entries.map(([name, trades]) => {
+      const wins = trades.filter((r) => r.win).length;
+      const rate = Math.round((wins / trades.length) * 1000) / 10;
+      const pnl = trades.reduce((s, r) => s + (r.pnl_after_comm || 0), 0);
+      const uid = `report-trade-list-${reportRowSeq++}`;
+      return `<div class="setup-row" data-trade-toggle="${uid}">
+        <div class="setup-info"><div class="setup-name">${escapeHtml(name)}${trades.length < 5 ? ' <span class="pill" title="Fewer than 5 trades \u2014 treat this win rate as a rough signal, not a verdict.">small sample</span>' : ""}</div>
+          <div class="setup-sub">${trades.length} trade${trades.length === 1 ? "" : "s"}</div></div>
+        <div class="setup-track"><div class="setup-seg win" style="width:${rate}%;"></div><div class="setup-seg loss" style="width:${100 - rate}%;"></div></div>
+        <div class="setup-rate" style="color:${rate >= 50 ? "var(--green)" : "var(--red)"};">${rate}%</div>
+        <div class="setup-pnl" style="color:${pnl >= 0 ? "var(--green)" : "var(--red)"};">${fmtMoney(pnl)}</div>
+      </div>${tradeListHtml(trades, uid)}`;
+    }).join("");
+    el.innerHTML = rowsHtml;
+    bindTradeToggles(el);
+  }
+  const statsCountryName = (c) => { try { return new Intl.DisplayNames(undefined, { type: "region" }).of(String(c).toUpperCase()) || c; } catch (e) { return c; } };
+
   function renderSetupBreakdown(sorted) {
+    renderFactBreakdown("country-breakdown", sorted, (r) => (r.issuer_country ? statsCountryName(r.issuer_country) : null), "No country data yet \u2014 it comes from your broker statement on the next sync or re-import.");
+    renderFactBreakdown("subtype-breakdown", sorted, (r) => (r.sub_category ? (r.sub_category === "COMMON" ? "Common stock" : r.sub_category) : null), "No stock-type data yet \u2014 it comes from your broker statement on the next sync or re-import.");
     const groups = {};
     for (const r of sorted) {
       const key = r.setup_type || "unlabeled";

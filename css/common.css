@@ -4083,3 +4083,69 @@ a.th-nav:active { transform: translateY(1px); }
 .pg-hide { display: none !important; }
 .pg-row > td, .pg-row { text-align: center; }
 .pg-ctl { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; padding: 10px 0 4px; }
+
+/* commission in / out under the total (Day View table, phone cards) */
+.comm-split { display: block; margin-top: 1px; font-size: 10.5px; font-weight: 500; color: var(--text-faint); white-space: nowrap; }
+
+/* Journal phone cards: places for the broker facts (shares, commission, country, type, exchange).
+   A cell with nothing to show ("nodata") drops out instead of leaving a stray dash. */
+@media (max-width: 760px) {
+  .journal-data-table tbody tr[data-id] {
+    gap: 3px 10px;
+    grid-template-areas:
+      "cb sym     sym  pnl"
+      "cb date    setup res"
+      "cb entry   exit grade"
+      "cb shares  comm comm"
+      "cb country type type"
+      "cb exch    exch exch"
+      "cb tags    tags tags";
+  }
+  .journal-data-table td.col-shares { grid-area: shares; font-size: 12px; color: var(--text-dim); }
+  .journal-data-table td.col-commission { grid-area: comm; font-size: 12px; color: var(--text-dim); }
+  .journal-data-table td.col-shares::before { content: "Sh "; color: var(--text-faint); }
+  .journal-data-table td.col-commission::before { content: "Comm "; color: var(--text-faint); }
+  .journal-data-table td.col-issuer_country { grid-area: country; }
+  .journal-data-table td.col-sub_category { grid-area: type; }
+  .journal-data-table td.col-exchange { grid-area: exch; }
+  .journal-data-table td.col-issuer_country, .journal-data-table td.col-sub_category, .journal-data-table td.col-exchange { font-size: 11.5px; color: var(--text-faint); }
+  .journal-data-table td:has(.nodata:only-child) { display: none; }
+}
+
+/* By exchange: five short columns must fit a phone card without sideways scrolling */
+@media (max-width: 760px) {
+  #report-venue .report-table { width: 100%; table-layout: auto; }
+  #report-venue .report-table th, #report-venue .report-table td { padding: 8px 5px; font-size: 12px; }
+  #report-venue .report-table th { font-size: 10.5px; letter-spacing: 0; }
+  #report-venue .pg-ctl { padding-left: 0; padding-right: 0; }
+  #report-venue .pg-ctl .btn-load-more { flex: 1 1 100%; max-width: 100%; box-sizing: border-box; }
+}
+
+/* Fills card on phones: the action on one line, the commission / position facts under it */
+@media (max-width: 760px) {
+  .fill-head { flex-direction: column; align-items: flex-start !important; gap: 2px !important; }
+  .fill-meta { white-space: normal !important; }
+}
+
+/* Reports pop-outs on phones: each trade becomes a small labelled card instead of a table that
+   scrolls sideways (the commission columns used to be off-screen). */
+@media (max-width: 760px) {
+  .drill-table, .drill-table tbody, .drill-table tfoot { display: block; width: 100%; }
+  .drill-table thead { display: none; }
+  .drill-table tbody tr:not(.drill-exec-row), .drill-table tfoot tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 14px; padding: 10px 4px; border-bottom: 1px solid var(--border-soft);
+  }
+  .drill-table td { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 !important; border: 0 !important; min-width: 0; font-size: 12.5px; text-align: right; background: none !important; }
+  .drill-table td::before { content: attr(data-label); flex: none; color: var(--text-faint); font-family: var(--sans); font-size: 11px; font-weight: 500; text-align: left; }
+  /* top line: symbol on the left, date on the right */
+  .drill-table tbody td:nth-child(1) { grid-row: 1; grid-column: 2; align-self: start; justify-content: flex-end; font-size: 12px; color: var(--text-faint); }
+  .drill-table tbody td:nth-child(2) { grid-row: 1; grid-column: 1; justify-content: flex-start; flex-wrap: wrap; font-size: 15px; font-weight: 700; text-align: left; }
+  .drill-table tbody td:nth-child(1)::before, .drill-table tbody td:nth-child(2)::before { content: none; }
+  .drill-table td.drill-focus { font-weight: 700; color: var(--text); }
+  .drill-table tfoot td:first-child { grid-column: 1 / -1; justify-content: flex-start; font-weight: 700; text-align: left; }
+  .drill-table tfoot td:first-child::before { content: none; }
+  .drill-table tfoot td:not(:first-child):empty { display: none; }
+  .drill-table tr.drill-exec-row, .drill-table tr.drill-exec-row > td { display: block; width: 100%; padding: 0 !important; }
+  .drill-table tr.drill-exec-row > td::before { content: none; }
+  .drill-table .drill-exec { grid-template-columns: 42px 66px 1fr auto; gap: 6px; font-size: 11.5px; }
+}

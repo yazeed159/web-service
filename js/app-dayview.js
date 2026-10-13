@@ -167,7 +167,7 @@
         <td class="mono dim">${escapeHtml(t.shares == null ? "\u2014" : t.shares)}</td>
         <td class="mono dim">${App.fmtDurationPrecise(App.durationMinutes(t))}</td>
         <td class="mono ${t.pnl_before_comm >= 0 ? "up" : "down"}">${fmtMoney(t.pnl_before_comm)}</td>
-        <td class="mono dim">$${(Number(t.commission) || 0).toFixed(2)}</td>
+        <td class="mono dim">$${(Number(t.commission) || 0).toFixed(2)}${t.commission_in != null && t.commission_out != null ? `<span class="comm-split" title="Commission paid on the way in / out">in $${Number(t.commission_in).toFixed(2)} \u00b7 out $${Number(t.commission_out).toFixed(2)}</span>` : ""}</td>
         <td><span class="pnl-tag ${t.win ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span></td>
         <td class="mono dim">${escapeHtml(t.entry_time || "\u2014")} → ${escapeHtml(t.exit_time || "\u2014")}</td>
       </tr>`;

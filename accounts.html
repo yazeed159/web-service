@@ -221,7 +221,8 @@
   .acc-more:hover,.acc-more:active{background:var(--panel-3);color:var(--text)}
   .acc-bal-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
   .acc-delta{font:500 13px var(--mono)}
-  .acc-meta{grid-template-columns:repeat(3,1fr)}
+  .acc-meta{grid-template-columns:repeat(4,minmax(0,1fr))}
+  @media (max-width:760px){.acc-meta{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:10px}}
   .acc-sync{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-faint)}
   .acc-grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
   @media (max-width:760px){.acc-grid{grid-template-columns:1fr}.acc-balance{font-size:28px}}
@@ -300,7 +301,7 @@
       '<span class="acc-name">' + escapeHtml(label) + "</span>" + (a && opts.paper ? '<span class="pill">paper</span>' : "") + (a && a.status === "archived" ? '<span class="pill">archived</span>' : "") +
       (a ? '<button type="button" class="acc-more" data-more data-id="' + id + '" aria-label="Manage ' + escapeHtml(a.name) + '">' + ICO.more + "</button>" : "") + "</div>" +
       '<div class="acc-bal-row"><span class="acc-balance">' + fmtUsd(bal) + '</span><span class="acc-delta ' + sign(p) + '">' + fmtMoney(p) + " P&amp;L</span></div>" +
-      '<div class="acc-meta"><div>Trades<b>' + trades.length + "</b></div><div>Win rate<b>" + winRate(trades) + "</b></div><div>Deposited<b>" + fmtUsd(net(entries)) + "</b></div></div>" +
+      '<div class="acc-meta"><div>Trades<b>' + trades.length + "</b></div><div>Win rate<b>" + winRate(trades) + "</b></div><div>Deposited<b>" + fmtUsd(net(entries)) + "</b></div><div>Commission<b>" + fmtUsd(trades.reduce((n, t) => n + (Number(t.commission) || 0), 0)) + "</b></div></div>" +
       (a && window.BrokerConnections ? '<div class="acc-sync">Broker sync ' + window.BrokerConnections.chipHtml(a.id) + "</div>" : "") + "</div>";
   }
 

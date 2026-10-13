@@ -131,6 +131,9 @@
         <select id="f-rvol" title="Relative volume on the trade day"><option value="">All rel. volume</option></select>
         <select id="f-avgvol" title="30-day average daily volume"><option value="">All avg. volume</option></select>
         <select id="f-float" title="Float (shares outstanding, approx.)"><option value="">All float</option></select>
+        <select id="f-country" title="Issuer country, from your broker statement"><option value="">All countries</option></select>
+        <select id="f-subtype" title="ADR / common stock, from your broker statement"><option value="">Stock type: any</option></select>
+        <select id="f-venue" title="Exchange the trade filled on, from your broker statement"><option value="">All exchanges</option></select>
         <select id="f-tag" title="Lesson tags you've logged on trades"><option value="">All tags</option></select>
         <select id="f-mysetup" title="Setup you labelled on the trade page"><option value="">My setup: any</option></select>
         <select id="f-mymistake" title="Mistake you tagged on the trade page"><option value="">My mistake: any</option></select>
@@ -212,6 +215,9 @@
     rvol: document.getElementById("f-rvol"),
     avgvol: document.getElementById("f-avgvol"),
     float: document.getElementById("f-float"),
+    country: document.getElementById("f-country"),
+    subtype: document.getElementById("f-subtype"),
+    venue: document.getElementById("f-venue"),
     tag: document.getElementById("f-tag"),
     mySetup: document.getElementById("f-mysetup"),
     myMistake: document.getElementById("f-mymistake"),
@@ -255,14 +261,23 @@
       </span>`;
   }
 
+  const countryLabel = (c) => { try { return new Intl.DisplayNames(undefined, { type: "region" }).of(String(c).toUpperCase()) || c; } catch (e) { return c; } };
+  const subtypeLabel = (c) => (c === "COMMON" ? "Common stock" : String(c));
+  const commSplitOf = (r) => (r.commission_in != null && r.commission_out != null ? `in $${Number(r.commission_in).toFixed(2)} \u00b7 out $${Number(r.commission_out).toFixed(2)}` : "");
   const ALL_COLUMNS = [
     { id: "trade_date", label: "Date", sortable: true, width: 100, csv: (r) => r.trade_date, render: (r) => escapeHtml(r.trade_date) },
     { id: "symbol", label: "Symbol", sortable: true, width: 90, csv: (r) => r.symbol, render: (r) => escapeHtml(r.symbol) },
     { id: "setup_type", label: "Setup", sortable: true, width: 130, csv: (r) => r.setup_type || "", render: (r) => `${r.setup_type ? window.setupTagDot(r.setup_type) : ""}${escapeHtml((r.setup_type || "—").replace(/_/g, " "))}` },
     { id: "entry_price", label: "Entry", sortable: true, width: 80, csv: (r) => Number(r.entry_price).toFixed(2), render: (r) => `$${Number(r.entry_price).toFixed(2)}` },
     { id: "exit_price", label: "Exit", sortable: true, width: 80, csv: (r) => Number(r.exit_price).toFixed(2), render: (r) => `$${Number(r.exit_price).toFixed(2)}${r.fill_count > 1 ? `<span class="pill" title="Averaged across ${r.fill_count} fills -- open the trade for the breakdown" style="margin-left:5px; padding:1px 5px; font-size:10px; opacity:.75;">×${r.fill_count}</span>` : ""}` },
+    { id: "shares", label: "Shares", sortable: true, width: 80, csv: (r) => (r.shares != null ? r.shares : ""), render: (r) => (r.shares != null ? Number(r.shares).toLocaleString() : '<span class="nodata">\u2014</span>') },
+    { id: "commission", label: "Comm.", sortable: true, width: 90, csv: (r) => Number(r.commission || 0).toFixed(2),
+      render: (r) => `<span title="${escapeHtml(commSplitOf(r) || "Commission total")}">$${Number(r.commission || 0).toFixed(2)}</span>` },
     { id: "pnl_after_comm", label: "Net P&L", sortable: true, width: 100, csv: (r) => (r.pnl_after_comm || 0).toFixed(2), render: (r) => `<span class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</span>` },
     { id: "win", label: "Result", sortable: true, width: 80, csv: (r) => (r.win ? "WIN" : "LOSS"), render: (r) => `<span class="pill ${r.win ? "win" : "loss"}">${r.win ? "WIN" : "LOSS"}</span>` },
+    { id: "issuer_country", label: "Country", sortable: true, width: 110, csv: (r) => (r.issuer_country ? countryLabel(r.issuer_country) : ""), render: (r) => (r.issuer_country ? escapeHtml(countryLabel(r.issuer_country)) : '<span class="nodata">\u2014</span>') },
+    { id: "exchange", label: "Exchange", sortable: false, width: 120, csv: (r) => (r.venues && typeof r.venues === "object" ? Object.keys(r.venues).join("; ") : ""), render: (r) => (r.venues && typeof r.venues === "object" && Object.keys(r.venues).length ? escapeHtml(Object.keys(r.venues).sort((a, b) => (r.venues[b].sh || 0) - (r.venues[a].sh || 0)).slice(0, 2).join(", ")) + (Object.keys(r.venues).length > 2 ? ` <span class="pill" title="${escapeHtml(Object.keys(r.venues).join(", "))}" style="padding:1px 5px; font-size:10px;">+${Object.keys(r.venues).length - 2}</span>` : "") : '<span class="nodata">\u2014</span>') },
+    { id: "sub_category", label: "Type", sortable: true, width: 100, csv: (r) => (r.sub_category ? subtypeLabel(r.sub_category) : ""), render: (r) => (r.sub_category ? escapeHtml(subtypeLabel(r.sub_category)) : '<span class="nodata">\u2014</span>') },
     { id: "grade", label: "Grade", sortable: true, width: 100, csv: (r) => (window.TradeGrade ? (window.TradeGrade.get(r) || "") : ""), render: (r) => (window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(r), { size: 12 }) : "—") },
     { id: "tags", label: "Tags", sortable: false, width: 240,
       csv: (r) => { const je = window.TradeNotes ? window.TradeNotes.get(r.id) : null; return (r.lesson_tags || []).concat((je && je.mistakes) || []).join("; "); },
@@ -275,6 +290,9 @@
   const jEntry = (r) => (window.TradeNotes ? window.TradeNotes.get(r.id) : null) || null;
   const jMetrics = (r) => (window.TradeNotes ? window.TradeNotes.metrics(r, jEntry(r)) : {});
   const JOURNAL_EXPORT_COLUMNS = [
+    { id: "x_comm_in", label: "Commission in", csv: (r) => (r.commission_in != null ? Number(r.commission_in).toFixed(2) : "") },
+    { id: "x_comm_out", label: "Commission out", csv: (r) => (r.commission_out != null ? Number(r.commission_out).toFixed(2) : "") },
+    { id: "x_fees", label: "Fees", csv: (r) => (r.fees != null ? Number(r.fees).toFixed(2) : "") },
     { id: "j_plan_stop", label: "Planned stop", csv: (r) => { const e = jEntry(r); return e ? (e.plan_stop != null ? e.plan_stop : (e.no_stop ? "none" : "")) : ""; } },
     { id: "j_plan_target", label: "Planned target", csv: (r) => { const e = jEntry(r); return e ? (e.plan_target != null ? e.plan_target : (e.no_target ? "none" : "")) : ""; } },
     { id: "j_planned_rr", label: "Planned R:R", csv: (r) => { const m = jMetrics(r); return m.planned_rr != null ? m.planned_rr.toFixed(2) : ""; } },
@@ -321,7 +339,7 @@
     return {
       symbol: els.symbol.value.trim(), from: els.from.value, to: els.to.value,
       setup: els.setup.value, result: els.result.value, rvol: els.rvol.value,
-      avgvol: els.avgvol.value, float: els.float.value, tag: els.tag.value,
+      avgvol: els.avgvol.value, float: els.float.value, tag: els.tag.value, country: els.country.value, subtype: els.subtype.value, venue: els.venue.value,
       mySetup: els.mySetup.value, myMistake: els.myMistake.value, myRules: els.myRules.value,
       grade: els.grade.value, flagged: els.flagged.checked,
       timeFrom: els.timeFrom.value, timeTo: els.timeTo.value,
@@ -337,6 +355,9 @@
     if (state.avgvol) els.avgvol.value = state.avgvol;
     if (state.float) els.float.value = state.float;
     if (state.tag) els.tag.value = state.tag;
+    if (state.country) els.country.value = state.country;
+    if (state.subtype) els.subtype.value = state.subtype;
+    if (state.venue) els.venue.value = state.venue;
     if (state.mySetup) els.mySetup.value = state.mySetup;
     if (state.myMistake) els.myMistake.value = state.myMistake;
     els.myRules.value = state.myRules || "";
@@ -550,9 +571,9 @@
   function boot(rows) {
       allRows = Array.isArray(rows) ? rows : [];
       const prevSel = booted ? {
-        setup: els.setup.value, avgvol: els.avgvol.value, rvol: els.rvol.value, float: els.float.value, tag: els.tag.value,
+        setup: els.setup.value, avgvol: els.avgvol.value, rvol: els.rvol.value, float: els.float.value, tag: els.tag.value, country: els.country.value, subtype: els.subtype.value, venue: els.venue.value,
       } : null;
-      [els.setup, els.avgvol, els.rvol, els.float, els.tag].forEach((sel) => { while (sel.options.length > 1) sel.remove(1); });
+      [els.setup, els.avgvol, els.rvol, els.float, els.tag, els.country, els.subtype, els.venue].forEach((sel) => { while (sel.options.length > 1) sel.remove(1); });
       const setups = Array.from(new Set(allRows.map((r) => r.setup_type).filter(Boolean))).sort();
       for (const s of setups) {
         const opt = document.createElement("option");
@@ -573,6 +594,16 @@
           select.appendChild(opt);
         }
       }
+      // Broker facts (IBKR issuer country, ADR / common): only offered when some trade carries them.
+      Array.from(new Set(allRows.map((r) => r.issuer_country).filter(Boolean))).sort((a, b) => countryLabel(a).localeCompare(countryLabel(b))).forEach((c) => {
+        const opt = document.createElement("option"); opt.value = c; opt.textContent = countryLabel(c); els.country.appendChild(opt);
+      });
+      Array.from(new Set(allRows.map((r) => r.sub_category).filter(Boolean))).sort().forEach((c) => {
+        const opt = document.createElement("option"); opt.value = c; opt.textContent = subtypeLabel(c); els.subtype.appendChild(opt);
+      });
+      Array.from(new Set(allRows.flatMap((r) => (r.venues && typeof r.venues === "object" ? Object.keys(r.venues) : [])))).sort().forEach((v) => {
+        const opt = document.createElement("option"); opt.value = v; opt.textContent = v; els.venue.appendChild(opt);
+      });
       // Lesson tags -- the trader's own review tags (see lesson_tags on
       // each row), same field stats.html/patterns.html/playbooks.html
       // build their tag breakdowns from. Populates the Tags filter and
@@ -626,7 +657,7 @@
 
       } else {
         // Refresh pass: keep whatever the user has selected, and keep how far down they loaded.
-        const pairs = [[els.setup, prevSel.setup], [els.avgvol, prevSel.avgvol], [els.rvol, prevSel.rvol], [els.float, prevSel.float], [els.tag, prevSel.tag]];
+        const pairs = [[els.setup, prevSel.setup], [els.avgvol, prevSel.avgvol], [els.rvol, prevSel.rvol], [els.float, prevSel.float], [els.tag, prevSel.tag], [els.country, prevSel.country], [els.subtype, prevSel.subtype], [els.venue, prevSel.venue]];
         pairs.forEach(([sel, v]) => { if (v && Array.from(sel.options).some((o) => o.value === v)) sel.value = v; });
         bootShown = tableShown || null;
       }
@@ -706,6 +737,9 @@
     const avgvol = els.avgvol.value;
     const floatTag = els.float.value;
     const tag = els.tag.value;
+    const countryF = els.country.value;
+    const subtypeF = els.subtype.value;
+    const venueF = els.venue.value;
     const gradeFilter = els.grade.value;
     const mySetup = els.mySetup.value;
     const myMistake = els.myMistake.value;
@@ -725,6 +759,9 @@
       if (avgvol && r.avg_volume_tag !== avgvol) return false;
       if (floatTag && r.float_tag !== floatTag) return false;
       if (tag && !(r.lesson_tags || []).includes(tag)) return false;
+      if (countryF && r.issuer_country !== countryF) return false;
+      if (subtypeF && r.sub_category !== subtypeF) return false;
+      if (venueF && !(r.venues && typeof r.venues === "object" && venueF in r.venues)) return false;
       if (gradeFilter) {
         const g = window.TradeGrade ? window.TradeGrade.get(r) : null;
         if (gradeFilter === "none") { if (g) return false; }

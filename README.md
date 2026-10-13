@@ -206,6 +206,12 @@ Per-fill detail lives in `trade_details.fills` (jsonb): `commission_entry / comm
   value, comm in/out, entries and exits on demand; hold time: in/out/hold; ...). "Commission per Share" is
   per *executed* share (in + out), so it matches the By-exchange table. New tables: By exchange,
   ADR vs common, and By country now fills from the broker's issuer country.
+- **Journal**: Shares, Comm. (hover for in / out), Country and Type columns; Country and Stock-type filters;
+  commission in/out, fees and exchanges in the CSV export. **Day View** shows `in / out` under each trade's
+  commission. **Edge Analysis** has win-rate breakdowns by issuer country and ADR vs common.
+  Journal also has an Exchange column + filter. **Search** matches country, stock type and exchange (e.g.
+  "china", "adr", "arca"). **Stats** has Win Rate by Country / by Stock Type, and each **Account** card shows
+  the commission paid.
 - **Fees are separate**: they are not part of commission or net P&L. Statements without a taxes
   section (e.g. a weekly export) just leave Fees empty.
 - **Older trades** only get these fields when their statement/CSV is re-imported (tick overwrite on the

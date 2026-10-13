@@ -190,7 +190,8 @@
       symbol: (row.symbol_info && row.symbol_info.description) || "",
     };
   }
-  const FIELD_LABELS = { verdict: "Verdict", lessons: "Lessons", walkaway: "Walk-away rule", better: "Better entry/exit", symbol: "Symbol info" };
+  const factCountry = (c) => { try { return new Intl.DisplayNames(undefined, { type: "region" }).of(String(c).toUpperCase()) || c; } catch (e) { return c; } };
+  const FIELD_LABELS = { country: "Country", subtype: "Stock type", venue: "Exchange", verdict: "Verdict", lessons: "Lessons", walkaway: "Walk-away rule", better: "Better entry/exit", symbol: "Symbol info" };
   const FIELD_ORDER = ["verdict", "lessons", "walkaway", "better", "symbol"];
 
   function loadNotes() {
@@ -213,6 +214,15 @@
     const ql = q.toLowerCase();
     if ((t.symbol || "").toLowerCase().includes(ql)) {
       return { field: null, snippet: "" };
+    }
+    // Broker facts: "china", "adr", "arca" ... (2+ characters so a stray letter doesn't match half the list)
+    if (ql.length >= 2) {
+      const cn = t.issuer_country ? factCountry(t.issuer_country) : "";
+      if (cn && (cn.toLowerCase().includes(ql) || String(t.issuer_country).toLowerCase() === ql)) return { field: "country", snippet: cn };
+      const st = t.sub_category ? (t.sub_category === "COMMON" ? "Common stock" : String(t.sub_category)) : "";
+      if (st && st.toLowerCase().includes(ql)) return { field: "subtype", snippet: st };
+      const ven = t.venues && typeof t.venues === "object" ? Object.keys(t.venues).find((v) => v.toLowerCase().includes(ql)) : null;
+      if (ven) return { field: "venue", snippet: ven };
     }
     if (!searchNotes || !notes) return null;
     for (const field of FIELD_ORDER) {

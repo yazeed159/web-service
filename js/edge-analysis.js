@@ -405,6 +405,8 @@
         <div style="margin-bottom:16px;"><div class="group-label" style="font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em; margin:0 0 6px;">Relative Volume Tag</div><div id="rvol-breakdown"></div></div>
         <div style="margin-bottom:16px;"><div class="group-label" style="font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em; margin:0 0 6px;">Float Tag</div><div id="float-breakdown"></div></div>
         <div style="margin-bottom:16px;"><div class="group-label" style="font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em; margin:0 0 6px;">Float × Relative Volume</div><div id="combo-breakdown"></div></div>
+        <div style="margin-bottom:16px;"><div class="group-label" style="font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em; margin:0 0 6px;">Issuer Country (from your broker)</div><div id="country-breakdown"></div></div>
+        <div style="margin-bottom:16px;"><div class="group-label" style="font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em; margin:0 0 6px;">ADR vs Common Stock</div><div id="subtype-breakdown"></div></div>
         <div>
           <div class="group-label" style="font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em; margin:0 0 6px;">Relative Volume Quintiles (continuous)</div>
           <div id="rvol-quintiles"></div>
@@ -626,6 +628,9 @@
     renderTagBreakdown("rvol-breakdown", groupBy(sorted.filter((r) => r.rvol_tag), (r) => r.rvol_tag), baseline);
     renderTagBreakdown("float-breakdown", groupBy(sorted.filter((r) => r.float_tag), (r) => r.float_tag), baseline);
     renderTagBreakdown("combo-breakdown", groupBy(sorted.filter((r) => r.rvol_tag && r.float_tag), (r) => `${r.float_tag} float · ${r.rvol_tag} rvol`), baseline);
+    const countryName = (c) => { try { return new Intl.DisplayNames(undefined, { type: "region" }).of(String(c).toUpperCase()) || c; } catch (e) { return c; } };
+    renderTagBreakdown("country-breakdown", groupBy(sorted.filter((r) => r.issuer_country), (r) => countryName(r.issuer_country)), baseline);
+    renderTagBreakdown("subtype-breakdown", groupBy(sorted.filter((r) => r.sub_category), (r) => (r.sub_category === "COMMON" ? "Common stock" : r.sub_category)), baseline);
     renderRvolQuintiles(sorted.filter((r) => typeof r.relative_volume === "number" && isFinite(r.relative_volume)));
   }
 
