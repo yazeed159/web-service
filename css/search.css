@@ -29,6 +29,7 @@
 
 .sr-row .sr-sym { font-family: var(--mono); font-weight: 700; min-width: 62px; flex: none; }
 .sr-row .sr-date { color: var(--text-faint); font-size: 12.5px; min-width: 84px; flex: none; }
+.sr-row .sr-match { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
 .sr-row .sr-field-tag { flex: none; }
 .sr-row .sr-snip {
   color: var(--text-dim); flex: 1 1 auto; min-width: 0; overflow: hidden;
@@ -42,6 +43,8 @@
   .sr-sort-group { margin-left: 0; }
   .sr-row { flex-wrap: wrap; gap: 6px 12px; }
   .sr-row .sr-date { order: 1; }
-  .sr-row .sr-snip { order: 3; flex-basis: 100%; white-space: normal; }
+  /* Line 1: symbol, date, WIN/LOSS, P&L. Line 2: match tag and match text side by side. */
   .sr-row .sr-pnl { order: 2; }
+  .sr-row .sr-match { order: 3; flex-basis: 100%; align-items: baseline; }
+  .sr-row .sr-snip { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 }

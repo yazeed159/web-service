@@ -1515,3 +1515,16 @@ table.data-table thead th, .trade-table thead th, .report-table thead th { font-
   .hero-cta i { font-style: normal; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; line-height: 1; background: rgba(15,16,24,.82); border: 1px solid rgba(255,255,255,.18); }
   .hero-cta:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 12px 28px color-mix(in srgb, var(--primary) 50%, transparent); }
 }
+
+/* ======================================================================
+   Pop-ups, menus and dialogs are solid, never see-through.
+   Everything that floats over the page (dialogs, bottom sheets, dropdowns,
+   the search panel, the chat panel, toasts) sits on the opaque panel colour.
+   The frosted look stays on the cards that sit in the page itself.
+   To go back to glass, delete this block.
+   ====================================================================== */
+.ui-modal-box, .rpt-chart-modal-box, .shortcuts-box, .qa-sheet, .tabedit-sheet, .ds-menu,
+.header-search-panel, .account-panel, .chatw-panel, .toast, .scope-panel {
+  background: var(--panel) !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}

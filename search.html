@@ -179,6 +179,8 @@
 
   // ---- data --------------------------------------------------------
   let trades = null;
+  let shown = 5;     // rows on screen; opens on 5 like every Reports list (see moreButtonsHtml in utils.js)
+  let current = [];  // the sorted matches behind the list
   let notesById = null; // Map<trade_id, {verdict,lessons,walkaway,better,symbol}> | null, lazy
 
   function extractFields(row) {
@@ -241,6 +243,33 @@
     return sorted;
   }
 
+  function rowHtml({ trade: t, field, snippet }) {
+    const matchHtml = field
+      ? `<span class="sr-match"><span class="pill sr-field-tag">${escapeHtml(FIELD_LABELS[field])}</span><span class="sr-snip">${highlight(snippet || "", query)}</span></span>`
+      : `<span class="sr-match"><span class="sr-snip dim">${escapeHtml(t.side || "")}</span></span>`;
+    return `
+          <a class="sr-row" href="trade.html?id=${encodeURIComponent(t.id)}">
+            <span class="sr-sym">${highlight(t.symbol || "", query)}</span>
+            <span class="sr-date">${escapeHtml(t.trade_date || "")}</span>
+            <span class="pill ${t.win ? "win" : "loss"}">${t.win ? "WIN" : "LOSS"}</span>
+            ${matchHtml}
+            <span class="sr-pnl ${(t.pnl_after_comm || 0) >= 0 ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span>
+          </a>`;
+  }
+
+  // Same "show more" rule as Reports: open on 5, then Show 5 more / Load 20 more / Load all.
+  function draw() {
+    const left = current.length - shown;
+    listEl.innerHTML = current.slice(0, shown).map(rowHtml).join("") +
+      (left > 0 ? `<div class="pg-ctl sr-more">${window.moreButtonsHtml("", left, current.length)}</div>` : "");
+  }
+  listEl.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-step]");
+    if (!b) return;
+    shown += window.moreStep(b, current.length - shown);
+    draw();
+  });
+
   function render() {
     pageTitle.textContent = query ? `Search: \u201c${query}\u201d` : "Search";
     if (!query) {
@@ -265,19 +294,9 @@
         return;
       }
       summaryEl.innerHTML = `${sorted.length} trade${sorted.length === 1 ? "" : "s"} match <span class="sr-query">\u201c${escapeHtml(query)}\u201d</span>.`;
-      listEl.innerHTML = sorted.map(({ trade: t, field, snippet }) => {
-        const snippetHtml = field
-          ? `<span class="pill sr-field-tag">${escapeHtml(FIELD_LABELS[field])}</span><span class="sr-snip">${highlight(snippet || "", query)}</span>`
-          : `<span class="sr-snip dim">${escapeHtml(t.side || "")}</span>`;
-        return `
-          <a class="sr-row" href="trade.html?id=${encodeURIComponent(t.id)}">
-            <span class="sr-sym">${highlight(t.symbol || "", query)}</span>
-            <span class="sr-date">${escapeHtml(t.trade_date || "")}</span>
-            <span class="pill ${t.win ? "win" : "loss"}">${t.win ? "WIN" : "LOSS"}</span>
-            ${snippetHtml}
-            <span class="sr-pnl ${(t.pnl_after_comm || 0) >= 0 ? "up" : "down"}">${fmtMoney(t.pnl_after_comm)}</span>
-          </a>`;
-      }).join("");
+      current = sorted;
+      shown = 5;
+      draw();
     }).catch((err) => {
       summaryEl.textContent = "Couldn't search your trades (" + String((err && err.message) || err) + ").";
       listEl.innerHTML = "";

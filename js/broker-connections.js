@@ -151,7 +151,14 @@
     };
     if (c.token) payload.ibkr_flex_token = c.token;
     if (credsChanged) { payload.last_sync_status = null; payload.last_sync_message = null; }
-    return q(function () { return window.sb.from(TABLE).upsert(payload, { onConflict: "account_id" }); }).then(function (res) {
+    // Not .upsert(): its ON CONFLICT ... SET col = EXCLUDED.col reads every column it writes, and the
+    // token column deliberately has no SELECT grant, so Postgres answers "permission denied for table".
+    // Update the row if there is one (RETURNING only the readable account_id), otherwise insert it.
+    var changes = Object.assign({}, payload); delete changes.account_id; delete changes.user_id;
+    return q(function () { return window.sb.from(TABLE).update(changes).eq("account_id", accountId).select("account_id"); }).then(function (res) {
+      if (res.error || (res.data && res.data.length)) return res;
+      return q(function () { return window.sb.from(TABLE).insert(payload); });
+    }).then(function (res) {
       if (res.error) throw new Error(res.error.message);
       var r = Object.assign({}, rows[accountId] || { account_id: accountId });
       r.ibkr_flex_query_id = c.queryId;
