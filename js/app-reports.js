@@ -171,6 +171,9 @@
         cols.push({ label: "Total comm.", cls: "mono num", focus: true, cell: (t) => "$" + (Number(t.commission) || 0).toFixed(2), foot: (ts) => "$" + sumNum(ts, (t) => Number(t.commission)).toFixed(2) });
         return cols;
       }
+      case "fees":
+        return [date, sym, shares,
+          { label: "Fees", cls: "mono num", focus: true, cell: (t) => "$" + (Number(t.fees) || 0).toFixed(2), foot: (ts) => "$" + sumNum(ts, (t) => Number(t.fees)).toFixed(2) }, net];
       case "flip":
         return [date, sym,
           { label: "Gross P&amp;L", cls: "mono num", cell: (t) => fmtMoney(pnl(t) + (Number(t.commission) || 0)) },
@@ -1334,14 +1337,20 @@
   // (same pattern as setup_type/lesson_tags), and just shows an empty
   // state otherwise rather than fetching every detail file to fill the
   // gap, which would defeat the whole point of the index existing.
+  const countryName = (code) => { try { return new Intl.DisplayNames(undefined, { type: "region" }).of(String(code).toUpperCase()) || code; } catch (e) { return code; } };
+  const FIELD_FALLBACKS = { country: "issuer_country", subtype: "sub_category" };
   function groupByField(field) {
     const map = new Map();
     let anyPresent = false;
     App.state.trades.forEach((t) => {
-      if (!t[field]) return;
+      let v = t[field] || t[FIELD_FALLBACKS[field]];
+      if (!v) return;
+      // The broker's own codes: CN -> China, ADR / COMMON -> ADR / Common stock.
+      if (!t[field] && field === "country") v = countryName(v);
+      if (!t[field] && field === "subtype") v = v === "COMMON" ? "Common stock" : String(v);
       anyPresent = true;
-      if (!map.has(t[field])) map.set(t[field], { trades: [], net: 0 });
-      const e = map.get(t[field]);
+      if (!map.has(v)) map.set(v, { trades: [], net: 0 });
+      const e = map.get(v);
       e.trades.push(t);
       e.net += t.pnl_after_comm;
     });
@@ -1370,6 +1379,29 @@
   function renderSectorCountryBreakdown() {
     renderBreakdownTable("report-sector", groupByField("sector"), "Sector");
     renderBreakdownTable("report-country", groupByField("country"), "Country");
+    renderBreakdownTable("report-subtype", groupByField("subtype"), "Stock type");
+    renderVenueBreakdown();
+  }
+  // What each exchange cost you: shares executed there and the commission charged on them.
+  function renderVenueBreakdown() {
+    const el = document.getElementById("report-venue");
+    if (!el) return;
+    const map = new Map();
+    App.state.trades.forEach((t) => {
+      if (!t.venues || typeof t.venues !== "object") return;
+      Object.entries(t.venues).forEach(([ven, v]) => {
+        const e = map.get(ven) || { trades: 0, sh: 0, comm: 0 };
+        e.trades += 1; e.sh += Number(v.sh) || 0; e.comm += Number(v.comm) || 0;
+        map.set(ven, e);
+      });
+    });
+    if (!map.size) { el.innerHTML = '<div class="empty-state small">No exchange data on these trades yet.</div>'; return; }
+    const rows = [...map.entries()].sort((a, b) => b[1].sh - a[1].sh).map(([ven, e]) => `<tr class="report-row">
+      <td style="font-weight:600;">${escapeHtml(ven)}</td><td class="mono dim">${e.trades}</td>
+      <td class="mono">${Math.round(e.sh).toLocaleString()}</td><td class="mono">$${e.comm.toFixed(2)}</td>
+      <td class="mono">${e.sh ? "$" + (e.comm / e.sh).toFixed(4) : "\u2014"}</td></tr>`).join("");
+    el.innerHTML = `<div class="table-scroll"><table class="report-table no-stack"><thead><tr><th>Exchange</th><th class="num">Trades</th><th class="num">Shares</th><th class="num">Commission</th><th class="num">Per share</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    window.paginateReportList(el, "tbody > tr");
   }
   function dailyAgg() {
     const map = new Map();
@@ -1897,6 +1929,11 @@
     const wr = d.n ? (d.wins.length / d.n) * 100 : 0;
     const withShares = all.filter((t) => t.shares);
     const paid = all.filter((t) => Number(t.commission) > 0);
+    const feeTrades = all.filter((t) => Number(t.fees) > 0);
+    const hasFeeCol = all.some((t) => t.fees != null);
+    const totalFees = all.reduce((n, t) => n + (Number(t.fees) || 0), 0);
+    const paidShares = paid.reduce((n, t) => n + 2 * (Number(t.shares) || 0), 0); // each share is executed twice: in and out
+    const grossAll = all.reduce((n, t) => n + (Number(t.pnl_before_comm) || 0), 0);
     const streakNote = (what) => `Listed oldest first \u2014 ${what}`;
     const rows = [
       ["Total Gain/Loss", moneyCell(d.netPnl), all, "Every trade in this view", { calc: [["Winners", dm(winSum)], ["Losers", dm(lossSum)], ["Net (after commissions)", dm(d.netPnl)]] }],
@@ -1924,7 +1961,9 @@
       ["K-Ratio", d.kr != null ? `<span class="v mono" title="Trade-level, un-annualized.">${d.kr.toFixed(2)}</span>` : naCell("Not enough trades yet."), all, "How steadily your equity curve climbs", { collapse: true, calc: [["Trades", String(d.n)], ["K-Ratio", Number.isFinite(d.kr) ? d.kr.toFixed(2) : ""]], note: "The slope of your equity curve divided by how noisy it is. Higher means a smoother climb." }],
       ["Profit Factor", `<span class="v mono">${d.profitFactor === Infinity ? "∞" : d.profitFactor.toFixed(2)}</span>`, all, "Gross wins ÷ gross losses", { collapse: true, calc: [["Gross wins", dm(winSum)], ["Gross losses", dm(lossSum)], ["Profit factor", d.profitFactor === Infinity ? "∞" : d.profitFactor.toFixed(2)]], note: "Above 1.00 means winners outweigh losers in dollars." }],
       ["Total Commissions", `<span class="v mono">$${d.totalComm.toFixed(2)}</span>`, paid, "Trades that paid commission", { focus: "comm", calc: [["Total paid", "$" + d.totalComm.toFixed(2)], ["Trades that paid", String(paid.length)], ["Average per trade", paid.length ? "$" + (d.totalComm / paid.length).toFixed(2) : ""]] }],
-      ["Total Fees", naCell("Only commission is tracked in the current schema — no separate fees field.")],
+      ["Commission per Share", paidShares > 0 ? `<span class="v mono">$${(d.totalComm / paidShares).toFixed(4)}</span>` : naCell("No shares on trades that paid commission."), paid, "What each executed share cost in commission", { focus: "comm", calc: [["Total paid", "$" + d.totalComm.toFixed(2)], ["Shares executed (in + out)", paidShares.toLocaleString()], ["Per share", paidShares > 0 ? "$" + (d.totalComm / paidShares).toFixed(4) : ""]], note: "Total commission divided by shares executed (every share is bought and sold, so counted twice) \u2014 the same per-share rate your broker charges." }],
+      ["Commission % of Gross P&amp;L", grossAll > 0 ? `<span class="v mono">${(d.totalComm / grossAll * 100).toFixed(1)}%</span>` : naCell("Gross P&L isn't positive, so a percentage isn't meaningful."), paid, "How much of what you made went to commission", { focus: "flip", calc: [["Gross P&L", dm(grossAll)], ["Commission", "$" + d.totalComm.toFixed(2)], ["Net P&L", dm(grossAll - d.totalComm)], ["Share of gross", grossAll > 0 ? (d.totalComm / grossAll * 100).toFixed(1) + "%" : ""]], note: "Commission divided by gross P&L (before commission)." }],
+      ["Total Fees", feeTrades.length || hasFeeCol ? `<span class="v mono">$${totalFees.toFixed(2)}</span>` : naCell("No fee data saved yet \u2014 it comes from the statement's taxes / fees section on the next sync or re-import."), feeTrades, "SEC / FINRA and similar fees on your orders", { focus: "fees", calc: [["Total fees", "$" + totalFees.toFixed(2)], ["Trades that paid fees", String(feeTrades.length)], ["Commission + fees", "$" + (d.totalComm + totalFees).toFixed(2)]], note: "Kept separate: fees are not part of the commission or net P&L figures." }],
       ["Average Position MAE", naCell("Needs intrabar adverse-excursion tracking not in the current schema.")],
       ["Average Position MFE", naCell("Needs intrabar favorable-excursion tracking not in the current schema.")],
     ];

@@ -434,6 +434,7 @@
         <div class="cell">
           <div class="label">Commission</div>
           <div class="value">-$${trade.commission.toFixed(2)}</div>
+          ${Number(trade.fees) > 0 ? `<div class="label" style="margin-top:2px; font-size:11px; text-transform:none;">+ fees $${Number(trade.fees).toFixed(2)} (not in net)</div>` : ""}
           ${(() => { const c = commissionSplit(trade); return c ? `<div class="label" style="margin-top:2px; font-size:11px; text-transform:none;">in $${c.inn.toFixed(2)} \u00b7 out $${c.out.toFixed(2)}</div>` : ""; })()}
         </div>
         <div class="cell">
@@ -837,18 +838,21 @@
     const agg = new Map();
     // comm = what the broker really charged on this execution (saved per fill by the sync;
     // trades synced before that have none -> hasComm false and nothing is shown).
-    const add = (kind, time, price, qty, comm) => {
+    const add = (kind, time, price, qty, comm, order, exch) => {
       if (!time || price == null) return;
-      const k = `${kind}|${time}|${Number(price).toFixed(4)}`;
-      const cur = agg.get(k) || { kind, time: String(time), price: Number(price), qty: 0, comm: 0, hasComm: true };
+      const k = `${kind}|${time}|${Number(price).toFixed(4)}|${exch || ""}`;
+      const cur = agg.get(k) || { kind, time: String(time), price: Number(price), qty: 0, comm: 0, hasComm: true, order: order || null, exch: exch || null };
       cur.qty += Number(qty) || 0;
       if (comm != null && Number.isFinite(Number(comm))) cur.comm += Number(comm); else cur.hasComm = false;
       agg.set(k, cur);
     };
     fills.forEach((f) => {
-      add("entry", f.entry_time, f.entry_price, f.qty, f.commission_entry);
-      add("exit", f.exit_time, f.exit_price, f.qty, f.commission_exit);
+      add("entry", f.entry_time, f.entry_price, f.qty, f.commission_entry, f.entry_order, f.entry_exchange);
+      add("exit", f.exit_time, f.exit_price, f.qty, f.commission_exit, f.exit_order, f.exit_exchange);
     });
+    // When the sync saved the broker's order id for every fill, group by the REAL order. Otherwise
+    // (older trades) fall back to guessing: same side within a few seconds = one order.
+    const byOrder = fills.every((f) => f.entry_order && f.exit_order);
     const list = [...agg.values()].sort((a, b) =>
       a.time < b.time ? -1 : a.time > b.time ? 1 : (a.kind === b.kind ? 0 : a.kind === "entry" ? -1 : 1));
     // Partial fills of ONE order (same side, a few seconds apart, usually at
@@ -858,7 +862,21 @@
     const secs = (t) => { const m = String(t).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/); return m ? (+m[1]) * 3600 + (+m[2]) * 60 + (+(m[3] || 0)) : NaN; };
     const ORDER_GAP_S = 5;
     const merged = [];
-    list.forEach((e) => {
+    if (byOrder) {
+      const groups = new Map();
+      list.forEach((e) => {
+        const k = `${e.kind}|${e.order}`;
+        if (!groups.has(k)) groups.set(k, { kind: e.kind, time: e.time, order: e.order, qty: 0, _cost: 0, comm: 0, hasComm: true, fillCount: 0, parts: [], minPrice: e.price, maxPrice: e.price, exchs: new Set() });
+        const g = groups.get(k);
+        g.qty += e.qty; g._cost += e.price * e.qty; g.comm += e.comm; g.hasComm = g.hasComm && e.hasComm;
+        g.fillCount += 1; g.parts.push({ time: e.time, price: e.price, qty: e.qty, exch: e.exch });
+        g.minPrice = Math.min(g.minPrice, e.price); g.maxPrice = Math.max(g.maxPrice, e.price);
+        if (e.exch) g.exchs.add(e.exch);
+      });
+      groups.forEach((g) => { g.price = g.qty ? g._cost / g.qty : 0; merged.push(g); });
+      merged.sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : a.kind === b.kind ? 0 : a.kind === "entry" ? -1 : 1));
+    }
+    if (!byOrder) list.forEach((e) => {
       const prev = merged[merged.length - 1];
       if (prev && prev.kind === e.kind && secs(e.time) - prev._lastSecs <= ORDER_GAP_S) {
         prev._cost += e.price * e.qty;
@@ -867,12 +885,12 @@
         prev.hasComm = prev.hasComm && e.hasComm;
         prev.price = prev.qty ? prev._cost / prev.qty : prev.price;
         prev.fillCount += 1;
-        prev.parts.push({ time: e.time, price: e.price, qty: e.qty });
+        prev.parts.push({ time: e.time, price: e.price, qty: e.qty, exch: e.exch });
         prev.minPrice = Math.min(prev.minPrice, e.price);
         prev.maxPrice = Math.max(prev.maxPrice, e.price);
         prev._lastSecs = secs(e.time);
       } else {
-        merged.push(Object.assign({}, e, { _cost: e.price * e.qty, fillCount: 1, parts: [{ time: e.time, price: e.price, qty: e.qty }], minPrice: e.price, maxPrice: e.price, _lastSecs: secs(e.time) }));
+        merged.push(Object.assign({}, e, { _cost: e.price * e.qty, fillCount: 1, parts: [{ time: e.time, price: e.price, qty: e.qty, exch: e.exch }], minPrice: e.price, maxPrice: e.price, _lastSecs: secs(e.time) }));
       }
     });
     list.length = 0;
@@ -920,8 +938,8 @@
       // same price (and second) -> one line; different price -> its own line
       const byLevel = new Map();
       e.parts.forEach((pt) => {
-        const k = `${pt.time}|${Number(pt.price).toFixed(4)}`;
-        const cur = byLevel.get(k) || { time: pt.time, price: pt.price, qty: 0 };
+        const k = `${pt.time}|${Number(pt.price).toFixed(4)}|${pt.exch || ""}`;
+        const cur = byLevel.get(k) || { time: pt.time, price: pt.price, qty: 0, exch: pt.exch };
         cur.qty += pt.qty;
         byLevel.set(k, cur);
       });
@@ -930,13 +948,13 @@
           <div style="display:grid; grid-template-columns: 1fr auto auto; gap:12px; font-size:12.5px; padding:2px 0;" class="mono">
             <span><b style="color:${color};">${fmtQty(l.qty)}</b> <span style="opacity:.6;">sh</span></span>
             <span>@ <b>${px(l.price)}</b></span>
-            <span style="opacity:.6;">${escapeHtml(l.time)}</span>
+            <span style="opacity:.6;">${l.exch ? escapeHtml(l.exch) + " \u00b7 " : ""}${escapeHtml(l.time)}</span>
           </div>`).join("");
       return `
       <div class="fill-row" style="padding:10px 0; ${i < ex.length - 1 ? "border-bottom:1px solid var(--border-soft);" : ""}">
         <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:12.5px; margin-bottom:6px;">
           <span><span style="opacity:.45; margin-right:6px;">${i + 1}</span><b style="color:${color};">${e.role.toUpperCase()}</b> <span style="opacity:.8;">${escapeHtml(e.action)}</span> \u00b7 <b>${fmtQty(e.qty)} sh</b>${levels.length > 1 ? ` @ avg <b>${px(e.price)}</b>` : ""}</span>
-          <span style="font-size:11.5px; opacity:.6; white-space:nowrap;">${e.hasComm ? `commission $${e.comm.toFixed(2)} \u00b7 ` : ""}position after: ${fmtQty(e.posAfter)} sh</span>
+          <span style="font-size:11.5px; opacity:.6; white-space:nowrap;">${e.hasComm ? `commission $${e.comm.toFixed(2)} \u00b7 ` : ""}${e.fillCount > 1 ? `${e.fillCount} fills \u00b7 ` : ""}position after: ${fmtQty(e.posAfter)} sh</span>
         </div>
         <div style="padding-left:16px; border-left:2px solid ${color}55;">${levelRows}</div>
       </div>`;

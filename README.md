@@ -184,6 +184,47 @@ Supabase SQL editor. Until it runs, the site behaves exactly as before.
   field (validated against the caller); `publish.py` recomputes `equity_after` per
   account.
 
+## Real execution data: commission in/out, orders, exchanges, fees, stock facts
+
+Run these once in the Supabase SQL editor, in order (each is safe to re-run). The backend
+detects whether a migration has run and leaves the new columns out until it has, so a sync never
+fails because of a missing one:
+
+| File | Adds |
+|---|---|
+| `sql/003_commission_split.sql` | `trades.commission_in`, `commission_out` -- what the broker charged on the way in vs. out |
+| `sql/004_trade_facts.sql` | `trades.issuer_country`, `sub_category` (IBKR's own CN / US / ..., ADR / COMMON) |
+| `sql/005_fees_and_venues.sql` | `trades.fees` (SEC/FINRA etc. from the statement's taxes section), `trades.venues` (shares + commission per exchange) |
+
+Per-fill detail lives in `trade_details.fills` (jsonb): `commission_entry / commission_exit`,
+`entry_order / exit_order` (the broker order id) and `entry_exchange / exit_exchange`.
+
+- **Trade page**: the Commission box shows `in $x . out $y` (and fees); the Fills card groups
+  executions by the real broker order (falls back to a 5-second guess for older trades) with the
+  exchange and each execution's own commission. The shared single-trade HTML export carries the same.
+- **Reports**: each stat's pop-out shows only the columns that stat is about (commissions: shares, total
+  value, comm in/out, entries and exits on demand; hold time: in/out/hold; ...). "Commission per Share" is
+  per *executed* share (in + out), so it matches the By-exchange table. New tables: By exchange,
+  ADR vs common, and By country now fills from the broker's issuer country.
+- **Fees are separate**: they are not part of commission or net P&L. Statements without a taxes
+  section (e.g. a weekly export) just leave Fees empty.
+- **Older trades** only get these fields when their statement/CSV is re-imported (tick overwrite on the
+  Import page). The Import page tells you what each file carried.
+
+### Lists: one paging rule
+
+Every Reports list opens on 5 rows. Up to 15 in total you get "Show 5 more" + "Show all"; past 15 it is
+"Load 20 more" + "Load all". Implemented once in `js/utils.js` (`moreButtonsHtml`, `moreStep`,
+`paginateReportList`) and used by the drill-downs, the trade lists, the breakdown tables and the
+long tables; `tests/more-buttons.test.js` covers the rule.
+
+### Phone and desktop show the same content
+
+Layout differs, content doesn't: Plan/Review today footer, Reports headline numbers, Journal resume chip,
+Recent pages, the sort dropdown and the Filters bar (with active count) are on both. The phone Day View
+adds week-grouped day cards because a month grid has no room for the numbers; desktop has them in the
+cells and the day panel.
+
 ## Per-account IBKR Flex keys
 
 Every account (real **and** broker-paper) has its own IBKR Flex Web Service token + Flex Query ID,

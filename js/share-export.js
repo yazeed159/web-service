@@ -206,6 +206,46 @@ ${scriptExtra || ""}
       </div>`;
   }
 
+  // Real commission split / fees + the executions, same facts as the trade page (see trade.js).
+  function commissionSubline(trade) {
+    const ok = (v) => v != null && Number.isFinite(Number(v));
+    const fills = Array.isArray(trade.fills) ? trade.fills : [];
+    let inn = null, out = null;
+    if (ok(trade.commission_in) && ok(trade.commission_out)) { inn = Number(trade.commission_in); out = Number(trade.commission_out); }
+    else if (fills.length && fills.every((f) => ok(f.commission_entry) && ok(f.commission_exit))) {
+      inn = fills.reduce((n, f) => n + Number(f.commission_entry), 0); out = fills.reduce((n, f) => n + Number(f.commission_exit), 0);
+    }
+    const parts = [];
+    if (inn != null) parts.push(`in $${inn.toFixed(2)} \u00b7 out $${out.toFixed(2)}`);
+    if (Number(trade.fees) > 0) parts.push(`+ fees $${Number(trade.fees).toFixed(2)} (not in net)`);
+    return parts.length ? `<div class="label" style="margin-top:2px;font-size:11px;text-transform:none;">${parts.join(" \u00b7 ")}</div>` : "";
+  }
+  function execCardHtml(trade) {
+    const fills = Array.isArray(trade.fills) ? trade.fills : [];
+    if (!fills.length) return "";
+    const byOrder = fills.every((f) => f.entry_order && f.exit_order);
+    const agg = new Map();
+    const add = (kind, time, price, qty, comm, order, exch) => {
+      if (!time || price == null) return;
+      const k = byOrder ? `${kind}|o|${order}` : `${kind}|${time}|${Number(price).toFixed(4)}|${exch || ""}`;
+      const c = agg.get(k) || { kind, time: String(time), cost: 0, qty: 0, comm: 0, hasComm: true, exch: new Set(), parts: new Set() };
+      c.qty += Number(qty) || 0; c.cost += Number(price) * (Number(qty) || 0);
+      if (comm != null && Number.isFinite(Number(comm))) c.comm += Number(comm); else c.hasComm = false;
+      if (exch) c.exch.add(exch);
+      c.parts.add(`${time}|${Number(price).toFixed(4)}|${exch || ""}`);
+      if (String(time) < c.time) c.time = String(time);
+      agg.set(k, c);
+    };
+    fills.forEach((f) => { add("entry", f.entry_time, f.entry_price, f.qty, f.commission_entry, f.entry_order, f.entry_exchange); add("exit", f.exit_time, f.exit_price, f.qty, f.commission_exit, f.exit_order, f.exit_exchange); });
+    const list = [...agg.values()].sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : a.kind === b.kind ? 0 : a.kind === "entry" ? -1 : 1));
+    if (!list.length) return "";
+    const rows = list.map((e) => `<tr><td style="color:${e.kind === "entry" ? "var(--green)" : "var(--red)"};font-weight:700;">${e.kind === "entry" ? "Entry" : "Exit"}</td>
+      <td>${Number(e.qty).toLocaleString(undefined, { maximumFractionDigits: 2 })} sh @ $${(e.qty ? e.cost / e.qty : 0).toFixed(Number(e.cost / e.qty) < 1 ? 4 : 2)}${e.parts.size > 1 ? ` <span style="opacity:.6;">(${e.parts.size} fills)</span>` : ""}</td>
+      <td style="opacity:.7;">${escapeHtml([...e.exch].join(", "))}</td><td style="opacity:.7;">${escapeHtml(e.time)}</td><td style="text-align:right;">${e.hasComm ? "$" + e.comm.toFixed(2) : "\u2014"}</td></tr>`).join("");
+    return `<div class="card"><h2>Executions</h2><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;font-family:var(--mono);">
+      <thead><tr style="opacity:.55;text-align:left;"><th></th><th>Shares @ price</th><th>Venue</th><th>Time</th><th style="text-align:right;">Comm.</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+  }
+
   function buildTradeSharePage(trade) {
     const win = !!trade.win;
     const bars = Array.isArray(trade.bars) ? trade.bars : [];
@@ -227,10 +267,12 @@ ${scriptExtra || ""}
 
       <div class="pnl-grid">
         <div class="cell"><div class="label">Gross P&amp;L</div><div class="value ${trade.pnl_before_comm >= 0 ? "up" : "down"}">${fmtMoney(trade.pnl_before_comm)}</div></div>
-        <div class="cell"><div class="label">Commission</div><div class="value">-$${Number(trade.commission || 0).toFixed(2)}</div></div>
+        <div class="cell"><div class="label">Commission</div><div class="value">-$${Number(trade.commission || 0).toFixed(2)}</div>${commissionSubline(trade)}</div>
         <div class="cell"><div class="label">Net P&amp;L</div><div class="value ${trade.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(trade.pnl_after_comm)}</div></div>
         <div class="cell"><div class="label">Setup</div><div class="value" style="font-size:13px;">${escapeHtml((trade.setup_type || "—").toString().replace(/_/g, " "))}</div></div>
       </div>
+
+      ${execCardHtml(trade)}
 
       ${chartBars.length ? `
       <div class="card">

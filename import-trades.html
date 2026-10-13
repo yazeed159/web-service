@@ -550,6 +550,16 @@
               if (result.body.existing_check_failed) logActivity("Couldn't check which trades already exist — importing all (safe: saves overwrite, never duplicate).");
               if (result.body.skipped_rows) logActivity(result.body.skipped_rows + " row(s) couldn't be read or paired.");
               var trades = result.body.trades || [];
+              // What the statement actually carried, so a thin export is obvious up front.
+              if (trades.length) {
+                var withVenue = trades.filter(function (t) { return t.Venues; }).length;
+                var withSplit = trades.filter(function (t) { return t["Commission In"] != null; }).length;
+                if (withVenue === trades.length && withSplit === trades.length) logActivity("All " + trades.length + " trades have real commission in/out, exchange and order data.");
+                else logActivity((trades.length - Math.min(withVenue, withSplit)) + " of " + trades.length + " trades are missing exchange / per-side commission data (the file has no Exchange column or order ids).");
+              }
+              var fi = result.body.fee_info;
+              if (fi && fi.rows) logActivity("Found " + fi.rows + " fee row(s) totalling $" + Number(fi.total).toFixed(2) + "; $" + Number(fi.attached).toFixed(2) + " matched to these trades.");
+              else if (trades.length) logActivity("No separate fees section in this file, so Fees stays empty (commission is unaffected).");
               renderRows(trades, null, 0, !!(trades.length && result.body.job_id));
               nextNote.classList.remove("hidden"); nextNote.style.display = trades.length ? "block" : "none";
               var skippedNote = result.body.skipped_rows ? (" (" + result.body.skipped_rows + " row(s) skipped)") : "";
