@@ -267,6 +267,8 @@ The site side is done; the sync must read the new table or only the old single t
    so the chip on the Accounts page reflects reality.
 5. Keep the old `broker_accounts` path only as a fallback for users with no `account_flex` rows.
 6. IBKR throttles Flex requests per token, so run accounts one after another with a short pause.
+   The sync also stores `user_kv` key `sync_report` (per account: open positions, trades with no chart yet, skipped fills);
+   `js/broker-connections.js` reads it for the "Sync details" list in the Broker sync box and the amber "N trade(s)/item(s) need attention" pill (stuck trades, skipped fills and open positions all count; trades already saved by a manual import are dropped; `OPEN_NEEDS_ATTENTION` in that file turns the open-position part off).
 
 ## Phone daily-use features
 

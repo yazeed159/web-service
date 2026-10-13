@@ -25,7 +25,12 @@
   var VIEW = "account_flex_status";
   var EXPIRY_WARN_DAYS = 14;
 
+  var REPORT_KEY = "sync_report"; // user_kv, written by the daily sync: per-account details it could not turn into trades
   var rows = {};          // account_id -> row from the status view
+  // Which parts of the sync details turn the pill amber. Open positions are normal while a trade is
+  // held, so flip OPEN_NEEDS_ATTENTION to false if the pill gets too noisy.
+  var OPEN_NEEDS_ATTENTION = true;
+  var reports = {};       // account_id -> {at, open_positions, no_chart, skipped, deferred}
   var available = true;
   var loadError = "";
   var userId = null;
@@ -49,8 +54,38 @@
       available = true; loadError = "";
       rows = {};
       (res.data || []).forEach(function (r) { rows[r.account_id] = r; });
-    }, function (err) { available = false; loadError = (err && err.message) || String(err); });
+    }, function (err) { available = false; loadError = (err && err.message) || String(err); }).then(loadReports);
   }
+
+  // The sync details are a nicety: if they can't be read, the page works exactly as before.
+  function loadReports() {
+    return q(function () { return window.sb.from("user_kv").select("value").eq("key", REPORT_KEY).limit(1); }).then(function (res) {
+      reports = {};
+      if (!res || res.error || !res.data || !res.data.length) return;
+      var v = res.data[0].value;
+      try { if (typeof v === "string") v = JSON.parse(v); } catch (e) { return; }
+      if (v && v.accounts && typeof v.accounts === "object") reports = v.accounts;
+    }, function () { reports = {}; }).then(dropSavedStuck);
+  }
+
+  // A "no chart yet" trade can get saved some other way (manual import) before the next sync runs.
+  // Ask the trades table which of them exist now and drop those, so the list never nags about them.
+  function dropSavedStuck() {
+    var ids = [];
+    Object.keys(reports).forEach(function (a) { listOf(reports[a] && reports[a].no_chart).forEach(function (t) { if (t && t.id) ids.push(t.id); }); });
+    if (!ids.length) return;
+    return q(function () { return window.sb.from("trades").select("id").in("id", ids); }).then(function (res) {
+      if (!res || res.error || !res.data) return;   // can't tell: keep showing them
+      var saved = {};
+      res.data.forEach(function (r) { saved[r.id] = true; });
+      Object.keys(reports).forEach(function (a) {
+        var r = reports[a];
+        if (r && Array.isArray(r.no_chart)) r.no_chart = r.no_chart.filter(function (t) { return !(t && saved[t.id]); });
+      });
+    }, function () {});
+  }
+
+  function listOf(x) { return Array.isArray(x) ? x : []; }
 
   var ready = window.AUTH_READY.then(function (session) {
     if (!session) { available = false; return null; }
@@ -70,12 +105,16 @@
     var hasToken = !!(r && r.has_ibkr_flex_token);
     var queryId = (r && r.ibkr_flex_query_id) || "";
     var days = r ? daysUntil(r.token_expires_on) : null;
+    var rep = reports[accountId] || null;
+    var stuckN = rep ? listOf(rep.no_chart).length : 0;       // trades the sync could not save yet
+    var attention = rep ? stuckN + listOf(rep.skipped).length + (OPEN_NEEDS_ATTENTION ? listOf(rep.open_positions).length : 0) : 0;
     var health = "off";
     if (hasToken && queryId) {
       health = "ok";
       if (r.last_sync_status === "failed") health = "failed";
       if (days !== null && days < 0) health = "expired";
       else if (days !== null && days <= EXPIRY_WARN_DAYS && health === "ok") health = "expiring";
+      if (health === "ok" && attention > 0) health = "attention";
     }
     return {
       connected: hasToken && !!queryId,
@@ -87,6 +126,9 @@
       lastSyncAt: (r && r.last_sync_at) || null,
       lastStatus: (r && r.last_sync_status) || "",
       lastMessage: (r && r.last_sync_message) || "",
+      report: rep,
+      attention: attention,
+      stuck: stuckN,
       health: health,
     };
   }
@@ -100,6 +142,11 @@
     if (st.health === "expired") return "Token expired";
     if (st.health === "expiring") return "Token expires in " + st.daysToExpiry + "d";
     if (st.health === "failed") return "Last sync failed";
+    if (st.health === "attention") {
+      // "trades" only when every flagged item is a stuck trade; otherwise the count mixes in open/skipped items.
+      var word = st.attention === st.stuck ? "trade" : "item";
+      return st.attention + " " + word + (st.attention === 1 ? " needs" : "s need") + " attention";
+    }
     return "Auto-sync on";
   }
 
@@ -187,6 +234,12 @@
     ".bc-editor{display:flex;flex-direction:column;gap:12px}" +
     ".bc-state{font-size:12px;color:var(--text-dim);line-height:1.5}" +
     ".bc-state.bad{color:var(--amber)}" +
+    ".bc-details{border:1px solid var(--border,rgba(128,128,128,.25));border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text-dim)}" +
+    ".bc-details summary{cursor:pointer;font-weight:600;color:var(--text);display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;min-height:44px}" +
+    ".bc-asof{font-weight:400;font-size:11px;color:var(--text-faint)}" +
+    ".bc-sec{margin-top:10px}.bc-h{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint);margin-bottom:4px}" +
+    ".bc-sec ul{margin:0;padding-left:16px;display:flex;flex-direction:column;gap:6px;line-height:1.45}" +
+    ".bc-sub{font-size:11.5px;color:var(--text-faint)}.bc-empty{margin-top:8px;font-size:12px;color:var(--text-faint)}" +
     ".bc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}" +
     ".bc-grid label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:4px}" +
     ".bc-grid input{width:100%;box-sizing:border-box}" +
@@ -222,7 +275,52 @@
     }
     if (st.health === "expired") parts.push("The token you noted has expired \u2014 generate a new one in IBKR and paste it below.");
     else if (st.health === "expiring") parts.push("Token expires in " + st.daysToExpiry + " day" + (st.daysToExpiry === 1 ? "" : "s") + " \u2014 generate a new one before then.");
-    return { bad: st.health !== "ok", text: parts.join(" ") };
+    return { bad: st.health !== "ok" && st.health !== "attention", text: parts.join(" ") };
+  }
+
+  // "2026-10-13T06:00:00Z" -> local date/time; bare "HH:MM:SS" entry times pass through.
+  function retryText(iso) {
+    if (!iso) return "next sync";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return "next sync";
+    return d.getTime() <= Date.now() ? "next sync" : fmtWhen(iso);
+  }
+  function num(n) { var x = Number(n); return isFinite(x) ? String(Math.round(x * 100) / 100) : "?"; }
+  function when(date, time) { return [date, time && String(time).slice(0, 5)].filter(Boolean).join(" "); }
+
+  function detailsHtml(st) {
+    var rep = st.report;
+    if (!st.connected || !rep) return "";
+    var open = listOf(rep.open_positions), stuck = listOf(rep.no_chart), skipped = listOf(rep.skipped);
+    var deferred = Number(rep.deferred) || 0;
+    var h = '<details class="bc-details"' + (st.attention ? " open" : "") + "><summary>Sync details <span class=\"bc-asof\">as of " + esc(fmtWhen(rep.at)) + "</span>" +
+      (st.attention ? ' <span class="pill bc-chip bc-warn">' + st.attention + "</span>" : "") + "</summary>";
+    if (!open.length && !stuck.length && !skipped.length && !deferred) {
+      return h + '<div class="bc-empty">Nothing is open, stuck or skipped.</div></details>';
+    }
+    if (stuck.length) {
+      h += '<div class="bc-sec"><div class="bc-h">No chart yet</div><ul>' + stuck.map(function (t) {
+        return "<li><b>" + esc(t.symbol) + "</b> " + esc(when(t.date)) + " \u2014 " + esc(t.reason || "chart data unavailable") +
+          '<div class="bc-sub">Not saved without its chart. Tried ' + esc(t.attempts || 0) + "\u00d7. Next retry: " + esc(retryText(t.next_retry)) + ".</div></li>";
+      }).join("") + "</ul></div>";
+    }
+    if (deferred) h += '<div class="bc-sec"><div class="bc-h">Waiting</div><ul><li>' + deferred + " more new trade" + (deferred === 1 ? "" : "s") + " will be processed on the next sync.</li></ul></div>";
+    if (open.length) {
+      h += '<div class="bc-sec"><div class="bc-h">Open positions</div><ul>' + open.map(function (p) {
+        return "<li><b>" + esc(p.symbol) + "</b> " + esc(p.side || "") + " " + esc(num(p.qty)) + " sh" + (p.avg_price ? " @ " + esc(num(p.avg_price)) : "") +
+          ", entered " + esc(when(p.date, p.entry_time)) + '<div class="bc-sub">Still open \u2014 will be saved when it closes.</div></li>';
+      }).join("") + "</ul></div>";
+    }
+    if (skipped.length) {
+      h += '<div class="bc-sec"><div class="bc-h">Skipped fills</div><ul>' + skipped.map(function (k) {
+        var bits = [];
+        if (k.fills) bits.push(k.fills + " fill" + (k.fills === 1 ? "" : "s"));
+        if (k.qty) bits.push(num(k.qty) + " sh");
+        if (k.date) bits.push(when(k.date, k.first_time));
+        return "<li><b>" + esc(k.symbol) + "</b>" + (bits.length ? " (" + esc(bits.join(", ")) + ")" : "") + " \u2014 " + esc(k.reason || "ignored") + "</li>";
+      }).join("") + "</ul></div>";
+    }
+    return h + "</details>";
   }
 
   function confirmAsk(msg, opts) {
@@ -245,6 +343,7 @@
     el.innerHTML =
       '<div class="bc-editor">' +
       '<div class="bc-state' + (line.bad ? " bad" : "") + '">' + esc(line.text) + "</div>" +
+      detailsHtml(st) +
       '<div class="bc-grid">' +
       '<div><label for="' + pre + 'token">Flex Web Service token</label><div class="bc-row"><input class="filter-input" id="' + pre + 'token" type="password" autocomplete="new-password" placeholder="' + esc(tokenPh) + '">' +
       '<button type="button" class="btn-icon" data-eye title="Show/hide" aria-label="Show/hide">' + EYE_OPEN + "</button></div></div>" +
