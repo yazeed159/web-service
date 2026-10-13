@@ -239,6 +239,8 @@
     ".bc-asof{font-weight:400;font-size:11px;color:var(--text-faint)}" +
     ".bc-sec{margin-top:10px}.bc-h{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-faint);margin-bottom:4px}" +
     ".bc-sec ul{margin:0;padding-left:16px;display:flex;flex-direction:column;gap:6px;line-height:1.45}" +
+    ".bc-stmt{margin-top:8px;font-size:11.5px;color:var(--text-faint)}" +
+    ".bc-sync{background:transparent;border:1px solid var(--border,rgba(128,128,128,.4));color:var(--text);border-radius:8px;padding:8px 12px;font-size:13px;min-height:40px;cursor:pointer}.bc-sync:disabled{opacity:.6;cursor:default}" +
     ".bc-sub{font-size:11.5px;color:var(--text-faint)}.bc-empty{margin-top:8px;font-size:12px;color:var(--text-faint)}" +
     ".bc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}" +
     ".bc-grid label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:4px}" +
@@ -269,7 +271,7 @@
     if (!st.connected) return { bad: false, text: "Not connected. Without it, this account only gets trades from manual imports." };
     var parts = [];
     if (st.lastSyncAt) {
-      parts.push("Last sync " + fmtWhen(st.lastSyncAt) + (st.lastStatus === "failed" ? " \u2014 failed" + (st.lastMessage ? ": " + st.lastMessage : "") : st.lastStatus === "skipped" ? " \u2014 skipped" + (st.lastMessage ? ": " + st.lastMessage : "") : " \u2014 ok"));
+      parts.push("Last sync " + fmtWhen(st.lastSyncAt) + (st.lastStatus === "failed" ? " \u2014 failed" + (st.lastMessage ? ": " + st.lastMessage : "") : st.lastStatus === "skipped" ? " \u2014 skipped" + (st.lastMessage ? ": " + st.lastMessage : "") : " \u2014 ok" + (st.lastMessage ? ": " + st.lastMessage : "")));
     } else {
       parts.push("Connected. No sync has run for this account yet.");
     }
@@ -288,6 +290,14 @@
   function num(n) { var x = Number(n); return isFinite(x) ? String(Math.round(x * 100) / 100) : "?"; }
   function when(date, time) { return [date, time && String(time).slice(0, 5)].filter(Boolean).join(" "); }
 
+  function ymd(d) { var x = String(d || "").replace(/\D/g, ""); return x.length >= 8 ? x.slice(0, 4) + "-" + x.slice(4, 6) + "-" + x.slice(6, 8) : String(d || ""); }
+  function statementHtml(sti) {
+    if (!sti || sti.fills === undefined) return "";
+    var span = sti.from ? ymd(sti.from) + (sti.to && sti.to !== sti.from ? " \u2192 " + ymd(sti.to) : "") : "period not stated";
+    return '<div class="bc-stmt">IBKR statement: ' + esc(span) + (sti.period ? " (" + esc(sti.period) + ")" : "") + " \u00b7 " + esc(sti.fills) + " fill" + (sti.fills === 1 ? "" : "s") +
+      (sti.latest_fill ? ", latest " + esc(sti.latest_fill) : "") + (sti.closed ? " \u00b7 " + esc(sti.closed) + " closed trade" + (sti.closed === 1 ? "" : "s") : "") + "</div>";
+  }
+
   function detailsHtml(st) {
     var rep = st.report;
     if (!st.connected || !rep) return "";
@@ -296,8 +306,9 @@
     var h = '<details class="bc-details"' + (st.attention ? " open" : "") + "><summary>Sync details <span class=\"bc-asof\">as of " + esc(fmtWhen(rep.at)) + "</span>" +
       (st.attention ? ' <span class="pill bc-chip bc-warn">' + st.attention + "</span>" : "") + "</summary>";
     if (!open.length && !stuck.length && !skipped.length && !deferred) {
-      return h + '<div class="bc-empty">Nothing is open, stuck or skipped.</div></details>';
+      return h + statementHtml(rep.statement) + '<div class="bc-empty">Nothing is open, stuck or skipped.</div></details>';
     }
+    h += statementHtml(rep.statement);
     if (stuck.length) {
       h += '<div class="bc-sec"><div class="bc-h">No chart yet</div><ul>' + stuck.map(function (t) {
         return "<li><b>" + esc(t.symbol) + "</b> " + esc(when(t.date)) + " \u2014 " + esc(t.reason || "chart data unavailable") +
@@ -328,6 +339,40 @@
     return Promise.resolve(window.confirm(msg));
   }
 
+  // Asks the chart service to pull this one account's Flex query now, then waits for the run to
+  // report back (last_sync_at changes). A run charts trades one by one, so allow several minutes.
+  function syncNow(accountId) {
+    var base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
+    if (!base) return Promise.reject(new Error("CHART_SERVICE_URL isn\u2019t set in config.js."));
+    var before = get(accountId).lastSyncAt;
+    return window.AUTH_READY.then(function (session) {
+      if (!session) throw new Error("Please log in first.");
+      return fetch(base + "/sync-now", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + session.access_token, "Content-Type": "application/json" },
+        body: JSON.stringify({ account_id: accountId })
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (b) {
+          if (!res.ok) throw new Error(b.error || ("Sync request failed (" + res.status + ")."));
+        });
+      }, function () { throw new Error("Couldn\u2019t reach the sync service \u2014 it may be waking up; try again in a minute."); });
+    }).then(function () {
+      var deadline = Date.now() + 8 * 60 * 1000;
+      return new Promise(function (resolve) {
+        (function poll() {
+          setTimeout(function () {
+            load().then(function () {
+              var st = get(accountId);
+              if (st.lastSyncAt !== before) resolve(st.lastStatus === "failed" ? "Sync finished, but it failed: " + (st.lastMessage || "see details") : "Sync done. " + (st.lastMessage || ""));
+              else if (Date.now() > deadline) resolve("Still running \u2014 reload this page in a few minutes to see the result.");
+              else poll();
+            });
+          }, 6000);
+        })();
+      });
+    });
+  }
+
   function renderEditor(el, accountId, opts) {
     opts = opts || {};
     addCss();
@@ -354,6 +399,7 @@
       '<p class="bc-note">Use the token and query that belong to <b>' + esc(accountName(accountId)) + "</b>" + (paper ? " \u2014 your IBKR <b>paper</b> login" : "") + " only. Every IBKR login has its own. The account number lets the sync refuse a statement that came from a different IBKR account, so paper fills can\u2019t land in a real account. The expiry date just powers a reminder here. " +
       '<a href="' + HELP_URL + '" target="_blank" rel="noopener">Where do I find these? \u2197</a></p>' +
       '<div class="bc-actions"><button type="button" class="btn-confirm" data-save>Save</button><span class="bc-saved" data-saved>Saved</span>' +
+      (st.connected ? '<button type="button" class="bc-sync" data-sync>Sync now</button>' : "") +
       (st.connected || st.queryId ? '<button type="button" class="bc-off" data-off>Disconnect</button>' : "") + "</div></div>";
 
     function $(sel) { return el.querySelector(sel); }
@@ -395,6 +441,18 @@
           if (note) { note.classList.add("show"); setTimeout(function () { note.classList.remove("show"); }, 1800); }
           if (opts.onChange) opts.onChange(accountId);
         }, function (e) { saveBtn.disabled = false; toast(e.message || String(e), "error"); });
+      });
+    });
+
+    var syncBtn = $("[data-sync]");
+    if (syncBtn) syncBtn.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      syncBtn.disabled = true; syncBtn.textContent = "Syncing\u2026";
+      syncNow(accountId).then(function (msg) {
+        toast(msg, "success");
+      }, function (e) { toast((e && e.message) || String(e), "error"); }).then(function () {
+        renderEditor(el, accountId, opts);
+        if (opts.onChange) opts.onChange(accountId);
       });
     });
 

@@ -62,3 +62,18 @@ test("a stuck trade that has since been saved is dropped from the list and the p
   assert.match(B.chipHtml("a5"), /bc-ok.*Auto-sync on/);
   assert.match(editor("a5"), /Nothing is open, stuck or skipped/);
 });
+
+test("connected accounts get a Sync now button; the statement line shows what IBKR sent", async () => {
+  await B.ready;
+  const h = editor("a1");
+  assert.match(h, /data-sync>Sync now</);
+  REPORT.accounts.a1.statement = { from: "20261012", to: "20261012", period: "LastBusinessDay", fills: 14, closed: 3, latest_fill: "2026-10-12 15:58" };
+  await B.reload();
+  assert.match(editor("a1"), /IBKR statement: 2026-10-12 \(LastBusinessDay\) · 14 fills, latest 2026-10-12 15:58 · 3 closed trades/);
+});
+test("the status line shows the sync's own message on ok runs", async () => {
+  await B.ready;
+  FLEX[1].last_sync_at = "2026-10-13T06:00:00Z"; FLEX[1].last_sync_message = "No new trades (IBKR sent 14 fill(s), latest 2026-10-12 15:58)";
+  await B.reload();
+  assert.match(editor("a2"), /ok: No new trades/);
+});
