@@ -446,7 +446,7 @@
         const wins = trades.filter((t) => t.win).length;
         const actualWinRate = (wins / trades.length) * 100;
         winRateActualEl.classList.remove("hidden"); winRateActualEl.style.display = "block";
-        winRateActualEl.innerHTML = `Your actual win rate across ${trades.length} logged trade${trades.length === 1 ? "" : "s"}: <b>${actualWinRate.toFixed(0)}%</b> — <button type="button" id="calc-use-actual-winrate" style="all:unset;cursor:pointer;color:var(--primary);text-decoration:underline;">use this</button>`;
+        winRateActualEl.innerHTML = `Your actual win rate across ${trades.length} logged trade${trades.length === 1 ? "" : "s"}: <b>${actualWinRate.toFixed(0)}%</b> — <button type="button" id="calc-use-actual-winrate" style="all:unset;position:relative;cursor:pointer;color:var(--primary);text-decoration:underline;">use this</button>`;
         document.getElementById("calc-use-actual-winrate").addEventListener("click", () => {
           winRateChips.forEach((c) => c.classList.remove("active"));
           setWinRate(Math.round(actualWinRate));

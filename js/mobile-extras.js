@@ -845,4 +845,28 @@
     var el = e.target.closest(".content > .panel-head .sub, .edge-intro p, .calc-intro, .rw-hero p, .acc-help");
     if (el) el.classList.toggle("m-open");
   });
+
+  // ---- Phone: mark folded intro blurbs that are really cut off, so CSS can show a
+  // chevron ("there's more, tap to read"). Short blurbs that fit get no hint.
+  // Open ones keep their marker so the chevron can flip to "tap to fold".
+  (function () {
+    var SEL = ".content > .panel-head .sub, .edge-intro p, .calc-intro, .rw-hero p, .acc-help";
+    var queued = false;
+    function mark() {
+      queued = false;
+      Array.prototype.forEach.call(document.querySelectorAll(SEL), function (el) {
+        if (!phone.matches) { el.classList.remove("m-clamped"); return; }
+        if (el.classList.contains("m-open")) return;
+        el.classList.toggle("m-clamped", el.scrollHeight > el.clientHeight + 1);
+      });
+    }
+    function queue() { if (queued) return; queued = true; setTimeout(mark, 120); }
+    mark();
+    window.addEventListener("load", queue);
+    window.addEventListener("resize", queue);
+    // Blurbs are often filled in by page JS after load, and pages swap in place.
+    if (window.MutationObserver) {
+      new MutationObserver(queue).observe(document.body, { childList: true, subtree: true, characterData: true });
+    }
+  })();
 })();

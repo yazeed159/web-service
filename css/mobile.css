@@ -1,0 +1,100 @@
+/* ===================================================================
+   mobile.css -- phone-only consistency pass.
+   Loaded LAST on every app page (after buttons.css). It only normalises
+   things that drifted page by page; no markup or JS hooks change.
+   Delete the <link> to revert.
+
+   The one visual language on phones (matches glass.css):
+     page-level cards ........ 24px radius   (hero / intro / panels)
+     nested cards & strips ... 18px radius
+     form controls ........... 16px radius, >= 44px tall, 16px text
+     pills / chips ........... 999px
+     page gutter ............. 14px
+   Specificity: rules start with :root so they beat page <style> blocks and
+   per-component rules; !important is only used where JS writes inline
+   styles (trade.js journal card) or a component forces its own value.
+=================================================================== */
+@media (max-width: 760px) {
+
+  /* ---- 1. Form controls: one height, one radius, no iOS zoom ---------- */
+  :root :is(
+      input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+      select,
+      textarea
+    ):not(.chat-input):not(.header-search-input):not(.ui-modal-input):not(.qa-text):not(.chatw-input):not([id^="chatw"]) {
+    box-sizing: border-box;
+    min-height: 44px;
+    border-radius: 16px !important;
+    font-size: 16px !important;   /* anything smaller makes iOS Safari zoom on focus */
+  }
+  :root textarea:not(.chat-input):not([id^="chatw"]) { min-height: 88px; }
+  /* Tables / inline editors that deliberately render tiny cells keep their size */
+  :root :is(.no-stack, .ins-heat, .compare-table) :is(input, select) { min-height: 0; }
+
+  /* ---- 2. Card radii: hero / intro / panel = 24, strips = 18 ---------- */
+  :root :is(.ts-card, .edge-intro, .calc-intro, .calc-box, .calc-results, .rw-hero, .pr-hero,
+            .empty-state-hero, .th-card, .it-card, .panel-box) {
+    border-radius: 24px !important;   /* glass.css sets some of these with !important */
+  }
+  :root .it-card { border-radius: 24px !important; }       /* glass.css forces 26px with !important */
+  :root :is(#edge-jumpnav, .lt-mode-banner, .sc-banner, .bt-run-row, .th-bar, .journal-sticky-bar) {
+    border-radius: 18px;
+  }
+
+  /* ---- 3. Journal list: rows are the cards, nothing framing them ------ */
+  /* The table itself used to draw a bordered box behind the row cards and
+     the rows had no gap, so cards overlapped and the frame showed through. */
+  :root .table-scroll:has(> table.journal-data-table) {
+    background: none !important; border: 0 !important; box-shadow: none !important;
+    border-radius: 0; overflow: visible;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  :root table.journal-data-table {
+    background: none !important; border: 0 !important; box-shadow: none !important; border-radius: 0;
+  }
+  :root table.journal-data-table tbody { display: flex; flex-direction: column; gap: 10px; padding: 10px 10px 4px; }
+  :root table.journal-data-table tbody tr[data-id] { margin: 0; }
+  /* Checkbox cell was position:sticky with a solid fill -> dark slab inside the card */
+  :root table.journal-data-table td.checkbox-col {
+    position: static !important; background: transparent !important; width: auto; padding: 0 !important;
+  }
+  :root table.journal-data-table td.checkbox-col input[type="checkbox"] { width: 24px; height: 24px; }
+  :root .journal-sticky-bar { margin-left: 0; margin-right: 0; }
+
+  /* ---- 4. Footer was hidden behind the floating tab bar --------------- */
+  :root .content:has(+ .footer) { padding-bottom: 12px; }
+  :root .footer { padding: 20px 20px calc(104px + var(--safe-bottom, 0px)); }
+
+  /* ---- 5. Tap targets: text-style controls were 14-25px tall ---------- */
+  /* common.css already gives most text links an invisible ::after hit-area; the
+     ones below were missed because they clip overflow or aren't links at all. */
+  /* "Updated just now" clips overflow (ellipsis), so a pseudo-element would be cut off:
+     pad the hit area and pull it back with a negative margin instead. */
+  :root .data-fresh { padding: 15px 8px; margin: -15px -8px; }
+  /* Range / timeframe chips (30D 90D All ...) were 25px */
+  :root :is(.tf-btn, .eq-range-toggle button) { min-height: 34px; }
+  /* Daily week strip links were 15px tall */
+  :root a[href*="daily.html?date="] { display: inline-flex; align-items: center; min-height: 36px; }
+
+  /* ---- 6. Horizontally scrolling chip rows bleed to the screen edge ---- */
+  /* They were clipped at the 14px gutter (hard cut) and started 2px left of
+     every other control. Start on the gutter, scroll out to the edge. */
+  :root .date-chips { margin-left: -14px; margin-right: -14px; padding-left: 14px; padding-right: 14px; scroll-padding-left: 14px; }
+
+  /* ---- 7. One way to open the menu ------------------------------------ */
+  /* The tab bar's "More" button already opens the drawer (it just calls
+     click() on this hamburger), so showing both was two buttons for one job.
+     Hidden, not removed: "More" still needs it in the DOM. */
+  :root #mobile-nav-btn { display: none !important; }
+
+  /* ---- 8. Folded intro blurbs: show that they can be unfolded --------- */
+  /* common.css folds long intros to 2 lines and unfolds on tap, with nothing
+     to say so. mobile-extras.js adds .m-clamped only when text is really cut. */
+  :root :is(.m-clamped) { position: relative; padding-right: 22px; }
+  :root .m-clamped::after {
+    content: ""; position: absolute; right: 2px; bottom: 5px; width: 7px; height: 7px;
+    border-right: 1.75px solid var(--text-faint); border-bottom: 1.75px solid var(--text-faint);
+    transform: rotate(45deg); transition: transform .2s ease;
+  }
+  :root .m-clamped.m-open::after { transform: rotate(-135deg); bottom: 2px; }
+}
