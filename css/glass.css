@@ -1528,3 +1528,52 @@ table.data-table thead th, .trade-table thead th, .report-table thead th { font-
   background: var(--panel) !important;
   -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
 }
+
+/* ======================================================================
+   SIDEBAR: one look everywhere (keep this block LAST in the file).
+   The sidebar used to be translucent glass with a backdrop blur, so its
+   colour shifted with whatever sat behind it on each page (hero banners,
+   the colour wash, scrolled content), and four separate rules styled the
+   active item differently on phone / desktop / light / collapsed. This
+   block replaces all of that with one opaque surface, one corner radius
+   and one active-item style, on every page, theme and screen size.
+====================================================================== */
+:root { --sb-surface: #0d0e13; --sb-line: rgba(255,255,255,.075); --sb-radius: 12px; }
+:root[data-theme="light"] { --sb-surface: #ffffff; --sb-line: rgba(90,80,160,.12); }
+
+:root .sidebar {
+  background: var(--sb-surface);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  border-right: 1px solid var(--sb-line);
+  box-shadow: none;
+}
+:root .sidebar .sidebar-top,
+:root .sidebar .sidebar-bottom,
+:root .sidebar .sidebar-pinned { border-color: var(--sb-line); }
+
+:root .sidebar .nav-item {
+  border-radius: var(--sb-radius);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-dim);
+}
+:root .sidebar .nav-item:hover:not(.disabled) {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+}
+:root .sidebar .nav-item.active,
+:root .sidebar.collapsed .nav-item.active {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 38%, transparent);
+  color: var(--text);
+}
+:root[data-theme="light"] .sidebar .nav-item.active { color: var(--primary-2); }
+:root .sidebar .nav-item.active svg { filter: none; }
+
+/* Phone drawer: same surface and item shape as the desktop rail; the only
+   difference is that it slides over the page, so it gets a soft edge shadow
+   while open (not while closed). */
+@media (max-width: 760px) {
+  :root .sidebar { border-radius: 0 24px 24px 0; }
+  :root .sidebar.mobile-open { box-shadow: 18px 0 50px rgba(0,0,0,.35); }
+}

@@ -461,12 +461,17 @@
       floatBtn.textContent = "Starting…";
       floatStatus.textContent = "";
       authedHeadersJ()
-        .then((headers) => fetch(`${chartApi()}/fetch-float/bulk/start`, { method: "POST", headers }))
+        .then((headers) => {
+          // Only the trades in the account(s)/period currently selected -- allRows is already
+          // scoped by accounts.js's fetchTradesIndex wrapper -- not everything the user owns.
+          const ids = allRows.map((r) => r.id).filter(Boolean);
+          return fetch(`${chartApi()}/fetch-float/bulk/start`, { method: "POST", headers, body: JSON.stringify({ trade_ids: ids }) });
+        })
         .then((r) => r.json().then((j) => { if (!r.ok) throw new Error(j.error || ("HTTP " + r.status)); return j; }))
         .then((j) => {
           if (!j.total_symbols) {
             floatBtnIdle();
-            floatStatus.textContent = "Every trade already has a float on file.";
+            floatStatus.textContent = "Every trade in the selected account(s) already has a float on file.";
             return;
           }
           floatJobId = j.job_id;

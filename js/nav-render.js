@@ -307,7 +307,6 @@
   // is a per-device choice, and the bar has to render synchronously on
   // load, before any network-backed store could answer).
   const TABS_KEY = "trade.log:bottom-tabs";
-  const RECENT_KEY = "trade.log:recent-pages";
   const TAB_COUNT = 3;
   const DEFAULT_TABS = ["index", "journal", "daily"];
 
@@ -322,7 +321,7 @@
   BAR_ICONS["index#dayview"] = '<circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 14"></polyline>';
   const BAR_LABELS = { index: "Home" };
   // Seven slots share a 360-390px bar, so long names get a short form there
-  // (the editor and the Recent list keep the full name).
+  // (the editor keeps the full name).
   const BAR_SHORT = {
     "index#dayview": "Day", "stats": "Stats", "edge-analysis": "Edge", "live-trading": "Live",
     "backtester": "Backtest", "calculator": "Calc", "import-trades": "Import",
@@ -331,7 +330,7 @@
   function fileOf(href) {
     return String(href || "").split("?")[0].split("#")[0].replace(/\.html$/, "").toLowerCase();
   }
-  // Every page that can go on the bar or show up under "Recent", built from
+  // Every page that can go on the bar, built from
   // the sidebar lists above so a page added there is available here too.
   // Day View / Reports live on index.html behind a #hash, so they are keyed
   // as "index#dayview" / "index#reports" and compared by hash. Import Trades
@@ -374,6 +373,9 @@
     }
     return null;
   }
+
+  // The sidebar's old "Recent" list is gone; drop the list it kept on this device.
+  try { localStorage.removeItem("trade.log:recent-pages"); } catch (e) { /* ignore */ }
 
   function readJson(key) {
     try { return JSON.parse(localStorage.getItem(key) || "null"); } catch (e) { return null; }
@@ -448,47 +450,6 @@
     });
   }
 
-  // ---- Recent pages (phone drawer) -------------------------------------
-  // The last few pages visited, pinned above the drawer's scrolling list so
-  // getting back to one does not mean scrolling the whole sidebar. Pages
-  // that already have a tab are left out (they are one tap away anyway), and
-  // so is the page you are on.
-  const RECENT_KEEP = 8;
-  const RECENT_SHOW = 2;
-  function trackRecent() {
-    if (!document.getElementById("sidebar")) return;
-    const id = currentId();
-    if (!id) return;
-    const list = (readJson(RECENT_KEY) || []).filter((x) => typeof x === "string" && x !== id);
-    list.unshift(id);
-    writeJson(RECENT_KEY, list.slice(0, RECENT_KEEP));
-  }
-  function renderRecent() {
-    const sidebarEl = document.getElementById("sidebar");
-    if (!sidebarEl) return;
-    let box = document.getElementById("sidebar-recent-section");
-    if (!box) {
-      box = document.createElement("div");
-      box.id = "sidebar-recent-section";
-      box.className = "sidebar-recent";
-      // A sibling ahead of .sidebar-nav (like the pinned group), so the SPA
-      // router's rewrite of the nav's contents never wipes it.
-      sidebarEl.insertBefore(box, sidebarEl.querySelector(".sidebar-nav") || null);
-    }
-    const cur = currentId();
-    const tabs = getTabs();
-    const items = (readJson(RECENT_KEY) || [])
-      .filter((id) => id !== cur && tabs.indexOf(id) === -1)
-      .map(catalogItem).filter(Boolean).slice(0, RECENT_SHOW);
-    box.hidden = !items.length;
-    box.innerHTML = items.length
-      ? `<div class="nav-section-label">Recent</div><div class="sidebar-recent-list">` +
-        items.map((i) =>
-          `<a class="recent-item" href="${i.href}" title="${i.label}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${i.icon}</svg><span>${i.label}</span></a>`
-        ).join("") + `</div>`
-      : "";
-  }
-
   // ---- Tab editor (bottom sheet) ---------------------------------------
   // Pick exactly three pages. Tapping a page adds it to the end of the bar;
   // tapping it again (or its chip in the preview) removes it, so the order on
@@ -560,7 +521,6 @@
           setTabs(picked);
           const nav = document.getElementById("bottom-nav");
           if (nav) { paintTabs(nav); bottomNav(); }
-          renderRecent();
           close();
           return;
         }
@@ -597,13 +557,11 @@
   function refresh() {
     renderNav();
     bottomNav();
-    trackRecent();
-    renderRecent();
     renderEditLink();
   }
   window.__renderSidebarNav = refresh;
   refresh();
   // Day View / Reports are hash tabs on index.html, which change without a
   // page load, so keep the bar's highlight in step with them.
-  window.addEventListener("hashchange", function () { bottomNav(); trackRecent(); renderRecent(); });
+  window.addEventListener("hashchange", function () { bottomNav(); });
 })();

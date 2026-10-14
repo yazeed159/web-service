@@ -296,3 +296,145 @@ button.pill.tagpill:focus-visible, .int-disconnect:focus-visible {
 
 /* keep fullscreen charts safe: buttons inside a fullscreen chart skip the blur */
 .chart-fs .btn-advanced, .chart-fs .filter-btn, .chart-fs .icon-btn, .chart-fs .btn-icon, .chart-fs .tf-switcher { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* ======================================================================
+   ONE CONTROL SHAPE, SITE-WIDE (keep this block LAST in the last-loaded file).
+   Buttons, text fields, selects, date pickers, banners and the danger button
+   were drawn with 6px, 7px, 8px, 10px and 12px corners depending on the page
+   and on phone vs desktop (several pages hand-rolled their own inputs and
+   danger button). They all use --ctl-radius now, with one shared focus ring.
+   Pills, chips, segmented tabs and the search bar stay fully round on purpose.
+====================================================================== */
+:root { --ctl-radius: var(--btn-radius); --ctl-ring: 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent); }
+
+:root .btn-confirm, :root .btn-advanced, :root .filter-btn, :root .icon-btn, :root .btn-icon,
+:root .cal-nav-btn, :root .sr-run-btn, :root .btn-danger, :root .int-disconnect, :root .strat-card-delete,
+:root .th-btn, :root .ui-modal-actions .btn-danger {
+  border-radius: var(--ctl-radius);
+}
+
+:root .filter-input, :root select.filter-input, :root .dn-in, :root .dn-ta,
+:root .dn-datebar input[type=date], :root .ins-rule-input, :root .ui-modal-input, :root .ds-trigger,
+:root .tags-field .filter-input, :root .calc-input-wrap .filter-input,
+:root .it-card input[type="text"], :root .it-card input[type="number"], :root .it-card input[type="date"],
+:root .it-card input[type="time"], :root .it-card select,
+:root select:not([multiple]):not([size]):not(.ds-native) {
+  border-radius: var(--ctl-radius);
+}
+:root .filter-input:focus, :root .dn-in:focus, :root .dn-ta:focus, :root .dn-datebar input[type=date]:focus,
+:root .ui-modal-input:focus, :root .it-card input:focus, :root .it-card select:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--primary) 65%, transparent);
+  box-shadow: var(--ctl-ring);
+}
+
+:root .lt-mode-banner, :root .sc-banner { border-radius: var(--ctl-radius); }
+
+/* ======================================================================
+   SMALL UPPERCASE LABELS + TABLE HEADERS: one type tier, site-wide.
+   Stat labels, section labels, field labels and group headings were set at
+   eight different sizes (9 to 11.5px), nine different letter-spacings and
+   two weights depending on the page. Same role, same look now. Colours are
+   left alone (some sit on tinted hero cards). Hero "eyebrows" keep their
+   slightly wider tracking.
+====================================================================== */
+:root :is(
+  .nav-section-label, .section-label, .stat .label, .panel-box-head .title, .score-gauge .lbl,
+  .equity-head .label, .equity-stats .eq-stat-label, .cal-legend-label, .cal-summary-cells .cell .label,
+  .cal-dow, .cal-week-box .week-label, .score-month-extra .sde-head, .sde-label,
+  .streak-strip .cell .label, .highlight-card .label, .pnl-breakdown .cell .label, .card h2,
+  .sr-levels .col-label, .pb-label, .compare-period-title, .ins-sub, .calc-stat .lbl,
+  .bt-field > label.bt-label, .ai-summary-group-label, .shortcuts-section-label, .hs-section-label,
+  .ds-group, .hero-spark-label, .drill-calc-k, .fg-sub, .fg-stat .k, .pr-stat-cell .label,
+  .pp-order-panel .title, .pp-fill-log-block .title, .qs-label, .quiz-filter-row label,
+  .rewind-stat .rs-lbl, .rw-hero-stat .rs-lbl, .rw-field-group-label, .qz-manage-label, .qsg-label,
+  .pr-recap-col .rb-label, .quiz-reveal-box .rb-label
+) {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+:root :is(
+  .trade-table thead th, table.data-table thead th, table.data-table th, .report-table thead th,
+  .drill-inline .drill-table thead th, .quiz-review-table th
+) {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+/* ======================================================================
+   PAGE WIDTH: every page uses the same content width. Live Trading, Scanner
+   and the Daily form were capped at 980px (Daily also hugged the left edge)
+   while every other page runs the full 1320px content column.
+====================================================================== */
+:root .lt-wrap, :root .sc-wrap { max-width: none; }
+:root .dn-grid { max-width: none; }
+
+/* ======================================================================
+   EMPTY STATES: one look. ".empty-state" had two conflicting definitions
+   (the later calculator rule shrank it to 14px of padding and a different
+   text colour on every page), and six other classes (pr-empty, acc-empty,
+   lt-empty, quiz-history-empty ...) each drew "nothing here yet" their own
+   way: left-aligned on some pages, centred on others.
+====================================================================== */
+:root .empty-state { color: var(--text-faint); font-size: 14px; text-align: center; padding: 40px 20px; }
+:root .empty-state.small { font-size: 13px; padding: 28px 20px; }
+:root .pr-empty, :root .acc-empty, :root .lt-empty, :root .quiz-history-empty {
+  color: var(--text-faint); font-size: 13px; text-align: center; padding: 24px 12px;
+}
+
+/* ======================================================================
+   POPUPS: two shapes, same on PC and phone.
+   Dialogs and the chat window were 24px on phone but 28px on desktop, and
+   the floating panels (search results, account menu, scope picker, custom
+   dropdown) were 18px, 20px or 22px depending on which one it was.
+     dialogs   (modal, chart modal, shortcuts, chat window)  -> 24px
+     floating  (search results, account/scope menus, dropdowns) -> 18px
+     bottom sheets                                            -> 24px on top
+====================================================================== */
+:root .ui-modal-box, :root .rpt-chart-modal-box, :root .shortcuts-box, :root .chatw-panel { border-radius: 24px !important; }
+:root .ds-menu, :root .account-panel, :root .topbar .scope-panel,
+:root .header-search:not(.mobile-open) .header-search-panel { border-radius: 18px; }
+:root .qa-sheet, :root .tabedit-sheet { border-radius: 24px 24px 0 0; }
+
+/* ======================================================================
+   TABLE DENSITY (desktop): the main tables used row padding of 7px, 8px,
+   9px, 10px, 11px and 13px vertically and 5px to 18px sideways, so the same
+   kind of list looked cramped on one page and airy on the next. Phone card
+   layouts (stacked rows) are left alone.
+====================================================================== */
+@media (min-width: 761px) {
+  :root :is(.trade-table, .report-table, table.data-table:not(.journal-data-table), .compare-table, .acc-table, .quiz-review-table) td,
+  :root #results td { padding: 10px; }
+  :root :is(.trade-table, .report-table, table.data-table:not(.journal-data-table), .compare-table, .acc-table, .quiz-review-table) thead th,
+  :root #results th { padding: 9px 10px; }
+}
+
+/* ======================================================================
+   SMALL CONTROLS: checkboxes, focus ring, scrollbars.
+   - Checkboxes were green on the tags panel, violet elsewhere, and 13px to
+     15px on desktop depending on the page. One accent, one size.
+   - Keyboard focus ring was 1.5px on some elements, 2px on others, and a
+     different tint on phone. One ring (specificity kept at zero so the few
+     elements that draw their own focus style still win).
+   - Scrollbars were a violet-to-cyan gradient in Chromium but a plain grey
+     thin bar in Firefox/Safari and on newer Chrome. One neutral style.
+====================================================================== */
+:root input[type="checkbox"], :root input[type="radio"] { accent-color: var(--primary); }
+@media (min-width: 761px) {
+  :root input[type="checkbox"]:not([hidden]), :root input[type="radio"]:not([hidden]) { width: 16px; height: 16px; }
+}
+:where(:root) :focus-visible { outline: 2px solid color-mix(in srgb, var(--primary) 70%, transparent); outline-offset: 2px; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text) 22%, transparent);
+  border-radius: 5px; border: 2px solid transparent; background-clip: content-box;
+}
+@media (hover: hover) { ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--text) 38%, transparent); background-clip: content-box; } }
+
+/* Broker-connection editor (styles injected by js/broker-connections.js) joins the shared shapes. */
+:root .bc-sync, :root .bc-details, :root .bc-grid input, :root .bc-row input { border-radius: var(--ctl-radius); }
+:root .bc-h { font-size: 10.5px; letter-spacing: 0.06em; font-weight: 600; }
