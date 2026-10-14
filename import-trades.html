@@ -157,7 +157,8 @@
       <div class="card it-card">
         <div class="panel-head">
           <p class="sub">
-            Upload a CSV of raw trade executions to backfill past days into the trade log. Any reasonable column
+            Upload a CSV or an IBKR Flex XML statement of raw trade executions to backfill past days into the trade log.
+            For CSVs, any reasonable column
             names work — <code>Symbol</code>/<code>Ticker</code>, <code>DateTime</code>/<code>Date</code>,
             <code>Quantity</code>/<code>Shares</code>, <code>TradePrice</code>/<code>Price</code>,
             <code>Buy/Sell</code>/<code>Side</code>, <code>Commission</code> (all optional except symbol, date,
@@ -177,7 +178,7 @@
           <select id="import-account" class="filter-input" style="width:100%; max-width:320px;"></select>
         </div>
         <div id="import-sync-hint" style="display:none; margin:-6px 0 14px; font-size:12px; color:var(--text-faint); line-height:1.5;"></div>
-        <label for="csv-file">Trade CSV</label>
+        <label for="csv-file">Trade file (CSV or XML)</label>
         <div class="drop">
           <input type="file" id="csv-file">
           <button class="btn-confirm" id="run-btn" disabled>Import</button>
@@ -270,7 +271,7 @@
       (function takeSharedFile() {
         var q = new URLSearchParams(location.search).get("shared");
         if (q === "none" || q === "error") {
-          setStatus(q === "none" ? "That share didn't contain a CSV file." : "Couldn't receive the shared file. Pick it with the file button instead.", "err");
+          setStatus(q === "none" ? "That share didn't contain a CSV or XML file." : "Couldn't receive the shared file. Pick it with the file button instead.", "err");
           return;
         }
         if (!window.caches) return;
