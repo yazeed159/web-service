@@ -10,12 +10,9 @@
 //           thoughts: [{ t: ISO string, text }],   <- phone quick-notes (mobile-extras.js)
 //           updated }
 //
-// went_well_tags / to_fix_tags are the tap-to-toggle chip versions of the
-// old went_well/to_fix free-text fields (kept around as an optional
-// "anything else" note) -- point is to make most days fillable without
-// typing at all. to_fix reuses TradeNotes.DEFAULT_MISTAKES as its default
-// vocabulary (one list of "what goes wrong" for the whole app) rather than
-// keeping a second, drifting copy here.
+// went_well_tags / to_fix_tags were hand-picked chips. Nothing writes them any more (the daily page
+// fills "what went well / what to fix" automatically from the day's trade tags), but days already
+// saved keep them untouched.
 (function () {
   "use strict";
   const STORAGE_KEY = "trade.log:daily_notes";
@@ -24,10 +21,6 @@
     "Max daily loss set",
     "Named my A+ setups for today",
     "Position size fits my risk",
-  ];
-  const DEFAULT_WENT_WELL = [
-    "Stuck to my plan", "Cut losers fast", "Waited for A+ setups",
-    "Sized correctly", "Stayed calm", "Stopped after hitting goal",
   ];
 
   function readStore() {
@@ -112,19 +105,6 @@
     save(date, Object.assign({}, cur, { checks }));
   }
 
-  // Every went-well / to-fix tag the trader has actually used, merged with
-  // the defaults, so the chip picker grows with them instead of ever
-  // needing to be typed twice.
-  function knownTags() {
-    const wellSet = new Set(DEFAULT_WENT_WELL);
-    const fixSet = new Set((window.TradeNotes && window.TradeNotes.DEFAULT_MISTAKES) || []);
-    Object.values(readStore().days).forEach((d) => {
-      (d.went_well_tags || []).forEach((t) => wellSet.add(t));
-      (d.to_fix_tags || []).forEach((t) => fixSet.add(t));
-    });
-    return { went_well: Array.from(wellSet), to_fix: Array.from(fixSet) };
-  }
-
   // Most recent OTHER day with a max loss / goal set, so a fresh day can
   // offer "use last time's numbers" instead of asking you to retype them.
   function lastPlanned(beforeDate) {
@@ -133,17 +113,6 @@
       .filter((d) => d !== beforeDate && (days[d].max_loss != null || days[d].goal != null))
       .sort().reverse()[0];
     return found ? { date: found, max_loss: days[found].max_loss, goal: days[found].goal } : null;
-  }
-
-  // Most recent OTHER day (strictly before beforeDate when comparable)
-  // with "to fix" tags, so today's plan can surface a quiet reminder of
-  // what you were working on last time -- computed live, nothing to save.
-  function priorFocus(beforeDate) {
-    const days = readStore().days;
-    const found = Object.keys(days)
-      .filter((d) => d < beforeDate && (days[d].to_fix_tags || []).length)
-      .sort().reverse()[0];
-    return found ? { date: found, tags: days[found].to_fix_tags } : null;
   }
 
   // Consecutive days, walking back from `fromDate`, with a saved entry --
@@ -160,6 +129,6 @@
 
   window.DailyNotes = {
     get, allDays, save, addThought, setCheck, getChecklist, setChecklist, DEFAULT_CHECKLIST,
-    knownTags, lastPlanned, priorFocus, streak, DEFAULT_WENT_WELL,
+    lastPlanned, streak,
   };
 })();

@@ -255,9 +255,16 @@
       { plan_stop: null, plan_target: null, no_stop: false, no_target: false, setup: "", mistakes: [], followed_rules: null, notes: "" },
       window.TradeNotes.get(trade.id) || {}
     );
-    const tags = window.TradeNotes.knownTags();
-    const chip = (label, on, attr) =>
-      `<button type="button" class="pill tagpill jn-chip${on ? " on" : ""}" ${attr}="${escapeHtml(label)}" style="cursor:pointer; ${on ? "background:var(--primary); color:#fff; border-color:var(--primary);" : ""}">${escapeHtml(label)}</button>`;
+    const TC = window.TagCatalog;
+    // Tags are worked out automatically (see trade_tags.py); tap any pill for its exact criteria.
+    const autoTags = Array.isArray(trade.behavior_tags) ? trade.behavior_tags : null;
+    const byTone = (tn) => (autoTags || []).filter((k) => TC.tone(k) === tn);
+    const pills = (list) => list.map((k) => TC.pillHtml(k)).join("");
+    const clean = TC.isClean(trade);
+    const verdictHtml = clean === true ? TC.pillHtml("clean_trade")
+      : clean === false ? `<span style="font-size:13px;">Not a clean trade${byTone("watch").length ? " — see what's flagged below" : ""}</span>`
+      : `<span style="font-size:12.5px;color:var(--text-faint);">Not tagged yet</span>`;
+    const tagBlock = (title, html) => html ? `<div style="margin-bottom:10px;"><label style="font-size:11.5px; color:var(--text-faint); display:block; margin-bottom:4px;">${title}</label><div style="display:flex; flex-wrap:wrap; gap:6px;">${html}</div></div>` : "";
     const inputStyle = "background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 8px; font-size:13px; width:100%; box-sizing:border-box;";
     const lbl = "font-size:11.5px; color:var(--text-faint); display:block; margin-bottom:4px;";
 
@@ -270,26 +277,17 @@
         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:14px;">
           <div><label style="${lbl}">Planned stop ($)</label><div style="display:flex; gap:6px; align-items:center;"><input id="jn-stop" type="number" step="0.01" min="0" inputmode="decimal" placeholder="${entry.no_stop ? "None" : ""}" ${entry.no_stop ? "disabled" : ""} style="${inputStyle} flex:1; min-width:0;${entry.no_stop ? " opacity:.55;" : ""}" value="${entry.plan_stop ?? ""}">${chip("None", entry.no_stop, "data-none-for=\"stop\" data-none")}</div></div>
           <div><label style="${lbl}">Planned target ($)</label><div style="display:flex; gap:6px; align-items:center;"><input id="jn-target" type="number" step="0.01" min="0" inputmode="decimal" placeholder="${entry.no_target ? "None" : ""}" ${entry.no_target ? "disabled" : ""} style="${inputStyle} flex:1; min-width:0;${entry.no_target ? " opacity:.55;" : ""}" value="${entry.plan_target ?? ""}">${chip("None", entry.no_target, "data-none-for=\"target\" data-none")}</div></div>
-          <div><label style="${lbl}">Followed my rules?</label>
-            <div id="jn-rules" style="display:flex; gap:6px;">
-              ${chip("Yes", entry.followed_rules === true, "data-rules")}${chip("No", entry.followed_rules === false, "data-rules")}
-            </div>
-          </div>
+          <div><label style="${lbl}">Clean trade?</label><div style="display:flex; gap:6px; align-items:center; min-height:30px;">${verdictHtml}</div></div>
         </div>
         <div id="jn-metrics" style="display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; margin-bottom:14px;"></div>
         <div style="margin-bottom:12px;">
-          <label style="${lbl}">Setup</label>
-          <div id="jn-setups" style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
-            ${tags.setups.map((t) => chip(t, entry.setup === t, "data-setup")).join("")}
-            <input id="jn-setup-new" placeholder="+ custom" style="${inputStyle} width:110px;">
-          </div>
-        </div>
-        <div style="margin-bottom:12px;">
-          <label style="${lbl}">Mistakes</label>
-          <div id="jn-mistakes" style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
-            ${tags.mistakes.map((t) => chip(t, entry.mistakes.includes(t), "data-mistake")).join("")}
-            <input id="jn-mistake-new" placeholder="+ custom" style="${inputStyle} width:110px;">
-          </div>
+          ${autoTags === null
+            ? `<div style="font-size:12.5px; color:var(--text-faint);">This trade hasn't been tagged yet. Open the Journal and tap <b>Tag my setups</b>.</div>`
+            : tagBlock("Setup", trade.setup_type ? TC.pillHtml(trade.setup_type) : "") +
+              tagBlock("Good habits", pills(byTone("good").filter((k) => k !== "clean_trade"))) +
+              tagBlock("Worth a look", pills(byTone("watch"))) +
+              tagBlock("About this trade", pills(byTone("info")))}
+          <div style="font-size:11.5px; color:var(--text-faint);">Tags are automatic. Tap one to see exactly what it means, or open the <a href="tags.html" style="color:var(--primary);">Tag guide</a>.</div>
         </div>
         <div>
           <label style="${lbl}">Notes</label>
@@ -357,31 +355,6 @@
     }));
     $("jn-notes").addEventListener("input", (e) => { entry.notes = e.target.value; persist(); });
 
-    host.querySelectorAll("[data-rules]").forEach((b) => b.addEventListener("click", () => {
-      const v = b.getAttribute("data-rules") === "Yes";
-      entry.followed_rules = entry.followed_rules === v ? null : v;
-      persist(true); renderJournalCard(trade);
-    }));
-    host.querySelectorAll("[data-setup]").forEach((b) => b.addEventListener("click", () => {
-      const v = b.getAttribute("data-setup");
-      entry.setup = entry.setup === v ? "" : v;
-      persist(true); renderJournalCard(trade);
-    }));
-    host.querySelectorAll("[data-mistake]").forEach((b) => b.addEventListener("click", () => {
-      const v = b.getAttribute("data-mistake");
-      entry.mistakes = entry.mistakes.includes(v) ? entry.mistakes.filter((x) => x !== v) : entry.mistakes.concat(v);
-      persist(true); renderJournalCard(trade);
-    }));
-    $("jn-setup-new").addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" || !e.target.value.trim()) return;
-      entry.setup = e.target.value.trim(); persist(true); renderJournalCard(trade);
-    });
-    $("jn-mistake-new").addEventListener("keydown", (e) => {
-      const v = e.target.value.trim();
-      if (e.key !== "Enter" || !v) return;
-      if (!entry.mistakes.includes(v)) entry.mistakes.push(v);
-      persist(true); renderJournalCard(trade);
-    });
     paintMetrics();
   }
 
@@ -505,7 +478,7 @@
             </button>
           </div>
           <div class="verdict-text">${escapeHtml(trade.verdict || "No verdict recorded.")}</div>
-          ${trade.setup_type ? `<span class="setup-tag" style="${window.setupTagStyleAttr(trade.setup_type)}">${escapeHtml(trade.setup_type)}</span>` : ""}
+          ${trade.setup_type ? `<span class="setup-tag" style="${window.setupTagStyleAttr(trade.setup_type)}">${escapeHtml(window.setupLabel ? window.setupLabel(trade.setup_type) : trade.setup_type)}</span>` : ""}
           ${rrStrip(trade)}
           ${trade.walk_away_rule ? `<div class="walk-away"><b>Walk-away rule:</b> ${escapeHtml(trade.walk_away_rule)}</div>` : ""}
         </div>

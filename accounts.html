@@ -468,6 +468,9 @@
         const a = A.byId(id);
         const ids = await pickTradesToDelete(a, tradesOf(id));
         if (!ids || !ids.length) return;
+        const typedDel = await UIModal.prompt("This permanently deletes " + ids.length + " trade" + (ids.length === 1 ? "" : "s") + " from \u201c" + a.name + "\u201d, along with their notes on the trade page. This can\u2019t be undone. Type DELETE to confirm:", "", { title: "Delete trades?", tone: "danger", confirmLabel: "Delete " + ids.length + " trade" + (ids.length === 1 ? "" : "s") });
+        if (typedDel === null) return;
+        if (typedDel.trim().toUpperCase() !== "DELETE") { toast("Nothing was deleted.", "error"); return; }
         await deleteTradeIds(ids);
         refreshAll();
         toast(ids.length + " trade" + (ids.length === 1 ? "" : "s") + " deleted.");
@@ -664,6 +667,7 @@
 <script src="js/common.js"></script>
 <script src="js/select-enhance.js" defer></script>
 <script src="js/mobile-tables.js"></script>
+<script src="js/glossary.js"></script>
 <script src="js/mobile-extras.js"></script>
 <script src="js/global-search.js"></script>
 <script src="js/shortcuts-help.js"></script>

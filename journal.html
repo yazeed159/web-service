@@ -98,10 +98,17 @@
       <div class="panel-head" style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;">
         <div class="sub">All published trades. Click a row for the full breakdown.</div>
         <div style="display:flex; align-items:center; gap:8px;">
+          <button class="btn-advanced" id="tag-setups-btn" title="Reads each trade's 1-minute chart and fills in its setup and behavior tags">Tag my setups</button>
           <button class="btn-advanced" id="fill-float-btn">Fill missing floats</button>
           <button class="filter-btn hidden" id="fill-float-cancel-btn">Cancel</button>
           <span id="fill-float-status" class="sub" style="font-size:12.5px;"></span>
         </div>
+      </div>
+
+      <div id="tag-setups-progress" class="panel-box" style="display:none; margin-bottom:16px;">
+        <div class="panel-box-head"><span class="title">Tagging setups</span><button class="filter-btn" id="tag-setups-cancel" type="button" style="margin-left:auto;">Cancel</button></div>
+        <div class="progress-track"><div class="progress-fill" id="tag-setups-fill" style="width:0%;"></div></div>
+        <div id="tag-setups-label">Starting…</div>
       </div>
 
       <div id="fill-float-progress" class="panel-box" style="display:none; margin-bottom:16px;">
@@ -135,10 +142,7 @@
         <select id="f-country" title="Issuer country, from your broker statement"><option value="">All countries</option></select>
         <select id="f-subtype" title="ADR / common stock, from your broker statement"><option value="">Stock type: any</option></select>
         <select id="f-venue" title="Exchange the trade filled on, from your broker statement"><option value="">All exchanges</option></select>
-        <select id="f-tag" title="Lesson tags you've logged on trades"><option value="">All tags</option></select>
-        <select id="f-mysetup" title="Setup you labelled on the trade page"><option value="">My setup: any</option></select>
-        <select id="f-mymistake" title="Mistake you tagged on the trade page"><option value="">My mistake: any</option></select>
-        <select id="f-myrules" title="Whether you marked the trade as following your rules"><option value="">Rules: any</option><option value="yes">Followed rules</option><option value="no">Broke rules</option><option value="unset">Not answered</option></select>
+        <select id="f-tag" title="Behavior and lesson tags"><option value="">All tags</option></select>
         <select id="f-grade" title="Self-graded execution quality — separate from win/loss">
           <option value="">All grades</option>
           <option value="5">★★★★★ only</option>
@@ -166,6 +170,7 @@
 </div>
 
 <script src="js/utils.js"></script>
+<script src="js/tag-catalog.js"></script>
 <script src="js/mobile-extras.js"></script>
 <script src="js/config.js"></script>
 <script src="js/vendor/supabase.js"></script>
@@ -199,10 +204,6 @@
   // into a trade. Consumed once by the first renderTable() call below.
   let bootShown = null;
 
-  // Row multi-select (checkbox column) -- a plain in-memory Set of trade
-  // ids, not persisted across page loads. Survives filter/sort/re-render
-  // since it's keyed by id rather than row position.
-  let selectedIds = new Set();
   // The last rows renderTable() sorted, so a selection/column change can
   // redraw the table without re-filtering allRows from scratch.
   let lastSortedRows = [];
@@ -220,9 +221,6 @@
     subtype: document.getElementById("f-subtype"),
     venue: document.getElementById("f-venue"),
     tag: document.getElementById("f-tag"),
-    mySetup: document.getElementById("f-mysetup"),
-    myMistake: document.getElementById("f-mymistake"),
-    myRules: document.getElementById("f-myrules"),
     grade: document.getElementById("f-grade"),
     flagged: document.getElementById("f-flagged"),
     timeFrom: document.getElementById("f-time-from"),
@@ -246,19 +244,14 @@
   }
   function writeLocal(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) { /* ignore */ } }
 
-  // Tags cell -- the auto-computed lesson_tags pills, plus the trader's
-  // own mistake tags from trade-notes.js (writable, unlike lesson_tags),
-  // plus a small pencil affordance that opens the inline quick-edit.
+  // Tags cell -- every tag is worked out automatically (behavior tags from the chart service, plus the AI
+  // review's lesson tags). Tap a pill for its exact criteria; the pencil opens a quick note.
   function tagsCellHtml(r) {
-    const lessonTags = (r.lesson_tags || []).filter(Boolean);
-    const je = window.TradeNotes ? window.TradeNotes.get(r.id) : null;
-    const userTags = (je && je.mistakes) || [];
-    const pills = lessonTags.map((t) => `<span class="pill tagpill" style="${window.setupTagStyleAttr(t)}">${escapeHtml(t.replace(/_/g, " "))}</span>`)
-      .concat(userTags.map((t) => `<span class="pill tagpill user-tag" title="Your tag">${escapeHtml(t)}</span>`))
-      .join(" ");
+    const all = (r.behavior_tags || []).concat(r.lesson_tags || []).filter(Boolean);
+    const pills = all.map((t) => window.TagCatalog.pillHtml(t, { label: tagLabel(t) })).join(" ");
     return `<span class="tags-cell">
         <span class="tags-cell-pills">${pills || `<span class="dim">—</span>`}</span>
-        <button type="button" class="tags-edit-btn" data-quick-edit="${escapeHtml(r.id)}" title="Quick edit tags &amp; note">&#9998;</button>
+        <button type="button" class="tags-edit-btn" data-quick-edit="${escapeHtml(r.id)}" title="Quick edit note">&#9998;</button>
       </span>`;
   }
 
@@ -268,7 +261,7 @@
   const ALL_COLUMNS = [
     { id: "trade_date", label: "Date", sortable: true, width: 100, csv: (r) => r.trade_date, render: (r) => escapeHtml(r.trade_date) },
     { id: "symbol", label: "Symbol", sortable: true, width: 90, csv: (r) => r.symbol, render: (r) => escapeHtml(r.symbol) },
-    { id: "setup_type", label: "Setup", sortable: true, width: 130, csv: (r) => r.setup_type || "", render: (r) => `${r.setup_type ? window.setupTagDot(r.setup_type) : ""}${escapeHtml((r.setup_type || "—").replace(/_/g, " "))}` },
+    { id: "setup_type", label: "Setup", sortable: true, width: 130, csv: (r) => r.setup_type || "", render: (r) => `${r.setup_type ? window.setupTagDot(r.setup_type) : ""}${escapeHtml(r.setup_type ? (window.setupLabel ? window.setupLabel(r.setup_type) : r.setup_type.replace(/_/g, " ")) : "—")}` },
     { id: "entry_price", label: "Entry", sortable: true, width: 80, csv: (r) => Number(r.entry_price).toFixed(2), render: (r) => `$${Number(r.entry_price).toFixed(2)}` },
     { id: "exit_price", label: "Exit", sortable: true, width: 80, csv: (r) => Number(r.exit_price).toFixed(2), render: (r) => `$${Number(r.exit_price).toFixed(2)}${r.fill_count > 1 ? `<span class="pill" title="Averaged across ${r.fill_count} fills -- open the trade for the breakdown" style="margin-left:5px; padding:1px 5px; font-size:10px; opacity:.75;">×${r.fill_count}</span>` : ""}` },
     { id: "shares", label: "Shares", sortable: true, width: 80, csv: (r) => (r.shares != null ? r.shares : ""), render: (r) => (r.shares != null ? Number(r.shares).toLocaleString() : '<span class="nodata">\u2014</span>') },
@@ -281,7 +274,7 @@
     { id: "sub_category", label: "Type", sortable: true, width: 100, csv: (r) => (r.sub_category ? subtypeLabel(r.sub_category) : ""), render: (r) => (r.sub_category ? escapeHtml(subtypeLabel(r.sub_category)) : '<span class="nodata">\u2014</span>') },
     { id: "grade", label: "Grade", sortable: true, width: 100, csv: (r) => (window.TradeGrade ? (window.TradeGrade.get(r) || "") : ""), render: (r) => (window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(r), { size: 12 }) : "—") },
     { id: "tags", label: "Tags", sortable: false, width: 240,
-      csv: (r) => { const je = window.TradeNotes ? window.TradeNotes.get(r.id) : null; return (r.lesson_tags || []).concat((je && je.mistakes) || []).join("; "); },
+      csv: (r) => (r.behavior_tags || []).map(tagLabel).concat(r.lesson_tags || []).join("; "),
       render: tagsCellHtml },
   ];
   // Journal fields for the CSV export only (kept out of ALL_COLUMNS so the table
@@ -298,9 +291,6 @@
     { id: "j_plan_target", label: "Planned target", csv: (r) => { const e = jEntry(r); return e ? (e.plan_target != null ? e.plan_target : (e.no_target ? "none" : "")) : ""; } },
     { id: "j_planned_rr", label: "Planned R:R", csv: (r) => { const m = jMetrics(r); return m.planned_rr != null ? m.planned_rr.toFixed(2) : ""; } },
     { id: "j_r_multiple", label: "Realised R", csv: (r) => { const m = jMetrics(r); return m.r_multiple != null ? m.r_multiple.toFixed(2) : ""; } },
-    { id: "j_setup", label: "My setup tag", csv: (r) => { const e = jEntry(r); return csvSafe(e ? e.setup : ""); } },
-    { id: "j_mistakes", label: "My mistakes", csv: (r) => { const e = jEntry(r); return csvSafe(e && e.mistakes ? e.mistakes.join("; ") : ""); } },
-    { id: "j_followed_rules", label: "Followed my rules", csv: (r) => { const e = jEntry(r); return e && e.followed_rules === true ? "Yes" : e && e.followed_rules === false ? "No" : ""; } },
     { id: "j_notes", label: "My notes", csv: (r) => { const e = jEntry(r); return csvSafe(e ? e.notes : ""); } },
   ];
   const EXPORT_COLUMNS = ALL_COLUMNS.concat(JOURNAL_EXPORT_COLUMNS);
@@ -341,7 +331,6 @@
       symbol: els.symbol.value.trim(), from: els.from.value, to: els.to.value,
       setup: els.setup.value, result: els.result.value, rvol: els.rvol.value,
       avgvol: els.avgvol.value, float: els.float.value, tag: els.tag.value, country: els.country.value, subtype: els.subtype.value, venue: els.venue.value,
-      mySetup: els.mySetup.value, myMistake: els.myMistake.value, myRules: els.myRules.value,
       grade: els.grade.value, flagged: els.flagged.checked,
       timeFrom: els.timeFrom.value, timeTo: els.timeTo.value,
       sortKey, sortDir,
@@ -359,9 +348,6 @@
     if (state.country) els.country.value = state.country;
     if (state.subtype) els.subtype.value = state.subtype;
     if (state.venue) els.venue.value = state.venue;
-    if (state.mySetup) els.mySetup.value = state.mySetup;
-    if (state.myMistake) els.myMistake.value = state.myMistake;
-    els.myRules.value = state.myRules || "";
     els.grade.value = state.grade || "";
     els.flagged.checked = !!state.flagged;
     els.timeFrom.value = state.timeFrom || ""; els.timeTo.value = state.timeTo || "";
@@ -412,6 +398,95 @@
     }
   }
   renderPresetChips();
+
+  // "Tag my setups" -- reads each trade's real 1-minute bars (chart service
+  // /classify-setups, one request per symbol+day) and writes Red-to-green /
+  // Green-over-green wick / 9 EMA dip buy / Other into the Setup column. New
+  // imports get the same tag automatically; this is the backfill for trades
+  // that already exist. Deterministic rules, no guessing: see setups.py.
+  const tsBtn = document.getElementById("tag-setups-btn");
+  const tsBox = document.getElementById("tag-setups-progress");
+  const tsFill = document.getElementById("tag-setups-fill");
+  const tsLabel = document.getElementById("tag-setups-label");
+  const tsCancel = document.getElementById("tag-setups-cancel");
+  let tsCancelled = false;
+  if (tsCancel) tsCancel.addEventListener("click", () => { tsCancelled = true; tsCancel.disabled = true; tsLabel.textContent = "Stopping after the current chart…"; });
+
+  async function runTagSetups() {
+    const toast = (m, kind) => { if (window.showToast) window.showToast(m, kind ? { type: kind } : undefined); };
+    if (!chartApi()) { toast("CHART_SERVICE_URL isn't set in config.js.", "error"); return; }
+    const known = new Set(window.SETUP_TYPES || []);
+    const rows = allRows.filter((r) => r.id && r.symbol && r.trade_date && r.entry_time && r.entry_price != null);
+    if (!rows.length) { toast("No trades to tag."); return; }
+    // A price bracket tag is on every trade that has an entry price, so a tagged trade without one was tagged
+    // before the newer tags existed and is picked up again here.
+    const needsTags = (r) => r.behavior_tags == null || !r.behavior_tags.some((t) => String(t).indexOf("price_") === 0);
+    let todo = rows.filter((r) => !known.has(r.setup_type) || needsTags(r));
+    if (!todo.length) {
+      const again = window.UIModal ? await UIModal.confirm(`All ${rows.length} trades are already tagged. Re-read every chart and re-tag them?`, { title: "Re-tag everything?", confirmLabel: "Re-tag all" }) : confirm("Re-tag all trades?");
+      if (!again) return;
+      todo = rows;
+    } else {
+      const ok = window.UIModal
+        ? await UIModal.confirm(`Read the 1-minute chart for ${todo.length} trade${todo.length === 1 ? "" : "s"} and give each one a setup (Red-to-green, Green-over-green wick, 9 EMA dip buy, Chase, or Other) plus behavior tags (session, scaled in/out, revenge trade, below VWAP/9 EMA, gave back winner, and more)? This replaces the Setup column on those trades (your own "My setup" notes are untouched). It fetches one day of chart data per symbol, so it can take a while.`, { title: "Tag my setups", confirmLabel: `Tag ${todo.length}` })
+        : confirm(`Tag ${todo.length} trades?`);
+      if (!ok) return;
+    }
+
+    // The behavior_tags column comes from sql/006_behavior_tags.sql -- check it exists before spending any chart calls.
+    const probe = await window.sb.from("trades").select("behavior_tags").limit(1);
+    if (probe.error) { toast("Run sql/006_behavior_tags.sql in Supabase first (adds the behavior_tags column), then try again.", "error"); return; }
+    const sizes = allRows.map((r) => Number(r.shares)).filter((n) => n > 0).sort((a, b) => a - b);
+    const medianShares = sizes.length >= 10 ? (sizes.length % 2 ? sizes[(sizes.length - 1) / 2] : (sizes[sizes.length / 2 - 1] + sizes[sizes.length / 2]) / 2) : null;
+    const slim = (r) => ({ id: r.id, symbol: r.symbol, trade_date: r.trade_date, entry_time: r.entry_time, exit_time: r.exit_time, entry_price: r.entry_price, exit_price: r.exit_price, shares: r.shares, pnl_after_comm: r.pnl_after_comm, side: r.side || "long" });
+
+    const groups = new Map();
+    todo.forEach((r) => { const k = r.symbol.toUpperCase() + "|" + r.trade_date; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); });
+    const keys = Array.from(groups.keys());
+    const tally = {}, tagTally = {}; let done = 0, failed = 0, firstErr = "";
+    tsCancelled = false; tsCancel.disabled = false;
+    tsBtn.disabled = true; tsBox.style.display = ""; tsFill.style.width = "0%";
+    try {
+      for (let i = 0; i < keys.length && !tsCancelled; i++) {
+        const grp = groups.get(keys[i]);
+        tsLabel.textContent = `${i + 1} of ${keys.length} charts · ${grp[0].symbol} ${grp[0].trade_date}`;
+        let out;
+        try {
+          const headers = await authedHeadersJ();
+          const res = await fetch(`${chartApi()}/classify-setups`, {
+            method: "POST", headers,
+            body: JSON.stringify({ trades: grp.slice(0, 60).map(slim), day_trades: allRows.filter((x) => x.trade_date === grp[0].trade_date).map(slim), median_shares: medianShares }),
+          });
+          out = await res.json();
+          if (!res.ok) throw new Error(out.error || ("HTTP " + res.status));
+        } catch (e) { failed += grp.length; firstErr = firstErr || (e.message || String(e)); tsFill.style.width = Math.round(((i + 1) / keys.length) * 100) + "%"; continue; }
+        for (const r of grp) {
+          const hit = out.results && out.results[String(r.id)];
+          if (!hit) { failed++; firstErr = firstErr || ((out.errors && out.errors[String(r.id)]) || "no result"); continue; }
+          const tags = Array.isArray(hit.tags) ? hit.tags : [];
+          const upd = await window.sb.from("trades").update({ setup_type: hit.setup_type, behavior_tags: tags }).eq("id", r.id);
+          if (upd.error) { failed++; firstErr = firstErr || upd.error.message; continue; }
+          // The trade page reads setup_type from trade_details when it has one; keep the two in step (best effort).
+          try { await window.sb.from("trade_details").update({ setup_type: hit.setup_type }).eq("trade_id", r.id); } catch (e) { /* ignore */ }
+          r.setup_type = hit.setup_type; r.behavior_tags = tags;
+          tally[hit.setup_type] = (tally[hit.setup_type] || 0) + 1; done++;
+          tags.forEach((t) => { tagTally[t] = (tagTally[t] || 0) + 1; });
+        }
+        tsFill.style.width = Math.round(((i + 1) / keys.length) * 100) + "%";
+      }
+    } finally {
+      tsBtn.disabled = false;
+      setTimeout(() => { tsBox.style.display = "none"; }, 1200);
+    }
+    boot(allRows);
+    const parts = (window.SETUP_TYPES || []).filter((t) => tally[t]).map((t) => `${tally[t]} ${window.setupLabel(t)}`);
+    const nTags = Object.values(tagTally).reduce((a, b) => a + b, 0);
+    let msg = done ? `Tagged ${done}: ${parts.join(" · ")}. ${nTags} behavior tags added.` : "Nothing was tagged.";
+    if (tsCancelled) msg += " Stopped early.";
+    if (failed) msg += ` ${failed} couldn't be tagged (${firstErr}).`;
+    toast(msg, failed && !done ? "error" : undefined);
+  }
+  if (tsBtn) tsBtn.addEventListener("click", () => { runTagSetups().catch((e) => { tsBtn.disabled = false; if (window.showToast) window.showToast("Couldn't tag setups: " + (e.message || e), { type: "error" }); }); });
 
   // "Fill missing floats" -- bulk on-demand float lookup for every trade
   // that doesn't have one yet (float_tag null or "float_unknown"), so
@@ -566,7 +641,7 @@
     float_mega_200m_plus: "Float 200M+", float_unknown: "Float unknown",
   };
   function tagLabel(tag) {
-    return TAG_LABELS[tag] || String(tag).replace(/_/g, " ");
+    return TAG_LABELS[tag] || (window.BEHAVIOR_TAG_LABELS && window.BEHAVIOR_TAG_LABELS[tag]) || String(tag).replace(/_/g, " ");
   }
 
   // Paints from the on-device snapshot first (instant), then swaps in the fresh
@@ -584,7 +659,7 @@
       for (const s of setups) {
         const opt = document.createElement("option");
         opt.value = s;
-        opt.textContent = s.replace(/_/g, " ");
+        opt.textContent = window.setupLabel ? window.setupLabel(s) : s.replace(/_/g, " ");
         els.setup.appendChild(opt);
       }
       // Same pattern as the setup filter above, one per volume/rvol/float
@@ -615,11 +690,11 @@
       // build their tag breakdowns from. Populates the Tags filter and
       // is what the table's Tags column actually renders below.
       const lessonTagSet = new Set();
-      allRows.forEach((r) => (r.lesson_tags || []).forEach((t) => t && lessonTagSet.add(t)));
+      allRows.forEach((r) => (r.lesson_tags || []).concat(r.behavior_tags || []).forEach((t) => t && lessonTagSet.add(t)));
       Array.from(lessonTagSet).sort().forEach((t) => {
         const opt = document.createElement("option");
         opt.value = t;
-        opt.textContent = t.replace(/_/g, " ");
+        opt.textContent = tagLabel(t);
         els.tag.appendChild(opt);
       });
       if (!booted) {
@@ -681,23 +756,7 @@
   // escapeHtml() now in utils.js (loads first on every page).
   // fmtMoney() now in utils.js (loads first on every page).
 
-  // Fill the "my setup"/"my mistake" dropdowns from the tags actually used
-  // in the journal entries (trade-notes.js), keeping any current selection.
-  function populateJournalFilters() {
-    if (!window.TradeNotes) return;
-    const entries = Object.values(window.TradeNotes.all());
-    const setups = new Set(), mistakes = new Set();
-    entries.forEach((e) => { if (e.setup) setups.add(e.setup); (e.mistakes || []).forEach((m) => mistakes.add(m)); });
-    const fill = (sel, values, anyLabel) => {
-      const cur = sel.value;
-      sel.innerHTML = `<option value="">${anyLabel}</option>` + Array.from(values).sort().map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
-      if (cur && values.has(cur)) sel.value = cur;
-    };
-    fill(els.mySetup, setups, "My setup: any");
-    fill(els.myMistake, mistakes, "My mistake: any");
-  }
-  populateJournalFilters();
-  if (window.KV) window.KV.ready.then(() => { populateJournalFilters(); });
+
 
   // Quick date chips: Today / Yesterday / This week (Mon-today) / This month.
   // They just fill the From/To inputs and fire the normal "input" path, so
@@ -747,9 +806,6 @@
     const subtypeF = els.subtype.value;
     const venueF = els.venue.value;
     const gradeFilter = els.grade.value;
-    const mySetup = els.mySetup.value;
-    const myMistake = els.myMistake.value;
-    const myRules = els.myRules.value;
     const flaggedOnly = els.flagged.checked;
     const timeFrom = els.timeFrom.value; // "HH:MM" or ""
     const timeTo = els.timeTo.value;
@@ -764,7 +820,7 @@
       if (rvol && r.rvol_tag !== rvol) return false;
       if (avgvol && r.avg_volume_tag !== avgvol) return false;
       if (floatTag && r.float_tag !== floatTag) return false;
-      if (tag && !(r.lesson_tags || []).includes(tag)) return false;
+      if (tag && !((r.lesson_tags || []).includes(tag) || (r.behavior_tags || []).includes(tag))) return false;
       if (countryF && r.issuer_country !== countryF) return false;
       if (subtypeF && r.sub_category !== subtypeF) return false;
       if (venueF && !(r.venues && typeof r.venues === "object" && venueF in r.venues)) return false;
@@ -774,14 +830,6 @@
         else if (!g || g < Number(gradeFilter)) return false;
       }
       if (flaggedOnly && !(r.better_entry_price || r.better_exit_price)) return false;
-      if (mySetup || myMistake || myRules) {
-        const je = window.TradeNotes ? window.TradeNotes.get(r.id) : null;
-        if (mySetup && (!je || je.setup !== mySetup)) return false;
-        if (myMistake && (!je || !(je.mistakes || []).includes(myMistake))) return false;
-        if (myRules === "yes" && !(je && je.followed_rules === true)) return false;
-        if (myRules === "no" && !(je && je.followed_rules === false)) return false;
-        if (myRules === "unset" && je && je.followed_rules !== null && je.followed_rules !== undefined) return false;
-      }
       // entry_time is "HH:MM:SS"; time inputs give "HH:MM" -- string
       // comparison on the HH:MM prefix is enough for a same-day range.
       const entryHM = String(r.entry_time || "").slice(0, 5);
@@ -879,24 +927,22 @@
     const rowLabel = `View trade — ${r.trade_date} ${r.symbol}, ${r.win ? "win" : "loss"}, ${fmtMoney(r.pnl_after_comm || 0)}`;
     return `
       <tr data-id="${escapeHtml(r.id)}" class="row-link" tabindex="0" role="link" aria-label="${escapeHtml(rowLabel)}">
-        <td class="checkbox-col"><input type="checkbox" class="row-cb" data-id="${escapeHtml(r.id)}" aria-label="Select trade" ${selectedIds.has(r.id) ? "checked" : ""}></td>
         ${colDefs.map((c) => `<td class="col-${c.id}">${c.render(r)}</td>`).join("")}
       </tr>`;
   }
   function loadMoreRowHtml() {
     const remaining = tableRows.length - tableShown;
     if (remaining <= 0) return "";
-    return `<tr id="table-load-more-row"><td colspan="${colDefsByOrder().length + 1}" style="padding:14px 10px; text-align:center;">
+    return `<tr id="table-load-more-row"><td colspan="${colDefsByOrder().length}" style="padding:14px 10px; text-align:center;">
       <button type="button" class="btn-load-more" id="table-load-more-btn">Load more (${remaining} left)</button>
     </td></tr>`;
   }
   function colgroupHtml() {
-    return `<colgroup><col style="width:34px;">${colDefsByOrder().map((c) => `<col data-col-id="${c.id}" style="width:${colWidths[c.id]}px;">`).join("")}</colgroup>`;
+    return `<colgroup>${colDefsByOrder().map((c) => `<col data-col-id="${c.id}" style="width:${colWidths[c.id]}px;">`).join("")}</colgroup>`;
   }
   function headerRowHtml() {
     const defs = colDefsByOrder();
     return `<tr>
-      <th class="checkbox-col" scope="col"><input type="checkbox" id="select-all-cb" aria-label="Select all loaded trades"></th>
       ${defs.map((c, i) => {
         const isSorted = sortKey === c.id;
         const ariaSort = c.sortable ? ` aria-sort="${isSorted ? (sortDir === "asc" ? "ascending" : "descending") : "none"}"` : "";
@@ -938,23 +984,10 @@
               ${ALL_COLUMNS.filter((c) => c.sortable).map((c) => ["desc", "asc"].map((d) => `<option value="${c.id}:${d}"${sortKey === c.id && sortDir === d ? " selected" : ""}>${escapeHtml(c.label)} ${d === "desc" ? "&#8595;" : "&#8593;"}</option>`).join("")).join("")}
             </select>
           </label>
-          <span style="display:flex; gap:8px;">
-            <button class="icon-btn icon-btn-visible" id="csv-export-btn" title="Export this filtered set as CSV, with a column picker" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M5 21h14"></path></svg>
-              <span>Export CSV…</span>
-            </button>
-            <button class="icon-btn icon-btn-visible" id="share-view-btn" title="Export this filtered set as a shareable static page" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"></line></svg>
-              <span id="share-view-label">Share this view</span>
-            </button>
-          </span>
-        </div>
-        <div class="bulk-toolbar" id="bulk-toolbar" style="display:none;">
-          <span id="bulk-count">0 selected</span>
-          <button type="button" class="filter-btn" id="bulk-tag-btn">Add tag…</button>
-          <button type="button" class="filter-btn" id="bulk-export-btn">Export selected…</button>
-          <button type="button" class="btn-danger" id="bulk-delete-btn" style="padding:6px 12px; font-size:12.5px;">Delete</button>
-          <button type="button" class="filter-btn" id="bulk-clear-btn">Clear</button>
+          <button class="icon-btn icon-btn-visible" id="export-btn" title="Download these trades as a CSV spreadsheet or a web page" style="width:auto; padding:4px 10px; font-size:11.5px; gap:5px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;"><path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M5 21h14"></path></svg>
+            <span>Export…</span>
+          </button>
         </div>
         <div class="table-scroll">
         <table class="data-table journal-data-table" id="journal-table">
@@ -968,7 +1001,6 @@
         </div>
       </div>
     `;
-    updateBulkToolbar();
   }
 
   // ------------------------------------------------------------------
@@ -1027,7 +1059,6 @@
       moreRow.insertAdjacentHTML("beforebegin", newRowsHtml);
       if (tableShown < tableRows.length) btn.textContent = `Load more (${tableRows.length - tableShown} left)`;
       else moreRow.remove();
-      updateBulkToolbar();
       return;
     }
     if (e.target.closest("#empty-clear-filters")) {
@@ -1036,28 +1067,7 @@
       applyFilters();
       return;
     }
-    if (e.target.closest("#share-view-btn")) {
-      if (!window.TradeLogShare) return;
-      const label = document.getElementById("share-view-label");
-      try {
-        const html = TradeLogShare.buildSetSharePage(tableRows, {
-          title: `${tableRows.length} trade${tableRows.length === 1 ? "" : "s"} — trade.log`,
-          filtersSummary: describeFilters(),
-        });
-        TradeLogShare.download(`trade-log-filtered-${new Date().toISOString().slice(0, 10)}.html`, html);
-        label.textContent = "Downloaded!";
-        setTimeout(() => (label.textContent = "Share this view"), 1600);
-      } catch (err) {
-        label.textContent = "Couldn't export";
-        setTimeout(() => (label.textContent = "Share this view"), 1600);
-      }
-      return;
-    }
-    if (e.target.closest("#csv-export-btn")) { openExportModal(tableRows); return; }
-    if (e.target.closest("#bulk-export-btn")) { openExportModal(tableRows.filter((r) => selectedIds.has(r.id))); return; }
-    if (e.target.closest("#bulk-clear-btn")) { selectedIds.clear(); redrawTable(); return; }
-    if (e.target.closest("#bulk-tag-btn")) { bulkAddTag(); return; }
-    if (e.target.closest("#bulk-delete-btn")) { bulkDelete(); return; }
+    if (e.target.closest("#export-btn")) { openExportDialog(); return; }
     const quickEditBtn = e.target.closest("[data-quick-edit]");
     if (quickEditBtn) { openQuickEdit(quickEditBtn.getAttribute("data-quick-edit"), quickEditBtn.closest(".tags-cell")); return; }
     if (e.target.closest(".quick-edit-panel")) return; // swallow, handled by its own buttons below
@@ -1071,12 +1081,11 @@
   });
 
   // Swipe actions on a card (js/mobile-extras.js reports the intent; this page owns
-  // what each one does): right swipe = Note, left swipe = Tag / Delete.
+  // what each one does): right swipe = Note, left swipe = Tag. (Deleting lives in Accounts, on purpose.)
   content.addEventListener("journal:swipe", (e) => {
     const { id, action } = e.detail || {};
     if (!id) return;
-    if (action === "delete") deleteIds([id]);
-    else if (window.QuickAdd) window.QuickAdd.open({ mode: "trade", tradeId: id, focus: action === "tag" ? "tags" : null });
+    if (window.QuickAdd) window.QuickAdd.open({ mode: "trade", tradeId: id, focus: action === "tag" ? "tags" : null });
   });
   // A note/tag saved from the quick sheet shows up in the Tags column right away.
   const onNoteSaved = () => {
@@ -1182,19 +1191,6 @@
       applyFilters();
       return;
     }
-    if (e.target.matches(".row-cb")) {
-      const id = e.target.getAttribute("data-id");
-      if (e.target.checked) selectedIds.add(id); else selectedIds.delete(id);
-      updateBulkToolbar();
-      return;
-    }
-    if (e.target.matches("#select-all-cb")) {
-      const shownIds = tableRows.slice(0, tableShown).map((r) => r.id);
-      if (e.target.checked) shownIds.forEach((id) => selectedIds.add(id));
-      else shownIds.forEach((id) => selectedIds.delete(id));
-      content.querySelectorAll(".row-cb").forEach((cb) => { cb.checked = selectedIds.has(cb.getAttribute("data-id")); });
-      updateBulkToolbar();
-    }
   });
 
   // Column drag-to-reorder (native HTML5 DnD on the <th>s).
@@ -1251,133 +1247,27 @@
     saveColumnPrefs();
   });
 
-  function updateBulkToolbar() {
-    const bar = document.getElementById("bulk-toolbar");
-    if (!bar) return;
-    const n = selectedIds.size;
-    bar.style.display = n ? "" : "none";
-    const countEl = document.getElementById("bulk-count");
-    if (countEl) countEl.textContent = `${n} selected`;
-    const selectAllCb = document.getElementById("select-all-cb");
-    if (selectAllCb) {
-      const shownIds = tableRows.slice(0, tableShown).map((r) => r.id);
-      const allChecked = shownIds.length > 0 && shownIds.every((id) => selectedIds.has(id));
-      selectAllCb.checked = allChecked;
-      selectAllCb.indeterminate = !allChecked && shownIds.some((id) => selectedIds.has(id));
-    }
-  }
-
-  // Inline quick-edit -- lets a trader add tags/a note to a trade right
-  // from the journal row, without opening the full trade page. Writes
-  // through trade-notes.js's existing per-trade entry (mistakes tags +
-  // notes), the same writable store the trade page itself edits, so
-  // nothing here bypasses or duplicates that data model.
+  // Inline quick-edit -- lets a trader jot a note on a trade right from the journal row, without opening
+  // the full trade page. Writes through trade-notes.js's per-trade entry (the same store the trade page
+  // edits). Tags are automatic now, so this is note-only.
   function openQuickEdit(id, cellEl) {
     if (!cellEl || !window.TradeNotes) return;
     const entry = window.TradeNotes.get(id) || {};
-    const tagsStr = (entry.mistakes || []).join(", ");
     cellEl.innerHTML = `
       <span class="quick-edit-panel">
-        <input type="text" class="quick-edit-tags" placeholder="tags, comma separated" value="${escapeHtml(tagsStr)}">
         <input type="text" class="quick-edit-note" placeholder="note" value="${escapeHtml(entry.notes || "")}">
         <button type="button" class="quick-edit-save" title="Save">&#10003;</button>
         <button type="button" class="quick-edit-cancel" title="Cancel">&#10005;</button>
       </span>`;
-    const tagsInput = cellEl.querySelector(".quick-edit-tags");
-    tagsInput.focus();
-    tagsInput.setSelectionRange(tagsInput.value.length, tagsInput.value.length);
+    const noteInput = cellEl.querySelector(".quick-edit-note");
+    noteInput.focus();
+    noteInput.setSelectionRange(noteInput.value.length, noteInput.value.length);
     cellEl.querySelector(".quick-edit-save").addEventListener("click", () => {
-      const newTags = tagsInput.value.split(",").map((t) => t.trim()).filter(Boolean);
-      const newNote = cellEl.querySelector(".quick-edit-note").value;
-      window.TradeNotes.save(id, Object.assign({}, entry, { mistakes: newTags, notes: newNote }));
+      window.TradeNotes.save(id, Object.assign({}, entry, { notes: noteInput.value }));
       if (window.Haptics) window.Haptics.play("success");
       redrawTable();
     });
     cellEl.querySelector(".quick-edit-cancel").addEventListener("click", () => redrawTable());
-  }
-
-  // Bulk tag -- adds one tag to every selected trade's trade-notes entry
-  // (creating the entry if the trade doesn't have one yet).
-  async function bulkAddTag() {
-    if (!selectedIds.size || !window.TradeNotes) return;
-    const tag = window.UIModal
-      ? await UIModal.prompt(`Add a tag to ${selectedIds.size} selected trade${selectedIds.size === 1 ? "" : "s"}:`, "", { title: "Bulk tag", confirmLabel: "Add" })
-      : prompt("Tag to add:", "");
-    if (!tag || !tag.trim()) return;
-    const clean = tag.trim();
-    selectedIds.forEach((id) => {
-      const entry = window.TradeNotes.get(id) || {};
-      const mistakes = Array.from(new Set((entry.mistakes || []).concat([clean])));
-      window.TradeNotes.save(id, Object.assign({}, entry, { mistakes }));
-    });
-    redrawTable();
-  }
-
-  // Bulk delete -- removes the selected trades from Supabase directly
-  // (RLS already scopes `trades` to the signed-in user, same client used
-  // everywhere else on this page). Assumes trade_details cascades on
-  // trade_id -- if it doesn't in your schema, add that FK/ON DELETE
-  // CASCADE, or delete from trade_details here too before this call.
-  //
-  // Optimistic + undoable: the rows disappear from the table the instant
-  // you click Delete (no blocking "are you sure?" -- that's what the
-  // Undo toast is for), but the actual Supabase delete is deferred until
-  // the toast expires. Clicking Undo within that window just restores
-  // the rows locally and the server call never happens; letting it run
-  // out fires the real delete, with the old rollback-on-failure kept as
-  // a fallback for the rare case that call itself errors.
-  function bulkDelete() {
-    if (!selectedIds.size) return;
-    deleteIds(Array.from(selectedIds));
-  }
-  // Shared by the bulk toolbar and the swipe-left "Delete" on a card.
-  function deleteIds(ids) {
-    if (!ids.length) return;
-    const n = ids.length;
-    const idSet = new Set(ids);
-    const removed = [];
-    ids.forEach((id) => {
-      const idx = allRows.findIndex((r) => r.id === id);
-      if (idx !== -1) removed.push({ row: allRows[idx], index: idx });
-    });
-    if (window.Haptics) window.Haptics.play("warn");
-    allRows = allRows.filter((r) => !idSet.has(r.id));
-    ids.forEach((id) => selectedIds.delete(id));
-    bootShown = tableShown || null; // keep the list as far down as it was
-    applyFilters();
-
-    const restore = () => {
-      removed.sort((a, b) => a.index - b.index).forEach(({ row, index }) => {
-        allRows.splice(Math.min(index, allRows.length), 0, row);
-      });
-      bootShown = tableShown || null;
-      applyFilters();
-    };
-
-    const label = `Deleted ${n} trade${n === 1 ? "" : "s"}`;
-    if (!window.showToast) {
-      // No toast support (shouldn't happen -- utils.js loads on every
-      // page) -- fall back to the old blocking confirm so a delete is
-      // never silently unrecoverable-and-un-warned-about.
-      if (!confirm(`Delete ${n} trade(s)? This can't be undone.`)) { restore(); return; }
-      commit();
-      return;
-    }
-    window.showToast(label + " — Undo", {
-      action: { label: "Undo", onClick: restore },
-      onExpire: commit,
-    });
-
-    async function commit() {
-      try {
-        const res = await window.sb.from("trades").delete().in("id", ids);
-        if (res.error) throw new Error(res.error.message);
-      } catch (err) {
-        restore();
-        if (window.UIModal) UIModal.alert("Couldn't delete: " + err.message, { tone: "danger" });
-        else alert("Couldn't delete: " + err.message);
-      }
-    }
   }
 
   // CSV export with a column picker -- replaces the old plain "whatever
@@ -1401,34 +1291,131 @@
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  function openExportModal(rows) {
-    if (!rows.length) return;
+  // One Export dialog for everything that leaves the app as a file. It asks the
+  // same three things in order: which trades (everything in the current filter,
+  // or a hand-picked set), what kind of file (CSV or a standalone web page), and
+  // -- for CSV -- which columns. Buttons say exactly what they do ("Download CSV",
+  // "Download web page"); "Share…" only appears where the device can really open
+  // its share sheet with a file, so nothing labelled Share silently downloads.
+  function openExportDialog() {
+    const all = tableRows.slice();
+    if (!all.length) return;
+    const plural = (k) => `${k} trade${k === 1 ? "" : "s"}`;
+    const picked = new Set();
+    let canShareFile = false;
+    try {
+      canShareFile = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [new File(["x"], "t.html", { type: "text/html" })] }));
+    } catch (e) { canShareFile = false; }
     const overlay = document.createElement("div");
     overlay.className = "ui-modal-overlay";
     overlay.innerHTML = `
-      <div class="ui-modal-box export-modal-box" role="dialog" aria-modal="true">
-        <div class="ui-modal-title">Export ${rows.length} trade${rows.length === 1 ? "" : "s"} to CSV</div>
-        <div class="export-col-picker">
-          ${ALL_COLUMNS.map((c) => `<label class="export-col-row"><input type="checkbox" value="${c.id}" checked> ${escapeHtml(c.label)}</label>`).join("")}
-          <div class="export-col-group" style="margin:10px 0 4px; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint);">Your journal entries</div>
-          ${JOURNAL_EXPORT_COLUMNS.map((c) => `<label class="export-col-row"><input type="checkbox" value="${c.id}" checked> ${escapeHtml(c.label)}</label>`).join("")}
+      <div class="ui-modal-box export-modal-box" role="dialog" aria-modal="true" aria-label="Export trades">
+        <div class="ui-modal-title">Export trades</div>
+        <div class="exp-group">Which trades</div>
+        <label class="exp-opt"><input type="radio" name="exp-scope" value="all" checked>
+          <span><b>All ${plural(all.length)} in the current filter</b><small>${escapeHtml(describeFilters())}</small></span></label>
+        <label class="exp-opt"><input type="radio" name="exp-scope" value="pick">
+          <span><b>Let me choose which ones</b><small>Tick the trades you want</small></span></label>
+        <div class="exp-pick" id="exp-pick" hidden>
+          <div class="exp-pick-bar"><span id="exp-pick-count">0 selected</span>
+            <button type="button" class="filter-btn" id="exp-pick-all">Select all</button>
+            <button type="button" class="filter-btn" id="exp-pick-none">None</button></div>
+          <div class="exp-pick-list">
+            ${all.map((r) => `<label class="exp-pick-row"><input type="checkbox" value="${escapeHtml(r.id)}">
+              <span>${escapeHtml(r.trade_date)} · <b>${escapeHtml(r.symbol)}</b></span>
+              <span class="${(r.pnl_after_comm || 0) >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm || 0)}</span></label>`).join("")}
+          </div>
         </div>
+        <div class="exp-group">File type</div>
+        <label class="exp-opt"><input type="radio" name="exp-fmt" value="csv" checked>
+          <span><b>CSV spreadsheet</b><small>Opens in Excel or Google Sheets</small></span></label>
+        <label class="exp-opt"><input type="radio" name="exp-fmt" value="html">
+          <span><b>Web page (.html)</b><small>One self-contained page with these trades, to open anywhere or send to someone</small></span></label>
+        <details class="exp-cols" id="exp-cols">
+          <summary>Columns to include</summary>
+          <div class="export-col-picker">
+            ${ALL_COLUMNS.map((c) => `<label class="export-col-row"><input type="checkbox" value="${c.id}" checked> ${escapeHtml(c.label)}</label>`).join("")}
+            <div class="export-col-group" style="margin:10px 0 4px; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint);">Your journal entries</div>
+            ${JOURNAL_EXPORT_COLUMNS.map((c) => `<label class="export-col-row"><input type="checkbox" value="${c.id}" checked> ${escapeHtml(c.label)}</label>`).join("")}
+          </div>
+        </details>
         <div class="ui-modal-actions">
           <button type="button" class="btn-advanced" data-act="cancel">Cancel</button>
-          <button type="button" class="btn-confirm" data-act="export">Export CSV</button>
+          <button type="button" class="btn-advanced" data-act="share" hidden>Share…</button>
+          <button type="button" class="btn-confirm" data-act="download">Download CSV</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
     requestAnimationFrame(() => overlay.classList.add("open"));
+    const $ = (sel) => overlay.querySelector(sel);
+    const scope = () => $('input[name="exp-scope"]:checked').value;
+    const fmt = () => $('input[name="exp-fmt"]:checked').value;
+    const chosen = () => (scope() === "all" ? all : all.filter((r) => picked.has(r.id)));
+    const dlBtn = $('[data-act="download"]'), shBtn = $('[data-act="share"]');
+    function sync() {
+      const k = chosen().length;
+      $("#exp-pick").hidden = scope() !== "pick";
+      $("#exp-pick-count").textContent = `${picked.size} selected`;
+      $("#exp-cols").hidden = fmt() !== "csv";
+      dlBtn.textContent = fmt() === "csv" ? "Download CSV" : "Download web page";
+      dlBtn.disabled = k === 0;
+      shBtn.hidden = !(canShareFile && fmt() === "html");
+      shBtn.disabled = k === 0;
+    }
     function close() { overlay.classList.remove("open"); setTimeout(() => overlay.remove(), 160); }
     overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
-    overlay.querySelector('[data-act="cancel"]').addEventListener("click", close);
-    overlay.querySelector('[data-act="export"]').addEventListener("click", () => {
-      const ids = Array.from(overlay.querySelectorAll(".export-col-picker input:checked")).map((cb) => cb.value);
-      if (!ids.length) return;
-      downloadCsv(`trade-log-export-${new Date().toISOString().slice(0, 10)}.csv`, buildCsv(rows, ids));
-      close();
+    overlay.addEventListener("change", (e) => {
+      if (e.target.matches(".exp-pick-row input")) { if (e.target.checked) picked.add(e.target.value); else picked.delete(e.target.value); }
+      sync();
     });
+    $("#exp-pick-all").addEventListener("click", () => {
+      all.forEach((r) => picked.add(r.id));
+      overlay.querySelectorAll(".exp-pick-row input").forEach((cb) => { cb.checked = true; });
+      sync();
+    });
+    $("#exp-pick-none").addEventListener("click", () => {
+      picked.clear();
+      overlay.querySelectorAll(".exp-pick-row input").forEach((cb) => { cb.checked = false; });
+      sync();
+    });
+    $('[data-act="cancel"]').addEventListener("click", close);
+    const stamp = () => new Date().toISOString().slice(0, 10);
+    const pageFor = (rows) => TradeLogShare.buildSetSharePage(rows, {
+      title: `${plural(rows.length)} — trade.log`,
+      filtersSummary: scope() === "all" ? describeFilters() : `${plural(rows.length)} hand-picked`,
+    });
+    const say = (msg, kind) => { if (window.showToast) window.showToast(msg, kind ? { type: kind } : undefined); };
+    dlBtn.addEventListener("click", () => {
+      const rows = chosen();
+      if (!rows.length) return;
+      try {
+        if (fmt() === "csv") {
+          const cols = Array.from(overlay.querySelectorAll(".export-col-picker input:checked")).map((cb) => cb.value);
+          if (!cols.length) { say("Pick at least one column.", "error"); return; }
+          const name = `trade-log-export-${stamp()}.csv`;
+          downloadCsv(name, buildCsv(rows, cols));
+          say(`Downloaded ${name} (${plural(rows.length)}). Check your Downloads.`);
+        } else {
+          if (!window.TradeLogShare) throw new Error("export unavailable");
+          const name = `trade-log-filtered-${stamp()}.html`;
+          TradeLogShare.download(name, pageFor(rows));
+          say(`Downloaded ${name} (${plural(rows.length)}). Check your Downloads.`);
+        }
+        close();
+      } catch (err) { say("Couldn't export: " + (err && err.message || err), "error"); }
+    });
+    shBtn.addEventListener("click", async () => {
+      const rows = chosen();
+      if (!rows.length || !window.TradeLogShare) return;
+      try {
+        const file = new File([pageFor(rows)], `trade-log-filtered-${stamp()}.html`, { type: "text/html" });
+        await navigator.share({ files: [file], title: `${plural(rows.length)} — trade.log` });
+        close();
+      } catch (err) {
+        if (err && err.name !== "AbortError") say("Couldn't open the share sheet. Use Download instead.", "error");
+      }
+    });
+    sync();
   }
 
   // Turns the active filter controls into a plain-English summary line for
@@ -1439,7 +1426,7 @@
     const parts = [];
     if (els.symbol.value.trim()) parts.push(`Symbol contains "${els.symbol.value.trim().toUpperCase()}"`);
     if (els.from.value || els.to.value) parts.push(`${els.from.value || "…"} – ${els.to.value || "…"}`);
-    if (els.setup.value) parts.push(`Setup: ${els.setup.value.replace(/_/g, " ")}`);
+    if (els.setup.value) parts.push(`Setup: ${window.setupLabel ? window.setupLabel(els.setup.value) : els.setup.value.replace(/_/g, " ")}`);
     if (els.result.value === "win") parts.push("Wins only");
     if (els.result.value === "loss") parts.push("Losses only");
     if (els.rvol.value) parts.push(tagLabel(els.rvol.value));
@@ -1457,6 +1444,7 @@
 <script src="js/common.js"></script>
 <script src="js/select-enhance.js" defer></script>
 <script src="js/mobile-tables.js"></script>
+<script src="js/glossary.js"></script>
 <script src="js/global-search.js"></script>
 <script src="js/shortcuts-help.js"></script>
 </body>

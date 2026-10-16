@@ -140,6 +140,7 @@
 </div>
 
 <script src="js/utils.js"></script>
+<script src="js/tag-catalog.js"></script>
 <script src="js/config.js"></script>
 <script src="js/vendor/supabase.js"></script>
 <script src="js/auth.js"></script>
@@ -364,7 +365,7 @@
       </div>
 
       <div class="panel-box mb-16">
-        <div class="panel-box-head"><span class="title">Your Journal: Setups, Mistakes &amp; Rules</span></div>
+        <div class="panel-box-head"><span class="title">Setups, Flags &amp; Clean Trades</span></div>
         <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Built from the tags, rules check and planned stop you enter on each trade's page — your own read, not the AI's.</p>
         <div id="journal-insights"></div>
       </div>
@@ -1131,19 +1132,18 @@
       <p style="color:var(--text-faint); font-size:12px; margin:12px 0 0;">Based on ${cur.trades} trade${cur.trades === 1 ? "" : "s"}; ${covered}% of the score's weight has data. Weakest area: <b>${escapeHtml(worst.label)}</b> (${Math.round(worst.value)}%).${covered < 60 ? " Low coverage — treat this as a rough read until more of the journal is filled in." : ""}</p>`;
   }
 
-  // Aggregates the trader's own journal entries (trade-notes.js): P&L by
-  // self-labelled setup, total cost of each mistake tag, rules-followed vs
-  // not, and R-multiple stats for trades that have a planned stop.
+  // P&L by setup, the total cost of each flagged behaviour, clean vs not-clean trades (all from the
+  // automatic tags), and R-multiple stats for trades that have a planned stop (trade-notes.js).
   function renderJournalInsights(sorted) {
     const el = document.getElementById("journal-insights");
     if (!el) return;
     if (!window.TradeNotes) { el.innerHTML = `<div class="empty-state small">Journal utility failed to load.</div>`; return; }
+    const TC = window.TagCatalog;
     const entries = window.TradeNotes.all();
-    const rows = sorted
-      .filter((r) => entries[r.id])
-      .map((r) => ({ r, e: entries[r.id], m: window.TradeNotes.metrics(r, entries[r.id]) }));
-    if (!rows.length) {
-      el.innerHTML = `<div class="empty-state small">Nothing journaled yet — add a setup, mistakes or a planned stop on a trade's page to start seeing this.</div>`;
+    const rows = sorted.map((r) => ({ r, e: entries[r.id] || {}, m: window.TradeNotes.metrics(r, entries[r.id]) }));
+    const tagged = rows.filter((x) => Array.isArray(x.r.behavior_tags));
+    if (!tagged.length && !rows.some((x) => x.m.r_multiple !== null)) {
+      el.innerHTML = `<div class="empty-state small">Nothing tagged yet — open the Journal and tap Tag my setups to start seeing this.</div>`;
       return;
     }
     const pnl = (r) => (typeof r.pnl_after_comm === "number" ? r.pnl_after_comm : 0);
@@ -1169,15 +1169,15 @@
     const section = (title, body) => `<div style="margin:14px 0 6px; font-size:12px; font-weight:600; color:var(--text-dim);">${title}</div>${body}`;
 
     const bySetup = {};
-    rows.forEach((x) => { if (x.e.setup) (bySetup[x.e.setup] = bySetup[x.e.setup] || []).push(x); });
+    tagged.forEach((x) => { if (x.r.setup_type) (bySetup[x.r.setup_type] = bySetup[x.r.setup_type] || []).push(x); });
     const setupRows = Object.entries(bySetup).sort((a, b) => sum(b[1].map((x) => pnl(x.r))) - sum(a[1].map((x) => pnl(x.r))));
 
-    const byMistake = {};
-    rows.forEach((x) => (x.e.mistakes || []).forEach((t) => (byMistake[t] = byMistake[t] || []).push(x)));
-    const mistakeRows = Object.entries(byMistake).sort((a, b) => sum(a[1].map((x) => pnl(x.r))) - sum(b[1].map((x) => pnl(x.r))));
+    const byFlag = {};
+    tagged.forEach((x) => x.r.behavior_tags.forEach((t) => { if (TC.tone(t) === "watch") (byFlag[t] = byFlag[t] || []).push(x); }));
+    const flagRows = Object.entries(byFlag).sort((a, b) => sum(a[1].map((x) => pnl(x.r))) - sum(b[1].map((x) => pnl(x.r))));
 
-    const yes = rows.filter((x) => x.e.followed_rules === true);
-    const no = rows.filter((x) => x.e.followed_rules === false);
+    const yes = tagged.filter((x) => TC.isClean(x.r) === true);
+    const no = tagged.filter((x) => TC.isClean(x.r) === false);
 
     const withR = rows.filter((x) => x.m.r_multiple !== null);
     let rSummary = "";
@@ -1193,11 +1193,11 @@
 
     el.innerHTML = `
       <div style="display:flex; gap:12px; font-size:11px; color:var(--text-faint); justify-content:flex-end;"><span style="width:110px; text-align:right;">P&amp;L</span><span style="width:70px; text-align:right;">Win</span><span style="width:70px; text-align:right;">Avg R</span><span style="width:50px; text-align:right;">Trades</span></div>
-      ${mistakeRows.length ? section("Mistake cost (total P&L of trades tagged)", mistakeRows.map(([k, v]) => bar(k, v, "total")).join("")) : ""}
-      ${setupRows.length ? section("By your setup (avg per trade)", setupRows.map(([k, v]) => bar(k, v, "avg")).join("")) : ""}
-      ${(yes.length || no.length) ? section("Rules (avg per trade)", [yes.length ? bar("Followed rules", yes, "avg") : "", no.length ? bar("Broke rules", no, "avg") : ""].join("")) : ""}
+      ${flagRows.length ? section("Flag cost (total P&L of trades with each flag)", flagRows.map(([k, v]) => bar(TC.label(k), v, "total")).join("")) : ""}
+      ${setupRows.length ? section("By setup (avg per trade)", setupRows.map(([k, v]) => bar(window.setupLabel ? window.setupLabel(k) : k, v, "avg")).join("")) : ""}
+      ${(yes.length || no.length) ? section("Clean vs not clean (avg per trade)", [yes.length ? bar("Clean trades", yes, "avg") : "", no.length ? bar("Not clean", no, "avg") : ""].join("")) : ""}
       ${rSummary}
-      <div style="margin-top:8px; color:var(--text-faint); font-size:11.5px;">${rows.length} of ${sorted.length} trades journaled.</div>
+      <div style="margin-top:8px; color:var(--text-faint); font-size:11.5px;">${tagged.length} of ${sorted.length} trades tagged.</div>
     `;
     bindTradeToggles(el);
   }
@@ -1264,6 +1264,7 @@
 <script src="js/common.js"></script>
 <script src="js/select-enhance.js" defer></script>
 <script src="js/mobile-tables.js"></script>
+<script src="js/glossary.js"></script>
 <script src="js/mobile-extras.js"></script>
 <script src="js/global-search.js"></script>
 <script src="js/shortcuts-help.js"></script>

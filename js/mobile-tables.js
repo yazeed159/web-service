@@ -24,7 +24,7 @@
     Array.prototype.forEach.call(row.children, function (th) {
       // Journal-style headers hold extra buttons; prefer the real label.
       var el = th.querySelector(".headcell") || th;
-      var txt = (el.textContent || "").replace(/\s+/g, " ").trim();
+      var txt = (el.textContent || "").replace(/\s*!$/, "").replace(/\s+/g, " ").trim();
       var span = parseInt(th.getAttribute("colspan") || "1", 10) || 1;
       for (var i = 0; i < span; i++) out.push(txt);
     });

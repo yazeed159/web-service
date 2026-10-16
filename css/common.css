@@ -2572,8 +2572,7 @@ html:active-view-transition #page-progress-bar { display: none !important; }
   /* Controls that can't take ::after */
   input[type="checkbox"], input[type="radio"] { width: 22px; height: 22px; flex: none; }
   input[type="file"]::file-selector-button { min-height: 36px; padding: 0 12px; margin-right: 10px; }
-  table.journal-data-table .checkbox-col input[type="checkbox"], .bulk-toolbar input[type="checkbox"] { width: 24px; height: 24px; }
-  input[type="checkbox"], input[type="radio"] { min-width: 24px; min-height: 24px; }
+    input[type="checkbox"], input[type="radio"] { min-width: 24px; min-height: 24px; }
   .chat-chip, .chat-chip-more { min-height: 36px; }
   .chatw-icon-action { min-width: 36px; min-height: 36px; }
   /* Side-by-side ▼ ▲ so each is a full-height 40x40 target instead of two 36x20 slivers. */
@@ -2675,9 +2674,6 @@ html:active-view-transition #page-progress-bar { display: none !important; }
 --------------------------------------------------------------------- */
 table.journal-data-table th.col-th { position: relative; user-select: none; }
 table.journal-data-table th.col-th[draggable="true"] { cursor: grab; }
-table.journal-data-table .checkbox-col { width: 34px; padding: 8px 6px !important; text-align: center; }
-table.journal-data-table .checkbox-col input[type="checkbox"],
-.bulk-toolbar input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--primary); cursor: pointer; }
 table.journal-data-table td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 table.journal-data-table td.col-tags { white-space: normal; }
 .col-resize-handle {
@@ -2686,13 +2682,25 @@ table.journal-data-table td.col-tags { white-space: normal; }
 }
 .col-resize-handle:hover, .col-resize-handle:active { background: var(--primary-soft); }
 
-.bulk-toolbar {
-  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
-  background: var(--primary-soft); border-bottom: 1px solid var(--border-soft);
-  font-size: 12.5px; color: var(--text);
-}
-.bulk-toolbar #bulk-count { font-weight: 600; margin-right: 4px; }
-.bulk-toolbar .filter-btn { padding: 5px 10px; font-size: 12px; }
+/* Export dialog (journal.html) */
+.exp-group { margin: 14px 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); }
+.exp-opt { display: flex; align-items: flex-start; gap: 10px; padding: 8px 4px; cursor: pointer; }
+.exp-opt input { margin-top: 3px; accent-color: var(--primary); }
+.exp-opt b { display: block; font-size: 13.5px; font-weight: 600; }
+.exp-opt small { display: block; margin-top: 2px; font-size: 12px; color: var(--text-dim); line-height: 1.35; }
+.exp-pick { margin: 4px 0 6px 28px; border: 1px solid var(--border-soft); border-radius: 12px; overflow: hidden; }
+.exp-pick[hidden], .exp-cols[hidden] { display: none; }
+.exp-pick-bar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-size: 12.5px; font-weight: 600; border-bottom: 1px solid var(--border-soft); }
+.exp-pick-bar span { flex: 1; }
+.exp-pick-bar .filter-btn { padding: 4px 10px; font-size: 12px; }
+.exp-pick-list { max-height: 220px; overflow-y: auto; }
+.exp-pick-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; font-size: 12.5px; cursor: pointer; border-bottom: 1px solid var(--border-soft); }
+.exp-pick-row:last-child { border-bottom: 0; }
+.exp-pick-row span:nth-of-type(1) { flex: 1; min-width: 0; }
+.exp-pick-row input { accent-color: var(--primary); }
+.exp-cols { margin-top: 10px; }
+.exp-cols summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--text-dim); padding: 4px 0; }
+.ui-modal-actions [hidden] { display: none; }
 
 .tags-cell { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; width: 100%; }
 .tags-cell-pills { display: inline-flex; flex-wrap: wrap; gap: 4px; }
@@ -2932,18 +2940,16 @@ html.chart-fs-lock .bottom-nav, html.chart-fs-lock .chatw-launcher, html.chart-f
   .journal-data-table colgroup, .journal-data-table thead { display: none; }
   .journal-data-table tbody tr[data-id] {
     display: grid; align-items: center; gap: 4px 10px;
-    grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
     grid-template-areas:
-      "cb sym   sym   pnl"
-      "cb date  setup res"
-      "cb entry exit  grade"
-      "cb tags  tags  tags";
-    padding: 12px 12px 10px 4px; border-bottom: 1px solid var(--border-soft);
+      "sym   sym   pnl"
+      "date  setup res"
+      "entry exit  grade"
+      "tags  tags  tags";
+    padding: 12px; border-bottom: 1px solid var(--border-soft);
   }
   .journal-data-table tbody tr[data-id]:active { background: var(--panel-2); }
   .journal-data-table tbody td { display: block; padding: 0; border: 0; min-width: 0; }
-  .journal-data-table td.checkbox-col { grid-area: cb; align-self: stretch; display: flex; align-items: center; justify-content: center; }
-  .journal-data-table td.checkbox-col input { width: 22px; height: 22px; }
   .journal-data-table td.col-symbol { grid-area: sym; font-size: 16px; font-weight: 700; }
   .journal-data-table td.col-pnl_after_comm { grid-area: pnl; font-size: 16px; font-weight: 700; text-align: right; }
   .journal-data-table td.col-trade_date { grid-area: date; font-size: 12px; color: var(--text-faint); }
@@ -2962,15 +2968,6 @@ html.chart-fs-lock .bottom-nav, html.chart-fs-lock .chatw-launcher, html.chart-f
   /* Load more row */
   .journal-data-table tbody tr#table-load-more-row, .journal-data-table tbody tr#table-load-more-row td { display: block; width: 100%; }
   .btn-load-more { width: 100%; min-height: 46px; }
-
-  /* Bulk toolbar sticks to the bottom so it's reachable mid-list. */
-  .bulk-toolbar {
-    position: sticky; bottom: calc(10px + var(--safe-bottom)); z-index: 20;
-    flex-wrap: wrap; gap: 8px; margin: 0 8px 8px;
-    padding: 10px; border-radius: 12px; background: var(--panel-3);
-    box-shadow: 0 6px 24px rgba(0,0,0,.45);
-  }
-  .bulk-toolbar .filter-btn, .bulk-toolbar .btn-danger { min-height: 40px; }
 }
 
 /* ======================================================================
@@ -3008,7 +3005,6 @@ html.chart-fs-lock .bottom-nav, html.chart-fs-lock .chatw-launcher, html.chart-f
     opacity: .92;
   }
   .chatw-launcher svg { width: 20px; height: 20px; }
-  .bulk-toolbar { bottom: calc(66px + var(--safe-bottom)) !important; }
 
   /* -- Top bar: title shrinks and truncates instead of pushing the account button off-screen -- */
   .topbar { gap: 8px; }
@@ -3325,7 +3321,7 @@ html.has-ptr, html.has-ptr body { overscroll-behavior-y: contain; }
   .journal-data-table tbody tr[data-id].sw-drag { will-change: transform; }
   .journal-data-table tbody tr[data-id].sw-anim { transition: transform .2s cubic-bezier(.2, .8, .2, 1); }
   .sw-panel { position: absolute; display: flex; z-index: 0; overflow: hidden; }
-  .sw-panel.sw-right { right: 0; width: 144px; }
+  .sw-panel.sw-right { right: 0; width: 76px; }
   .sw-panel.sw-left { left: 0; width: 76px; }
   .sw-btn {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
@@ -3333,7 +3329,6 @@ html.has-ptr, html.has-ptr body { overscroll-behavior-y: contain; }
   }
   .sw-btn svg { width: 20px; height: 20px; }
   .sw-tag { background: var(--primary-2); }
-  .sw-del { background: var(--red); }
   .sw-note { background: var(--blue); }
 }
 
@@ -3447,10 +3442,15 @@ html.has-ptr, html.has-ptr body { overscroll-behavior-y: contain; }
   /* 16px stops iOS zooming the page when a date field is focused. */
   #journal-filters input, #journal-filters select { font-size: 16px; }
   #journal-filters input[type="date"] { min-height: 48px; }
+  /* The top bar scrolls away with the page, so this sticks to the very top edge
+     of the screen (below the status bar), full width, like a native list header. */
   .journal-sticky-bar {
-    display: block; position: sticky; top: calc(var(--topbar-h) + var(--safe-top)); z-index: 3;
-    margin: 0 -2px 8px; padding: 8px 12px; font-size: 13px; font-weight: 600; color: var(--text-dim);
-    background: var(--panel); border: 1px solid var(--border-soft); border-radius: 10px;
+    display: block; position: sticky; top: 0; z-index: 3;
+    margin: 0 -14px 8px; padding: calc(var(--safe-top) + 8px) 16px 8px;
+    font-size: 13px; font-weight: 600; color: var(--text-dim); text-align: center;
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border: 0; border-bottom: 1px solid var(--border-soft); border-radius: 0 0 16px 16px;
     font-variant-numeric: tabular-nums;
   }
   /* The bar replaces the visible summary; keep the aria-live copy for screen readers. */
@@ -4125,3 +4125,25 @@ a.th-nav:active { transform: translateY(1px); }
   .drill-table tr.drill-exec-row > td::before { content: none; }
   .drill-table .drill-exec { grid-template-columns: 42px 66px 1fr auto; gap: 6px; font-size: 11.5px; }
 }
+
+
+/* ---------- Glossary tips: tiny "!" next to jargon (js/glossary.js) ---------- */
+.gl-tip {
+  display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;
+  width: 14px; height: 14px; min-width: 14px; min-height: 14px; margin: 0 0 0 5px; padding: 0;
+  border-radius: 50%; border: 1px solid var(--text-faint); background: transparent; color: var(--text-faint);
+  font: 700 9px/1 var(--sans); text-transform: none; letter-spacing: 0; cursor: help; flex: none; opacity: .75;
+  position: relative;
+}
+/* Bigger invisible tap target without growing the icon */
+.gl-tip::after { content: ""; position: absolute; inset: -11px; }
+.gl-tip:hover, .gl-tip.on { opacity: 1; color: var(--primary); border-color: var(--primary); }
+.gl-pop {
+  position: fixed; z-index: 10000; padding: 11px 13px; border-radius: 14px; max-width: calc(100vw - 24px);
+  background: var(--panel-2, #1b1e24); color: var(--text); border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0,0,0,.45); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  font-size: 12.5px; line-height: 1.5; text-transform: none; letter-spacing: 0; font-weight: 400; font-family: var(--sans);
+}
+.gl-pop[hidden] { display: none; }
+.gl-pop-t { font-weight: 700; margin-bottom: 4px; color: var(--text); }
+.gl-pop-b { color: var(--text-dim); }

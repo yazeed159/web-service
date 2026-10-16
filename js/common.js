@@ -605,6 +605,29 @@ window.NavState = (function () {
   // Just a small dot, for places already showing the label as plain
   // text (table rows, breakdown lists) where a full recolored pill
   // would be too heavy.
+  // Readable names for the three rule-based setups (chart-service setups.py)
+  // plus "other"; anything else just loses its underscores.
+  var SETUP_LABELS = { red_to_green: "Red-to-green", green_over_green_wick: "Green-over-green wick", ema9_dip_buy: "9 EMA dip buy", chase: "Chase", other: "Other" };
+  // Behavior tags (chart-service trade_tags.py), stored on trades.behavior_tags.
+  window.BEHAVIOR_TAG_LABELS = {
+    session_early_premarket: "Early premarket (4–7)", session_pre_open: "Pre-open (7–9:30)", session_open: "Open (9:30–10)",
+    session_midday: "Midday (10–15)", session_power_hour: "Power hour (15–16)", session_after_hours: "After hours",
+    scaled_in: "Scaled in", scaled_out: "Scaled out", added_to_loser: "Added to loser", revenge_trade: "Revenge trade",
+    overtrading: "Overtrading", repeat_symbol: "Repeat symbol", oversized: "Oversized",
+    below_vwap: "Entry below VWAP", below_ema9: "Entry below 9 EMA", gave_back_winner: "Gave back winner",
+    winner_turned_loser: "Winner turned loser", overstayed: "Overstayed", ran_after_exit: "Ran after exit",
+    clean_trade: "Clean trade", extended_entry: "Extended entry", entry_after_spike: "Entry after spike",
+    new_high_of_day: "New high of day", premarket_high_break: "Premarket high break", vwap_reclaim: "VWAP reclaim",
+    sold_the_low: "Sold the low", sold_near_high: "Sold near the high", deep_drawdown: "Deep drawdown",
+    sized_up_after_loss: "Sized up after loss", after_losing_streak: "After 3 losses in a row", rapid_fire: "Rapid-fire re-entry",
+    hold_under_1m: "Held < 1 min", hold_1_5m: "Held 1–5 min", hold_5_30m: "Held 5–30 min", hold_30m_plus: "Held 30+ min",
+    price_under_2: "Price under $2", price_2_5: "Price $2–5", price_5_10: "Price $5–10", price_10_plus: "Price $10+",
+  };
+  window.SETUP_TYPES = ["red_to_green", "green_over_green_wick", "ema9_dip_buy", "chase", "other"];
+  window.setupLabel = function (v) {
+    var k = String(v == null ? "" : v);
+    return Object.prototype.hasOwnProperty.call(SETUP_LABELS, k) ? SETUP_LABELS[k] : k.replace(/_/g, " ");
+  };
   window.setupTagDot = function () {
     var c = window.setupTagStyle();
     return '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + c.fg + ';margin-right:6px;vertical-align:middle;"></span>';

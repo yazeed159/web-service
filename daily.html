@@ -178,11 +178,11 @@
           </div>
           <div class="dn-row2" style="margin-bottom:6px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));">
             <div>
-              <label class="dn-lbl">What went well</label>
+              <label class="dn-lbl">What went well <span style="font-weight:400;color:var(--text-faint);">(auto)</span></label>
               <div class="dn-chips" id="dn-well-chips"></div>
             </div>
             <div>
-              <label class="dn-lbl">What to fix</label>
+              <label class="dn-lbl">What to fix <span style="font-weight:400;color:var(--text-faint);">(auto)</span></label>
               <div class="dn-chips" id="dn-fix-chips"></div>
             </div>
           </div>
@@ -211,6 +211,7 @@
 <script src="js/vendor/supabase.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/accounts.js"></script>
+<script src="js/tag-catalog.js"></script>
 <script src="js/trade-notes.js"></script>
 <script src="js/daily-notes.js"></script>
 <script src="js/discipline.js"></script>
@@ -219,6 +220,7 @@
 <script src="js/common.js"></script>
 <script src="js/select-enhance.js" defer></script>
 <script src="js/mobile-tables.js"></script>
+<script src="js/glossary.js"></script>
 <script src="js/mobile-extras.js"></script>
 <script>
 (function () {
@@ -267,11 +269,9 @@
     const wins = rows.filter((t) => t.win).length;
     let broke = 0, mistakes = 0, journaled = 0;
     rows.forEach((t) => {
-      const e = entries[t.id];
-      if (!e) return;
-      journaled++;
-      if (e.followed_rules === false) broke++;
-      mistakes += (e.mistakes || []).length;
+      if (window.TagCatalog.isClean(t) === false) broke++;                 // tagged, but not a clean trade
+      (t.behavior_tags || []).forEach((k) => { if (window.TagCatalog.tone(k) === "watch") mistakes++; });
+      if (entries[t.id]) journaled++;
     });
     // Worst intraday drawdown of cumulative net P&L (in entry-time order),
     // so "breached max loss" also catches a day you clawed back from.
@@ -292,7 +292,7 @@
       `<span>Net P&amp;L <b class="${s.pnl >= 0 ? "up" : "down"}">${money(s.pnl)}</b></span>`,
       `<span>Win rate <b>${Math.round((s.wins / s.n) * 100)}%</b></span>`,
       `<span>Journaled <b>${s.journaled}/${s.n}</b></span>`,
-      `<span>Rules broken <b class="${s.broke ? "dn-warn" : ""}">${s.broke}</b></span>`,
+      `<span>Not clean <b class="${s.broke ? "dn-warn" : ""}">${s.broke}</b></span>`,
     ];
     if (day.max_loss != null) {
       const breached = -s.worst > day.max_loss;
@@ -321,7 +321,7 @@
       if (breached) tBreach++;
       tN += s.n; tPnl += s.pnl; tBroke += s.broke;
       if (n && n.followed_plan !== null && n.followed_plan !== undefined) { tFollowedAnswered++; if (n.followed_plan === false) tFollowedNo++; }
-      s.rows.forEach((t) => ((entries[t.id] && entries[t.id].mistakes) || []).forEach((m) => { mistakeCount[m] = (mistakeCount[m] || 0) + 1; }));
+      s.rows.forEach((t) => (t.behavior_tags || []).forEach((k) => { if (window.TagCatalog.tone(k) === "watch") mistakeCount[k] = (mistakeCount[k] || 0) + 1; }));
       return `<tr class="${dd === date ? "sel" : ""}">
         <td><a href="daily.html?date=${dd}">${DOW[parse(dd).getDay()]} ${dd.slice(5)}</a></td>
         <td>${s.n || "—"}</td>
@@ -331,14 +331,14 @@
         <td>${n && n.followed_plan === true ? "yes" : n && n.followed_plan === false ? '<span class="dn-warn">no</span>' : "—"}</td>
         <td>${hasNote ? "✓" : "—"}</td></tr>`;
     }).join("");
-    $("dn-week").innerHTML = `<tr><th>Day</th><th>Trades</th><th>Net P&amp;L</th><th>Rules broken</th><th>Max loss</th><th>Followed plan</th><th>Notes</th></tr>${rowsHtml}`;
-    const topM = Object.entries(mistakeCount).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${escapeHtml(k)} ×${v}`).join(", ");
+    $("dn-week").innerHTML = `<tr><th>Day</th><th>Trades</th><th>Net P&amp;L</th><th>Not clean</th><th>Max loss</th><th>Followed plan</th><th>Notes</th></tr>${rowsHtml}`;
+    const topM = Object.entries(mistakeCount).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${escapeHtml(window.TagCatalog.label(k))} ×${v}`).join(", ");
     // Same window as the table; the selected day's unsaved edits are included
     // via the days override so the score moves as you type.
     const wk = window.Discipline.compute(trades, { from: monday, to: days[6], days: Object.assign({}, notes, { [date]: day }) });
     const scoreTxt = wk.score === null ? "" : ` Discipline score this week: <b>${Math.round(wk.score)}</b> (${window.Discipline.grade(wk.score)}).`;
     $("dn-week-foot").innerHTML = tN
-      ? `${tN} trade${tN === 1 ? "" : "s"}, <b class="${tPnl >= 0 ? "up" : "down"}">${money(tPnl)}</b>. Rules broken on <b>${tBroke}</b> of ${tN} trades (${Math.round((tBroke / tN) * 100)}%). ${tPlanned ? `Max daily loss breached on <b>${tBreach}</b> of ${tPlanned} planned day${tPlanned === 1 ? "" : "s"}. ` : ""}${tFollowedAnswered ? `Plan followed on ${tFollowedAnswered - tFollowedNo} of ${tFollowedAnswered} reviewed days. ` : ""}${topM ? `Top mistakes: ${topM}.` : ""}${scoreTxt}`
+      ? `${tN} trade${tN === 1 ? "" : "s"}, <b class="${tPnl >= 0 ? "up" : "down"}">${money(tPnl)}</b>. Not clean on <b>${tBroke}</b> of ${tN} trades (${Math.round((tBroke / tN) * 100)}%). ${tPlanned ? `Max daily loss breached on <b>${tBreach}</b> of ${tPlanned} planned day${tPlanned === 1 ? "" : "s"}. ` : ""}${tFollowedAnswered ? `Plan followed on ${tFollowedAnswered - tFollowedNo} of ${tFollowedAnswered} reviewed days. ` : ""}${topM ? `Most common flags: ${topM}.` : ""}${scoreTxt}`
       : "No trades this week.";
   }
 
@@ -402,31 +402,23 @@
       renderChecklist();
     }));
   }
-  // Tap-to-toggle chips for "what went well" / "what to fix" -- the whole
-  // point being that most days these two fields need zero typing.
+  // "What went well" / "What to fix" are filled in automatically from the day's trade tags
+  // (good habits and things worth a look). Tap a tag to see its exact criteria.
   function renderChips() {
-    const known = window.DailyNotes.knownTags();
-    const chip = (label, on) =>
-      `<button type="button" class="pill tagpill${on ? " on" : ""}" data-tag="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
-    const paint = (hostId, list, selected, key) => {
-      const host = $(hostId);
-      host.innerHTML = list.map((t) => chip(t, selected.includes(t))).join("") +
-        `<input class="dn-in" data-newtag="${key}" placeholder="+ custom" style="width:100px;padding:6px 8px;">`;
-      host.querySelectorAll("button[data-tag]").forEach((b) => b.addEventListener("click", () => {
-        const t = b.dataset.tag;
-        const i = day[key].indexOf(t);
-        if (i === -1) day[key].push(t); else day[key].splice(i, 1);
-        persist(); renderChips();
-      }));
-      host.querySelector("input[data-newtag]").addEventListener("keydown", (e) => {
-        const v = e.target.value.trim();
-        if (e.key !== "Enter" || !v) return;
-        if (!day[key].includes(v)) day[key].push(v);
-        e.target.value = ""; persist(); renderChips();
-      });
+    const TC = window.TagCatalog, counts = { good: {}, watch: {} };
+    trades.filter((t) => t.trade_date === date).forEach((t) => (t.behavior_tags || []).forEach((k) => {
+      const tn = TC.tone(k);
+      if (counts[tn]) counts[tn][k] = (counts[tn][k] || 0) + 1;
+    }));
+    const paint = (hostId, map, empty) => {
+      const list = Object.entries(map).sort((a, b) => b[1] - a[1]);
+      $(hostId).innerHTML = list.length
+        ? list.map(([k, n]) => TC.pillHtml(k, { label: TC.label(k) + (n > 1 ? " ×" + n : "") })).join("")
+        : `<span style="color:var(--text-faint);font-size:12.5px;">${empty}</span>`;
     };
-    paint("dn-well-chips", known.went_well, day.went_well_tags, "went_well_tags");
-    paint("dn-fix-chips", known.to_fix, day.to_fix_tags, "to_fix_tags");
+    const tagged = trades.some((t) => t.trade_date === date && Array.isArray(t.behavior_tags));
+    paint("dn-well-chips", counts.good, tagged ? "Nothing flagged as a good habit today." : "Shows up once the day's trades are tagged.");
+    paint("dn-fix-chips", counts.watch, tagged ? "Nothing worth a look today." : "Shows up once the day's trades are tagged.");
   }
   // "Use last time's numbers" — one click instead of retyping max loss /
   // goal on every fresh day.
@@ -445,10 +437,17 @@
   // Quiet, read-only reminder of what you were working on last time —
   // fully computed from history, nothing to fill in for it to show up.
   function renderWatchFor() {
-    const prior = window.DailyNotes.priorFocus(date);
-    const el = $("dn-watchfor");
+    const TC = window.TagCatalog, el = $("dn-watchfor");
+    const dates = Array.from(new Set(trades.filter((t) => t.trade_date < date).map((t) => t.trade_date))).sort().reverse();
+    let prior = null;
+    for (const d of dates) {
+      const c = {};
+      trades.filter((t) => t.trade_date === d).forEach((t) => (t.behavior_tags || []).forEach((k) => { if (TC.tone(k) === "watch") c[k] = (c[k] || 0) + 1; }));
+      const top = Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 3).map((x) => x[0]);
+      if (top.length) { prior = { date: d, tags: top }; break; }
+    }
     if (!prior) { el.innerHTML = ""; return; }
-    el.innerHTML = `Watch for (from ${prior.date}):` + prior.tags.map((t) => `<span class="pill">${escapeHtml(t)}</span>`).join("");
+    el.innerHTML = `Watch for (from ${prior.date}):` + prior.tags.map((t) => TC.pillHtml(t)).join("");
   }
   function renderStreak() {
     const n = window.DailyNotes.streak(date);

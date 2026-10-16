@@ -11,7 +11,7 @@
   const STOP_TOLERANCE_R = -1.25;  // a loss worse than this many R = blew through the planned stop
   const SIZE_UP_RATIO = 1.25;      // > 25% more shares than the losing trade before it = sizing up
   const LABELS = {
-    rules: "Rules followed",
+    rules: "Clean trades",
     maxloss: "Max daily loss held",
     journaling: "Trades journaled",
     planning: "Days with a plan",
@@ -32,9 +32,11 @@
       String(a.entry_time || "").localeCompare(String(b.entry_time || "")));
     const c = {};
 
-    // Rules: only trades where you answered the question.
-    const answered = sorted.filter((t) => entries[t.id] && (entries[t.id].followed_rules === true || entries[t.id].followed_rules === false));
-    c.rules = { n: answered.length, value: pct(answered.filter((t) => entries[t.id].followed_rules === true).length, answered.length) };
+    // Clean trades: worked out from each trade's auto tags (a planned setup with no process problems),
+    // so it needs no answer from you. Trades that haven't been tagged yet are left out.
+    const isClean = (t) => (Array.isArray(t.behavior_tags) ? t.behavior_tags.indexOf("clean_trade") !== -1 : null);
+    const answered = sorted.filter((t) => isClean(t) !== null);
+    c.rules = { n: answered.length, value: pct(answered.filter((t) => isClean(t) === true).length, answered.length) };
 
     // Journaling: share of trades with any journal entry.
     c.journaling = { n: sorted.length, value: pct(sorted.filter((t) => entries[t.id]).length, sorted.length) };

@@ -9,7 +9,7 @@
 //   ScrollMemory  remembers scroll position per page so Back from a trade lands
 //                 where you were (filters/depth are already mirrored into the URL
 //                 by NavState; this adds the missing scroll offset).
-//   Swipe rows    swipe a Journal card left for Tag / Delete, right for Note. The
+//   Swipe rows    swipe a Journal card left for Tag, right for Note. The
 //                 gesture only reports intent (a "journal:swipe" event on the row);
 //                 journal.html decides what each action does.
 //
@@ -367,8 +367,8 @@
   // ====================================================================
   var QuickAdd = (function () {
     var built = false;
-    var sheet, backdrop, ta, pick, chipsBox, rulesBox, tabsBox, tradeBox, saveBtn, titleEl, customIn;
-    var st = { mode: "trade", focus: null, mistakes: [], rules: null, startMistakes: "", startRules: null };
+    var sheet, backdrop, ta, pick, tabsBox, tradeBox, saveBtn, titleEl;
+    var st = { mode: "trade" };
     var cache = { at: 0, rows: null };
 
     function build() {
@@ -391,14 +391,6 @@
         '</div>' +
         '<div class="qa-trade qa-trade-top"><select class="qa-pick" aria-label="Trade"></select></div>' +
         '<textarea class="qa-text" rows="3" enterkeyhint="done" placeholder="What happened? One line is plenty…"></textarea>' +
-        '<div class="qa-trade qa-trade-more">' +
-          '<div class="qa-lbl">What went wrong? <span>tap any that apply</span></div>' +
-          '<div class="qa-chips"></div>' +
-          '<div class="qa-lbl">Followed my rules?</div>' +
-          '<div class="qa-rules">' +
-            '<button type="button" data-v="yes">Yes</button><button type="button" data-v="no">No</button>' +
-          '</div>' +
-        '</div>' +
         '<div class="qa-foot">' +
           '<a class="qa-link" href="import-trades.html">Import trades</a>' +
           '<button type="button" class="qa-save">Save</button>' +
@@ -407,8 +399,6 @@
       document.body.appendChild(sheet);
       ta = sheet.querySelector(".qa-text");
       pick = sheet.querySelector(".qa-pick");
-      chipsBox = sheet.querySelector(".qa-chips");
-      rulesBox = sheet.querySelector(".qa-rules");
       tabsBox = sheet.querySelector(".qa-tabs");
       tradeBox = sheet.querySelectorAll(".qa-trade");
       saveBtn = sheet.querySelector(".qa-save");
@@ -420,35 +410,9 @@
         var b = e.target.closest("button[data-mode]");
         if (b) setMode(b.getAttribute("data-mode"));
       });
-      pick.addEventListener("change", function () { loadEntry(pick.value); });
-      chipsBox.addEventListener("click", function (e) {
-        var b = e.target.closest("button[data-tag]");
-        if (!b) return;
-        var t = b.getAttribute("data-tag");
-        var i = st.mistakes.indexOf(t);
-        if (i === -1) st.mistakes.push(t); else st.mistakes.splice(i, 1);
-        paintChips();
-      });
-      rulesBox.addEventListener("click", function (e) {
-        var b = e.target.closest("button[data-v]");
-        if (!b) return;
-        var v = b.getAttribute("data-v") === "yes";
-        st.rules = st.rules === v ? null : v;
-        paintRules();
-      });
       sheet.addEventListener("keydown", function (e) {
         if (e.key === "Escape") { close(); return; }
         if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save();
-        var c = e.target.closest && e.target.closest(".qa-custom");
-        if (c && e.key === "Enter") {
-          e.preventDefault();
-          var v = c.value.trim();
-          if (v && st.mistakes.indexOf(v) === -1) st.mistakes.push(v);
-          c.value = "";
-          paintChips();
-          var again = sheet.querySelector(".qa-custom");
-          if (again) again.focus();
-        }
       });
       // Lift the sheet above the on-screen keyboard.
       if (window.visualViewport) {
@@ -490,40 +454,13 @@
         b.setAttribute("aria-selected", on ? "true" : "false");
       });
       Array.prototype.forEach.call(tradeBox, function (n) { n.style.display = mode === "trade" ? "" : "none"; });
-      ta.style.display = mode === "trade" && st.focus === "tags" ? "none" : "";
+      ta.style.display = "";
       ta.placeholder = mode === "trade" ? "What happened? One line is plenty…" : "A thought for today — mindset, market, lesson…";
-      titleEl.textContent = mode === "trade" ? (st.focus === "tags" ? "Tag trade" : "Note on a trade") : "Note for today";
+      titleEl.textContent = mode === "trade" ? "Note on a trade" : "Note for today";
     }
-    function paintChips() {
-      var known = window.TradeNotes ? window.TradeNotes.knownTags().mistakes : [];
-      var all = known.slice();
-      st.mistakes.forEach(function (m) { if (all.indexOf(m) === -1) all.push(m); });
-      chipsBox.innerHTML = all.map(function (t) {
-        var on = st.mistakes.indexOf(t) !== -1;
-        return '<button type="button" class="qa-chip' + (on ? " on" : "") + '" data-tag="' + esc(t) + '" aria-pressed="' + on + '">' + esc(t) + "</button>";
-      }).join("") + '<input class="qa-custom" placeholder="+ custom" aria-label="Custom tag" maxlength="40">';
-    }
-    function paintRules() {
-      Array.prototype.forEach.call(rulesBox.children, function (b) {
-        var yes = b.getAttribute("data-v") === "yes";
-        b.classList.toggle("on", st.rules === yes);
-        b.classList.toggle("bad", st.rules === false && !yes);
-      });
-    }
-    function loadEntry(id) {
-      var e = (window.TradeNotes && window.TradeNotes.get(id)) || {};
-      st.mistakes = (e.mistakes || []).slice();
-      st.rules = e.followed_rules === true ? true : e.followed_rules === false ? false : null;
-      st.startMistakes = JSON.stringify(st.mistakes.slice().sort());
-      st.startRules = st.rules;
-      paintChips();
-      paintRules();
-    }
-
     function open(opts) {
       opts = opts || {};
       build();
-      st.focus = opts.focus || null;
       document.documentElement.classList.add("qa-open");
       backdrop.classList.add("open");
       sheet.classList.add("open");
@@ -554,7 +491,6 @@
             }
             pick.value = opts.tradeId;
           }
-          loadEntry(pick.value);
         }
         saveBtn.disabled = false;
       });
@@ -582,18 +518,11 @@
       }
       var id = pick.value;
       if (!id || !window.TradeNotes) { toast("Pick a trade first", { tone: "error" }); return; }
-      var tagsOnly = st.focus === "tags";
-      var changed = (tagsOnly ? false : !!text) ||
-        JSON.stringify(st.mistakes.slice().sort()) !== st.startMistakes || st.rules !== st.startRules;
-      if (!changed) { if (!tagsOnly) ta.focus(); else close(); return; }
+      if (!text) { ta.focus(); return; }
       var cur = window.TradeNotes.get(id) || {};
       var notes = cur.notes || "";
-      if (text && !tagsOnly) notes = (notes ? notes.replace(/\s+$/, "") + "\n" : "") + "[" + hhmm() + "] " + text;
-      window.TradeNotes.save(id, Object.assign({}, cur, {
-        mistakes: st.mistakes.slice(),
-        followed_rules: st.rules,
-        notes: notes,
-      }));
+      notes = (notes ? notes.replace(/\s+$/, "") + "\n" : "") + "[" + hhmm() + "] " + text;
+      window.TradeNotes.save(id, Object.assign({}, cur, { notes: notes }));
       window.dispatchEvent(new CustomEvent("tradelog:note-saved", { detail: { tradeId: id } }));
       Haptics.play("success");
       var label = pick.options[pick.selectedIndex] ? pick.options[pick.selectedIndex].textContent.split(" · ")[0] : "trade";
@@ -626,7 +555,7 @@
   // ====================================================================
   var Swipe = (function () {
     var ROW = ".journal-data-table tbody tr[data-id]";
-    var W_RIGHT = 144, W_LEFT = 76;     // revealed widths: [Tag][Delete] and [Note]
+    var W_RIGHT = 76, W_LEFT = 76;      // revealed widths: [Tag] and [Note]
     var cur = null;                      // gesture in progress
     var openRow = null;                  // { tr, panel, side }
     var lastEnd = 0;
@@ -638,8 +567,7 @@
       p.setAttribute("data-for", tr.getAttribute("data-id"));
       if (side === "right") {
         p.innerHTML =
-          '<button type="button" class="sw-btn sw-tag" data-act="tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg><span>Tag</span></button>' +
-          '<button type="button" class="sw-btn sw-del" data-act="delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg><span>Delete</span></button>';
+          '<button type="button" class="sw-btn sw-tag" data-act="tag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg><span>Tag</span></button>';
       } else {
         p.innerHTML =
           '<button type="button" class="sw-btn sw-note" data-act="note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg><span>Note</span></button>';
@@ -749,7 +677,7 @@
         var id = panel.getAttribute("data-for");
         var tr = panel.parentElement.querySelector('tr[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
         var act = panelBtn.getAttribute("data-act");
-        closeOpen(act === "delete" ? false : true);
+        closeOpen(true);
         (tr || panel).dispatchEvent(new CustomEvent("journal:swipe", { bubbles: true, detail: { id: id, action: act } }));
         return;
       }
@@ -866,7 +794,7 @@
     window.addEventListener("resize", queue);
     // Blurbs are often filled in by page JS after load, and pages swap in place.
     if (window.MutationObserver) {
-      new MutationObserver(queue).observe(document.body, { childList: true, subtree: true, characterData: true });
+      new MutationObserver(queue).observe(document.body, { childList: true, subtree: true });
     }
   })();
 })();

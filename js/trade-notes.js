@@ -14,8 +14,6 @@
 (function () {
   "use strict";
   const STORAGE_KEY = "trade.log:journal_entries";
-  const DEFAULT_SETUPS = ["Dip buy", "Breakout", "Reversal", "VWAP reclaim", "Momentum scalp", "Other"];
-  const DEFAULT_MISTAKES = ["Chased entry", "Early exit", "Held too long", "No stop", "Moved stop", "Oversized", "Revenge trade", "Overtrading", "Ignored plan", "FOMO"];
 
   function readStore() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") || {}; } catch (e) { return {}; }
@@ -47,14 +45,19 @@
     if (!tradeId) return;
     const store = readStore();
     const stop = num(entry.plan_stop), target = num(entry.plan_target);
+    // Setup / mistakes / followed-rules used to be typed in by hand. Tags are automatic now and nothing
+    // writes those fields any more, but entries already saved keep them (hidden, never deleted): a caller
+    // that doesn't mention a field leaves the stored value alone.
+    const prev = store[tradeId] || {};
+    const keep = (k, fallback) => (entry[k] !== undefined ? entry[k] : prev[k] !== undefined ? prev[k] : fallback);
     const clean = {
       plan_stop: stop,
       plan_target: target,
       no_stop: stop == null && entry.no_stop === true,
       no_target: target == null && entry.no_target === true,
-      setup: (entry.setup || "").trim(),
-      mistakes: Array.from(new Set((entry.mistakes || []).map((m) => String(m).trim()).filter(Boolean))),
-      followed_rules: entry.followed_rules === true ? true : entry.followed_rules === false ? false : null,
+      setup: String(keep("setup", "") || "").trim(),
+      mistakes: Array.from(new Set((keep("mistakes", []) || []).map((m) => String(m).trim()).filter(Boolean))),
+      followed_rules: keep("followed_rules", null) === true ? true : keep("followed_rules", null) === false ? false : null,
       notes: entry.notes || "",
       updated: new Date().toISOString(),
     };
@@ -83,15 +86,5 @@
     return out;
   }
 
-  // All distinct custom tags the user has used, so the picker can offer them.
-  function knownTags() {
-    const setups = new Set(DEFAULT_SETUPS), mistakes = new Set(DEFAULT_MISTAKES);
-    Object.values(readStore()).forEach((e) => {
-      if (e.setup) setups.add(e.setup);
-      (e.mistakes || []).forEach((m) => mistakes.add(m));
-    });
-    return { setups: Array.from(setups), mistakes: Array.from(mistakes) };
-  }
-
-  window.TradeNotes = { get, all, save, metrics, knownTags, DEFAULT_SETUPS, DEFAULT_MISTAKES };
+  window.TradeNotes = { get, all, save, metrics };
 })();

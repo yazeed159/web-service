@@ -75,7 +75,8 @@
       if (cum < low) low = cum;
       if (p > 0 || (t.win && p >= 0)) wins++;
       const e = entries[t.id];
-      if (e) { journaled++; if (e.followed_rules === false) broke++; }
+      if (e) journaled++;
+      if (Array.isArray(t.behavior_tags) && t.behavior_tags.indexOf("clean_trade") === -1) broke++;   // tagged, not a clean trade
     });
     return { list, n: list.length, net, wins, losses: list.length - wins, winRate: list.length ? Math.round((wins / list.length) * 100) : 0, low, pts, journaled, broke };
   }
@@ -158,7 +159,7 @@
       if (s.n) {
         chips.push(`${s.n} trade${s.n === 1 ? "" : "s"}`, `${s.wins}W · ${s.losses}L`, `${s.winRate}% win`);
         chips.push(`<span class="${s.journaled === s.n ? "ok" : ""}">Journaled ${s.journaled}/${s.n}</span>`);
-        if (s.broke) chips.push(`<span class="bad">${s.broke} rule break${s.broke === 1 ? "" : "s"}</span>`);
+        if (s.broke) chips.push(`<span class="bad">${s.broke} not clean</span>`);
       }
       const used = -s.low;
       const breached = day.max_loss != null && used >= day.max_loss;

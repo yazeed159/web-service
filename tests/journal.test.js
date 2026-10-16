@@ -12,6 +12,7 @@ global.localStorage = {
   removeItem: (k) => { delete store[k]; },
 };
 require("../js/utils.js");
+require("../js/tag-catalog.js");
 require("../js/trade-notes.js");
 require("../js/daily-notes.js");
 require("../js/discipline.js");
@@ -81,14 +82,20 @@ test("Discipline: no data -> null score; max-loss breach lowers it", () => {
   assert.ok(broke.score < held.score, `${broke.score} !< ${held.score}`);
 });
 
-test("Discipline: rules answers drive the rules component", () => {
-  const trades = [
-    { id: "1", trade_date: "2026-09-18", entry_time: "09:35", pnl_after_comm: 5, shares: 100 },
-    { id: "2", trade_date: "2026-09-18", entry_time: "09:50", pnl_after_comm: 5, shares: 100 },
+const rulesOf = (r) => r.components.find((c) => c.key === "rules");
+test("Discipline: auto clean-trade tags drive the rules component", () => {
+  const mk = (tags) => [
+    { id: "1", trade_date: "2026-09-18", entry_time: "09:35", pnl_after_comm: 5, shares: 100, behavior_tags: tags },
+    { id: "2", trade_date: "2026-09-18", entry_time: "09:50", pnl_after_comm: 5, shares: 100, behavior_tags: tags },
   ];
-  const good = Discipline.compute(trades, { entries: { 1: { followed_rules: true }, 2: { followed_rules: true } }, days: {} });
-  const bad = Discipline.compute(trades, { entries: { 1: { followed_rules: false }, 2: { followed_rules: false } }, days: {} });
+  const good = Discipline.compute(mk(["session_open", "clean_trade"]), { entries: {}, days: {} });
+  const bad = Discipline.compute(mk(["session_open", "revenge_trade"]), { entries: {}, days: {} });
   assert.ok(good.score > bad.score);
+  assert.equal(rulesOf(good).value, 100);
+  assert.equal(rulesOf(bad).value, 0);
+  // Trades that haven't been tagged yet are left out rather than counted against you.
+  const untagged = Discipline.compute(mk(null), { entries: {}, days: {} });
+  assert.equal(rulesOf(untagged).n, 0);
 });
 
 test("share export: journal card present, notes HTML-escaped, R shown", () => {
@@ -102,11 +109,41 @@ test("share export: journal card present, notes HTML-escaped, R shown", () => {
   assert.ok(html.includes("&lt;img"));
 });
 
-test("share export: set page has journal columns and omits notes", () => {
+test("share export: set page shows auto flags and clean verdict, hides notes and old manual tags", () => {
   reset();
   TradeNotes.save("T1", { setup: "Breakout", followed_rules: false, notes: "secret note" });
-  const rows = [{ id: "T1", symbol: "ABCD", trade_date: "2026-09-18", entry_time: "09:35", entry_price: 5, exit_price: 5.4, shares: 100, pnl_after_comm: 38, win: true }];
+  const rows = [
+    { id: "T1", symbol: "ABCD", trade_date: "2026-09-18", entry_time: "09:35", entry_price: 5, exit_price: 5.4, shares: 100, pnl_after_comm: 38, win: true, behavior_tags: ["revenge_trade", "session_open"] },
+    { id: "T2", symbol: "WXYZ", trade_date: "2026-09-18", entry_time: "09:50", entry_price: 5, exit_price: 5.4, shares: 100, pnl_after_comm: 38, win: true, behavior_tags: ["clean_trade"] },
+  ];
   const html = TradeLogShare.buildSetSharePage(rows, {});
-  assert.ok(html.includes("<th>My setup</th>") && html.includes("Breakout"));
+  assert.ok(html.includes("<th>Flags</th>") && html.includes("<th>Clean</th>"));
+  assert.ok(html.includes("Revenge trade"));
   assert.ok(!html.includes("secret note"));
+  assert.ok(!html.includes("Breakout"));
+});
+
+test("TagCatalog: every tag the guide knows has criteria, unknown tags fall back to the AI note, clean verdict", () => {
+  const all = TagCatalog.all();
+  assert.ok(all.length > 60);
+  all.forEach((e) => assert.ok(e.label && e.summary && e.rule.length > 20, e.key));
+  assert.equal(TagCatalog.tone("sold_near_high"), "good");
+  assert.equal(TagCatalog.tone("revenge_trade"), "watch");
+  assert.equal(TagCatalog.get("some_ai_lesson_tag").unknown, true);
+  assert.equal(TagCatalog.isClean({ behavior_tags: ["clean_trade"] }), true);
+  assert.equal(TagCatalog.isClean({ behavior_tags: ["rapid_fire"] }), false);
+  assert.equal(TagCatalog.isClean({ behavior_tags: null }), null);
+  assert.ok(TagCatalog.pillHtml("overtrading").includes('data-tag-info="overtrading"'));
+});
+
+test("TradeNotes.save keeps old manual setup/mistakes/rules when a caller doesn't mention them", () => {
+  reset();
+  TradeNotes.save("T9", { setup: "Breakout", mistakes: ["FOMO"], followed_rules: false, notes: "a" });
+  TradeNotes.save("T9", { plan_stop: 4.5, notes: "b" });          // e.g. the note-only quick edit
+  const e = TradeNotes.get("T9");
+  assert.equal(e.setup, "Breakout");
+  assert.deepEqual(e.mistakes, ["FOMO"]);
+  assert.equal(e.followed_rules, false);
+  assert.equal(e.notes, "b");
+  assert.equal(typeof TradeNotes.knownTags, "undefined");
 });

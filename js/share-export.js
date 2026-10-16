@@ -180,20 +180,28 @@ ${scriptExtra || ""}
   function journalMetrics(trade, je) {
     try { return window.TradeNotes && je ? window.TradeNotes.metrics(trade, je) : null; } catch (e) { return null; }
   }
+  function flagsOf(r) {
+    const TC = window.TagCatalog;
+    return TC && Array.isArray(r.behavior_tags) ? r.behavior_tags.filter((k) => TC.tone(k) === "watch").map((k) => TC.label(k)) : [];
+  }
+  function cleanOf(r) { return window.TagCatalog ? window.TagCatalog.isClean(r) : null; }
   function fmtR(v) { return v == null ? "—" : (v >= 0 ? "+" : "") + v.toFixed(2) + "R"; }
 
   function journalCardHtml(trade) {
-    const je = journalFor(trade);
-    if (!je) return "";
+    const je = journalFor(trade) || {};
+    const TC = window.TagCatalog;
+    const flags = TC && Array.isArray(trade.behavior_tags) ? trade.behavior_tags.filter((k) => TC.tone(k) === "watch").map((k) => TC.label(k)) : [];
+    const clean = TC ? TC.isClean(trade) : null;
+    if (!Object.keys(je).length && !flags.length && clean === null) return "";
     const m = journalMetrics(trade, je) || {};
-    const rules = je.followed_rules === true ? "Yes" : je.followed_rules === false ? "No" : "—";
+    const cleanTxt = clean === true ? "Yes" : clean === false ? "No" : "—";
     const chips = (arr) => arr.map((x) => `<span class="setup-tag" style="margin-right:6px;">${escapeHtml(x)}</span>`).join("");
     return `
       <div class="card">
         <h2>Trader's journal</h2>
         <div class="meta" style="margin-bottom:10px;">
-          ${je.setup ? `Setup <span class="meta-standout">${escapeHtml(je.setup)}</span> &nbsp;·&nbsp; ` : ""}
-          Followed rules <span class="meta-standout">${rules}</span>
+          ${trade.setup_type ? `Setup <span class="meta-standout">${escapeHtml(window.setupLabel ? window.setupLabel(trade.setup_type) : String(trade.setup_type).replace(/_/g, " "))}</span> &nbsp;·&nbsp; ` : ""}
+          Clean trade <span class="meta-standout">${cleanTxt}</span>
           ${je.plan_stop ? ` &nbsp;·&nbsp; planned stop <span class="meta-standout">$${Number(je.plan_stop).toFixed(2)}</span>` : ""}
           ${je.no_stop ? ` &nbsp;·&nbsp; planned stop <span class="meta-standout">none</span>` : ""}
           ${je.plan_target ? ` &nbsp;·&nbsp; planned target <span class="meta-standout">$${Number(je.plan_target).toFixed(2)}</span>` : ""}
@@ -201,7 +209,7 @@ ${scriptExtra || ""}
           ${m.planned_rr != null ? ` &nbsp;·&nbsp; planned R:R <span class="meta-standout">${m.planned_rr.toFixed(2)}</span>` : ""}
           ${m.r_multiple != null ? ` &nbsp;·&nbsp; result <span class="meta-standout ${m.r_multiple >= 0 ? "up" : "down"}">${fmtR(m.r_multiple)}</span>` : ""}
         </div>
-        ${(je.mistakes || []).length ? `<div style="margin-bottom:10px;"><span class="muted" style="font-size:12px;">Mistakes:</span> ${chips(je.mistakes)}</div>` : ""}
+        ${flags.length ? `<div style="margin-bottom:10px;"><span class="muted" style="font-size:12px;">Flags:</span> ${chips(flags)}</div>` : ""}
         ${(je.notes || "").trim() ? `<div class="verdict-text" style="white-space:pre-wrap;">${escapeHtml(je.notes)}</div>` : ""}
       </div>`;
   }
@@ -474,7 +482,7 @@ ${scriptExtra || ""}
         <div style="padding:14px 18px 0;"><h2 style="margin:0;">${trades.length} trade${trades.length === 1 ? "" : "s"}</h2></div>
         <div style="overflow-x:auto;">
         <table class="data-table">
-          <thead><tr><th>Date</th><th>Symbol</th><th>Setup</th><th>My setup</th><th>Mistakes</th><th>Rules</th><th>Entry</th><th>Exit</th><th>Net P&amp;L</th><th>R</th><th>Result</th></tr></thead>
+          <thead><tr><th>Date</th><th>Symbol</th><th>Setup</th><th>Flags</th><th>Clean</th><th>Entry</th><th>Exit</th><th>Net P&amp;L</th><th>R</th><th>Result</th></tr></thead>
           <tbody>
             ${sorted.map((r) => {
               const je = journalFor(r);
@@ -484,9 +492,8 @@ ${scriptExtra || ""}
                 <td>${escapeHtml(r.trade_date)}</td>
                 <td>${escapeHtml(r.symbol)}</td>
                 <td>${escapeHtml((r.setup_type || "—").toString().replace(/_/g, " "))}</td>
-                <td>${escapeHtml((je && je.setup) || "—")}</td>
-                <td>${je && (je.mistakes || []).length ? escapeHtml(je.mistakes.join(", ")) : "—"}</td>
-                <td>${je && je.followed_rules === true ? "yes" : je && je.followed_rules === false ? '<span class="down">no</span>' : "—"}</td>
+                <td>${escapeHtml(flagsOf(r).join(", ") || "—")}</td>
+                <td>${cleanOf(r) === true ? "yes" : cleanOf(r) === false ? '<span class="down">no</span>' : "—"}</td>
                 <td>$${Number(r.entry_price).toFixed(2)}</td>
                 <td>$${Number(r.exit_price).toFixed(2)}</td>
                 <td class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</td>

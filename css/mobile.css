@@ -54,12 +54,7 @@
   }
   :root table.journal-data-table tbody { display: flex; flex-direction: column; gap: 10px; padding: 10px 10px 4px; }
   :root table.journal-data-table tbody tr[data-id] { margin: 0; }
-  /* Checkbox cell was position:sticky with a solid fill -> dark slab inside the card */
-  :root table.journal-data-table td.checkbox-col {
-    position: static !important; background: transparent !important; width: auto; padding: 0 !important;
-  }
-  :root table.journal-data-table td.checkbox-col input[type="checkbox"] { width: 24px; height: 24px; }
-  :root .journal-sticky-bar { margin-left: 0; margin-right: 0; }
+  :root .journal-sticky-bar { margin-left: -14px; margin-right: -14px; border-radius: 0 0 16px 16px; }
 
   /* ---- 4. Footer was hidden behind the floating tab bar --------------- */
   :root .content:has(+ .footer) { padding-bottom: 12px; }
@@ -97,4 +92,127 @@
     transform: rotate(45deg); transition: transform .2s ease;
   }
   :root .m-clamped.m-open::after { transform: rotate(-135deg); bottom: 2px; }
+}
+
+/* ===================================================================
+   No sideways scrolling on phones.
+   Day view cards fit the screen (comm is a single figure now), tab and
+   chip strips wrap onto a second line instead of scrolling, and the
+   wide report tables that can't become cards are compacted so they fit.
+=================================================================== */
+@media (max-width: 760px) {
+  /* Day view: every cell may shrink; nothing is allowed to push the card wider */
+  :root .table-scroll:has(> table.tt-day),
+  :root .table-scroll:has(> table.tt-recent) { overflow-x: clip; }
+  :root .tt-day td, :root .tt-recent td { min-width: 0; overflow-wrap: anywhere; }
+  :root .tt-day td:nth-child(4) { justify-self: end; text-align: right; }   /* Sh 100 sits at the right edge */
+  :root .tt-day td:nth-child(5) { justify-self: end; text-align: right; }
+  :root .tt-day td:nth-child(7) { justify-self: end; text-align: right; }
+  :root .tt-day td:nth-child(9) { font-size: 12px; white-space: nowrap; }
+
+  /* Tab / chip strips: wrap instead of scroll */
+  :root .report-toptabs { flex-wrap: wrap; overflow-x: visible; border-radius: 18px; justify-content: center; }
+  :root .date-chips { flex-wrap: wrap; overflow-x: visible; }
+  :root .tf-switcher { flex-wrap: wrap; overflow-x: visible; }
+
+  /* Report tables that stay tables: compact so they fit the screen width */
+  :root .compare-table { min-width: 0; }
+  :root .table-scroll:has(> table.no-stack),
+  :root .table-scroll:has(> table.ins-heat) { overflow-x: visible; }
+  :root table.no-stack, :root table.ins-heat { width: 100%; table-layout: auto; }
+  :root table.no-stack th, :root table.no-stack td { padding: 8px 5px; font-size: 11.5px; white-space: normal; overflow-wrap: anywhere; }
+  :root table.ins-heat th, :root table.ins-heat td { padding: 6px 3px; font-size: 10.5px; }
+}
+
+@media (max-width: 760px) {
+  /* Compare tab: 4 columns must fit even on a 320-360px phone */
+  :root .table-scroll:has(> table.compare-table) { overflow-x: clip; }
+  :root table.compare-table { width: 100%; table-layout: fixed; }
+  :root table.compare-table th, :root table.compare-table td { white-space: normal; overflow-wrap: anywhere; word-break: break-word; padding: 8px 4px; }
+  :root table.compare-table th:first-child, :root table.compare-table td:first-child { width: 26%; }
+  :root table.compare-table thead th { font-size: 10px; line-height: 1.25; }
+  :root table.compare-table thead th * { display: block; white-space: normal; }
+}
+
+/* ---- Small phones (320-360px) and the last few stragglers ---- */
+@media (max-width: 760px) {
+  /* Daily: the week table sits in an inline overflow-x div; make it fit instead */
+  :root #dn-week { table-layout: auto; }
+  :root #dn-week th, :root #dn-week td { padding: 6px 3px; font-size: 11px; white-space: normal; overflow-wrap: anywhere; }
+  :root #dn-week th { font-size: 10px; line-height: 1.2; }
+  :root div:has(> table.dn-week) { overflow-x: visible !important; }
+  :root .tg-card { min-width: 0; overflow-wrap: anywhere; }
+}
+@media (max-width: 360px) {
+  :root .ts-main { gap: 8px; }
+  :root .ts-right { width: 104px; }
+  :root .ts-tabs { max-width: 100%; }
+  :root div.dn-datebar { flex-wrap: wrap; }
+  :root div.dn-datebar input#dn-date { min-width: 0; }
+  :root .chat-send-btn { flex: none; max-width: 100%; }
+}
+
+@media (max-width: 360px) {
+  :root .ts-main { flex-wrap: wrap; }
+  :root .ts-pnl { font-size: 28px; }
+  :root .ts-right { width: 104px; }
+  :root .ts-spark { width: 104px; }
+  :root #ai-cfg-send-btn { min-width: 0; width: 44px; padding-left: 0; padding-right: 0; }
+}
+
+@media (max-width: 760px) {
+  /* Today strip: an implicit grid column sizes to its widest child; let it shrink */
+  :root .ts-card { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 760px) {
+  :root .chat-input-row { min-width: 0; }
+  :root .chat-input-row .chat-input { min-width: 0; flex: 1 1 0; width: auto; }
+}
+
+/* ===================================================================
+   SMOOTHNESS PASS (phones)
+   The glass look was costing frames: every card, stat grid, table header
+   and panel carried backdrop-filter: blur(26px) saturate(185%) over a
+   background that was animating (hue-rotate + transform) forever, plus a
+   full-screen mix-blend-mode noise layer. Phones had to re-blur dozens of
+   layers on every scroll frame.
+   What changes: the cards keep their frosted fill, sheen, border and
+   highlight, they just no longer re-blur what is behind them (behind them
+   is a smooth gradient, so there is nothing to see in the blur anyway).
+   Real blur stays only where content scrolls underneath: the floating tab
+   bar and the sheets / menus / modals.  Delete this block to revert.
+=================================================================== */
+@media (max-width: 760px) {
+  :root { --g-blur: none; --g-shadow: 0 6px 18px rgba(0,0,0,.22); }
+  :root[data-theme="light"] { --g-shadow: 0 6px 16px rgba(70,60,140,.12); }
+
+  /* Static background: no endless repaint under every card */
+  :root body::before { animation: none !important; will-change: auto !important; filter: none !important; }
+  :root body::after { display: none !important; }              /* grain + blend mode */
+  :root .topbar::after { animation: none !important; }          /* endless gradient ticker */
+
+  /* Top bar: sticky over scrolling content, so use a dense fill instead of live blur */
+  :root .topbar { background: color-mix(in srgb, var(--panel) 92%, transparent) !important; }
+
+  /* Overlays that only exist while open keep a light blur */
+  :root .bottom-nav { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+  :root .qa-sheet, :root .ds-menu, :root .header-search-panel, :root .ui-modal-box, :root .rpt-chart-modal-box,
+  :root .chatw-panel, :root .sidebar, :root .toast {
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  }
+  :root .sidebar-backdrop, :root .qa-backdrop, :root .ui-modal-overlay, :root .rpt-chart-modal-backdrop {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: rgba(5,6,12,.58) !important;
+  }
+  :root .chatw-launcher { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+  /* Chart readouts move under your finger: no live blur on those */
+  :root .equity-tooltip, :root .equity-yval-label, :root .chart-info-overlay {
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+    background: color-mix(in srgb, var(--panel) 92%, transparent) !important;
+  }
+
+  /* Shorter entrance animations so scrolling lists aren't busy fading in */
+  :root .reveal-in { animation-duration: .25s; }
+  :root .tab-panel.active { animation-duration: .18s; }
 }
