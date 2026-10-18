@@ -21,24 +21,47 @@
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
 <style>
-  .tg-tools { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:4px 0 14px; }
-  .tg-tools input[type=search] { flex:1 1 220px; min-width:0; padding:9px 12px; border-radius:10px; border:1px solid var(--border); background:var(--panel-2); color:var(--text); font:inherit; }
-  .tg-seg { display:flex; gap:6px; flex-wrap:wrap; }
-  .tg-seg button { font:inherit; font-size:12.5px; padding:7px 12px; border-radius:999px; border:1px solid var(--border); background:var(--panel-2); color:var(--text-dim); cursor:pointer; }
-  .tg-seg button.on { background:var(--primary-soft); color:var(--primary); border-color:transparent; }
-  .tg-note { font-size:13px; color:var(--text-dim); background:var(--panel-2); border-radius:10px; padding:10px 12px; margin-bottom:14px; }
-  .tg-group { margin:22px 0 8px; } .tg-group h2 { font-size:15px; margin:0; } .tg-group .tg-blurb { font-size:12.5px; color:var(--text-faint); margin-top:2px; }
-  .tg-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(310px,100%),1fr)); gap:12px; }
-  .tg-card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:13px 14px; scroll-margin-top:80px; }
-  .tg-card.flash { outline:2px solid var(--primary); }
-  .tg-head { display:flex; align-items:center; gap:8px; justify-content:space-between; flex-wrap:wrap; margin-bottom:6px; }
-  .tg-tone { font-size:11.5px; color:var(--text-faint); }
-  .tg-sum { font-size:14px; margin-bottom:8px; }
-  .tg-rule { font-size:13px; line-height:1.5; color:var(--text-dim); background:var(--panel-2); border-radius:9px; padding:9px 11px; }
-  .tg-rule b { display:block; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint); margin-bottom:3px; font-weight:600; }
-  .tg-stats { margin-top:9px; font-size:12.5px; color:var(--text-faint); font-variant-numeric:tabular-nums; }
-  .tg-stats .up { color:var(--green); } .tg-stats .down { color:var(--red); }
+  .tg-intro { font-size:14px; color:var(--text-dim); margin:0 0 14px; max-width:60ch; }
+  .tg-tools { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:0 0 10px; }
+  .tg-tools input[type=search] { flex:1 1 200px; min-width:0; padding:9px 12px; border-radius:10px; border:1px solid var(--border); background:var(--panel-2); color:var(--text); font:inherit; }
+  .tg-seg { display:inline-flex; padding:3px; gap:2px; border-radius:999px; border:1px solid var(--border); background:var(--panel-2); }
+  .tg-seg button { font:inherit; font-size:12.5px; padding:6px 14px; border-radius:999px; border:0; background:transparent; color:var(--text-dim); cursor:pointer; }
+  .tg-seg button.on { background:var(--primary-soft); color:var(--primary); }
+  .tg-seg[hidden] { display:none; }
+  .tg-key { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--text-faint); margin:0 0 16px; }
+  .tg-note { font-size:12.5px; color:var(--text-dim); background:var(--panel-2); border-radius:10px; padding:8px 12px; margin-bottom:12px; }
+  .tg-sec { background:var(--panel); border:1px solid var(--border); border-radius:14px; margin-bottom:12px; overflow:hidden; }
+  .tg-sechead { display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:none; border:0; color:inherit; font:inherit; padding:13px 14px; cursor:pointer; }
+  .tg-sechead .t { font-size:14.5px; font-weight:600; }
+  .tg-sechead .b { font-size:12px; color:var(--text-faint); flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tg-sechead .c { font-size:12px; color:var(--text-faint); }
+  .tg-chev { width:14px; height:14px; flex:none; color:var(--text-faint); transition:transform .15s ease; }
+  .tg-sec.closed .tg-chev, .tg-row:not(.open) .tg-chev { transform:rotate(-90deg); }
+  .tg-sec.closed .tg-rows { display:none; }
+  .tg-row { border-top:1px solid var(--border-soft); scroll-margin-top:80px; }
+  .tg-row.flash { background:var(--primary-soft); }
+  .tg-rowbtn { display:grid; grid-template-columns:190px minmax(0,1fr) auto 14px; align-items:center; gap:4px 14px; width:100%; text-align:left; background:none; border:0; color:inherit; font:inherit; padding:10px 14px; cursor:pointer; }
+  .tg-rowbtn:hover { background:var(--panel-2); }
+  .tg-rowbtn .pill { justify-self:start; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:inherit; }
+  .tg-sum { font-size:13px; color:var(--text-dim); min-width:0; }
+  .tg-res { font-size:12.5px; font-variant-numeric:tabular-nums; display:flex; gap:8px; justify-content:flex-end; white-space:nowrap; min-width:92px; }
+  .tg-res .n { color:var(--text-faint); } .tg-res .up { color:var(--green); } .tg-res .down { color:var(--red); } .tg-res .none { color:var(--text-faint); }
+  .tg-bar { position:relative; height:8px; border-radius:99px; background:var(--panel-2); }
+  .tg-bar::after { content:""; position:absolute; left:50%; top:-2px; bottom:-2px; width:1px; background:var(--border); }
+  .tg-bar i { position:absolute; top:0; bottom:0; border-radius:99px; }
+  .tg-detail { display:none; padding:2px 14px 14px; }
+  .tg-row.open .tg-detail { display:block; }
+  .tg-detail .k { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint); font-weight:600; margin-bottom:3px; }
+  .tg-detail p { margin:0 0 10px; font-size:13px; line-height:1.55; color:var(--text-dim); background:var(--panel-2); border-radius:9px; padding:9px 11px; }
+  .tg-detail .stat { font-size:12.5px; color:var(--text-faint); font-variant-numeric:tabular-nums; }
+  .tg-detail .up { color:var(--green); } .tg-detail .down { color:var(--red); }
+  .tg-sub { font-size:12px; color:var(--text-faint); margin:18px 2px 8px; }
   .tg-empty { color:var(--text-faint); padding:24px 4px; }
+  @media (max-width:700px) {
+    .tg-rowbtn { grid-template-columns:minmax(0,1fr) auto 14px; }
+    .tg-rowbtn .tg-sum, .tg-rowbtn .tg-bar { grid-column:1 / -1; grid-row:2; }
+    .tg-sechead .b { display:none; }
+  }
 </style>
 </head>
 <body>
@@ -114,18 +137,19 @@
     </header>
 
     <div class="content">
-      <div class="panel-head">
-        <div class="sub">Every tag the journal puts on a trade is worked out by rules, not typed in. This is what each one means, the exact thresholds, and how your own trades have done with it. Tap any tag pill in the Journal to jump to its rule.</div>
-      </div>
+      <p class="tg-intro">Tags are added to your trades automatically. Tap one to see its exact rule and how it has done for you.</p>
       <div class="tg-tools">
-        <input type="search" id="tg-search" placeholder="Search tags and rules" aria-label="Search tags">
-        <div class="tg-seg" id="tg-tone">
-          <button type="button" data-tone="all" class="on">All</button>
-          <button type="button" data-tone="good">Good habits</button>
-          <button type="button" data-tone="watch">Worth a look</button>
-          <button type="button" data-tone="info">Describes</button>
+        <input type="search" id="tg-search" placeholder="Search tags" aria-label="Search tags">
+        <div class="tg-seg" id="tg-view" role="tablist">
+          <button type="button" data-view="topic" class="on">By topic</button>
+          <button type="button" data-view="rank">Best to worst</button>
+        </div>
+        <div class="tg-seg" id="tg-metric" hidden>
+          <button type="button" data-metric="avg" class="on">Per trade</button>
+          <button type="button" data-metric="net">Total</button>
         </div>
       </div>
+      <div class="tg-key" id="tg-legend"></div>
       <div id="tg-untagged"></div>
       <div id="tags-content"><div class="tg-empty">Loading…</div></div>
     </div>
@@ -145,75 +169,138 @@
   "use strict";
   const TC = window.TagCatalog;
   const host = document.getElementById("tags-content");
-  let rows = [];
-  let tone = "all", query = "";
-
+  let rows = [], query = "", view = "topic", metric = "avg", rankMax = 1;
+  const openRows = new Set(), groupOpen = {};
+  const ORDER = ["setup", "entry", "exit", "process", "size", "day", "session", "hold", "price", "context"];
+  const SCORED = { setup: 1, entry: 1, exit: 1 };
+  const CHEV = '<svg class="tg-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
   const money = (v) => (v < 0 ? "-$" : "+$") + Math.abs(v).toFixed(2);
-  const pnlOf = (r) => (typeof r.pnl_after_comm === "number" ? r.pnl_after_comm : Number(r.pnl_after_comm) || 0);
 
-  function matcher(e) {
-    const k = e.key;
-    if (e.group === "setup") return (r) => r.setup_type === k;
-    if (k.indexOf("avgvol_") === 0) return (r) => r.avg_volume_tag === k;
-    if (k.indexOf("rvol_") === 0) return (r) => r.rvol_tag === k;
-    if (k.indexOf("float_") === 0) return (r) => r.float_tag === k;
-    return (r) => Array.isArray(r.behavior_tags) && r.behavior_tags.indexOf(k) !== -1;
+  function resHtml(k) {
+    const s = TC.statsFor(k);
+    if (!s) return rows.length ? '<span class="none">none yet</span>' : "";
+    const v = view === "rank" && metric === "net" ? s.net : s.avg;
+    return `<span class="n">${s.n}</span><span class="${v >= 0 ? "up" : "down"}">${money(v)}</span>`;
   }
-  function statsHtml(e) {
-    if (!rows.length) return "";
-    const hit = rows.filter(matcher(e));
-    if (!hit.length) return '<div class="tg-stats">None of your trades have this tag.</div>';
-    const wins = hit.filter((r) => pnlOf(r) > 0).length;
-    const net = hit.reduce((s, r) => s + pnlOf(r), 0), avg = net / hit.length;
-    return `<div class="tg-stats">${hit.length} trade${hit.length === 1 ? "" : "s"} · ${Math.round((wins / hit.length) * 100)}% win · avg <span class="${avg >= 0 ? "up" : "down"}">${money(avg)}</span> · net <span class="${net >= 0 ? "up" : "down"}">${money(net)}</span></div>`;
+  function detailHtml(e) {
+    const s = TC.statsFor(e.key);
+    let stat = "";
+    if (s) {
+      stat = `${s.n} trade${s.n === 1 ? "" : "s"} · ${Math.round((s.wins / s.n) * 100)}% win · avg <span class="${s.avg >= 0 ? "up" : "down"}">${money(s.avg)}</span> · net <span class="${s.net >= 0 ? "up" : "down"}">${money(s.net)}</span>`;
+      if (SCORED[e.group] && s.n < TC.MIN_N) stat += ` · colour needs ${TC.MIN_N}+ trades`;
+    } else if (rows.length) stat = "None of your trades have this tag.";
+    return `<div class="tg-detail"><div class="k">Exact rule</div><p>${escapeHtml(e.rule)}</p>${stat ? `<div class="stat">${stat}</div>` : ""}</div>`;
   }
+  function rowHtml(e, bar) {
+    const open = openRows.has(e.key);
+    let mid = `<span class="tg-sum">${escapeHtml(e.summary)}</span>`;
+    if (bar) {
+      const c = TC.colorOf(e.key), s = TC.statsFor(e.key);
+      let t = c ? (c.hue - 60) / 60 : 0;
+      if (metric === "net" && s) t = Math.max(-1, Math.min(1, s.net / rankMax));
+      const w = Math.abs(t) * 50, hue = Math.round(60 + 60 * t);
+      mid = `<span class="tg-bar" title="${escapeHtml(e.summary)}"><i style="background:hsl(${hue} 70% 48%);${t >= 0 ? "left:50%;" : "right:50%;"}width:${w.toFixed(1)}%"></i></span>`;
+    }
+    return `<article class="tg-row${open ? " open" : ""}" id="tag-${escapeHtml(e.key)}" data-key="${escapeHtml(e.key)}">
+      <button type="button" class="tg-rowbtn" aria-expanded="${open}">
+        <span class="pill tagpill" data-tag-color="${escapeHtml(e.key)}">${escapeHtml(e.label)}</span>${mid}<span class="tg-res">${resHtml(e.key)}</span>${CHEV}
+      </button>${detailHtml(e)}</article>`;
+  }
+  const matches = (e, q) => !q || (e.label + " " + e.key + " " + e.summary + " " + e.rule).toLowerCase().indexOf(q) !== -1;
 
+  function renderTopic(q) {
+    const all = TC.all().filter((e) => matches(e, q));
+    if (!all.length) return '<div class="tg-empty">No tags match.</div>';
+    const groups = TC.groups().slice().sort((a, b) => (ORDER.indexOf(a.id) + 1 || 99) - (ORDER.indexOf(b.id) + 1 || 99));
+    return groups.map((g) => {
+      const list = all.filter((e) => e.group === g.id);
+      if (!list.length) return "";
+      const open = q ? true : g.id in groupOpen ? groupOpen[g.id] : !!SCORED[g.id];
+      return `<section class="tg-sec${open ? "" : " closed"}" data-group="${escapeHtml(g.id)}">
+        <button type="button" class="tg-sechead" aria-expanded="${open}"><span class="t">${escapeHtml(g.label)}</span><span class="b">${escapeHtml(g.blurb)}</span><span class="c">${list.length}</span>${CHEV}</button>
+        <div class="tg-rows">${list.map((e) => rowHtml(e, false)).join("")}</div></section>`;
+    }).join("");
+  }
+  function renderRank(q) {
+    if (!rows.length) return '<div class="tg-empty">Your trades are still loading, or you\'re signed out. Sign in to see how each tag has paid.</div>';
+    const pool = TC.all().filter((e) => SCORED[e.group] && matches(e, q));
+    const ranked = pool.filter((e) => TC.colorOf(e.key)).sort((a, b) => metric === "net" ? TC.statsFor(b.key).net - TC.statsFor(a.key).net : TC.statsFor(b.key).avg - TC.statsFor(a.key).avg);
+    rankMax = Math.max(1, ...ranked.map((e) => Math.abs(TC.statsFor(e.key).net)));
+    const thin = pool.filter((e) => !TC.colorOf(e.key) && TC.statsFor(e.key));
+    const unseen = pool.length - ranked.length - thin.length;
+    if (!pool.length) return '<div class="tg-empty">No tags match.</div>';
+    return (ranked.length ? `<section class="tg-sec"><div class="tg-rows">${ranked.map((e) => rowHtml(e, true)).join("")}</div></section>`
+        : `<div class="tg-empty">No entry or exit tag has ${TC.MIN_N}+ trades yet.</div>`) +
+      (thin.length ? `<div class="tg-sub">Not enough trades yet (under ${TC.MIN_N})</div><section class="tg-sec"><div class="tg-rows">${thin.map((e) => rowHtml(e, false)).join("")}</div></section>` : "") +
+      (unseen > 0 ? `<div class="tg-sub">${unseen} more entry/exit tag${unseen === 1 ? " hasn't" : "s haven't"} shown up in your trades.</div>` : "");
+  }
   function render() {
     const q = query.trim().toLowerCase();
-    const tags = TC.all().filter((e) => (tone === "all" || e.tone === tone) &&
-      (!q || (e.label + " " + e.key + " " + e.summary + " " + e.rule).toLowerCase().indexOf(q) !== -1));
-    if (!tags.length) { host.innerHTML = '<div class="tg-empty">No tags match.</div>'; return; }
-    host.innerHTML = TC.groups().map((g) => {
-      const list = tags.filter((e) => e.group === g.id);
-      if (!list.length) return "";
-      return `<div class="tg-group"><h2>${escapeHtml(g.label)}</h2><div class="tg-blurb">${escapeHtml(g.blurb)}</div></div>
-        <div class="tg-grid">${list.map((e) => `<article class="tg-card" id="tag-${escapeHtml(e.key)}">
-          <div class="tg-head"><span class="pill tagpill tc-pill tc-${e.tone}" style="cursor:default;">${escapeHtml(e.label)}</span><span class="tg-tone">${escapeHtml(TC.TONE_TEXT[e.tone])}</span></div>
-          <div class="tg-sum">${escapeHtml(e.summary)}</div>
-          <div class="tg-rule"><b>Exact criteria</b>${escapeHtml(e.rule)}</div>
-          ${statsHtml(e)}</article>`).join("")}</div>`;
-    }).join("");
+    document.getElementById("tg-metric").hidden = view !== "rank";
+    host.innerHTML = view === "rank" ? renderRank(q) : renderTopic(q);
+    TC.paint(host);
     jumpToHash();
   }
-  // The page re-renders when the live criteria / your trades arrive, so keep re-aiming at the linked
-  // tag for the first few seconds instead of only once.
+
+  host.addEventListener("click", (ev) => {
+    const rb = ev.target.closest(".tg-rowbtn");
+    if (rb) {
+      const row = rb.closest(".tg-row"), k = row.dataset.key, on = !row.classList.contains("open");
+      row.classList.toggle("open", on); rb.setAttribute("aria-expanded", on);
+      on ? openRows.add(k) : openRows.delete(k);
+      return;
+    }
+    const sh = ev.target.closest(".tg-sechead");
+    if (sh) {
+      const sec = sh.closest(".tg-sec"), on = sec.classList.contains("closed");
+      sec.classList.toggle("closed", !on); sh.setAttribute("aria-expanded", on);
+      groupOpen[sec.dataset.group] = on;
+    }
+  });
+
+  // Linked from a tag sheet (tags.html#tag-<key>): open that tag's group and row, then scroll to it. The page
+  // re-renders when your trades arrive, so keep re-aiming for the first few seconds.
   const loadedAt = Date.now();
+  let hashKey = null;
+  try { hashKey = location.hash.indexOf("#tag-") === 0 ? decodeURIComponent(location.hash.slice(5)) : null; } catch (e) { /* ignore */ }
+  if (hashKey) { openRows.add(hashKey); const g = (TC.get(hashKey) || {}).group; if (g) groupOpen[g] = true; }
   function jumpToHash() {
-    if (!location.hash || Date.now() - loadedAt > 4000) return;
-    const el = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (!hashKey || Date.now() - loadedAt > 4000) return;
+    const el = document.getElementById("tag-" + hashKey);
     if (!el) return;
     el.scrollIntoView({ block: "center" }); el.classList.add("flash");
-    setTimeout(() => el.classList.remove("flash"), 2200);
+    setTimeout(() => el.classList.remove("flash"), 2000);
   }
 
+  function legend() {
+    document.getElementById("tg-legend").innerHTML = rows.length
+      ? `${TC.legendHtml()}<span>Entry and exit tags only, by your average P&amp;L per trade (${TC.MIN_N}+ trades)</span>` : "";
+  }
   function untaggedNote() {
     const n = rows.filter((r) => !Array.isArray(r.behavior_tags) || !r.behavior_tags.some((t) => String(t).indexOf("price_") === 0)).length;
     document.getElementById("tg-untagged").innerHTML = n
-      ? `<div class="tg-note">${n} of your ${rows.length} trades haven't been tagged with the newest tags yet. Open the Journal and tap <b>Tag my setups</b> to fill them in; the numbers below grow as you do.</div>` : "";
+      ? `<div class="tg-note">${n} of ${rows.length} trades are missing the newest tags. Journal → <b>Tag my setups</b> fills them in.</div>` : "";
   }
 
   document.getElementById("tg-search").addEventListener("input", (e) => { query = e.target.value; render(); });
-  document.getElementById("tg-tone").addEventListener("click", (e) => {
-    const b = e.target.closest("button[data-tone]"); if (!b) return;
-    tone = b.dataset.tone;
-    document.querySelectorAll("#tg-tone button").forEach((x) => x.classList.toggle("on", x === b));
+  document.getElementById("tg-view").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-view]"); if (!b) return;
+    view = b.dataset.view;
+    document.querySelectorAll("#tg-view button").forEach((x) => x.classList.toggle("on", x === b));
     render();
   });
 
-  render();                                              // criteria first, no waiting on the network
+  document.getElementById("tg-metric").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-metric]"); if (!b) return;
+    metric = b.dataset.metric;
+    document.querySelectorAll("#tg-metric button").forEach((x) => x.classList.toggle("on", x === b));
+    render();
+  });
+
+  render();                                              // rules first, no waiting on the network
   TC.refresh().then((changed) => { if (changed) render(); });
   Promise.resolve(window.fetchTradesIndex ? window.fetchTradesIndex() : [])
-    .then((r) => { rows = Array.isArray(r) ? r : []; untaggedNote(); render(); })
+    .then((r) => { rows = Array.isArray(r) ? r : []; TC.setTrades(rows); untaggedNote(); legend(); render(); })
     .catch(() => {});                                    // signed out or offline: the guide still works
 })();
 </script>

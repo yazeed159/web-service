@@ -147,3 +147,26 @@ test("TradeNotes.save keeps old manual setup/mistakes/rules when a caller doesn'
   assert.equal(e.notes, "b");
   assert.equal(typeof TradeNotes.knownTags, "undefined");
 });
+
+test("TagCatalog: colour scale runs red to green for entry/exit tags only, needs 3+ trades", () => {
+  const mk = (setup, tags, pnl) => ({ setup_type: setup, behavior_tags: tags, pnl_after_comm: pnl });
+  const rows = [];
+  for (let i = 0; i < 4; i++) rows.push(mk("red_to_green", ["sold_near_high", "session_open"], 50));
+  for (let i = 0; i < 4; i++) rows.push(mk("chase", ["sold_the_low", "session_open"], -50));
+  rows.push(mk("other", ["ran_after_exit"], 10));            // only 1 trade: no colour yet
+  TagCatalog.setTrades(rows);
+  assert.equal(TagCatalog.colorOf("red_to_green").hue, 120);
+  assert.equal(TagCatalog.colorOf("chase").hue, 0);
+  assert.equal(TagCatalog.colorOf("ran_after_exit"), null);
+  assert.equal(TagCatalog.colorOf("session_open"), null);     // not entry/exit related
+  assert.equal(TagCatalog.colorOf("some_ai_lesson_tag"), null);
+  assert.ok(TagCatalog.pillHtml("red_to_green").includes("--tg-h:120"));
+  assert.ok(!TagCatalog.pillHtml("session_open").includes("tc-scored"));
+});
+
+test("TagCatalog: old tags still get an entry, and keys like 'constructor' don't break lookups", () => {
+  assert.equal(TagCatalog.get("breakout").legacy, true);
+  assert.equal(TagCatalog.get("breakout").group, "setup");
+  assert.equal(TagCatalog.get("constructor").unknown, true);
+  assert.equal(TagCatalog.get("__proto__").unknown, true);
+});

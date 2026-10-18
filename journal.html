@@ -612,6 +612,7 @@
           // show, then just re-render with the filters already in place.
           window.swrFetch("trades", window.fetchTradesIndex).then((rows) => {
             allRows = Array.isArray(rows) ? rows : allRows;
+            if (window.TagCatalog) window.TagCatalog.setTrades(allRows);   // colours the tag pills by how each tag has paid
             applyFilters();
           }).catch(() => { /* table just keeps showing pre-update data */ });
         })
@@ -651,6 +652,7 @@
   let booted = false;
   function boot(rows) {
       allRows = Array.isArray(rows) ? rows : [];
+      if (window.TagCatalog) window.TagCatalog.setTrades(allRows);   // colours the tag pills by how each tag has paid
       const prevSel = booted ? {
         setup: els.setup.value, avgvol: els.avgvol.value, rvol: els.rvol.value, float: els.float.value, tag: els.tag.value, country: els.country.value, subtype: els.subtype.value, venue: els.venue.value,
       } : null;
@@ -1130,6 +1132,7 @@
   if (window.PullRefresh) {
     window.PullRefresh.set(() => window.swrFetch("trades", window.fetchTradesIndex).then((rows) => {
       allRows = Array.isArray(rows) ? rows : [];
+      if (window.TagCatalog) window.TagCatalog.setTrades(allRows);   // colours the tag pills by how each tag has paid
       bootShown = tableShown || null;
       applyFilters();
     }));
