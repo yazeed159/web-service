@@ -523,9 +523,13 @@
   // load (instant, even offline); the network result then replaces it.
   let renderedFresh = false;
   let snapshotAt = null;
+  // Snapshots are per account/period scope, so picking another period never paints the old one first.
+  function cacheKey(name) {
+    try { const k = window.Accounts && window.Accounts.scopeKey && window.Accounts.scopeKey(); return k ? name + ":" + k : name; } catch (e) { return name; }
+  }
   function paintFromSnapshot() {
     if (!window.TradeCache) return;
-    Promise.all([window.TradeCache.get("trades"), window.TradeCache.get("ledger")]).then(([t, l]) => {
+    Promise.all([window.TradeCache.get(cacheKey("trades")), window.TradeCache.get(cacheKey("ledger"))]).then(([t, l]) => {
       if (cancelled || renderedFresh || snapshotAt || !t || !Array.isArray(t.value) || !t.value.length) return;
       snapshotAt = t.at;
       const draw = () => {
@@ -568,7 +572,7 @@
       loadFailed = false;
       renderedFresh = true;
       hideLoadBanner();
-      if (window.TradeCache) { window.TradeCache.set("trades", results[0]); window.TradeCache.set("ledger", results[1]); }
+      if (window.TradeCache) { window.TradeCache.set(cacheKey("trades"), results[0]); window.TradeCache.set(cacheKey("ledger"), results[1]); }
       if (window.announceData) window.announceData("fresh", Date.now());
       // On an in-app (SPA) navigation this file runs BEFORE app-dashboard.js /
       // app-dayview.js have loaded, so a fast (cached) fetch could finish first,

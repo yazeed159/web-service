@@ -210,10 +210,13 @@
     var all = ids.length === 0 || sameAsReal;
     if (all) ids = realIds;
     var period = null;
-    if (!all && ids.length === 1 && raw && raw.period) {
+    // A period belongs to ONE account, so it applies whenever exactly one account is in scope --
+    // including when that account is the user's only real account (which counts as "all").
+    if (ids.length === 1 && raw && raw.period) {
       var p = periodsFor(ids[0]).filter(function (x) { return x.id === raw.period; })[0];
       if (p) period = p.id;
     }
+    if (period) all = false;
     return { ids: ids, all: all, period: period };
   }
 
@@ -226,10 +229,17 @@
     }
   }
 
+  // Stable string for the current scope, used to keep cached snapshots of scoped data apart.
+  function scopeKey() {
+    if (!available) return "";
+    var sc = getScope();
+    return sc.ids.slice().sort().join(",") + "|" + (sc.period || "");
+  }
+
   function scopeLabel() {
     if (!available) return "";
     var sc = getScope();
-    if (sc.all) return live().length > 1 ? "All real accounts" : (live()[0] ? live()[0].name : "Real account");
+    if (sc.all && !sc.period) return live().length > 1 ? "All real accounts" : (live()[0] ? live()[0].name : "Real account");
     if (sc.ids.length === 1) {
       var a = byId(sc.ids[0]);
       var label = a ? a.name : "Account";
@@ -554,6 +564,7 @@
     fetchAllTrades: fetchAllTrades,
     getLedger: getLedger,
     setLedger: setLedger,
+    scopeKey: scopeKey,
     startsPeriod: startsPeriod,
     periodsFor: periodsFor,
     findPeriod: findPeriod,

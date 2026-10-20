@@ -143,6 +143,9 @@
 
     window.swrFetch = function (name, fetcher, onCached) {
       var settled = false, shown = null;
+      // Trades are filtered by the account/period scope (accounts.js), so the cached snapshot
+      // is stored per scope -- otherwise the previous period's rows paint before the new ones.
+      try { if (name === "trades" && window.Accounts && window.Accounts.scopeKey) { var sk = window.Accounts.scopeKey(); if (sk) name = name + ":" + sk; } } catch (e) { /* ignore */ }
       if (typeof onCached === "function") {
         TradeCache.get(name).then(function (rec) {
           // Never let an old snapshot overwrite a fresher network result, and
