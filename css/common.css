@@ -3192,7 +3192,7 @@ html.chart-fs-lock .bottom-nav, html.chart-fs-lock .chatw-launcher, html.chart-f
   }
   table.mt-stack td {
     display: block; min-width: 0; padding: 0 !important; border: 0 !important;
-    position: static !important; background: none !important;
+    position: static !important; background: none !important; z-index: auto !important; /* sticky-first-col z-index:1 made the full-width first cell cover buttons in later cells (grid items honour z-index) */
     font-size: 14px; overflow-wrap: anywhere; text-align: left !important; white-space: normal !important;
   }
   table.mt-stack td[data-label]:not([data-label=""])::before {
