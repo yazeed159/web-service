@@ -626,6 +626,7 @@
       const balances = window.computeAccountBalances(state.trades, ledger);
       state.trades.forEach((t, i) => { t._balance = balances[i]; });
       state.hasCapitalLedger = ledger.length > 0;
+      state.ledger = ledger; // scoped ledger, used by the dashboard balance strip
       const last = state.trades[state.trades.length - 1];
       const lastUpdatedEl = document.getElementById("last-updated");
       if (lastUpdatedEl) lastUpdatedEl.textContent = "Through " + last.trade_date;

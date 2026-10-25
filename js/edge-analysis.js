@@ -358,6 +358,7 @@
 
       <div class="edge-jumpnav" id="edge-jumpnav">
         <span class="pill active" data-section="section-decay"><span class="dot"></span>Edge Decay</span>
+        <span class="pill" data-section="section-scorecards"><span class="dot"></span>Setup Scorecards</span>
         <span class="pill" data-section="section-volume"><span class="dot"></span>Volume &amp; Float</span>
         <span class="pill" data-section="section-confidence"><span class="dot"></span>Confidence</span>
         <span class="pill" data-section="section-regret"><span class="dot"></span>Regret Curve</span>
@@ -393,6 +394,14 @@
         <div class="filters" style="margin:18px 0 10px;"><select id="decay-setup-select"></select></div>
         <div id="decay-chart" style="height:220px;"></div>
         <p style="color:var(--text-faint); font-size:12px; margin-top:8px;">Rolling win rate as each setup's trades accumulate in order.</p>
+      </div>
+
+      <div class="panel-box" id="section-scorecards" style="margin-bottom:16px;">
+        <div class="edge-section-head">${sectionIcon(ICON_DECAY)}<span class="title">Setup Scorecards</span></div>
+        ${explainBlock(
+          `Your three setups side by side: win rate, expectancy (average $ per trade), profit factor and average hold time &mdash; then the same numbers split by the time of day you entered. Time slots with fewer than 10 trades are greyed out: too few to trust.`
+        )}
+        <div id="scorecards"></div>
       </div>
 
       <div class="panel-box" id="section-volume" style="margin-bottom:16px;">
@@ -505,6 +514,7 @@
     summaryState.baseline = baseline;
 
     safeRender(() => renderDecay(allSorted), "renderDecay");
+    safeRender(() => renderScorecards(allSorted), "renderScorecards");
     safeRender(() => renderVolume(allSorted, baseline), "renderVolume");
     safeRender(() => renderSizing(allSorted), "renderSizing");
     safeRender(() => renderConfidence(allSorted), "renderConfidence");
@@ -573,6 +583,36 @@
     if (initialSetup) sel.value = initialSetup;
     sel.onchange = () => { renderDecayChart(groups[sel.value] || []); syncUrlState(); };
     if (initialSetup) renderDecayChart(groups[initialSetup]);
+  }
+
+  // ================= SETUP SCORECARDS =================
+  function renderScorecards(rows) {
+    const el = document.getElementById("scorecards");
+    const SC = window.SetupScorecards;
+    if (!el || !SC) return;
+    const MINE = ["red_to_green", "green_over_green_wick", "ema9_dip_buy"];
+    const all = SC.build(rows);
+    if (!all.length) { el.innerHTML = `<div class="empty-state small">No setup_type data yet.</div>`; return; }
+    const ordered = MINE.map((k) => all.find((r) => r.setup === k)).filter(Boolean).concat(all.filter((r) => MINE.indexOf(r.setup) === -1));
+    const money = (v) => (v === null || v === undefined ? "\u2014" : fmtMoney(v));
+    const cls = (v) => (v === null || v === undefined ? "" : v >= 0 ? "win" : "loss");
+    const pct = (v) => (v === null ? "\u2014" : Math.round(v * 1000) / 10 + "%");
+    const pf = (v) => (v === null ? "\u2014" : v === Infinity ? "\u221e" : v.toFixed(2));
+    const hold = (v) => (v === null ? "\u2014" : v < 1 ? Math.round(v * 60) + "s" : v.toFixed(1) + "m");
+    el.innerHTML = ordered.map((r) => `
+      <div class="sc-card${MINE.indexOf(r.setup) === -1 ? " sc-other" : ""}">
+        <div class="sc-head"><span class="sc-name">${escapeHtml(window.setupLabel ? window.setupLabel(r.setup) : r.setup.replace(/_/g, " "))}</span><span class="sc-n">${r.n} trades${r.n < 10 ? " \u00b7 too early" : ""}</span></div>
+        <div class="sc-kpis">
+          <div><i>Win rate</i><b>${pct(r.winRate)}</b></div>
+          <div><i>Expectancy</i><b class="${cls(r.expectancy)}">${money(r.expectancy)}</b></div>
+          <div><i>Profit factor</i><b>${pf(r.profitFactor)}</b></div>
+          <div><i>Avg hold</i><b>${hold(r.avgHoldMin)}</b></div>
+          <div><i>Total</i><b class="${cls(r.total)}">${money(r.total)}</b></div>
+        </div>
+        <div class="sc-time">
+          ${r.byTime.map((b) => `<div class="sc-slot${b.n === 0 ? " empty" : b.n < 10 ? " thin" : ""}"><i>${b.label}</i><b class="${b.n ? cls(b.expectancy) : ""}">${b.n ? money(b.expectancy) : "\u2014"}</b><span>${b.n ? pct(b.winRate) + " \u00b7 " + b.n + "x" : "no trades"}</span></div>`).join("")}
+        </div>
+      </div>`).join("");
   }
 
   function renderDecayRows() {

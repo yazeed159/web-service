@@ -102,6 +102,18 @@
   .edge-row .c-num { text-align: right; font-family: var(--mono); font-size: 11.5px; white-space: nowrap; }
   .edge-row .c-flag { text-align: center; }
 
+  .sc-card { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel-2); padding: 12px 14px; margin-bottom: 10px; }
+  .sc-card.sc-other { opacity: .75; }
+  .sc-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+  .sc-name { font-weight: 600; } .sc-n { font-size: 11.5px; color: var(--text-faint); }
+  .sc-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .sc-kpis i, .sc-slot i { display: block; font-style: normal; font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; }
+  .sc-kpis b { font: 600 14px var(--mono); } .sc-kpis b.win, .sc-slot b.win { color: var(--green); } .sc-kpis b.loss, .sc-slot b.loss { color: var(--red); }
+  .sc-time { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+  .sc-slot { padding: 7px 8px; border-radius: 6px; background: var(--panel); border: 1px solid var(--border-soft, var(--border)); }
+  .sc-slot b { display: block; font: 600 13px var(--mono); } .sc-slot span { font-size: 10.5px; color: var(--text-dim); }
+  .sc-slot.thin { opacity: .55; } .sc-slot.empty { opacity: .35; }
+  @media (max-width: 640px) { .sc-kpis { grid-template-columns: repeat(3, 1fr); } .sc-time { grid-template-columns: repeat(2, 1fr); } }
   .decay-row { grid-template-columns: 168px minmax(60px,1fr) 46px 128px 40px 116px; }
   .tag-row   { grid-template-columns: minmax(120px,200px) minmax(60px,1fr) 44px 64px 76px 38px; }
   .quint-row { grid-template-columns: 150px minmax(60px,1fr) 44px 104px 38px; }
@@ -240,6 +252,7 @@
 <script src="js/accounts.js"></script>
 <script src="js/chart-indicators.js"></script>
 <script src="js/edge-stats.js"></script>
+<script src="js/setup-scorecards.js"></script>
 <script src="js/edge-analysis.js"></script>
 <script src="js/common.js"></script>
 <script src="js/select-enhance.js" defer></script>

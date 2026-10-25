@@ -168,6 +168,7 @@
 <script src="js/vendor/supabase.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/accounts.js"></script>
+<script src="js/balance-math.js"></script>
 <script src="js/broker-connections.js"></script>
 
 <style>
@@ -208,6 +209,8 @@
   .acc-period-h .nm{font-weight:600;font-size:14px}
   .acc-period-h .rng{font-size:12px;color:var(--text-faint)}
   .acc-period-stats{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0;font-size:12.5px;color:var(--text-dim)}
+  .acc-period-balance{margin-left:auto;font-weight:600;color:var(--text)}
+  .acc-period-balance b{font-size:16px!important}
   .acc-period-stats b{color:var(--text);font:500 13px var(--mono);margin-left:4px}
   .acc-reflection{width:100%;margin-top:6px}
   .acc-empty{color:var(--text-faint);font-size:13px;padding:10px 2px}
@@ -546,11 +549,13 @@
         const pe = entries.filter((e) => A.inRange(e.date, p));
         const through = trades.filter((t) => p.end === null || t.trade_date < p.end);
         const endBal = net(entries.filter((e) => p.end === null || e.date < p.end)) + pnl(through);
+        const bm = window.BalanceMath ? window.BalanceMath.periodSummary(entries, trades, p) : null;
+        const twrTxt = bm && bm.twr !== null ? (bm.twr >= 0 ? "+" : "") + (bm.twr * 100).toFixed(1) + "%" : "\u2014";
         const rangeTxt = p.start + (p.end === null ? " \u2192 now" : " \u2192 " + p.end);
         return '<div class="acc-period" data-pid="' + escapeHtml(p.id) + '">' +
           '<div class="acc-period-h"><span class="nm">' + escapeHtml(p.name) + '</span><span class="rng">' + escapeHtml(rangeTxt) + "</span>" +
           '<span style="margin-left:auto;display:flex;gap:6px"><button type="button" class="filter-btn" data-pact="view">View this period</button><button type="button" class="filter-btn" data-pact="rename">Rename</button></span></div>' +
-          '<div class="acc-period-stats"><span>Added<b>' + fmtUsd(net(pe)) + '</b></span><span>P&amp;L<b class="' + sign(pnl(pt)) + '">' + fmtMoney(pnl(pt)) + "</b></span><span>Trades<b>" + pt.length + "</b></span><span>Win rate<b>" + winRate(pt) + "</b></span><span>Balance at end<b>" + fmtUsd(endBal) + "</b></span></div>" +
+          '<div class="acc-period-stats"><span>Added<b>' + fmtUsd(net(pe)) + '</b></span><span>P&amp;L<b class="' + sign(pnl(pt)) + '">' + fmtMoney(pnl(pt)) + "</b></span><span>Trades<b>" + pt.length + "</b></span><span title=\"Time-weighted: deposits and withdrawals do not count as profit or loss\">Return<b>" + twrTxt + "</b></span><span>Win rate<b>" + winRate(pt) + "</b></span><span class=\"acc-period-balance\">" + (p.end === null ? "Balance now" : "Balance at end") + "<b>" + fmtUsd(endBal) + "</b></span></div>" +
           '<textarea class="filter-input acc-reflection" rows="2" data-refl placeholder="Reflection for this period\u2026">' + escapeHtml(p.reflection) + "</textarea>" +
           '<div style="margin-top:6px"><button type="button" class="filter-btn" data-pact="save-refl">Save reflection</button></div></div>';
       }).join("");

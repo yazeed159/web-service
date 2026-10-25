@@ -195,6 +195,32 @@
         </details>
       </div>
 
+      <div class="panel-box mb-16" id="backup-section">
+        <div class="panel-box-head"><span class="title">Backup</span></div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px; margin-bottom:14px;">
+          One file with your accounts, trades, deposits/periods, notes, grades and settings &mdash; a copy you hold yourself.
+          Secret-looking keys (tokens, API keys) are never included. Restoring is below.
+        </p>
+        <label style="display:flex; gap:8px; align-items:center; font-size:12.5px; margin-bottom:12px;"><input type="checkbox" id="backup-details"> Also include chart data and AI verdicts (much larger file)</label>
+        <button class="btn-confirm" id="backup-btn" type="button">Download backup</button>
+        <div id="backup-status" style="margin-top:10px; font-size:12.5px; color:var(--text-dim);"></div>
+        <div style="border-top:1px solid var(--border-soft, var(--border)); margin-top:18px; padding-top:16px;">
+          <div style="font-weight:600; margin-bottom:6px;">Restore from a backup</div>
+          <p style="color:var(--text-faint); font-size:12px; margin:0 0 10px;">Pick a file you downloaded above. Records in it replace the same records you have now; anything not in the file is left alone. Nothing is deleted.</p>
+          <input type="file" id="restore-file" accept="application/json,.json">
+          <div id="restore-summary" style="margin-top:8px; font-size:12.5px; color:var(--text-dim);"></div>
+          <div id="restore-diff" style="margin-top:8px; font-size:12.5px; color:var(--text-dim);"></div>
+          <div style="display:flex; flex-direction:column; gap:6px; margin:10px 0; font-size:12.5px;">
+            <label><input type="checkbox" id="restore-trades" checked> Trades (and their chart data / verdicts, if the file has them)</label>
+            <label><input type="checkbox" id="restore-accounts" checked> Accounts</label>
+            <label><input type="checkbox" id="restore-kv" checked> Deposits, periods, notes, grades and settings</label>
+            <label><input type="checkbox" id="restore-safety" checked> Download a copy of what's there now first</label>
+          </div>
+          <button class="btn-confirm" id="restore-btn" type="button" disabled>Restore backup</button>
+          <div id="restore-status" style="margin-top:10px; font-size:12.5px; color:var(--text-dim);"></div>
+        </div>
+      </div>
+
       <div class="panel-box mb-16">
         <div class="panel-box-head">
           <span class="title">Integrations</span>
@@ -219,6 +245,7 @@
 <script src="js/auth.js"></script>
 <script src="js/accounts.js"></script>
 <script src="js/broker-connections.js"></script>
+<script src="js/backup.js"></script>
 <script>
 (function () {
   "use strict";

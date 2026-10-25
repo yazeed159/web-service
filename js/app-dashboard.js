@@ -112,8 +112,125 @@
     }
     return `<div class="hero-cta-row">${day}<a class="hero-cta" id="hero-add" href="daily.html"><span>${isToday ? "Review today" : "Plan today"}</span><i aria-hidden="true">\u203A</i></a></div>`;
   }
+
+  // ---------- Balance strip + per-period balances ----------
+  // Balance = every deposit/withdrawal in the current scope + every trade's net P&L in it, plus (when
+  // one period is selected) the balance carried in from earlier periods. Maths lives in balance-math.js.
+  function fmtPct(v) { return v === null || v === undefined ? "\u2014" : (v >= 0 ? "+" : "") + (v * 100).toFixed(1) + "%"; }
+  let _balToken = 0;
+  function renderBalance() {
+    const el = document.getElementById("dash-balance");
+    if (!el) return;
+    const BM = window.BalanceMath, A = window.Accounts;
+    const token = ++_balToken;
+    const trades = App.state.trades || [];
+    const ledger = App.state.ledger || [];
+    if (!ledger.length || !BM) {
+      el.innerHTML = '<div class="bal-strip bal-empty"><span>Balance</span> Add your deposits on <a href="accounts.html">Accounts</a> to see the money left in your account here.</div>';
+      return;
+    }
+    const usable = A && A.isAvailable && A.isAvailable();
+    const sc = usable ? A.getScope() : null;
+    const scopeTxt = usable ? A.scopeLabel() : "";
+    const pnlSum = (list) => list.reduce((a, t) => a + (Number(t.pnl_after_comm) || 0), 0);
+
+    const drawStrip = (carry) => {
+      const added = ledger.reduce((a, e) => a + e.amount, 0);
+      const pnl = pnlSum(trades);
+      const bal = carry + added + pnl;
+      // Time-weighted return for the slice on screen (deposits/withdrawals don't count as profit or loss).
+      const twr = BM.timeWeightedReturn(carry, ledger, trades);
+      return '<div class="bal-strip">' +
+        '<div class="bal-main"><div class="bal-k">Balance remaining' + (scopeTxt ? ' <span class="dim">\u00b7 ' + escapeHtml(scopeTxt) + '</span>' : '') + '</div>' +
+        '<div class="bal-v ' + (bal >= 0 ? "" : "down") + '">' + fmtBalance(bal) + '</div></div>' +
+        '<div class="bal-side">' +
+        (carry ? '<div><span>Carried in</span><b>' + fmtBalance(carry) + '</b></div>' : '') +
+        '<div><span>Money added</span><b>' + fmtBalance(added) + '</b></div>' +
+        '<div><span>Net P&amp;L</span><b class="' + (pnl >= 0 ? "up" : "down") + '">' + fmtMoney(pnl) + '</b></div>' +
+        '<div title="Time-weighted: deposits and withdrawals are not counted as profit or loss"><span>Return</span><b class="' + (twr === null ? "" : twr >= 0 ? "up" : "down") + '">' + fmtPct(twr) + '</b></div>' +
+        '</div></div>';
+    };
+    el.innerHTML = drawStrip(0);
+    if (!usable) return;
+
+    // Everything else needs EVERY trade (not just the scoped ones), so other periods are right too.
+    A.fetchAllTrades().then((all) => {
+      if (token !== _balToken || !document.body.contains(el)) return;
+      const fullLedger = A.getLedger();
+      let carry = 0;
+      if (sc.period && sc.ids.length === 1) {
+        const p = A.findPeriod(sc.period);
+        if (p) carry = BM.balanceBefore(fullLedger.filter((e) => A.ledgerAccountId(e) === sc.ids[0]), all.filter((t) => t.account_id === sc.ids[0]), p.start);
+      }
+      let html = drawStrip(carry);
+      const groups = [];
+      sc.ids.forEach((id) => {
+        const acc = A.byId(id), periods = A.periodsFor(id);
+        if (!acc || !periods.length) return;
+        groups.push({ acc, periods, entries: fullLedger.filter((e) => A.ledgerAccountId(e) === id), accTrades: all.filter((t) => t.account_id === id) });
+      });
+      // ---- Sanity checks on the numbers ----
+      let extras = "";
+      groups.forEach((g) => {
+        const low = BM.lowestBalance(g.entries, g.accTrades);
+        if (low && low.min < -0.005) {
+          extras += '<div class="bal-warn">' + (groups.length > 1 ? escapeHtml(g.acc.name) + ": " : "") + 'the balance dips below zero on ' + escapeHtml(low.date) + ' (' + fmtBalance(low.min) + '). A real account can\u2019t do that \u2014 a deposit is probably missing before that date, or a withdrawal was entered twice. <a href="accounts.html">Fix on Accounts</a></div>';
+        }
+      });
+      // Compare with what the broker shows. This is the only way to catch a withdrawal that was never logged.
+      if (sc.ids.length === 1 && window.KV && typeof window.KV.get === "function") {
+        const id = sc.ids[0], key = "balance_check:" + id;
+        const accEntries = fullLedger.filter((e) => A.ledgerAccountId(e) === id);
+        const journalNow = BM.balanceBefore(accEntries, all.filter((t) => t.account_id === id), "9999-12-31");
+        const saved = window.KV.get(key);
+        let line = "";
+        if (saved && isFinite(saved.broker)) {
+          const d = saved.broker - saved.journal;
+          const verdict = Math.abs(d) < 1 ? '<b class="up">matched</b> (within $1)'
+            : d < 0 ? '<b class="down">broker was ' + fmtBalance(-d) + ' lower</b> \u2014 usually a withdrawal that isn\u2019t logged, or fees the journal doesn\u2019t have'
+            : '<b class="down">broker was ' + fmtBalance(d) + ' higher</b> \u2014 usually a deposit that isn\u2019t logged, or interest/rebates';
+          line = '<span>Broker check on ' + escapeHtml(saved.at) + ': broker ' + fmtBalance(saved.broker) + ', journal ' + fmtBalance(saved.journal) + ' \u2192 ' + verdict + '</span> <button type="button" class="bal-link" data-bal-check-open>Check again</button> <button type="button" class="bal-link" data-bal-check-clear>Clear</button>';
+        } else {
+          line = '<button type="button" class="bal-link" data-bal-check-open>Check against my broker balance</button>';
+        }
+        extras += '<div class="bal-check">' + line + '<span class="bal-check-form" style="display:none"> <input type="number" step="any" id="bal-check-in" class="filter-input" placeholder="Balance your broker shows"> <button type="button" class="bal-link" id="bal-check-save">Save</button></span></div>';
+        el.__balCheck = { key: key, journal: journalNow };
+      }
+      html += extras;
+      const rowsHtml = groups.map((g) => {
+        const rows = g.periods.slice().reverse().map((p) => {
+          const m = BM.periodSummary(g.entries, g.accTrades, p);
+          const current = sc.period === p.id;
+          return '<button type="button" class="bal-period' + (current ? " current" : "") + '" data-bal-acc="' + escapeHtml(g.acc.id) + '" data-bal-period="' + escapeHtml(p.id) + '">' +
+            '<span class="bp-name">' + escapeHtml(p.name) + '<i>' + escapeHtml(p.start) + (p.end === null ? " \u2192 now" : " \u2192 " + escapeHtml(p.end)) + '</i></span>' +
+            '<span class="bp-cell"><i>' + (m.carryIn ? "Carried in " + fmtBalance(m.carryIn) + " \u00b7 added" : "Added") + '</i>' + fmtBalance(m.added) + '</span>' +
+            '<span class="bp-cell"><i>P&amp;L \u00b7 return</i><em class="' + (m.pnl >= 0 ? "up" : "down") + '">' + fmtMoney(m.pnl) + ' \u00b7 ' + fmtPct(m.twr) + '</em></span>' +
+            '<span class="bp-cell bp-bal"><i>' + (p.end === null ? "Balance now" : "Balance at end") + '</i>' + fmtBalance(m.endBalance) + '</span></button>';
+        }).join("");
+        return '<div class="bal-group">' + (groups.length > 1 ? '<div class="bal-group-h">' + escapeHtml(g.acc.name) + '</div>' : '') + rows + '</div>';
+      }).join("");
+      if (rowsHtml) html += '<div class="bal-periods"><div class="bal-periods-h">Balance by period <span class="dim">\u00b7 balances carry over from the period before \u00b7 tap one to view just that period</span></div>' + rowsHtml + '</div>';
+      el.innerHTML = html;
+      el.querySelectorAll("[data-bal-period]").forEach((b) => b.addEventListener("click", () => {
+        A.setScope({ ids: [b.getAttribute("data-bal-acc")], period: b.getAttribute("data-bal-period") });
+      }));
+      const open = el.querySelector("[data-bal-check-open]"), form = el.querySelector(".bal-check-form");
+      if (open && form) open.addEventListener("click", () => { form.style.display = "inline"; const i = el.querySelector("#bal-check-in"); if (i) i.focus(); });
+      const clr = el.querySelector("[data-bal-check-clear]");
+      if (clr && el.__balCheck) clr.addEventListener("click", () => { if (window.KV.del) window.KV.del(el.__balCheck.key); else window.KV.set(el.__balCheck.key, null); renderBalance(); });
+      const save = el.querySelector("#bal-check-save");
+      if (save && el.__balCheck) save.addEventListener("click", () => {
+        const v = parseFloat(el.querySelector("#bal-check-in").value);
+        if (!isFinite(v)) return;
+        window.KV.set(el.__balCheck.key, { broker: v, journal: Math.round(el.__balCheck.journal * 100) / 100, at: new Date().toLocaleDateString("en-CA") });
+        renderBalance();
+      });
+    }).catch((e) => { if (window.console) console.warn("balance periods failed", e); });
+  }
+
   function renderStats() {
     const s = App.computeStats();
+    try { renderBalance(); } catch (e) { if (window.console) console.warn("renderBalance failed", e); }
     const w = tradeWindows();
     const pfDisplay = s.profitFactor === Infinity ? "∞" : s.profitFactor.toFixed(2);
     const streak = currentStreak();

@@ -57,6 +57,22 @@
     background: var(--panel-2); color: var(--text-dim); font-size: 12.5px; font-weight: 600; cursor: pointer;
   }
   button.cancel:disabled { opacity: .5; cursor: default; }
+  .imp-window{margin:14px 0;padding:14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--panel-2)}
+  .imp-window-h{font-weight:600;margin-bottom:6px}
+  .imp-sum{font-size:12.5px;color:var(--text-dim);margin-bottom:10px;line-height:1.5}
+  .imp-row{display:flex;gap:10px;flex-wrap:wrap}.imp-row>div{flex:1 1 150px;min-width:0}.imp-row .filter-input{width:100%}
+  .imp-newperiod{margin:0 0 12px;padding:10px 12px;border:1px dashed var(--border);border-radius:var(--radius-sm);font-size:12.5px}
+  .imp-np-l{display:flex;gap:8px;align-items:flex-start;cursor:pointer}
+  .imp-np-amt{margin-top:8px;max-width:260px}
+  .imp-gaprow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0;font-size:12.5px;color:var(--text-dim)}.imp-gaprow .filter-input{width:auto}
+  .imp-pick{margin:10px 0;font-size:12.5px}.imp-pick summary{cursor:pointer;color:var(--text-dim)}
+  .imp-pick-bar{display:flex;gap:8px;margin:8px 0}
+  .imp-pick-list{max-height:280px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel)}
+  .imp-pick-row{display:grid;grid-template-columns:22px 92px 1fr auto;gap:8px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--border-soft,var(--border));font:12px var(--mono)}
+  .imp-pick-row.have{opacity:.45}.imp-pick-row .up{color:var(--green)}.imp-pick-row .down{color:var(--red)}
+  .imp-pick-note{padding:8px 10px;font-size:11.5px;color:var(--text-faint)}
+  .imp-count{margin:12px 0;font:600 14px var(--mono)}
+  .imp-actions{display:flex;gap:8px}
   .progress-bar-fill.indeterminate { width: 35% !important; animation: it-slide 1.2s ease-in-out infinite; }
   @keyframes it-slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
   #phase { margin-top: 10px; font-size: 12.5px; font-family: var(--mono); color: var(--text-dim); }
@@ -185,6 +201,27 @@
           <button class="btn-confirm" id="run-btn" disabled>Import</button>
         </div>
 
+        <div id="imp-window" class="imp-window" style="display:none">
+          <div class="imp-window-h">What should be added?</div>
+          <div id="imp-file-sum" class="imp-sum"></div>
+          <div class="imp-row">
+            <div><label for="imp-preset">Range</label><select id="imp-preset" class="filter-input"></select></div>
+            <div><label for="imp-from">From</label><input type="date" id="imp-from" class="filter-input"></div>
+            <div><label for="imp-to">To</label><input type="date" id="imp-to" class="filter-input"></div>
+          </div>
+          <div class="imp-gaprow"><label for="imp-gap">Offer a new period after a break of</label>
+            <select id="imp-gap" class="filter-input"><option value="14">14 days</option><option value="30" selected>30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></div>
+          <details id="imp-pick" class="imp-pick"><summary>Choose individual trades <span id="imp-pick-sum"></span></summary>
+            <div class="imp-pick-bar"><button type="button" class="filter-btn" id="imp-pick-all">Tick all in range</button><button type="button" class="filter-btn" id="imp-pick-none">Untick all in range</button></div>
+            <div id="imp-pick-list" class="imp-pick-list"></div>
+          </details>
+          <div id="imp-count" class="imp-count"></div>
+          <div id="imp-newperiod" class="imp-newperiod" style="display:none">
+            <label class="imp-np-l"><input type="checkbox" id="imp-np-on"> <span id="imp-np-txt"></span></label>
+            <div class="imp-np-amt"><label for="imp-np-amount">Deposit that starts it ($, 0 = fill in later)</label><input type="number" id="imp-np-amount" class="filter-input" min="0" step="any" value="0"></div>
+          </div>
+          <div class="imp-actions"><button class="btn-confirm" id="imp-go">Import</button><button class="filter-btn" id="imp-cancel" type="button">Cancel</button></div>
+        </div>
         <div id="status"></div>
         <div class="progress-wrap" id="progress-wrap">
           <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-fill"></div></div>
@@ -245,6 +282,7 @@
 <script src="js/vendor/supabase.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/accounts.js"></script>
+<script src="js/import-gaps.js"></script>
 <script src="js/broker-connections.js"></script>
   <script>
     (function () {
@@ -501,7 +539,7 @@
           .catch(function () { /* the next poll tick will still pick up wherever the job lands */ });
       });
 
-      function startImport(file) {
+      function startImport(file, win) {
         if (!file) return;
 
         var base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
@@ -531,6 +569,9 @@
           if (acctSel && acctSel.value) formData.append("account_id", acctSel.value);
           var owBox = document.getElementById("import-overwrite");
           if (owBox && owBox.checked) formData.append("overwrite", "1");
+          if (win && win.from) formData.append("date_from", win.from);
+          if (win && win.to) formData.append("date_to", win.to);
+          if (win && win.exclude && win.exclude.length) formData.append("exclude_ids", JSON.stringify(win.exclude));
 
           fetch(base + "/import-trades", {
             method: "POST",
@@ -588,7 +629,151 @@
         });
       }
 
-      runBtn.addEventListener("click", function () { startImport(fileEl.files[0]); });
+      // ---- Step 1: preview (match only, nothing saved) -> choose what to add -> Step 2: import ----
+      var winEl = document.getElementById("imp-window"), preset = document.getElementById("imp-preset");
+      var fromEl = document.getElementById("imp-from"), toEl = document.getElementById("imp-to");
+      var previewTrades = [], previewSkip = {}, previewFile = null, gaps = [], excluded = new Set(), PICK_MAX = 400;
+      function dayBefore(d) { var x = new Date(d + "T12:00:00"); x.setDate(x.getDate() - 1); return x.toLocaleDateString("en-CA"); }
+      function targetAccountId() {
+        var sel = document.getElementById("import-account");
+        if (sel && sel.value) return sel.value;
+        return window.Accounts && window.Accounts.isAvailable() && window.Accounts.defaultLive() ? window.Accounts.defaultLive().id : null;
+      }
+      function tDate(t) { return String(t["Trade Date"] || "").slice(0, 10); }
+      function inWindow() {
+        var f = fromEl.value, to = toEl.value;
+        return previewTrades.filter(function (t) { var d = tDate(t); return (!f || d >= f) && (!to || d <= to); });
+      }
+      function refreshCount() {
+        var all = inWindow(), ow = document.getElementById("import-overwrite").checked;
+        var list = all.filter(function (t) { return !excluded.has(t.trade_id); });
+        var unticked = all.length - list.length;
+        var have = ow ? 0 : list.filter(function (t) { return previewSkip[t.trade_id]; }).length;
+        var fresh = list.length - have;
+        document.getElementById("imp-count").textContent = fresh + " trade(s) will be added" + (have ? " \u00b7 " + have + " already in your journal (skipped)" : "") + (unticked ? " \u00b7 " + unticked + " unticked by you" : "");
+        document.getElementById("imp-pick-sum").textContent = "(" + list.length + " of " + all.length + " in range ticked)";
+        document.getElementById("imp-go").disabled = !list.length;
+      }
+      function renderPicker() {
+        var all = inWindow().slice().sort(function (a, b) { return (tDate(b) + (b["Entry Time"] || "")).localeCompare(tDate(a) + (a["Entry Time"] || "")); });
+        var shown = all.slice(0, PICK_MAX), box = document.getElementById("imp-pick-list");
+        box.innerHTML = shown.map(function (t, i) {
+          var pnl = Number(t["P&L After Comm"]), have = previewSkip[t.trade_id];
+          return '<label class="imp-pick-row' + (have ? " have" : "") + '"><input type="checkbox" data-i="' + i + '"' + (excluded.has(t.trade_id) ? "" : " checked") + '>' +
+            "<span>" + escapeHtml(tDate(t)) + "</span><span>" + escapeHtml(String(t.Symbol || "")) + " " + escapeHtml(String(t.Side || "")) + (have ? " \u00b7 already in journal" : "") + "</span>" +
+            '<span class="' + (pnl >= 0 ? "up" : "down") + '">' + (isFinite(pnl) ? (pnl >= 0 ? "+" : "-") + "$" + Math.abs(pnl).toFixed(2) : "") + "</span></label>";
+        }).join("") + (all.length > PICK_MAX ? '<div class="imp-pick-note">Showing the newest ' + PICK_MAX + " of " + all.length + " \u2014 narrow the range to pick the rest. Trades not shown stay ticked.</div>" : "");
+        box.querySelectorAll("input[type=checkbox]").forEach(function (cb) {
+          cb.addEventListener("change", function () {
+            var id = shown[Number(cb.getAttribute("data-i"))].trade_id;
+            if (cb.checked) excluded.delete(id); else excluded.add(id);
+            refreshCount();
+          });
+        });
+      }
+      function setRangeTicks(on) {
+        inWindow().forEach(function (t) { if (on) excluded.delete(t.trade_id); else excluded.add(t.trade_id); });
+        renderPicker(); refreshCount();
+      }
+      document.getElementById("imp-pick-all").addEventListener("click", function () { setRangeTicks(true); });
+      document.getElementById("imp-pick-none").addEventListener("click", function () { setRangeTicks(false); });
+      function buildPresets() {
+        var opts = [["all", "Everything in the file"]], A = window.Accounts, id = targetAccountId();
+        if (A && A.isAvailable() && id) {
+          var ps = A.periodsFor(id);
+          if (ps.length) {
+            var cur = ps[ps.length - 1];
+            opts.push(["p:" + cur.id, "Latest period \u00b7 " + cur.name + " (from " + cur.start + ")"]);
+            ps.slice(0, -1).reverse().forEach(function (p) { opts.push(["p:" + p.id, p.name + " \u00b7 " + p.start + " \u2192 " + (p.end ? dayBefore(p.end) : "now")]); });
+          }
+        }
+        gaps = window.ImportGaps ? window.ImportGaps.findGaps(previewTrades.map(tDate), Number(document.getElementById("imp-gap").value) || 30) : [];
+        gaps.slice().reverse().forEach(function (g) { opts.push(["g:" + g.to, "After a " + g.days + "-day break \u00b7 from " + g.to])});
+        opts.push(["custom", "Custom dates\u2026"]);
+        preset.innerHTML = opts.map(function (o) { return '<option value="' + escapeHtml(o[0]) + '">' + escapeHtml(o[1]) + "</option>"; }).join("");
+        preset.value = opts.length > 2 ? opts[1][0] : "all";
+      }
+      function applyPreset() {
+        var v = preset.value, A = window.Accounts, id = targetAccountId();
+        if (v === "all") { fromEl.value = ""; toEl.value = ""; }
+        else if (v.indexOf("g:") === 0) { fromEl.value = v.slice(2); toEl.value = ""; }
+        else if (v.indexOf("p:") === 0 && A) {
+          var p = A.periodsFor(id).filter(function (x) { return "p:" + x.id === v; })[0];
+          if (p) { fromEl.value = p.start; toEl.value = p.end ? dayBefore(p.end) : ""; }
+        }
+        renderPicker(); refreshCount(); updateOffer();
+      }
+      // Offer to open a new period on the first trade after a break (if no period already starts there).
+      function updateOffer() {
+        var box = document.getElementById("imp-newperiod"), A = window.Accounts, id = targetAccountId(), v = preset.value;
+        var show = false;
+        if (A && A.isAvailable() && id && v.indexOf("g:") === 0) {
+          var d = v.slice(2);
+          show = !A.periodsFor(id).some(function (p) { return p.start === d; });
+          document.getElementById("imp-np-txt").textContent = "Also start a new period on " + d + " (your first trade after the break), so these trades get their own balance and return";
+        }
+        box.style.display = show ? "block" : "none";
+        if (!show) document.getElementById("imp-np-on").checked = false;
+      }
+      function maybeStartPeriod() {
+        var A = window.Accounts, id = targetAccountId();
+        if (!document.getElementById("imp-np-on").checked || !A || !id || preset.value.indexOf("g:") !== 0) return;
+        var amt = Number(document.getElementById("imp-np-amount").value); if (!isFinite(amt) || amt < 0) amt = 0;
+        A.setLedger(A.getLedger().concat([{ _id: A.newId(), account_id: id, date: preset.value.slice(2), amount: amt, period: true }]));
+      }
+      preset.addEventListener("change", applyPreset);
+      document.getElementById("imp-gap").addEventListener("change", function () {
+        var keep = preset.value; buildPresets();
+        if (Array.prototype.some.call(preset.options, function (o) { return o.value === keep; })) preset.value = keep;
+        applyPreset();
+      });
+      [fromEl, toEl].forEach(function (el) { el.addEventListener("change", function () { preset.value = "custom"; renderPicker(); refreshCount(); updateOffer(); }); });
+      document.getElementById("import-overwrite").addEventListener("change", refreshCount);
+      document.getElementById("imp-cancel").addEventListener("click", function () { winEl.style.display = "none"; runBtn.disabled = !fileEl.files[0]; setStatus("", ""); });
+      document.getElementById("imp-go").addEventListener("click", function () {
+        winEl.style.display = "none";
+        maybeStartPeriod();
+        startImport(previewFile, { from: fromEl.value, to: toEl.value, exclude: Array.from(excluded) });
+      });
+      fileEl.addEventListener("change", function () { winEl.style.display = "none"; });
+      (function () { var a = document.getElementById("import-account"); if (a) a.addEventListener("change", function () { winEl.style.display = "none"; }); })();
+
+      function runPreview(file) {
+        var base = (window.CHART_SERVICE_URL || "").replace(/\/+$/, "");
+        if (!base) { setStatus("Set window.CHART_SERVICE_URL in config.js first.", "err"); return; }
+        window.AUTH_READY.then(function (session) {
+          if (!session) { setStatus("Please log in first.", "err"); return; }
+          runBtn.disabled = true; winEl.style.display = "none";
+          setStatus("Reading " + (file.name || "file") + "\u2026 nothing is saved yet.");
+          var fd = new FormData();
+          fd.append("trade_csv", file); fd.append("preview", "1");
+          var acctSel = document.getElementById("import-account");
+          if (acctSel && acctSel.value) fd.append("account_id", acctSel.value);
+          fetch(base + "/import-trades", { method: "POST", headers: { "Authorization": "Bearer " + session.access_token }, body: fd })
+            .then(function (res) { return res.json().then(function (b) { return { ok: res.ok, body: b }; }); })
+            .then(function (r) {
+              runBtn.disabled = false;
+              if (!r.ok) { setStatus("Error: " + (r.body.error || "couldn't read the file"), "err"); return; }
+              if (!r.body.preview) {
+                // Old server: it ignored preview and already started importing everything. Stop it.
+                if (r.body.job_id) fetch(base + "/import-trades/" + r.body.job_id + "/cancel", { method: "POST" }).catch(function () {});
+                setStatus("The import server is out of date (no preview support) \u2014 the import was cancelled. Deploy the updated chart-service first.", "err");
+                return;
+              }
+              previewTrades = r.body.trades || []; previewFile = file; excluded = new Set();
+              previewSkip = {}; (r.body.already_imported || []).forEach(function (id) { previewSkip[id] = true; });
+              var f = r.body.file || {};
+              if (!previewTrades.length) { setStatus("No complete round-trip trades found in that file.", "err"); return; }
+              setStatus("", "");
+              document.getElementById("imp-file-sum").textContent = (f.total || previewTrades.length) + " trades in the file, " + (f.first || "?") + " \u2192 " + (f.last || "?") + ". " + (r.body.existing_check_failed ? "Couldn't check which are already in your journal." : (Object.keys(previewSkip).length + " already in your journal."));
+              buildPresets(); applyPreset();
+              winEl.style.display = "block";
+              winEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            })
+            .catch(function (err) { runBtn.disabled = false; setStatus("Request failed: " + err.message, "err"); });
+        });
+      }
+      runBtn.addEventListener("click", function () { runPreview(fileEl.files[0]); });
 
       // Coming back to the page: re-attach to the import that was running.
       (function resumeJob() {
