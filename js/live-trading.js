@@ -62,7 +62,15 @@
           if (!r.ok) throw new Error(body.error || ("HTTP " + r.status));
           return body;
         })
-      )
+      ).catch((err) => {
+        // fetch() rejects with a TypeError when the host can't be reached at all. A trycloudflare.com
+        // address changes every time the tunnel restarts, so that is the usual cause here.
+        if (err instanceof TypeError && /trycloudflare\.com/i.test(API())) {
+          throw new Error("Can't reach the live service. Its tunnel address (" + API().replace(/^https?:\/\//, "") +
+            ") changes whenever the tunnel restarts — check the tunnel is running and update LIVE_SERVICE_URL in js/config.js.");
+        }
+        throw err;
+      })
     );
   }
 
@@ -545,6 +553,34 @@
     document.getElementById("lt-size-value-note").textContent = cfg.note;
   }
 
+  // ---- link to the dashboard daily loss limit (user_kv "daily_loss_limit", or today's plan max_loss) ----
+  function dashboardLossLimit() {
+    try {
+      if (!window.KV || !window.LossLimit) return null;
+      const today = window.MarketDate ? window.MarketDate.today() : new Date().toLocaleDateString("en-CA");
+      const notes = window.KV.get("trade.log:daily_notes");
+      const day = notes && notes.days ? notes.days[today] : null;
+      return window.LossLimit.resolve(day, window.KV.get("daily_loss_limit"), today);
+    } catch (e) { return null; }
+  }
+  function showDashboardLimitHint() {
+    const input = document.getElementById("lt-max-loss");
+    if (!input) return;
+    const lim = dashboardLossLimit();
+    let note = document.getElementById("lt-max-loss-note");
+    if (!note) {
+      note = document.createElement("div");
+      note.id = "lt-max-loss-note";
+      note.className = "lt-symbol-note";
+      input.parentNode.appendChild(note);
+    }
+    if (!lim) { note.textContent = ""; return; }
+    const fmt = "$" + lim.amount.toLocaleString("en-US", { maximumFractionDigits: 2 });
+    note.textContent = "Your dashboard daily loss limit is " + fmt + " (" + (lim.source === "plan" ? "today's plan" : "standing default") +
+      "). The engine uses the lower of that and this number.";
+  }
+  if (window.KV && window.KV.ready) window.KV.ready.then(showDashboardLimitHint);
+
   function startRun() {
     const errEl = document.getElementById("lt-start-error");
     errEl.textContent = "";
@@ -557,7 +593,11 @@
     const mode = document.getElementById("lt-mode").value;
     const size_mode = document.getElementById("lt-size-mode").value;
     const size_value = parseFloat(document.getElementById("lt-size-value").value);
-    const max_daily_loss_usd = parseFloat(document.getElementById("lt-max-loss").value) || 200;
+    const typedLoss = parseFloat(document.getElementById("lt-max-loss").value) || 200;
+    // The dashboard's daily loss limit is the trader's own rule, so the engine gets whichever is
+    // STRICTER: this form's number or the dashboard limit. That makes the dashboard limit stop trading.
+    const dashLimit = dashboardLossLimit();
+    const max_daily_loss_usd = dashLimit ? Math.min(typedLoss, dashLimit.amount) : typedLoss;
     const maxTradesRaw = document.getElementById("lt-max-trades").value;
 
     if (!strategyId && !advancedEntryMode) {
@@ -976,7 +1016,7 @@
       el.innerHTML = renderStrategyDetails(cached);
       return;
     }
-    el.innerHTML = `<div class="lt-empty">Loading…</div>`;
+    el.innerHTML = '<div class="loading-line skel-table" role="status" aria-busy="true" aria-label="Loading"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>';
     apiCall(`/api/live/strategies/${encodeURIComponent(strategyId)}`)
       .then((strat) => { el.innerHTML = renderStrategyDetails(strat); })
       .catch((err) => { el.innerHTML = `<div class="lt-empty">Couldn't load this strategy (${escapeHtml(err.message)}).</div>`; });

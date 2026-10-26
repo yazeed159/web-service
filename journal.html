@@ -17,6 +17,7 @@
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="expect" href="#page-title" blocking="render">
+<script src="js/app-boot.js"></script>
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
@@ -130,20 +131,20 @@
         <input type="text" id="f-symbol" placeholder="Symbol…" aria-label="Symbol" style="width:110px;">
         <input type="date" id="f-from" title="From date" aria-label="From date">
         <input type="date" id="f-to" title="To date" aria-label="To date">
-        <select id="f-setup"><option value="">All setups</option></select>
-        <select id="f-result">
+        <select id="f-setup" aria-label="Setup"><option value="">All setups</option></select>
+        <select id="f-result" aria-label="Win or loss">
           <option value="">Win or loss</option>
           <option value="win">Wins only</option>
           <option value="loss">Losses only</option>
         </select>
-        <select id="f-rvol" title="Relative volume on the trade day"><option value="">All rel. volume</option></select>
-        <select id="f-avgvol" title="30-day average daily volume"><option value="">All avg. volume</option></select>
-        <select id="f-float" title="Float (shares outstanding, approx.)"><option value="">All float</option></select>
-        <select id="f-country" title="Issuer country, from your broker statement"><option value="">All countries</option></select>
-        <select id="f-subtype" title="ADR / common stock, from your broker statement"><option value="">Stock type: any</option></select>
-        <select id="f-venue" title="Exchange the trade filled on, from your broker statement"><option value="">All exchanges</option></select>
-        <select id="f-tag" title="Behavior and lesson tags"><option value="">All tags</option></select>
-        <select id="f-grade" title="Self-graded execution quality — separate from win/loss">
+        <select id="f-rvol" aria-label="Relative volume" title="Relative volume on the trade day"><option value="">All rel. volume</option></select>
+        <select id="f-avgvol" aria-label="30-day average volume" title="30-day average daily volume"><option value="">All avg. volume</option></select>
+        <select id="f-float" aria-label="Float" title="Float (shares outstanding, approx.)"><option value="">All float</option></select>
+        <select id="f-country" aria-label="Issuer country" title="Issuer country, from your broker statement"><option value="">All countries</option></select>
+        <select id="f-subtype" aria-label="Stock type" title="ADR / common stock, from your broker statement"><option value="">Stock type: any</option></select>
+        <select id="f-venue" aria-label="Exchange" title="Exchange the trade filled on, from your broker statement"><option value="">All exchanges</option></select>
+        <select id="f-tag" aria-label="Tag" title="Behavior and lesson tags"><option value="">All tags</option></select>
+        <select id="f-grade" aria-label="Execution grade" title="Self-graded execution quality — separate from win/loss">
           <option value="">All grades</option>
           <option value="5">★★★★★ only</option>
           <option value="4">★★★★+ &amp; up</option>
@@ -769,7 +770,8 @@
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   }
   function chipRange(kind) {
-    const t = new Date(); t.setHours(12, 0, 0, 0);
+    // anchored to the US market date so after-hours trades never fall on the wrong day
+    const t = (function () { const md = window.MarketDate ? window.MarketDate.today() : ""; return md ? new Date(+md.slice(0, 4), +md.slice(5, 7) - 1, +md.slice(8, 10), 12) : new Date(); })(); t.setHours(12, 0, 0, 0);
     if (kind === "today") return [isoLocal(t), isoLocal(t)];
     if (kind === "yesterday") { const y = new Date(t); y.setDate(y.getDate() - 1); return [isoLocal(y), isoLocal(y)]; }
     if (kind === "week") { const m = new Date(t); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return [isoLocal(m), isoLocal(t)]; }
@@ -1382,7 +1384,7 @@
       sync();
     });
     $('[data-act="cancel"]').addEventListener("click", close);
-    const stamp = () => new Date().toISOString().slice(0, 10);
+    const stamp = () => new Date().toLocaleDateString("en-CA");   // device-local date, like backup.js
     const pageFor = (rows) => TradeLogShare.buildSetSharePage(rows, {
       title: `${plural(rows.length)} — trade.log`,
       filtersSummary: scope() === "all" ? describeFilters() : `${plural(rows.length)} hand-picked`,

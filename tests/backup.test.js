@@ -102,3 +102,21 @@ test("diff: identical data means nothing changes; section switches are honoured"
   assert.equal(B.diff(f, cur).nothingChanges, true);
   assert.equal(B.diff(f, { accounts: [], trades: [], user_kv: [] }, { trades: false, accounts: false, kv: false }).trades, null);
 });
+
+test("tradesCsv: header, ordering, account names, quoting, formula safety, numbers untouched", () => {
+  const B = load({});
+  const csv = B.tradesCsv([
+    { id: "B-2", trade_date: "2026-10-02", entry_time: "09:40:00", symbol: "=CMD()", side: "long", shares: 100, pnl_after_comm: -12.5, win: false, setup_type: "ORB, gap", behavior_tags: ["clean_trade"], lesson_tags: ['said "no"'], account_id: "a1" },
+    { id: "A-1", trade_date: "2026-10-01", entry_time: "09:35:00", symbol: "AAPL", side: "long", shares: 10, pnl_after_comm: 5, win: true, account_id: "zzz" },
+  ], [{ id: "a1", name: "Main" }]);
+  const lines = csv.split("\r\n");
+  assert.equal(lines[0].split(",")[0], "Trade date");
+  assert.ok(lines[1].startsWith("2026-10-01,09:35:00,,AAPL,long,10,"), "oldest first");
+  assert.ok(lines[1].includes(",5,WIN,"), "net P&L number + result");
+  assert.ok(lines[2].includes("'=CMD()"), "formula-looking text is defused");
+  assert.ok(lines[2].includes(",-12.5,LOSS,"), "negative P&L stays a bare number");
+  assert.ok(lines[2].includes('"ORB, gap"'), "commas are quoted");
+  assert.ok(lines[2].includes('clean_trade; said ""no"""'), "quotes are doubled");
+  assert.ok(lines[2].includes(",Main,"), "account id resolved to its name");
+  assert.equal(B.tradesCsv([], []).split("\r\n").length, 1, "empty -> header only");
+});

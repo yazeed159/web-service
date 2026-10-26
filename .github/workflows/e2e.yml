@@ -1,0 +1,33 @@
+name: Browser tests (Playwright)
+
+# Manual for now: run it from the Actions tab ("Run workflow") to check the SPA router smoke tests
+# (tests/sidebar-nav.spec.js) in a real Chromium against this checkout, served as static files.
+# If the pages redirect signed-out visitors to a login screen, the tests need a saved session --
+# see tests/README.md ("Auth"). Once it passes reliably, add `push:` / `pull_request:` below.
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Serve the static site
+        run: |
+          python3 -m http.server 8788 >/dev/null 2>&1 &
+          for i in $(seq 1 20); do curl -fs http://localhost:8788/ >/dev/null && break; sleep 1; done
+      - run: npx playwright test
+        env:
+          BASE_URL: http://localhost:8788
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+          if-no-files-found: ignore

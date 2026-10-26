@@ -77,6 +77,7 @@
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="expect" href="#page-title" blocking="render">
+<script src="js/app-boot.js"></script>
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
@@ -218,7 +219,7 @@
               <th scope="col"><span class="headcell no-sort">Updated</span></th>
             </tr>
           </thead>
-          <tbody id="sc-tbody"></tbody>
+          <tbody id="sc-tbody"><tr><td colspan="13"><div class="loading-line skel-table" role="status" aria-busy="true" aria-label="Loading"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div></td></tr></tbody>
         </table>
       </div>
       <div id="sc-empty" class="empty-state small hidden">No gappers found yet today.</div>

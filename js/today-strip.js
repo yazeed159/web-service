@@ -24,6 +24,42 @@
   const money = (v) => (window.fmtMoney ? window.fmtMoney(v) : (v >= 0 ? "+$" : "-$") + Math.abs(v).toFixed(2));
   const plain = (v) => "$" + Math.abs(v).toFixed(0);
 
+  // ---- "today" is the US market date (America/New_York), not this device's date: after-hours
+  // trading runs past local midnight in Cairo, so local "today" would file those trades on the wrong day.
+  const todayISO = () => (window.MarketDate ? window.MarketDate.today() : iso(new Date()));
+
+  // ---- daily loss limit: a standing default (user_kv "daily_loss_limit") unless that day's plan sets its own ----
+  const LIMIT_KEY = "daily_loss_limit";
+  let editingLimit = false;
+  function standingLimit() {
+    const v = window.KV && window.KV.get(LIMIT_KEY);
+    const a = v && Number(v.amount);
+    return a > 0 ? { amount: a, since: v.since || null } : null;
+  }
+  function limitFor(date) {
+    const day = (window.DailyNotes && window.DailyNotes.get(date)) || null;
+    if (window.LossLimit) return window.LossLimit.resolve(day, standingLimit(), date);
+    if (day && day.max_loss != null && day.max_loss > 0) return { amount: day.max_loss, source: "plan" };
+    const st = standingLimit();
+    return st && (!st.since || date >= st.since) ? { amount: st.amount, source: "standing" } : null;
+  }
+  function limitControl(lim) {
+    const st = standingLimit();
+    if (editingLimit) {
+      return `<form class="ts-limit-form" data-limit-form>
+        <label for="ts-limit-input">Daily loss limit ($)</label>
+        <input id="ts-limit-input" class="ts-limit-input" type="text" inputmode="decimal" autocomplete="off" value="${st ? esc(String(st.amount)) : ""}" placeholder="e.g. 200" aria-label="Daily loss limit in dollars">
+        <button type="submit" class="ts-btn primary">Save</button>
+        <button type="button" class="ts-ghost" data-limit-cancel>Cancel</button>
+        ${st ? '<button type="button" class="ts-ghost" data-limit-clear>Remove</button>' : ""}
+      </form>`;
+    }
+    if (st) {
+      return `<div class="ts-limit-row"><span>Default limit ${plain(st.amount)} a day${lim && lim.source === "plan" ? " · today's plan overrides it" : ""}</span><button type="button" class="ts-ghost" data-limit-edit>Edit</button></div>`;
+    }
+    return `<div class="ts-limit-row"><span>${lim ? "No default limit for other days" : "No daily loss limit set"}</span><button type="button" class="ts-ghost" data-limit-edit>${lim ? "Set a default" : "Set a daily loss limit"}</button></div>`;
+  }
+
   // ---- dates (local calendar, same convention as daily.html) ----
   const pad = (n) => String(n).padStart(2, "0");
   const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -136,7 +172,7 @@
   function render() {
     if (!mount.isConnected) return;
     const DN = window.DailyNotes;
-    const today = iso(new Date());
+    const today = todayISO();
     if (!tab) tab = isWeekend(today) ? "week" : "today";
     const periods = ["today", "prev", "week", "lastweek"].map((id) => periodOf(id, today));
     const p = periods.find((x) => x.id === tab) || periods[0];
@@ -161,13 +197,18 @@
         chips.push(`<span class="${s.journaled === s.n ? "ok" : ""}">Journaled ${s.journaled}/${s.n}</span>`);
         if (s.broke) chips.push(`<span class="bad">${s.broke} not clean</span>`);
       }
-      const used = -s.low;
-      const breached = day.max_loss != null && used >= day.max_loss;
+      const lim = limitFor(p.date);
+      const used = Math.max(0, -s.low);
+      const ev = window.LossLimit
+        ? window.LossLimit.evaluate(s.list, lim)
+        : { state: lim ? (used >= lim.amount ? "breached" : "ok") : "none", used, remaining: lim ? Math.max(0, lim.amount - used) : null };
       const goalHit = day.goal != null && s.net >= day.goal;
-      if (isToday && s.n && breached) plan += `<div class="ts-banner bad">Max daily loss reached. Your plan says stop for the day.</div>`;
+      if (isToday && s.n && ev.state === "breached") plan += `<div class="ts-banner bad" role="alert">Daily loss limit reached. Your plan says stop for the day.</div>`;
+      else if (isToday && s.n && ev.state === "warn") plan += `<div class="ts-banner warn" role="status">Close to your daily loss limit: ${plain(ev.remaining)} left. Slow down before the next trade.</div>`;
       else if (isToday && s.n && goalHit) plan += `<div class="ts-banner good">Daily goal reached. Your plan says you can stop.</div>`;
-      if (day.max_loss != null) plan += meter("Max loss", used, day.max_loss, `${plain(used)} / ${plain(day.max_loss)}`, "loss");
+      if (lim) plan += meter("Daily loss limit" + (lim.source === "standing" ? " (default)" : ""), ev.used, lim.amount, `${plain(ev.used)} / ${plain(lim.amount)}`, "loss");
       if (day.goal != null) plan += meter("Goal", Math.max(0, s.net), day.goal, `${plain(Math.max(0, s.net))} / ${plain(day.goal)}`, "goal");
+      if (isToday) plan += limitControl(lim);
 
       if (isToday && DN) {
         const list = DN.getChecklist();
@@ -218,14 +259,14 @@
       }
       if (DN && traded.length) {
         const notes = DN.allDays();
-        const planned = traded.filter((d) => notes[d.date] && notes[d.date].max_loss != null);
-        const held = planned.filter((d) => -d.low < notes[d.date].max_loss).length;
+        const planned = traded.filter((d) => limitFor(d.date));
+        const held = planned.filter((d) => -d.low < limitFor(d.date).amount).length;
         const reviewed = traded.filter((d) => notes[d.date] && notes[d.date].followed_plan != null);
         const followed = reviewed.filter((d) => notes[d.date].followed_plan === true).length;
         const row = (label, ok, total) => total
           ? `<div class="ts-adh"><span>${label}</span><b class="${ok === total ? "ok" : ok < total / 2 ? "bad" : ""}">${ok}/${total}</b></div>` : "";
         plan += `<div class="ts-adh-wrap">` +
-          row("Days with a max loss set", planned.length, traded.length) +
+          row("Days with a loss limit", planned.length, traded.length) +
           row("Max loss held", held, planned.length) +
           row("Plan followed (reviewed days)", followed, reviewed.length) + `</div>`;
       }
@@ -268,6 +309,18 @@
       render();
       return;
     }
+    if (e.target.closest("button[data-limit-edit]")) {
+      editingLimit = true; render();
+      const inp = mount.querySelector("#ts-limit-input"); if (inp) { inp.focus(); inp.select(); }
+      return;
+    }
+    if (e.target.closest("button[data-limit-cancel]")) { editingLimit = false; render(); return; }
+    if (e.target.closest("button[data-limit-clear]")) {
+      if (window.KV) window.KV.delete(LIMIT_KEY);
+      editingLimit = false; render();
+      if (window.showToast) window.showToast("Default daily loss limit removed.");
+      return;
+    }
     const q = e.target.closest("button[data-quick]");
     if (q && window.QuickAdd) {
       const id = q.getAttribute("data-quick");
@@ -275,17 +328,32 @@
       return;
     }
     if (e.target.closest("button[data-reuse]") && window.DailyNotes) {
-      const today = iso(new Date());
+      const today = todayISO();
       const last = window.DailyNotes.lastPlanned(today);
       if (last) window.DailyNotes.save(today, Object.assign({}, window.DailyNotes.get(today) || {}, { max_loss: last.max_loss, goal: last.goal }));
       render();
     }
   });
+  mount.addEventListener("submit", (e) => {
+    const f = e.target.closest("form[data-limit-form]");
+    if (!f) return;
+    e.preventDefault();
+    const input = f.querySelector("#ts-limit-input");
+    const n = window.LossLimit ? window.LossLimit.parseAmount(input.value) : (Number(input.value) > 0 ? Number(input.value) : null);
+    if (n === null) {
+      if (window.setFieldError) window.setFieldError(input, "Enter a dollar amount above 0, like 200 or 150.50.");
+      input.setAttribute("aria-invalid", "true"); input.focus();
+      return;
+    }
+    if (window.KV) window.KV.set(LIMIT_KEY, { amount: n, since: (standingLimit() && standingLimit().since) || todayISO() });
+    editingLimit = false; render();
+    if (window.showToast) window.showToast("Daily loss limit set to " + plain(n) + ".");
+  });
   mount.addEventListener("change", (e) => {
     const cb = e.target.closest(".ts-item input");
     if (!cb || !window.DailyNotes) return;
     const list = window.DailyNotes.getChecklist();
-    window.DailyNotes.setCheck(iso(new Date()), list[Number(cb.getAttribute("data-i"))], cb.checked);
+    window.DailyNotes.setCheck(todayISO(), list[Number(cb.getAttribute("data-i"))], cb.checked);
     render();
   });
   mount.addEventListener("toggle", (e) => {
@@ -299,4 +367,6 @@
   App.tabs.dashboard.renderToday = render;
   // Notes/plan sync down from the account a moment after load; redraw once they land.
   if (window.KV && window.KV.ready) window.KV.ready.then(() => { if (!App.signal.aborted) render(); });
+  const onRecovered = () => { if (!mount.isConnected) { window.removeEventListener("kv-recovered", onRecovered); return; } render(); };
+  window.addEventListener("kv-recovered", onRecovered);
 })();

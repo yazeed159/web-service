@@ -113,7 +113,7 @@
   function addTypingBubble() {
     const wrap = document.createElement("div");
     wrap.className = "chat-msg chat-msg-ai";
-    wrap.innerHTML = `${avatarHtml("ai")}<div class="chat-bubble chat-typing"><span></span><span></span><span></span></div>`;
+    wrap.innerHTML = `${avatarHtml("ai")}<div class="chat-bubble chat-typing" role="status" aria-label="AI Chat is typing"><span></span><span></span><span></span></div>`;
     messagesEl.appendChild(wrap);
     messagesEl.scrollTop = messagesEl.scrollHeight;
     return wrap;

@@ -389,7 +389,13 @@
   function savePracticed(map) {
     try {
       localStorage.setItem(PRACTICED_KEY, JSON.stringify(map));
-      if (window.KV) window.KV.set(PRACTICED_KEY, map);
+      // Merge per chart with another device's copy instead of overwriting it (see KV.setMerged).
+      if (window.KV) {
+        if (!window.KV.setMerged) window.KV.set(PRACTICED_KEY, map);
+        else window.KV.setMerged(PRACTICED_KEY, map).then(function (r) {
+          if (r && r.merged && r.value) { try { localStorage.setItem(PRACTICED_KEY, JSON.stringify(r.value)); } catch (e) { /* ignore */ } }
+        });
+      }
     } catch (e) { /* ignore -- practice still works without persistence */ }
   }
   // Called once a session on a given chart ends, however it ends (data

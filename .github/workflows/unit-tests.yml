@@ -1,0 +1,18 @@
+name: Unit tests
+
+# Runs `npm run test:unit` on every push and pull request, so a broken helper is caught
+# before it is deployed. (The Playwright browser tests are separate: `npm test`.)
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:unit

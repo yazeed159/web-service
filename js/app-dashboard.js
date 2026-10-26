@@ -104,7 +104,7 @@
       const pnl = tr.filter((t) => t.trade_date === lastDay).reduce((a, t) => a + (Number(t.pnl_after_comm) || 0), 0);
       let label = "Last session";
       try {
-        isToday = lastDay === new Date().toLocaleDateString("en-CA");
+        isToday = lastDay === (window.MarketDate ? window.MarketDate.today() : new Date().toLocaleDateString("en-CA"));
         label = isToday ? "Today"
           : new Date(lastDay + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
       } catch (e) {}
@@ -222,7 +222,7 @@
       if (save && el.__balCheck) save.addEventListener("click", () => {
         const v = parseFloat(el.querySelector("#bal-check-in").value);
         if (!isFinite(v)) return;
-        window.KV.set(el.__balCheck.key, { broker: v, journal: Math.round(el.__balCheck.journal * 100) / 100, at: new Date().toLocaleDateString("en-CA") });
+        window.KV.set(el.__balCheck.key, { broker: v, journal: Math.round(el.__balCheck.journal * 100) / 100, at: window.MarketDate ? window.MarketDate.today() : new Date().toLocaleDateString("en-CA") });
         renderBalance();
       });
     }).catch((e) => { if (window.console) console.warn("balance periods failed", e); });

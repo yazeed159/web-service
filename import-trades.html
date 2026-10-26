@@ -95,6 +95,7 @@
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="expect" href="#page-title" blocking="render">
+<script src="js/app-boot.js"></script>
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
@@ -478,15 +479,29 @@
         runBtn.disabled = false;
       }
 
+      // Status + cancel now require the caller's token (the server checks the job belongs to you).
+      // Fetched fresh each time so a long import doesn't outlive the login token.
+      function authHeaders() {
+        function fallback() {
+          return window.AUTH_READY.then(function (sess) { return sess && sess.access_token ? { "Authorization": "Bearer " + sess.access_token } : {}; }, function () { return {}; });
+        }
+        try {
+          return window.sb.auth.getSession().then(function (r) {
+            var t = r && r.data && r.data.session && r.data.session.access_token;
+            return t ? { "Authorization": "Bearer " + t } : fallback();
+          }).catch(fallback);
+        } catch (e) { return fallback(); }
+      }
+
       function pollJob(base, jobId, matchedTrades) {
         currentJob = { base: base, jobId: jobId };
         if (pollTimer) clearInterval(pollTimer);
         var lastCompleted = -1, pollFails = 0, lastPhase = "", lastStates = {};
         pollTimer = setInterval(function () {
-          fetch(base + "/import-trades/" + jobId)
+          authHeaders().then(function (h) { return fetch(base + "/import-trades/" + jobId, { headers: h }); })
             .then(function (res) { if (res.status === 404) { return { status: "gone" }; } return res.json(); })
             .then(function (body) {
-              if (body.status === "gone") { clearInterval(pollTimer); clearJob(); hideProgress(); setPhase(""); setStatus("That import is no longer available on the server.", "err"); runBtn.disabled = false; return; }
+              if (body.status === "gone") { clearInterval(pollTimer); clearJob(); hideProgress(); setPhase(""); setStatus("That import is no longer available on the server — it was most likely cut off by a restart. Trades already published are in your journal; run the import again to finish the rest (ones already imported are skipped).", "err"); runBtn.disabled = false; return; }
               if (pollFails) { pollFails = 0; }
               if (body.status === "done") {
                 finishJob(body, matchedTrades, false);
@@ -535,7 +550,7 @@
         cancelBtn.disabled = true;
         cancelBtn.textContent = "Cancelling...";
         setStatus("Cancelling -- finishing up the current trade and publishing what's done so far...", "");
-        fetch(currentJob.base + "/import-trades/" + currentJob.jobId + "/cancel", { method: "POST" })
+        authHeaders().then(function (h) { return fetch(currentJob.base + "/import-trades/" + currentJob.jobId + "/cancel", { method: "POST", headers: h }); })
           .catch(function () { /* the next poll tick will still pick up wherever the job lands */ });
       });
 
@@ -756,7 +771,7 @@
               if (!r.ok) { setStatus("Error: " + (r.body.error || "couldn't read the file"), "err"); return; }
               if (!r.body.preview) {
                 // Old server: it ignored preview and already started importing everything. Stop it.
-                if (r.body.job_id) fetch(base + "/import-trades/" + r.body.job_id + "/cancel", { method: "POST" }).catch(function () {});
+                if (r.body.job_id) fetch(base + "/import-trades/" + r.body.job_id + "/cancel", { method: "POST", headers: { "Authorization": "Bearer " + session.access_token } }).catch(function () {});
                 setStatus("The import server is out of date (no preview support) \u2014 the import was cancelled. Deploy the updated chart-service first.", "err");
                 return;
               }

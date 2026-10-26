@@ -21,6 +21,7 @@
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="expect" href="#page-title" blocking="render">
+<script src="js/app-boot.js"></script>
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
@@ -136,7 +137,7 @@
 
               <div class="quiz-filter-row">
                 <label>Setup type</label>
-                <select id="qf-setup"><option value="">All setups</option></select>
+                <select id="qf-setup" aria-label="Setup"><option value="">All setups</option></select>
               </div>
             </div>
 
@@ -145,7 +146,7 @@
 
               <div class="quiz-filter-row">
                 <label>Saved backtest run</label>
-                <select id="qf-bt-run"><option value="">Loading runs…</option></select>
+                <select id="qf-bt-run" aria-label="Backtest run"><option value="">Loading runs…</option></select>
               </div>
 
               <div class="quiz-tickmode-hint hidden" id="qf-bt-hint"></div>
@@ -156,7 +157,7 @@
 
               <div class="quiz-filter-row" id="qf-result-row">
                 <label>Outcome</label>
-                <select id="qf-result">
+                <select id="qf-result" aria-label="Result">
                   <option value="">Any outcome (most realistic)</option>
                   <option value="win">Winners only</option>
                   <option value="loss">Losers only</option>
@@ -243,7 +244,7 @@
         </div>
 
         <div class="quiz-card" id="quiz-card">
-          <div class="loading-line">Loading…</div>
+          <div class="loading-line skel skel-block" role="status" aria-busy="true" aria-label="Loading" style="height:220px;"></div>
         </div>
       </div>
 

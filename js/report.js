@@ -419,6 +419,7 @@
     importState: document.getElementById("rpt-import-state"),
     mapState: document.getElementById("rpt-map-state"),
     loadedState: document.getElementById("rpt-loaded-state"),
+    loadingState: document.getElementById("rpt-loading-state"),
     errorState: document.getElementById("rpt-error-state"),
     errorText: document.getElementById("rpt-error-text"),
     dropZone: document.getElementById("rpt-drop-zone"),
@@ -462,6 +463,7 @@
     els.mapState.classList.remove("hidden"); els.mapState.style.display = which === "map" ? "" : "none";
     els.loadedState.classList.remove("hidden"); els.loadedState.style.display = which === "loaded" ? "" : "none";
     els.errorState.classList.remove("hidden"); els.errorState.style.display = which === "error" ? "" : "none";
+    if (els.loadingState) { els.loadingState.classList.remove("hidden"); els.loadingState.style.display = which === "loading" ? "" : "none"; }
   }
 
   // ================= tabs =================
@@ -1446,6 +1448,7 @@
   function init() {
     const id = qs("id");
     if (!id) { showOnly("import"); renderLocalList(); return; }
+    showOnly("loading");   // skeleton until the report (local, synced or from the server) arrives
 
     if (id.startsWith("local-")) {
       const report = loadLocalReport(id);

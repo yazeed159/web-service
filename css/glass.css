@@ -1360,6 +1360,7 @@ table.data-table thead th, .trade-table thead th, .report-table thead th { font-
 .ts-banner { border-radius: 14px; }
 .ts-banner.bad  { background: radial-gradient(120% 140% at 0% 0%, var(--red-soft), transparent 70%), var(--g-fill, var(--red-soft)); border-color: color-mix(in srgb, var(--red) 55%, transparent); box-shadow: 0 0 22px -8px var(--red); }
 .ts-banner.good { background: radial-gradient(120% 140% at 0% 0%, var(--green-soft), transparent 70%), var(--g-fill, var(--green-soft)); border-color: color-mix(in srgb, var(--green) 55%, transparent); box-shadow: 0 0 22px -8px var(--green); }
+.ts-banner.warn { background: radial-gradient(120% 140% at 0% 0%, var(--amber-soft), transparent 70%), var(--g-fill, var(--amber-soft)); border-color: color-mix(in srgb, var(--amber) 55%, transparent); box-shadow: 0 0 22px -8px var(--amber); }
 .ts-plan { border-top-color: var(--g-line, var(--border-soft)); }
 .ts-track { border-radius: 999px; background: color-mix(in srgb, var(--text) 9%, transparent); box-shadow: inset 0 1px 2px rgba(0,0,0,.2); }
 .ts-track i { border-radius: 999px; box-shadow: 0 0 12px -2px currentColor; }

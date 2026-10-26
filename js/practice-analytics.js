@@ -278,7 +278,7 @@
       </tr>`;
     }).join("");
 
-    els.symbolTable.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Chart</th><th scope="col">Trades</th><th scope="col">Win %</th><th scope="col">Avg hold</th><th scope="col">Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
+    els.symbolTable.innerHTML = `<div class="table-scroll"><table class="report-table" aria-label="Results by chart practiced"><thead><tr><th scope="col">Chart</th><th scope="col">Trades</th><th scope="col">Win %</th><th scope="col">Avg hold</th><th scope="col">Net P&amp;L</th></tr></thead><tbody>${html}</tbody></table></div>`;
   }
 
   function renderTradesTable(closed, indexMap) {
@@ -297,7 +297,7 @@
         <td><span class="pill ${t.win ? "win" : "loss"}">${t.win ? "Win" : "Loss"}</span></td>
       </tr>`;
     }).join("");
-    els.tradesTable.innerHTML = `<div class="table-scroll"><table class="report-table"><thead><tr><th scope="col">Symbol</th><th scope="col">Entry</th><th scope="col">Exit</th><th scope="col">Duration</th><th scope="col">Shares</th><th scope="col">Net P&amp;L</th><th scope="col">Result</th></tr></thead><tbody>${rows}</tbody></table></div>
+    els.tradesTable.innerHTML = `<div class="table-scroll"><table class="report-table" aria-label="Closed practice trades"><thead><tr><th scope="col">Symbol</th><th scope="col">Entry</th><th scope="col">Exit</th><th scope="col">Duration</th><th scope="col">Shares</th><th scope="col">Net P&amp;L</th><th scope="col">Result</th></tr></thead><tbody>${rows}</tbody></table></div>
       ${closed.length > 50 ? `<div class="pr-empty">Showing the most recent 50 of ${closed.length} trades.</div>` : ""}`;
   }
 
@@ -328,6 +328,7 @@
     if (list.length < 2) return;
     const sel = document.createElement("select");
     sel.id = "pa-attempt-select";
+    sel.setAttribute("aria-label", "Practice attempt to analyse");
     sel.className = "filter-input";
     sel.style.marginTop = "8px";
     sel.innerHTML = list.map((a) => `<option value="${escapeHtml(a.id)}"${a.id === viewedId ? " selected" : ""}>${escapeHtml(a.name)}${a.status === "archived" ? " (archived)" : ""}</option>`).join("");

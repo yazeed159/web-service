@@ -34,7 +34,10 @@
   }
   function writeStore(store) {
     writeLocalOnly(store);
-    if (window.KV) window.KV.set(STORAGE_KEY, store);
+    if (!window.KV) return;
+    if (!window.KV.setMerged) { window.KV.set(STORAGE_KEY, store); return; }
+    // Merge per day (and per field) with another device's copy instead of overwriting it.
+    window.KV.setMerged(STORAGE_KEY, store).then(function (r) { if (r && r.merged && r.value) writeLocalOnly(r.value); });
   }
   if (window.KV) window.KV.sync(STORAGE_KEY, function (remote) { writeLocalOnly(remote); });
 

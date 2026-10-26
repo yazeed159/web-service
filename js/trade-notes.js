@@ -23,7 +23,13 @@
   }
   function writeStore(store) {
     writeLocalOnly(store);
-    if (window.KV) window.KV.set(STORAGE_KEY, store);
+    saveRemote(store);
+  }
+  // Two devices editing different trades must both keep their edits: merge instead of last-save-wins.
+  function saveRemote(store) {
+    if (!window.KV) return;
+    if (!window.KV.setMerged) { window.KV.set(STORAGE_KEY, store); return; }
+    window.KV.setMerged(STORAGE_KEY, store).then(function (r) { if (r && r.merged && r.value) writeLocalOnly(r.value); });
   }
   if (window.KV) {
     window.KV.sync(STORAGE_KEY, function (remote) { writeLocalOnly(remote); });

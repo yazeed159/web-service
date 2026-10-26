@@ -144,7 +144,47 @@
     if (!Array.isArray(v)) return [];
     return JSON.parse(JSON.stringify(v.filter(validEntry)));
   }
-  function setLedger(list) { return window.KV.set(LEDGER_KEY, list); }
+  // The whole ledger is ONE stored value, so two devices saving at once used to mean "last save wins"
+  // and the other device's deposits vanished. Saves now check that the stored copy is still the one
+  // this page loaded; if another device/tab changed it, the person decides instead of us guessing.
+  function setLedger(list, opts) {
+    var kv = window.KV;
+    if (!kv || !kv.setGuarded) return kv.set(LEDGER_KEY, list);
+    return kv.setGuarded(LEDGER_KEY, list).then(function (r) {
+      if (r.ok || !r.conflict) return;
+      if (opts && opts.silent) return;   // background migration: just try again next load
+      return resolveLedgerConflict(list, r.remote);
+    });
+  }
+
+  function resolveLedgerConflict(mine, remote) {
+    var msg = "Your deposits & periods were changed on another device or tab after this page loaded. " +
+      "Saving now would erase those changes.\n\nLoad the other copy (your unsaved edit here is discarded), or overwrite it with what you have on this screen?";
+    var ask = window.UIModal
+      ? window.UIModal.confirm(msg, { title: "Deposits changed elsewhere", tone: "danger", confirmLabel: "Overwrite with mine", cancelLabel: "Load the other copy" })
+      : Promise.resolve(window.confirm(msg + "\n\nOK = overwrite with mine. Cancel = load the other copy."));
+    return ask.then(function (overwrite) {
+      if (overwrite) return window.KV.set(LEDGER_KEY, mine);
+      window.KV.adopt(LEDGER_KEY, remote);
+      if (window.showToast) window.showToast("Loaded the latest deposits from your other device.");
+      setTimeout(function () { window.location.reload(); }, 600);
+    });
+  }
+
+  // Coming back to a tab that sat in the background: tell the person if the ledger moved on meanwhile.
+  var staleWarned = false, staleCheckedAt = 0;
+  function watchLedgerStale() {
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState !== "visible" || staleWarned || !window.KV || !window.KV.isStale) return;
+      if (Date.now() - staleCheckedAt < 30000) return;
+      staleCheckedAt = Date.now();
+      window.KV.isStale(LEDGER_KEY).then(function (stale) {
+        if (!stale || staleWarned) return;
+        staleWarned = true;
+        if (window.showToast) window.showToast("Your deposits were changed on another device.", { duration: 12000, action: { label: "Reload", onClick: function () { window.location.reload(); } } });
+      });
+    });
+  }
 
   function ledgerAccountId(e) { return e.account_id || (defaultLive() && defaultLive().id) || null; }
 
@@ -160,7 +200,7 @@
       if (!c.account_id) { c.account_id = d.id; changed = true; }
       return c;
     });
-    if (changed) setLedger(next);
+    if (changed) setLedger(next, { silent: true });
   }
 
   // ------------------------------------------------------------------
@@ -405,6 +445,8 @@
       return session;
     });
   });
+
+  watchLedgerStale();
 
   // ------------------------------------------------------------------
   // topbar switcher

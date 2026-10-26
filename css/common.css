@@ -1042,6 +1042,12 @@ html[data-theme="light"] .theme-toggle-btn .theme-icon-moon { display: block; }
 .loading-line.skel-stack { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 24px; }
 .skel-stack .skel-block { height: 180px; border-radius: var(--radius); }
 
+/* Table-shaped skeleton: a header bar then rows. Same .loading-line contract as the others. */
+.loading-line.skel-table { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 4px 0 18px; }
+.skel-table .skel { height: 34px; border-radius: var(--radius-sm, 8px); }
+.skel-table .skel:first-child { height: 20px; width: 60%; }
+.skel-table .skel:nth-child(even) { width: 92%; }
+
 /* ---------- Horizontal scroll wrapper for wide tables ---------- */
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .table-scroll table { min-width: 100%; }
@@ -2001,9 +2007,10 @@ body::before {
   opacity: 0;
   transform: translateY(12px) scale(.98);
   pointer-events: none;
-  transition: opacity .16s ease, transform .16s ease;
+  visibility: hidden;   /* closed: out of the tab order and the accessibility tree (after the fade) */
+  transition: opacity .16s ease, transform .16s ease, visibility 0s linear .16s;
 }
-.chatw-panel.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+.chatw-panel.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; visibility: visible; transition-delay: 0s; }
 .chatw-panel.maximized {
   right: calc(24px + var(--safe-right));
   bottom: calc(24px + var(--safe-bottom));
@@ -3379,6 +3386,12 @@ html.has-ptr, html.has-ptr body { overscroll-behavior-y: contain; }
 .ts-banner { padding: 10px 12px;  font-size: 13px; font-weight: 600; }
 .ts-banner.bad { color: var(--red);  border: 1px solid var(--red); }
 .ts-banner.good { color: var(--green);  border: 1px solid var(--green); }
+.ts-banner.warn { color: var(--amber); border: 1px solid var(--amber); }
+.ts-limit-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-dim); }
+.ts-limit-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-dim); }
+.ts-limit-form label { flex: 1 0 100%; }
+.ts-limit-input { flex: 1 1 110px; min-width: 0; min-height: 38px; padding: 0 12px; border-radius: 10px; font: inherit; font-family: var(--mono); color: var(--text); background: var(--panel-2); border: 1px solid var(--border); }
+.ts-limit-input[aria-invalid="true"] { border-color: var(--red); }
 .ts-meter-top { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-dim); margin-bottom: 5px; }
 .ts-meter-top b { font-family: var(--mono); font-weight: 500; color: var(--text); }
 .ts-track { height: 6px;   overflow: hidden; }

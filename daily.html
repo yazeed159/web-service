@@ -49,6 +49,7 @@
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="expect" href="#page-title" blocking="render">
+<script src="js/app-boot.js"></script>
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
@@ -130,7 +131,7 @@
 
         <div class="dn-datebar">
           <button class="icon-btn icon-btn-visible" id="dn-prev" style="width:auto;padding:4px 10px;">← Prev</button>
-          <input type="date" id="dn-date">
+          <input type="date" id="dn-date" aria-label="Date">
           <button class="icon-btn icon-btn-visible" id="dn-next" style="width:auto;padding:4px 10px;">Next →</button>
           <button class="icon-btn icon-btn-visible" id="dn-today" style="width:auto;padding:4px 10px;">Today</button>
           <span class="dn-status" id="dn-status"></span>
@@ -138,7 +139,7 @@
 
         <div class="card" id="dn-summary-card">
           <div style="font-weight:600;margin-bottom:10px;">This day's trading</div>
-          <div class="dn-stats" id="dn-summary"><span style="color:var(--text-faint);">Loading…</span></div>
+          <div class="dn-stats" id="dn-summary"><span class="skel skel-line" role="status" aria-busy="true" aria-label="Loading" style="display:inline-block;width:180px;"></span></div>
         </div>
 
         <div class="card" id="dn-thoughts-card" style="display:none;">
@@ -234,7 +235,8 @@
   const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   let trades = [];
-  let date = (new URLSearchParams(location.search).get("date")) || iso(new Date());
+  const todayISO = () => (window.MarketDate ? window.MarketDate.today() : iso(new Date()));   // US market date, not the device's
+  let date = (new URLSearchParams(location.search).get("date")) || todayISO();
   let day = null;
   let timer = null;
 
@@ -485,7 +487,7 @@
     $("dn-date").addEventListener("change", (e) => { if (e.target.value) go(e.target.value); });
     $("dn-prev").addEventListener("click", () => go(addDays(date, -1)));
     $("dn-next").addEventListener("click", () => go(addDays(date, 1)));
-    $("dn-today").addEventListener("click", () => go(iso(new Date())));
+    $("dn-today").addEventListener("click", () => go(todayISO()));
     $("dn-extra-toggle").addEventListener("click", () => $("dn-extra").classList.toggle("open"));
   }
 

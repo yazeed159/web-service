@@ -19,6 +19,7 @@
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="expect" href="#page-title" blocking="render">
+<script src="js/app-boot.js"></script>
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
@@ -99,6 +100,7 @@
     <div class="content">
 
       <!-- ============== EMPTY / IMPORT STATE (no report loaded yet) ============== -->
+      <div id="rpt-loading-state" class="hidden" style="display:none;"><div class="loading-line skel-stack" role="status" aria-busy="true" aria-label="Loading report"><div class="kpi-skel"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div><div class="skel skel-block"></div></div></div>
       <div id="rpt-import-state">
         <div class="panel-head">
           <div class="sub">Open a saved backtest run from the Backtester's Past Runs list, or drop in any CSV of trades below to build a one-off dashboard, trade table, and journal for it — right here, no backend required.</div>

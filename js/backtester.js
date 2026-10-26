@@ -167,13 +167,20 @@
     history: document.getElementById("bt-history"),
   };
 
+  // Noon UTC on today's date in New York (MarketDate), so "yesterday" is the US trading calendar's
+  // yesterday even when this device is in Cairo after midnight. Falls back to the device date.
+  function marketNoon() {
+    const t = window.MarketDate ? window.MarketDate.today() : new Date().toLocaleDateString("en-CA");
+    return new Date(t + "T12:00:00Z");
+  }
+
   // Default date range: trailing 14 calendar days, ending yesterday (today's
   // session may not be closed yet).
   (function seedDates() {
-    const end = new Date();
-    end.setDate(end.getDate() - 1);
+    const end = marketNoon();
+    end.setUTCDate(end.getUTCDate() - 1);
     const start = new Date(end);
-    start.setDate(start.getDate() - 14);
+    start.setUTCDate(start.getUTCDate() - 14);
     const iso = (d) => d.toISOString().slice(0, 10);
     els.end.value = iso(end);
     els.start.value = iso(start);
@@ -704,10 +711,10 @@
   // immediately, and the same saved row is what shows up in Live
   // Trading's strategy picker.
   function defaultDateRange(days) {
-    const end = new Date();
-    end.setDate(end.getDate() - 1);
+    const end = marketNoon();
+    end.setUTCDate(end.getUTCDate() - 1);
     const start = new Date(end);
-    start.setDate(start.getDate() - days);
+    start.setUTCDate(start.getUTCDate() - days);
     const fmt = (d) => d.toISOString().slice(0, 10);
     return { start: fmt(start), end: fmt(end) };
   }

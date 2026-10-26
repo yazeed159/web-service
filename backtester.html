@@ -53,6 +53,7 @@
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="expect" href="#page-title" blocking="render">
+<script src="js/app-boot.js"></script>
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
@@ -167,7 +168,7 @@
         <div class="section-label">Strategies</div>
         <span class="hint-text" style="font-size:12px;">Built-in presets plus anything you've saved — click one to load it into the form below, ready to fine-tune. Saving a run here also makes it pickable on the Live Trading page.</span>
       </div>
-      <div id="bt-strategies"><div class="loading-line">Loading…</div></div>
+      <div id="bt-strategies"><div class="loading-line skel-cards" role="status" aria-busy="true" aria-label="Loading"><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div></div></div>
 
       <div class="bt-run-row" id="bt-shared-run-row">
         <button class="filter-btn bt-cancel-btn hidden" id="bt-cancel-btn">Cancel</button>
@@ -188,7 +189,7 @@
         <div class="section-label">Past Runs</div>
         <a class="link" href="report.html" title="Build a one-off dashboard from any CSV of trades — no backend needed">+ Import a CSV report</a>
       </div>
-      <div id="bt-history"><div class="loading-line">Loading…</div></div>
+      <div id="bt-history"><div class="loading-line skel-table" role="status" aria-busy="true" aria-label="Loading"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div></div>
 
       <details id="bt-manual-details">
         <summary>Strategy details <span class="hint-text">— every field for whatever's loaded above; opens automatically when you pick a strategy or chat one up, edit anything here to fine-tune it</span></summary>

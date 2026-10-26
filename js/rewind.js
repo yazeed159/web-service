@@ -770,7 +770,13 @@
       localStorage.setItem(REVIEWED_KEY, JSON.stringify(map));
       // Mirror to Supabase (user_kv) so "already rewinded" state survives
       // a cleared cache or a new device, same as HISTORY_KEY above.
-      if (window.KV) window.KV.set(REVIEWED_KEY, map);
+      // Merge per trade id with another device's copy instead of overwriting it (see KV.setMerged).
+      if (window.KV) {
+        if (!window.KV.setMerged) window.KV.set(REVIEWED_KEY, map);
+        else window.KV.setMerged(REVIEWED_KEY, map).then(function (r) {
+          if (r && r.merged && r.value) { try { localStorage.setItem(REVIEWED_KEY, JSON.stringify(r.value)); } catch (e) { /* ignore */ } }
+        });
+      }
     } catch (e) { /* ignore — rewind still works without persistence */ }
   }
   // Called the first time a trade reaches the reveal stage (see
@@ -2650,7 +2656,7 @@
     const toReview = {};
     state.results.forEach((r) => { if (r.entryTone !== "good") toReview[r.setup_type || "unspecified"] = (toReview[r.setup_type || "unspecified"] || 0) + 1; });
     const sessionSource = state.results.length && state.results.every((r) => r.source === "backtest") ? "backtest" : "log";
-    saveHistoryEntry({ date: new Date().toISOString().slice(0, 10), count: total, entered, passed, entryTally, toReview, source: sessionSource });
+    saveHistoryEntry({ date: window.MarketDate ? window.MarketDate.today() : new Date().toISOString().slice(0, 10), count: total, entered, passed, entryTally, toReview, source: sessionSource });
   }
 
   els.againBtn.addEventListener("click", () => {

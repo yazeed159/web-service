@@ -316,3 +316,12 @@ The site side is done; the sync must read the new table or only the old single t
 ## Journal CSV export
 
 The Journal's Export CSV picker lists the table columns plus a "Your journal entries" group: planned stop / target, planned R:R, realised R, your setup tag, mistakes, followed rules, notes (from `TradeNotes`, `js/trade-notes.js`). Free-text fields starting with `= + - @` get a leading apostrophe so spreadsheets never evaluate them.
+
+## Safety nets, daily loss limit, review page (Oct 2026 audit fixes)
+
+- **`js/app-boot.js`** loads first on every page. It gives `window.MarketDate` (today in New York time, so after-hours trades from Cairo land on the right US trading day), logs every uncaught error / unhandled rejection (console + `trade.log:errors` in localStorage, shown as a toast with "Copy details"), pings the Render service's `/health` on page load, and shows a "waking up the server…" banner when a call to it is slow and the server isn't known to be awake.
+- **Daily loss limit**: on the dashboard's Today card, "Set a daily loss limit" saves a default (`user_kv` key `daily_loss_limit`: `{amount, since}`). A day's own plan limit (Daily page) overrides it. The default only applies from the day it was set, so old days keep their old scoring. Warns at 75% used, stop banner at 100%. The discipline score and the week-lens adherence rows use it too. Maths: `js/loss-limit.js`.
+- **Deposits conflict check**: `KV.setGuarded()` (auth.js) refuses to overwrite a copy that changed on another device; `Accounts.setLedger` asks whether to overwrite or load the other copy. A backgrounded tab also warns on return if the ledger changed.
+- **Review page** (`review.html`, `js/review.js`, maths in `js/review-math.js`): week or month, P&L, best/worst day and setup, rule breaks (not-clean trades, process tags, loss-limit hits, days marked off-plan).
+- **Trades CSV**: Settings → Backup → "Download trades (CSV)" exports every trade from every account. (The Journal's Export… still exports the filtered view with a column picker.)
+- **Tests**: `npm run test:unit` runs on every push via `.github/workflows/unit-tests.yml`.

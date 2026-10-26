@@ -49,6 +49,7 @@
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="expect" href="#page-title" blocking="render">
+<script src="js/app-boot.js"></script>
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
@@ -148,6 +149,7 @@
 <script src="js/grade.js"></script>
 <script src="js/trade-notes.js"></script>
 <script src="js/daily-notes.js"></script>
+<script src="js/loss-limit.js"></script>
 <script src="js/discipline.js"></script>
 <script>
 (function () {
@@ -1082,7 +1084,7 @@
     if (!el || !tog) return;
     if (!window.Discipline) { el.innerHTML = `<div class="empty-state small">Discipline utility failed to load.</div>`; return; }
     const isoDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return isoDay(d); };
+    const daysAgo = (n) => { const d = (function () { const md = window.MarketDate ? window.MarketDate.today() : ""; return md ? new Date(+md.slice(0, 4), +md.slice(5, 7) - 1, +md.slice(8, 10), 12) : new Date(); })(); d.setDate(d.getDate() - n); return isoDay(d); };
     const opts = ["7", "30", "90", "all"];
     tog.innerHTML = opts.map((o) => `<button type="button" class="pill tagpill" data-dw="${o}" style="cursor:pointer;${o === disciplineWindow ? "background:var(--primary);color:#fff;border-color:var(--primary);" : ""}">${o === "all" ? "All" : o + "D"}</button>`).join("");
     tog.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { disciplineWindow = b.dataset.dw; renderDisciplineScore(sorted); }));

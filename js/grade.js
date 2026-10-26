@@ -40,7 +40,10 @@
     // Mirror to Supabase (user_kv) so grades survive a cleared cache or a
     // new device -- see KV in auth.js. Fire-and-forget; local write above
     // already happened so nothing is lost even if this fails offline.
-    if (window.KV) window.KV.set(STORAGE_KEY, store);
+    if (!window.KV) return;
+    if (!window.KV.setMerged) { window.KV.set(STORAGE_KEY, store); return; }
+    // Merge with another device's grades instead of overwriting them.
+    window.KV.setMerged(STORAGE_KEY, store).then(function (r) { if (r && r.merged && r.value) writeLocalOnly(r.value); });
   }
 
   // Once auth.js has pulled this user's synced grades down, reconcile: a

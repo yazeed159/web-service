@@ -59,6 +59,53 @@
   }
 
   // ------------------------------------------------------------------
+  // Trades as CSV -- for your own spreadsheets or an accountant. Every account, every trade (not the
+  // journal's filtered view). Text cells starting with = + - @ get a leading apostrophe so Excel never
+  // runs them as formulas; numbers are left alone so negative P&L stays a number.
+  // ------------------------------------------------------------------
+  var CSV_COLUMNS = [
+    ["Trade date", "trade_date"], ["Entry time", "entry_time"], ["Exit time", "exit_time"], ["Symbol", "symbol", true], ["Side", "side", true],
+    ["Shares", "shares"], ["Entry price", "entry_price"], ["Exit price", "exit_price"], ["Commission", "commission"], ["Fees", "fees"],
+    ["Net P&L", "pnl_after_comm"], ["Result", "_result"], ["Setup", "setup_type", true], ["Tags", "_tags", true], ["Account", "_account", true], ["Trade id", "id", true],
+  ];
+  function csvCell(v, isText) {
+    var s = v == null ? "" : String(v);
+    if (isText && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function tradesCsv(trades, accounts) {
+    var names = {};
+    (accounts || []).forEach(function (a) { names[a.id] = a.name; });
+    var rows = (trades || []).slice().sort(function (a, b) {
+      return String(a.trade_date).localeCompare(String(b.trade_date)) || String(a.entry_time || "").localeCompare(String(b.entry_time || ""));
+    });
+    var lines = [CSV_COLUMNS.map(function (c) { return csvCell(c[0]); }).join(",")];
+    rows.forEach(function (t) {
+      var v = Object.assign({}, t, {
+        _result: t.pnl_after_comm == null ? "" : (t.win ? "WIN" : "LOSS"),
+        _tags: (t.behavior_tags || []).concat(t.lesson_tags || []).filter(Boolean).join("; "),
+        _account: names[t.account_id] || "",
+      });
+      lines.push(CSV_COLUMNS.map(function (c) { return csvCell(v[c[1]], c[2]); }).join(","));
+    });
+    return lines.join("\r\n");
+  }
+  function downloadCsv(csv) {
+    var name = "trade-log-trades-" + new Date().toLocaleDateString("en-CA") + ".csv";
+    var blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(function () { a.remove(); URL.revokeObjectURL(url); }, 1500);
+    return { name: name, bytes: blob.size };
+  }
+  function exportTradesCsv(onProgress) {
+    return window.AUTH_READY.then(function (session) {
+      if (!session) throw new Error("Please log in first.");
+      return Promise.all([pageAll("trades", "trade_date", onProgress), pageAll("accounts", "created_at").catch(function () { return []; })]);
+    }).then(function (r) { return { count: r[0].length, csv: tradesCsv(r[0], r[1]) }; });
+  }
+
+  // ------------------------------------------------------------------
   // Restore. Records in the file replace the SAME records now (same trade id / same key / same account
   // id); anything not in the file is left alone. Every row is re-stamped with the CURRENT user's id, so a
   // backup from another login imports into this one instead of being refused by row-level security.
@@ -144,7 +191,7 @@
     }
     return { status: "changed", lost: 0, added: 0, changed: 1 };
   }
-  var FRIENDLY = { capital_ledger: "Deposits & periods", broker_paper_ids: "Broker paper accounts", "trade.log:grades": "Trade grades", "trade.log:daily_notes": "Daily notes" };
+  var FRIENDLY = { capital_ledger: "Deposits & periods", daily_loss_limit: "Daily loss limit", broker_paper_ids: "Broker paper accounts", "trade.log:grades": "Trade grades", "trade.log:daily_notes": "Daily notes" };
   function diff(obj, current, opts) {
     var o = { accounts: true, trades: true, details: true, kv: true };
     Object.keys(opts || {}).forEach(function (k) { o[k] = opts[k]; });
@@ -166,7 +213,7 @@
 
   function fetchCurrent() { return Promise.all([pageAll("accounts", "created_at").catch(function () { return []; }), pageAll("trades", "trade_date"), pageAll("user_kv", "key")]).then(function (r) { return { accounts: r[0], trades: r[1], user_kv: r[2] }; }); }
 
-  window.Backup = { build: build, download: download, validate: validate, prepare: prepare, restore: restore, diff: diff, fetchCurrent: fetchCurrent, SECRET_RE: SECRET_RE };
+  window.Backup = { tradesCsv: tradesCsv, exportTradesCsv: exportTradesCsv, downloadCsv: downloadCsv, build: build, download: download, validate: validate, prepare: prepare, restore: restore, diff: diff, fetchCurrent: fetchCurrent, SECRET_RE: SECRET_RE };
 
   // Settings page wiring (no-ops on other pages)
   function wire() {
@@ -180,6 +227,21 @@
           st.textContent = "Saved " + r.name + " (" + (r.bytes / 1048576).toFixed(1) + " MB) \u2014 " + obj.counts.trades + " trades, " + obj.counts.accounts + " accounts, " + obj.counts.user_kv + " settings/notes records" + (obj.user_kv_skipped_secret_keys ? "; " + obj.user_kv_skipped_secret_keys + " secret-looking key(s) left out" : "") + ".";
         })
         .catch(function (e) { st.textContent = "Backup failed: " + (e && e.message || e); })
+        .then(function () { btn.disabled = false; });
+    });
+  }
+  function wireCsv() {
+    var btn = document.getElementById("export-csv-btn"), st = document.getElementById("backup-status");
+    if (!btn || btn.__wired) return; btn.__wired = true;
+    btn.addEventListener("click", function () {
+      btn.disabled = true; st.textContent = "Collecting your trades\u2026";
+      exportTradesCsv(function (table, n) { st.textContent = "Reading " + table + "\u2026 " + n + " rows"; })
+        .then(function (r) {
+          if (!r.count) { st.textContent = "No trades to export yet."; return; }
+          var d = downloadCsv(r.csv);
+          st.textContent = "Saved " + d.name + " \u2014 " + r.count + " trades from all accounts.";
+        })
+        .catch(function (e) { st.textContent = "CSV export failed: " + (e && e.message || e); })
         .then(function () { btn.disabled = false; });
     });
   }
@@ -241,6 +303,6 @@
         .catch(function (e) { st.textContent = "Restore failed: " + (e && e.message || e); btn.disabled = false; });
     });
   }
-  function wireAll() { wire(); wireRestore(); }
+  function wireAll() { wire(); wireCsv(); wireRestore(); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wireAll); else wireAll();
 })();

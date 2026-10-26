@@ -16,3 +16,4 @@ wrangler.jsonc
 .gitignore
 .git
 .wrangler
+.github

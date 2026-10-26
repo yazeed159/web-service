@@ -214,6 +214,7 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     if (!window.CHART_SERVICE_URL) {
+      document.getElementById("sc-tbody").innerHTML = "";
       document.getElementById("sc-empty").textContent = "CHART_SERVICE_URL isn't set in config.js.";
       document.getElementById("sc-empty").style.display = "block";
       return;

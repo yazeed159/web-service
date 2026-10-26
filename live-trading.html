@@ -185,6 +185,7 @@
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="expect" href="#page-title" blocking="render">
+<script src="js/app-boot.js"></script>
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
@@ -519,7 +520,7 @@
         </div>
         <button class="link" id="lt-refresh-btn">Refresh now</button>
       </div>
-      <div id="lt-runs"><div class="lt-empty">No runs yet.</div></div>
+      <div id="lt-runs"><div class="loading-line skel-cards" role="status" aria-busy="true" aria-label="Loading"><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div></div></div>
     </div>
   </main>
 
@@ -533,6 +534,7 @@
 <script src="js/auth.js"></script>
 <script src="js/accounts.js"></script>
 <script src="js/strategy-presets.js"></script>
+<script src="js/loss-limit.js"></script>
 <script src="js/live-trading.js"></script>
 <script src="js/common.js"></script>
 <script src="js/select-enhance.js" defer></script>

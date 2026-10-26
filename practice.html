@@ -22,6 +22,7 @@
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="expect" href="#page-title" blocking="render">
+<script src="js/app-boot.js"></script>
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
@@ -298,13 +299,13 @@
       <!-- ============ /pr-practice-view ============ -->
 
       <!-- ============ ANALYTICS SCREEN (was practice-analytics.html) ============ -->
-      <div id="pr-analytics-screen" class="hidden">
+      <div id="pr-analytics-screen" class="hidden" role="region" aria-label="Practice analytics">
 
         <div class="panel-head">
           <div class="sub">Built from your practice account's fill history on this page — for the paper attempt selected on the Practice tab. Starting a new attempt keeps this one saved.</div>
         </div>
 
-        <div id="pa-empty-state" class="panel-box hidden">
+        <div id="pa-empty-state" class="panel-box hidden" role="status">
           <div class="empty-state-hero">
             <div class="empty-state-hero-icon"><svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19 6h10M20 6v13l-9.5 17a3 3 0 0 0 2.6 4.5h21.8a3 3 0 0 0 2.6-4.5L28 19V6" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M15.5 30h17" stroke="currentColor" stroke-width="2.2" opacity="0.6"/></svg></div>
             <div class="empty-state-hero-title">No practice trades yet</div>
@@ -315,42 +316,42 @@
 
         <div id="pa-body" class="hidden">
 
-          <div class="stat-grid" id="pa-stat-grid" style="margin-bottom:18px;"></div>
+          <div class="stat-grid" id="pa-stat-grid" role="group" aria-label="Practice summary statistics" style="margin-bottom:18px;"></div>
 
           <div class="pr-account-grid">
             <div class="panel-box">
               <div class="panel-box-head"><span class="title">Equity curve</span></div>
               <div class="pr-equity-wrap">
-                <svg id="pa-equity-svg" viewBox="0 0 1000 200" preserveAspectRatio="none"></svg>
+                <svg id="pa-equity-svg" viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label="Equity curve of closed practice trades"></svg>
                 <div class="pr-equity-empty hidden" id="pa-equity-empty">Close a few trades to build your equity curve.</div>
               </div>
             </div>
 
             <div class="panel-box">
               <div class="panel-box-head"><span class="title">Streaks</span></div>
-              <div class="streak-strip" id="pa-streak-strip"></div>
+              <div class="streak-strip" id="pa-streak-strip" role="group" aria-label="Win and loss streaks"></div>
               <div class="panel-box-head" style="margin-top:18px;"><span class="title">Best / worst trade</span></div>
-              <div id="pa-highlight-pair" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;"></div>
+              <div id="pa-highlight-pair" role="group" aria-label="Best and worst trade" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;"></div>
             </div>
           </div>
 
           <div class="panel-box" style="margin-bottom:18px;">
             <div class="panel-box-head"><span class="title">Time in trade</span></div>
-            <div class="stat-grid" id="pa-duration-stats" style="margin-bottom:18px;"></div>
-            <div id="pa-duration-breakdown"></div>
+            <div class="stat-grid" id="pa-duration-stats" role="group" aria-label="Time in trade statistics" style="margin-bottom:18px;"></div>
+            <div id="pa-duration-breakdown" role="group" aria-label="Results by time in trade"></div>
           </div>
 
           <div class="panel-box" style="margin-bottom:18px;">
             <div class="panel-box-head"><span class="title">By chart practiced</span></div>
-            <div id="pa-symbol-table"></div>
+            <div id="pa-symbol-table" role="region" aria-label="Results by chart practiced"></div>
           </div>
 
           <div class="panel-box">
             <div class="panel-box-head">
               <span class="title">Closed trades</span>
-              <span class="sub" id="pa-trades-count" style="font-size:12px; color:var(--text-faint);"></span>
+              <span class="sub" id="pa-trades-count" aria-live="polite" style="font-size:12px; color:var(--text-faint);"></span>
             </div>
-            <div id="pa-trades-table"></div>
+            <div id="pa-trades-table" role="region" aria-label="Closed practice trades"></div>
           </div>
 
         </div>

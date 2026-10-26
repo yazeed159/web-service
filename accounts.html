@@ -48,6 +48,7 @@
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="expect" href="#page-title" blocking="render">
+<script src="js/app-boot.js"></script>
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
@@ -119,7 +120,7 @@
           <button type="button" class="btn-confirm" id="acc-new-live">+ New real account</button>
         </div>
         <p class="acc-help">Tap an account to open it everywhere on the site. Use <b>⋯</b> for import, broker sync, deposits and other options.</p>
-        <div id="acc-live-grid" class="acc-grid"></div>
+        <div id="acc-live-grid" class="acc-grid"><div class="loading-line skel-cards" role="status" aria-busy="true" aria-label="Loading"><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div></div></div>
       </div>
 
       <div class="panel-box mb-16" id="acc-paper-box">
@@ -128,7 +129,7 @@
           <button type="button" class="btn-confirm" id="acc-new-paper">+ New paper account</button>
         </div>
         <p class="acc-help">Tracked on their own and left out of &ldquo;All real accounts&rdquo;. Tap one to view it.</p>
-        <div id="acc-paper-grid" class="acc-grid"></div>
+        <div id="acc-paper-grid" class="acc-grid"><div class="loading-line skel-cards" role="status" aria-busy="true" aria-label="Loading"><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div></div></div>
       </div>
 
       <div class="panel-box mb-16" id="acc-money-box">
@@ -138,7 +139,7 @@
         </div>
         <p class="acc-help">A <b>period</b> starts when you add money after a break. Each period can be viewed on its own and keeps your reflection.</p>
 
-        <div id="acc-period-list"></div>
+        <div id="acc-period-list"><div class="loading-line skel-table" role="status" aria-busy="true" aria-label="Loading"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div></div>
 
         <form id="acc-form" class="acc-form">
           <div><label for="acc-date">Date</label><input type="date" class="filter-input" id="acc-date" required></div>
@@ -264,7 +265,7 @@
 
   const $ = (id) => document.getElementById(id);
   const num = (s) => { const c = String(s || "").replace(/[^0-9.]/g, ""); return c === "" ? NaN : parseFloat(c); };
-  const today = () => new Date().toISOString().slice(0, 10);
+  const today = () => (window.MarketDate ? window.MarketDate.today() : new Date().toISOString().slice(0, 10));   // US market date
   const sign = (v) => (v >= 0 ? "up" : "down");
   const toast = (m, tone) => { if (window.showToast) window.showToast(m, tone ? { tone } : undefined); };
 

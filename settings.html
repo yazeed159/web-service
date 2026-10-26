@@ -48,6 +48,7 @@
 <meta name="apple-mobile-web-app-title" content="trade.log">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="expect" href="#page-title" blocking="render">
+<script src="js/app-boot.js"></script>
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
@@ -188,7 +189,7 @@
           that account. Tokens are write-only: once saved they can&rsquo;t be read back here.
           Add or archive accounts on <a href="accounts.html" style="color:var(--primary)">Trading accounts</a>.
         </p>
-        <div class="int-list" id="bc-list"></div>
+        <div class="int-list" id="bc-list"><div class="loading-line skel-cards" role="status" aria-busy="true" aria-label="Loading"><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div></div></div>
         <details id="bc-archived-wrap" style="margin-top:14px; display:none;">
           <summary style="cursor:pointer; font-size:12.5px; color:var(--text-dim);">Archived accounts</summary>
           <div class="int-list" id="bc-archived-list" style="margin-top:10px;"></div>
@@ -203,11 +204,12 @@
         </p>
         <label style="display:flex; gap:8px; align-items:center; font-size:12.5px; margin-bottom:12px;"><input type="checkbox" id="backup-details"> Also include chart data and AI verdicts (much larger file)</label>
         <button class="btn-confirm" id="backup-btn" type="button">Download backup</button>
+        <button class="btn-advanced" id="export-csv-btn" type="button" style="margin-left:8px;" title="Every trade from every account as a spreadsheet file">Download trades (CSV)</button>
         <div id="backup-status" style="margin-top:10px; font-size:12.5px; color:var(--text-dim);"></div>
         <div style="border-top:1px solid var(--border-soft, var(--border)); margin-top:18px; padding-top:16px;">
           <div style="font-weight:600; margin-bottom:6px;">Restore from a backup</div>
           <p style="color:var(--text-faint); font-size:12px; margin:0 0 10px;">Pick a file you downloaded above. Records in it replace the same records you have now; anything not in the file is left alone. Nothing is deleted.</p>
-          <input type="file" id="restore-file" accept="application/json,.json">
+          <input type="file" id="restore-file" aria-label="Backup file to restore" accept="application/json,.json">
           <div id="restore-summary" style="margin-top:8px; font-size:12.5px; color:var(--text-dim);"></div>
           <div id="restore-diff" style="margin-top:8px; font-size:12.5px; color:var(--text-dim);"></div>
           <div style="display:flex; flex-direction:column; gap:6px; margin:10px 0; font-size:12.5px;">

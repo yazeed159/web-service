@@ -50,11 +50,14 @@
     let planned = 0, held = 0;
     dates.forEach((d) => {
       const dn = daily[d];
-      if (!dn || dn.max_loss == null) return;
+      const lv = window.KV && window.KV.get("daily_loss_limit");
+      const lim = window.LossLimit ? window.LossLimit.resolve(dn, lv, d)
+        : (dn && dn.max_loss != null ? { amount: dn.max_loss } : (lv && Number(lv.amount) > 0 && (!lv.since || d >= lv.since) ? { amount: Number(lv.amount) } : null));
+      if (!lim) return;
       planned++;
       let cum = 0, low = 0;
       byDay[d].forEach((t) => { cum += typeof t.pnl_after_comm === "number" ? t.pnl_after_comm : 0; if (cum < low) low = cum; });
-      if (-low <= dn.max_loss) held++;
+      if (-low <= lim.amount) held++;
     });
     c.maxloss = { n: planned, value: pct(held, planned) };
 

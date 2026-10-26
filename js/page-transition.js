@@ -97,7 +97,7 @@
     // it builds window.App and the other three register onto it.
     // today-strip.js (dashboard "Today" card) sits between shared and dashboard so
     // App.tabs.dashboard.renderToday exists before the first data render.
-    index: { shared: ["js/grade.js", "js/trade-notes.js", "js/daily-notes.js"], owned: ["js/app-shared.js", "js/today-strip.js", "js/app-dashboard.js", "js/app-dayview.js"] },
+    index: { shared: ["js/grade.js", "js/trade-notes.js", "js/daily-notes.js", "js/loss-limit.js"], owned: ["js/app-shared.js", "js/today-strip.js", "js/app-dashboard.js", "js/app-dayview.js"] },
     journal: { shared: ["js/grade.js"], owned: ["js/share-export.js"] },
     patterns: { shared: [], owned: [] },
     calculator: { shared: [], owned: ["js/calculator.js"] },

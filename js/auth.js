@@ -202,7 +202,7 @@
   function installOfflineStubs(reason) {
     var err = function () { return new Error(reason); };
     window.AUTH_READY = Promise.resolve(null); // treat as "logged out" for anything that already handles !session gracefully (KV, the account widget)
-    window.KV = { ready: Promise.resolve(null), get: function () { return undefined; }, set: function () {}, delete: function () {}, sync: function () {}, isLoaded: function () { return false; } };
+    window.KV = { ready: Promise.resolve(null), get: function () { return undefined; }, set: function () {}, setGuarded: function () { return Promise.resolve({ ok: true }); }, setMerged: function (k, v) { return Promise.resolve({ ok: true, value: v, merged: false }); }, isStale: function () { return Promise.resolve(false); }, adopt: function () {}, delete: function () {}, sync: function () {}, isLoaded: function () { return false; } };
     window.fetchTradesIndex = function () { return Promise.reject(err()); };
     window.fetchCapitalLedger = function () { return Promise.reject(err()); };
     window.fetchTradeDetail = function () { return Promise.reject(err()); };
@@ -587,6 +587,21 @@
     var cache = {};
     var loaded = false;
 
+    // What the SERVER held for each key the last time this page saw it (initial load, a later
+    // recovery, or our own successful write), as canonical JSON. A guarded write compares the
+    // server's CURRENT copy against this: if they differ, another device/tab saved in between, and
+    // last-write-wins would silently throw its change away. See setGuarded() below.
+    var baseline = {};
+    function canon(v) {
+      if (v === undefined) return undefined;
+      function sortKeys(x) {
+        if (Array.isArray(x)) return x.map(sortKeys);
+        if (x && typeof x === "object") { var o = {}; Object.keys(x).sort().forEach(function (k) { o[k] = sortKeys(x[k]); }); return o; }
+        return x;
+      }
+      return JSON.stringify(sortKeys(v));
+    }
+
     // If the first load still failed after all retries (long outage), keep
     // trying quietly in the background and fill in any keys that are still
     // missing, so things like the capital ledger and journal notes show up
@@ -597,7 +612,7 @@
         withClockSkewRetry(function () { return window.sb.from("user_kv").select("key,value"); })
           .then(function (res) {
             if (res && !res.error && res.data) {
-              res.data.forEach(function (row) { if (!Object.prototype.hasOwnProperty.call(cache, row.key)) cache[row.key] = row.value; });
+              res.data.forEach(function (row) { if (!Object.prototype.hasOwnProperty.call(cache, row.key)) { cache[row.key] = row.value; baseline[row.key] = canon(row.value); } });
               try { window.dispatchEvent(new CustomEvent("kv-recovered")); } catch (e) {}
             } else { recoverKvLater(n + 1); }
           }, function () { recoverKvLater(n + 1); });
@@ -612,6 +627,7 @@
           if (!res.error && res.data) {
             res.data.forEach(function (row) {
               cache[row.key] = row.value;
+              baseline[row.key] = canon(row.value);
             });
           } else if (res.error) {
             console.error("KV: initial load failed:", res.error.message);
@@ -628,12 +644,18 @@
 
     function set(key, value) {
       cache[key] = value;
+      return write(key, value);
+    }
+
+    // The actual upsert. Resolves true once the server has the value.
+    function write(key, value) {
       return ready.then(function (session) {
-        if (!session) return;
+        if (!session) return false;
         return window.sb
           .from("user_kv")
           .upsert({ user_id: session.user.id, key: key, value: value })
           .then(function (res) {
+            if (!res.error) { baseline[key] = canon(value); return true; }
             if (res.error) {
               console.error("KV.set(" + key + ") failed:", res.error.message);
               // Optimistic update above already showed the new value as
@@ -643,12 +665,90 @@
               // write), by which point there's no way to tell why.
               if (window.showToast) window.showToast("Couldn't save your change — check your connection and try again.", { tone: "error" });
             }
+            return false;
           });
       });
     }
 
+    // Reads this key's CURRENT server copy. Resolves {ok, value}; ok=false if it couldn't be read.
+    function readRemote(key) {
+      return ready.then(function (session) {
+        if (!session) return { ok: false };
+        return withClockSkewRetry(function () {
+          return window.sb.from("user_kv").select("value").eq("user_id", session.user.id).eq("key", key).maybeSingle();
+        }).then(function (res) {
+          if (res.error) return { ok: false };
+          return { ok: true, value: res.data ? res.data.value : undefined };
+        }, function () { return { ok: false }; });
+      });
+    }
+
+    // Like set(), but refuses to overwrite a copy that changed on the server since this page last
+    // saw it. Resolves {ok:true} after saving, or {ok:false, conflict:true, remote} WITHOUT saving.
+    // If the server can't be read to check, it saves normally (never blocks the user on a bad connection).
+    function setGuarded(key, value) {
+      return readRemote(key).then(function (r) {
+        if (r.ok && canon(r.value) !== baseline[key]) return { ok: false, conflict: true, remote: r.value };
+        cache[key] = value;
+        return write(key, value).then(function (saved) { return { ok: saved }; });
+      });
+    }
+
+    // Three-way merge for keys that hold a map of independent entries (notes by day, grades by trade).
+    // base = what this page last saw on the server, mine = what it is saving, remote = the server now.
+    // Whichever side did not change a value takes the other side's value. Plain objects are merged key
+    // by key, so two devices editing different trades or different fields both keep their edits. Only
+    // when BOTH sides changed the very same leaf (or the same list) does this page's copy win.
+    function mergeValue(base, mine, remote, depth) {
+      var cm = canon(mine), cr = canon(remote), cb = canon(base);
+      if (cm === cr) return mine;
+      if (cm === cb) return remote;
+      if (cr === cb) return mine;
+      function isObj(x) { return x && typeof x === "object" && !Array.isArray(x); }
+      if (depth < 4 && isObj(mine) && isObj(remote) && (isObj(base) || base === undefined)) {
+        var b = base || {}, out = {}, seen = {};
+        Object.keys(mine).concat(Object.keys(remote), Object.keys(b)).forEach(function (k) {
+          if (seen[k]) return;
+          seen[k] = true;
+          var v = mergeValue(b[k], mine[k], remote[k], depth + 1);
+          if (v !== undefined) out[k] = v;
+        });
+        return out;
+      }
+      return mine;
+    }
+
+    // Like set(), but when another device saved this key in between it MERGES instead of overwriting
+    // or asking. Resolves {ok, value, merged}: value is what is now stored (callers should refresh
+    // their local copy from it when merged is true). If the server can't be read, saves normally.
+    function setMerged(key, value) {
+      return readRemote(key).then(function (r) {
+        var out = value, merged = false;
+        if (r.ok && canon(r.value) !== baseline[key]) {
+          var base;
+          try { base = baseline[key] === undefined ? undefined : JSON.parse(baseline[key]); } catch (e) { base = undefined; }
+          out = mergeValue(base, value, r.value, 0);
+          merged = canon(out) !== canon(value);
+        }
+        cache[key] = out;
+        return write(key, out).then(function (saved) { return { ok: saved, value: out, merged: merged }; });
+      });
+    }
+
+    // True when the server's copy of `key` differs from what this page last saw.
+    function isStale(key) {
+      return readRemote(key).then(function (r) { return r.ok && canon(r.value) !== baseline[key]; });
+    }
+
+    // Accept the server's copy as the truth (used after the person chooses "load the other copy").
+    function adopt(key, remoteValue) {
+      if (remoteValue === undefined) delete cache[key]; else cache[key] = remoteValue;
+      baseline[key] = canon(remoteValue);
+    }
+
     function del(key) {
       delete cache[key];
+      delete baseline[key];
       return ready.then(function (session) {
         if (!session) return;
         return window.sb
@@ -681,7 +781,7 @@
       });
     }
 
-    return { ready: ready, get: get, set: set, delete: del, sync: sync, isLoaded: function () { return loaded; } };
+    return { ready: ready, get: get, set: set, setGuarded: setGuarded, setMerged: setMerged, _merge: function (b, m, r) { return mergeValue(b, m, r, 0); }, isStale: isStale, adopt: adopt, delete: del, sync: sync, isLoaded: function () { return loaded; }, _canon: canon };
   })();
 
   // ------------------------------------------------------------------
