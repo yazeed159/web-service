@@ -1,20 +1,18 @@
-// AI Chat tab — reads data/trades.json (the same index journal.html /
-// stats.html / patterns.html already use), boils it down into an aggregate
-// summary + a compact per-trade index, and sends that plus the running
-// conversation to the CHAT_URL webhook on every message. Nothing here runs
-// until the person actually sends a message, and each turn re-sends the
-// full context, so the n8n side (and the LLM) never has to hold state.
+// AI Chat -- reads the trade journal (window.fetchTradesIndex, same rows the rest of the app
+// uses) and answers questions about it, cheaply.
 //
-// If the message looks like it's asking about a specific logged trade
-// (mentions a symbol that's actually in the journal), this also pulls that
-// trade's indicators (VWAP/EMA/MACD at entry, S/R levels, volume/float)
-// straight from chart_service.py -- same Polygon-backed pipeline the
-// Backtester tab and /generate-chart already use -- and includes just that
-// small numeric block as extra context. It deliberately does NOT forward
-// the chart image or the full per-minute bar series (both are in the
-// /generate-chart response but would burn a lot of tokens for little
-// benefit in a text chat), and it never triggers a second LLM call -- the
-// fetch happens client-side, before the single request to n8n goes out.
+// How a message is handled (cheapest path first):
+//   1. Local answer  -- plain "what's my win rate / best time of day / longest streak" questions
+//      are answered in the browser from js/chat-facts.js. No network, no AI credits.
+//   2. Cache         -- the same self-contained question on the same journal data is replayed.
+//   3. One AI call   -- everything else. Instead of a thin summary + a few sample trades, the
+//      request carries only the pre-computed fact tables the question needs (time of day,
+//      streaks, revenge-trading checks, hold time...), chosen by chat-facts.js's router, so the
+//      model reads real numbers instead of guessing, and the prompt stays a few hundred tokens.
+//
+// If the message names a logged trade (a symbol, "last losing trade", "worst trade"), that
+// trade's journal line plus its entry-time indicators from chart_service.py ride along too.
+// It never forwards the chart image or the per-minute bars.
 (function () {
   "use strict";
 
@@ -22,6 +20,11 @@
   // as the Support/Resistance webhook in trade.js -- point it at your own
   // n8n webhook there.
   const CHAT_URL = window.N8N_CHAT_URL || "";
+  const Facts = window.ChatFacts || null; // js/chat-facts.js (loaded just before this file)
+
+  const HISTORY_SENT = 6;      // turns sent with each AI call
+  const CACHE_TTL_MS = 7 * 24 * 3600 * 1000;
+  const CACHE_MAX = 40;
 
   const messagesEl = document.getElementById("chat-messages");
   const formEl = document.getElementById("chat-form");
@@ -76,15 +79,32 @@
 
 // escapeHtml() now in utils.js (loads first on every page).
 
-  // Turns plain text (with occasional **bold**) into safe HTML with
-  // paragraph/line breaks -- just enough formatting for LLM prose, no
-  // full markdown parser needed.
-  function formatReply(text) {
-    const escaped = escapeHtml(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  // Turns the reply (plain text with **bold**, `code`, and -/*/1. lists) into safe HTML.
+  // Everything is escaped first; only the markup below is ever added.
+  function inlineFmt(escaped) {
     return escaped
-      .split(/\n{2,}/)
-      .map((para) => `<p>${para.replace(/\n/g, "<br>")}</p>`)
-      .join("");
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/`([^`]+)`/g, "<code>$1</code>");
+  }
+  function formatReply(text) {
+    const lines = escapeHtml(String(text || "")).split("\n");
+    const out = [];
+    let para = [], list = null;
+    const flushPara = () => { if (para.length) { out.push(`<p>${inlineFmt(para.join("<br>"))}</p>`); para = []; } };
+    const flushList = () => { if (list) { out.push(`<${list.tag}>${list.items.map((i) => `<li>${inlineFmt(i)}</li>`).join("")}</${list.tag}>`); list = null; } };
+    for (const raw of lines) {
+      const b = raw.match(/^\s*[-*\u2022]\s+(.*)$/), n = raw.match(/^\s*\d+[.)]\s+(.*)$/);
+      if (b || n) {
+        flushPara();
+        const tag = b ? "ul" : "ol";
+        if (list && list.tag !== tag) flushList();
+        if (!list) list = { tag, items: [] };
+        list.items.push((b || n)[1]);
+      } else if (!raw.trim()) { flushPara(); flushList(); }
+      else { flushList(); para.push(raw); }
+    }
+    flushPara(); flushList();
+    return out.join("");
   }
 
   const AI_AVATAR_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.9 5.8L20 10l-6.1 2.2L12 18l-1.9-5.8L4 10l6.1-2.2z"></path></svg>`;
@@ -131,20 +151,28 @@
       setInputEnabled(true);
     });
 
+  let facts = null;
+
+  function updateStatus() {
+    if (!trades.length) return;
+    const dates = trades.map((t) => t.trade_date).filter(Boolean).sort();
+    const range = dates.length ? `${dates[0]} → ${dates[dates.length - 1]}` : "";
+    dataStatusEl.innerHTML = `<span class="chat-data-status-dot ok"></span> Reading ${trades.length} trade${trades.length === 1 ? "" : "s"}${range ? " (" + escapeHtml(range) + ")" : ""}`;
+  }
+
   function onDataReady() {
+    facts = Facts && trades.length ? Facts.computeFacts(trades) : null;
     if (!trades.length) {
       dataStatusEl.innerHTML = `<span class="chat-data-status-dot"></span> No trades published yet.`;
     } else {
-      const dates = trades.map((t) => t.trade_date).filter(Boolean).sort();
-      const range = dates.length ? `${dates[0]} → ${dates[dates.length - 1]}` : "";
-      dataStatusEl.innerHTML = `<span class="chat-data-status-dot ok"></span> Reading ${trades.length} trade${trades.length === 1 ? "" : "s"}${range ? " (" + escapeHtml(range) + ")" : ""}.`;
+      updateStatus();
     }
     setInputEnabled(true);
     if (!history.length) {
       addBubble(
         "ai",
         formatReply(
-          "Hey — I can see your trade log. Ask me about specific trades, how a setup's performing, patterns in your lesson tags, or how your execution compares to a Ross Cameron style breakout/momentum playbook."
+          "Hey — I've crunched your whole journal. Ask about time of day, weekdays, streaks, hold times, sizing, revenge trading, lesson tags, or any specific trade (try \"last losing trade\"). Simple stat questions are answered instantly and don't use any AI credits."
         )
       );
     }
@@ -212,127 +240,33 @@
     sendBtn.disabled = !enabled;
   }
 
-  // Aggregate numbers the LLM shouldn't have to (mis)compute itself from
-  // a long trade list -- mirrors the math app.js/stats.html already do.
-  function buildTradesSummary(rows) {
-    if (!rows.length) return { trade_count: 0 };
-    const wins = rows.filter((r) => r.win);
-    const losses = rows.filter((r) => !r.win);
-    const netPnl = rows.reduce((s, r) => s + (r.pnl_after_comm || 0), 0);
-    const grossWin = wins.reduce((s, r) => s + Math.max(0, r.pnl_after_comm || 0), 0);
-    const grossLoss = losses.reduce((s, r) => s + Math.max(0, -(r.pnl_after_comm || 0)), 0);
-    const profitFactor = grossLoss > 0 ? grossWin / grossLoss : (grossWin > 0 ? null : 0);
+  // ---- reply cache (both in localStorage, both best-effort) ----
 
-    const bySetup = {};
-    for (const r of rows) {
-      const key = r.setup_type || "unspecified";
-      bySetup[key] = bySetup[key] || { count: 0, wins: 0, net_pnl: 0 };
-      bySetup[key].count++;
-      if (r.win) bySetup[key].wins++;
-      bySetup[key].net_pnl += r.pnl_after_comm || 0;
-    }
-    for (const k of Object.keys(bySetup)) {
-      const s = bySetup[k];
-      s.win_rate_pct = Math.round((s.wins / s.count) * 100);
-      s.net_pnl = Math.round(s.net_pnl * 100) / 100;
-    }
+  const CACHE_KEY = "trade.log:chatCache";
+  const today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
 
-    const tagCounts = {};
-    for (const r of rows) {
-      for (const tag of r.lesson_tags || []) tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-    }
+  const norm = (t) => String(t).toLowerCase().replace(/[^a-z0-9$ ]+/g, " ").replace(/\s+/g, " ").trim();
+  // Only cache questions that make sense on their own -- "why?" / "and last week?" depend on the thread.
+  const isSelfContained = (t) => t.length >= 18 && !/^(why|and|but|so|ok|okay|what about|how about|really|explain|more|go deeper|tell me more)\b/i.test(t.trim());
+  const cacheKey = (t) => (facts ? facts.fingerprint : "x") + "|" + norm(t);
 
-    const dates = rows.map((r) => r.trade_date).filter(Boolean).sort();
-
-    return {
-      trade_count: rows.length,
-      date_range: dates.length ? [dates[0], dates[dates.length - 1]] : null,
-      win_rate_pct: Math.round((wins.length / rows.length) * 100),
-      net_pnl: Math.round(netPnl * 100) / 100,
-      profit_factor: profitFactor === null ? "infinite (no losses)" : Math.round(profitFactor * 100) / 100,
-      avg_win: wins.length ? Math.round((grossWin / wins.length) * 100) / 100 : 0,
-      avg_loss: losses.length ? Math.round((grossLoss / losses.length) * 100) / 100 : 0,
-      by_setup_type: bySetup,
-      lesson_tag_counts: tagCounts,
-    };
+  function cacheGet(t) {
+    if (!isSelfContained(t)) return null;
+    try {
+      const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "{}");
+      const hit = c[cacheKey(t)];
+      return hit && Date.now() - hit.t < CACHE_TTL_MS ? hit.reply : null;
+    } catch (e) { return null; }
   }
-
-  // Single-line format shared by the curated sample and by the specific-
-  // trade lookup below, so both look identical to the model.
-  function formatTradeLine(r) {
-    const tags = (r.lesson_tags || []).join(",") || "-";
-    const rvol = r.rvol_tag || "-";
-    return [
-      r.id || "-",
-      r.trade_date || "-",
-      r.symbol || "-",
-      r.side || "-",
-      r.setup_type || "-",
-      r.win ? "WIN" : "LOSS",
-      (r.pnl_after_comm != null ? r.pnl_after_comm.toFixed(2) : "-"),
-      r.shares != null ? r.shares : "-",
-      `${r.entry_price != null ? r.entry_price : "-"}->${r.exit_price != null ? r.exit_price : "-"}`,
-      tags,
-      rvol,
-    ].join(" | ");
-  }
-
-  // NEVER sends the full journal. trades_summary (aggregates, built above)
-  // already answers "how am I doing" / "how do setups compare" / "where
-  // should I improve" style questions on its own. This adds just enough
-  // concrete, citable examples for coaching-style answers without paying
-  // for all 300+ rows on every single turn: worst losses, best wins, and
-  // the most recent trades, deduped. A specific trade the message actually
-  // asks about is looked up separately (see findRelevantTrade) and rides
-  // along on top of this, so precision on a named symbol/date never
-  // depends on it happening to land in this sample.
-  const SAMPLE_WORST = 10;
-  const SAMPLE_BEST = 5;
-  const SAMPLE_RECENT = 10;
-
-  function buildTradesSample(rows) {
-    if (!rows.length) return [];
-    const byPnl = [...rows].sort((a, b) => (a.pnl_after_comm || 0) - (b.pnl_after_comm || 0));
-    const worst = byPnl.slice(0, SAMPLE_WORST);
-    const best = byPnl.slice(-SAMPLE_BEST).reverse();
-    const recent = [...rows]
-      .sort((a, b) => (b.trade_date + (b.entry_time || "")).localeCompare(a.trade_date + (a.entry_time || "")))
-      .slice(0, SAMPLE_RECENT);
-
-    const seen = new Set();
-    const picked = [];
-    for (const r of [...worst, ...best, ...recent]) {
-      const key = r.id || `${r.symbol}-${r.trade_date}-${r.entry_time}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      picked.push(r);
-    }
-    picked.sort((a, b) => (a.trade_date + (a.entry_time || "")).localeCompare(b.trade_date + (b.entry_time || "")));
-    return picked.map(formatTradeLine);
-  }
-
-  // ---- chart data lookup (chart_service.py, on demand) -----------------
-
-  // Finds the single logged trade a message is most likely asking about --
-  // only matches symbols that actually appear in the journal (so "how do
-  // I..." or other capitalized words never false-match), and picks the
-  // most recent trade for that symbol unless the message contains another
-  // trade's exact date.
-  function findRelevantTrade(text) {
-    if (!trades.length) return null;
-    const symbols = Array.from(new Set(trades.map((t) => t.symbol).filter(Boolean)));
-    if (!symbols.length) return null;
-
-    const upper = text.toUpperCase();
-    const matchedSymbol = symbols.find((sym) => new RegExp(`\\b${sym}\\b`).test(upper));
-    if (!matchedSymbol) return null;
-
-    const candidates = trades
-      .filter((t) => t.symbol === matchedSymbol)
-      .sort((a, b) => (a.trade_date + (a.entry_time || "")).localeCompare(b.trade_date + (b.entry_time || "")));
-
-    const dateMatch = candidates.find((t) => t.trade_date && text.includes(t.trade_date));
-    return dateMatch || candidates[candidates.length - 1] || null;
+  function cachePut(t, reply) {
+    if (!isSelfContained(t)) return;
+    try {
+      const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "{}");
+      c[cacheKey(t)] = { t: Date.now(), reply };
+      const keys = Object.keys(c).sort((a, b) => c[b].t - c[a].t);
+      keys.slice(CACHE_MAX).forEach((k) => delete c[k]);
+      localStorage.setItem(CACHE_KEY, JSON.stringify(c));
+    } catch (e) { /* ignore (private mode / storage full) */ }
   }
 
   // Pulls just the numeric indicators for one trade from chart_service.py
@@ -380,6 +314,51 @@
       .finally(() => clearTimeout(timeout));
   }
 
+  // ---- replies, follow-ups ----------------------------------------------
+
+  function clearFollowups() {
+    messagesEl.querySelectorAll(".chat-extra").forEach((el) => el.remove());
+  }
+
+  // Adds an AI bubble plus (optionally) a note, a "go deeper with AI" button, and 1-3 follow-up
+  // suggestions -- all free, none of it calls the model.
+  function addAiReply(text, opts) {
+    opts = opts || {};
+    const wrap = addBubble("ai", formatReply(text));
+    const bubble = wrap.querySelector(".chat-bubble");
+    const extra = document.createElement("div");
+    extra.className = "chat-extra";
+    if (opts.note) {
+      const n = document.createElement("div");
+      n.className = "chat-note";
+      n.textContent = opts.note;
+      extra.appendChild(n);
+    }
+    const chips = [];
+    if (opts.deeperFor) chips.push({ label: "Ask AI to go deeper", ai: true });
+    (opts.followups || []).forEach((q) => chips.push({ label: q }));
+    if (chips.length) {
+      const row = document.createElement("div");
+      row.className = "chat-followups";
+      chips.forEach((c) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "chat-chip" + (c.ai ? " chat-chip-ai" : "");
+        b.textContent = c.label;
+        b.addEventListener("click", () => {
+          if (requestInFlight) return;
+          if (c.ai) sendMessage("Go deeper on that: what's driving it, and what should I change?", { forceAI: true, topicsFrom: opts.deeperFor });
+          else sendMessage(c.label);
+        });
+        row.appendChild(b);
+      });
+      extra.appendChild(row);
+    }
+    if (extra.children.length) bubble.appendChild(extra);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return wrap;
+  }
+
   // ---- sending messages ----------------------------------------------
 
   formEl.addEventListener("submit", (e) => {
@@ -389,35 +368,80 @@
     sendMessage(text);
   });
 
-  function sendMessage(text) {
-    if (!CHAT_URL) {
-      addBubble("user", escapeHtml(text));
-      addBubble(
-        "ai",
-        formatReply(
-          "The chat service isn't set up yet in config.js, so I've got nowhere to send this. Point it at your chat service and try again."
-        )
-      );
-      inputEl.value = "";
-      return;
-    }
+  // History as sent to the model: last few turns, long replies clipped (older answers are
+  // context, not something to pay to re-read in full every time).
+  function trimmedHistory() {
+    return history.slice(0, -1).slice(-HISTORY_SENT).map((t) => ({
+      role: t.role,
+      content: String(t.content || "").slice(0, t.role === "assistant" ? 600 : 400),
+    }));
+  }
 
+  function finishTurn() {
+    requestInFlight = false;
+    setInputEnabled(true);
+    inputEl.focus();
+  }
+
+  function sendMessage(text, opts) {
+    opts = opts || {};
     addBubble("user", escapeHtml(text));
     history.push({ role: "user", content: text });
     saveHistory();
-    // Collapse the chips once a message goes out so they don't eat
-    // vertical space above the input row -- they're still intact underneath
-    // and reopen instantly from the hints button in the header.
+    clearFollowups();
     setChipsVisible(false);
     inputEl.value = "";
+
+    // 1. Local, zero-credit answer for plain stat questions.
+    if (!opts.forceAI && facts && Facts) {
+      let local = null;
+      try { local = Facts.localAnswer(text, facts); } catch (e) { console.warn("chat.js: local answer failed", e); }
+      if (local) {
+        history.push({ role: "assistant", content: local.text });
+        saveHistory();
+        addAiReply(local.text, {
+          note: "Calculated from your journal, no AI credits used.",
+          deeperFor: local.topics,
+          followups: Facts.followupsFor(local.topics, [text]).concat(local.followups || []).filter((q, i, a) => a.indexOf(q) === i && q.toLowerCase() !== text.toLowerCase()).slice(0, 2),
+        });
+        return;
+      }
+    }
+
+    if (!CHAT_URL) {
+      addAiReply("The chat service isn't set up yet in config.js, so I've got nowhere to send this. Point it at your chat service and try again.");
+      return;
+    }
+
+    // 2. Cached AI reply for the same question on the same data.
+    if (!opts.forceAI) {
+      const cached = cacheGet(text);
+      if (cached) {
+        history.push({ role: "assistant", content: cached });
+        saveHistory();
+        const topics = Facts ? Facts.routeTopics(text) : [];
+        addAiReply(cached, { note: "Saved reply from earlier, no AI credits used.", followups: Facts ? Facts.followupsFor(topics, [text]) : [] });
+        return;
+      }
+    }
+
+    // 3. One lean AI call.
     requestInFlight = true;
     setInputEnabled(false);
     const typingBubble = addTypingBubble();
 
-    // Resolved before the single request to n8n goes out -- if it matches a
-    // logged trade, chart_context rides along in the same payload; nothing
-    // here adds a second LLM call either way.
-    const relevantTrade = findRelevantTrade(text);
+    const routeText = opts.topicsFrom ? "" : text;
+    const topicList = opts.topicsFrom && opts.topicsFrom.length ? opts.topicsFrom.filter((t) => t !== "core") : null;
+    const sel = facts && Facts
+      ? (topicList
+          ? { topics: topicList, blocks: Object.assign({ core: facts.blocks.core }, ...topicList.filter((t) => facts.blocks[t]).map((t) => ({ [t]: facts.blocks[t] }))) }
+          : Facts.selectBlocks(routeText, facts))
+      : { topics: [], blocks: null };
+
+    // The trade the message is about (symbol, "last losing trade", ...), looked up on the
+    // original question when this is a "go deeper" follow-up.
+    const lookupText = opts.topicsFrom ? (history.filter((h) => h.role === "user").slice(-2, -1)[0] || {}).content || text : text;
+    const relevantTrade = Facts ? Facts.findRelevantTrade(lookupText, trades) : null;
     const chartContextPromise = relevantTrade ? fetchChartContext(relevantTrade) : Promise.resolve(null);
 
     chartContextPromise.then((chartContext) =>
@@ -426,39 +450,40 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
-          history: history.slice(0, -1).slice(-12),
-          trades_summary: buildTradesSummary(trades),
-          trades_sample: buildTradesSample(trades),
-          // Only present when the message actually named a symbol/date --
-          // its own journal line (win/loss, pnl, tags), separate from the
-          // chart indicators below, so a lookup outside the sample above
-          // still gets full grounding without touching the other 300+ rows.
-          matched_trade_line: relevantTrade ? formatTradeLine(relevantTrade) : null,
+          history: trimmedHistory(),
+          // v2: pre-computed fact tables chosen for this question (see chat-facts.js).
+          facts: sel.blocks,
+          topics: sel.topics,
+          // Small aggregate kept so an older server (which ignores `facts`) still has something.
+          trades_summary: facts ? { trade_count: facts.n, win_rate_pct: facts.raw.winRate, net_pnl: facts.raw.net, profit_factor: facts.raw.profitFactor } : { trade_count: 0 },
+          trades_sample: [],
+          matched_trade_line: relevantTrade ? Facts.formatTradeLine(relevantTrade) : null,
           chart_context: chartContext,
         }),
       })
     )
-      .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then((r) => {
+        if (r.status === 429) { const e = new Error("rate limited"); e.rateLimited = true; throw e; }
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
       .then((data) => {
         const reply = (data && data.reply) || "Didn't get a usable reply back -- try again?";
         typingBubble.remove();
-        addBubble("ai", formatReply(reply));
+        const ok = data && data.reply && !data.error && !data.rate_limited;
         history.push({ role: "assistant", content: reply });
         saveHistory();
+        if (ok && !opts.forceAI) cachePut(text, reply);
+        addAiReply(reply, { followups: ok && Facts ? Facts.followupsFor(sel.topics, [text]) : [] });
       })
       .catch((err) => {
         typingBubble.remove();
-        addBubble(
-          "ai",
-          formatReply(
-            `Couldn't reach the chat service (${String(err.message)}). If config.js still points at a placeholder, point it at your chat service first.`
-          )
+        addAiReply(
+          err && err.rateLimited
+            ? "The AI is rate-limited right now (free quota). Give it a minute and try again. Stat questions still work instantly."
+            : `Couldn't reach the chat service (${String(err && err.message)}). If it's been idle it may be waking up, so try again in a few seconds.`
         );
       })
-      .finally(() => {
-        requestInFlight = false;
-        setInputEnabled(true);
-        inputEl.focus();
-      });
+      .finally(finishTurn);
   }
 })();

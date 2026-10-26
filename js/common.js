@@ -125,9 +125,14 @@
   // chat.js expects #chat-messages/#chat-form/etc. to already exist (it
   // looks them up as soon as it runs, not on DOMContentLoaded), so it's
   // only loaded now that the panel markup above is in the DOM.
-  const chatScript = document.createElement("script");
-  chatScript.src = "js/chat.js";
-  document.body.appendChild(chatScript);
+  // chat-facts.js (the free local stats engine) goes first; dynamically inserted scripts with
+  // async=false still run in insertion order. chat.js works without it (plain AI calls only).
+  ["js/chat-facts.js", "js/chat.js"].forEach(function (src) {
+    const chatScript = document.createElement("script");
+    chatScript.src = src;
+    chatScript.async = false;
+    document.body.appendChild(chatScript);
+  });
 })();
 
 

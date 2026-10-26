@@ -186,7 +186,11 @@
   function formatReply(text) {
     const escaped = escapeHtml(text)
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      // Only http(s) links become anchors. Anything else (javascript:, data:, vbscript: ...) is left as
+      // plain text, because the model's reply is untrusted and a javascript: href would run on click.
+      .replace(/\[(.+?)\]\((.+?)\)/g, (m, label, url) => /^https?:\/\//i.test(url.trim())
+        ? '<a href="' + url.trim() + '" target="_blank" rel="noopener noreferrer">' + label + '</a>'
+        : m);
     return escaped.split(/\n{2,}/).map((para) => `<p>${para.replace(/\n/g, "<br>")}</p>`).join("");
   }
 
