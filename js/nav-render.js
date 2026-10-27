@@ -232,30 +232,45 @@
 
   // Shared renderer for the "More" and "Work in Progress" sections --
   // same item shape, same markup, just a different label and list.
-  function renderSection(mount, label, items) {
-    if (!mount) return;
-    mount.innerHTML =
-      `<div class="nav-section-label">${label}</div>` +
-      items.map((item) => {
-        const href = item.href || window.N8N_IMPORT_URL || "import-trades.html";
-        const isActive = href !== "#" && normalizeFile(href.split("?")[0]) === currentFile;
-        const idAttr = item.id ? ` id="${item.id}"` : "";
-        // Every item gets a title tooltip (falling back to its label) so
-        // hovering an icon identifies the page even when the sidebar is
-        // collapsed and the text label is hidden -- previously only the
-        // "Import Trades" item had one, so every other icon was unlabeled
-        // once collapsed.
-        const titleAttr = ` title="${item.title || item.label}"`;
-        return (
-          `<a class="nav-item${isActive ? " active" : ""}"${idAttr} href="${href}"${titleAttr}>` +
-          `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${item.icon}</svg>` +
-          `<span class="nav-label">${item.label}</span>` +
-          `</a>`
-        );
-      }).join("");
+  function itemHtml(item) {
+    const href = item.href || window.N8N_IMPORT_URL || "import-trades.html";
+    const isActive = href !== "#" && normalizeFile(href.split("?")[0]) === currentFile;
+    const idAttr = item.id ? ` id="${item.id}"` : "";
+    // Every item gets a title tooltip (falling back to its label) so hovering an icon identifies
+    // the page even when the sidebar is collapsed and the text label is hidden.
+    const titleAttr = ` title="${item.title || item.label}"`;
+    return (
+      `<a class="nav-item${isActive ? " active" : ""}"${idAttr} href="${href}"${titleAttr}>` +
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${item.icon}</svg>` +
+      `<span class="nav-label">${item.label}</span>` +
+      `</a>`
+    );
   }
-  renderSection(moreMount, "More", SIDEBAR_MORE_ITEMS);
-  renderSection(wipMount, "Work in Progress", SIDEBAR_WIP_ITEMS);
+  function groupHtml(label, items) {
+    return `<div class="nav-group"><div class="nav-section-label">${label}</div>` + items.map(itemHtml).join("") + `</div>`;
+  }
+  // Same item shape and markup for every section; `groups` is [[heading, [item labels]], ...].
+  // Any item not named in a group still renders (under "More"), so a page added to the list
+  // above can never silently vanish from the sidebar.
+  function renderGroups(mount, groups, items) {
+    if (!mount) return;
+    const byLabel = {}, used = {};
+    items.forEach((i) => { byLabel[i.label] = i; });
+    let html = groups.map((g) => {
+      const list = g[1].map((l) => byLabel[l]).filter(Boolean);
+      list.forEach((i) => { used[i.label] = true; });
+      return list.length ? groupHtml(g[0], list) : "";
+    }).join("");
+    const rest = items.filter((i) => !used[i.label]);
+    if (rest.length) html += groupHtml("More", rest);
+    mount.innerHTML = html;
+  }
+  renderGroups(moreMount, [
+    ["Analyze", ["Performance", "Edge Analysis", "Patterns", "Review", "Tag guide"]],
+    ["Practice", ["Calculator", "Backtester", "Rewind", "Practice"]],
+    ["Data", ["Import Trades"]],
+  ], SIDEBAR_MORE_ITEMS);
+  renderGroups(wipMount, [["In progress", ["Live Trading", "Scanner"]]], SIDEBAR_WIP_ITEMS);
 
   // Pinned Accounts/Settings group. Created here (not hand-written into
   // every page's sidebar markup) and placed as a sibling of .sidebar-nav,

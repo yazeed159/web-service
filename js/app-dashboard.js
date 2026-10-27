@@ -134,13 +134,13 @@
     const scopeTxt = usable ? A.scopeLabel() : "";
     const pnlSum = (list) => list.reduce((a, t) => a + (Number(t.pnl_after_comm) || 0), 0);
 
-    const drawStrip = (carry) => {
+    const drawStrip = (carry, chip) => {
       const added = ledger.reduce((a, e) => a + e.amount, 0);
       const pnl = pnlSum(trades);
       const bal = carry + added + pnl;
       // Time-weighted return for the slice on screen (deposits/withdrawals don't count as profit or loss).
       const twr = BM.timeWeightedReturn(carry, ledger, trades);
-      return '<div class="bal-strip">' +
+      return '<div class="bal-strip">' + (chip || '') +
         '<div class="bal-main"><div class="bal-k">Balance remaining' + (scopeTxt ? ' <span class="dim">\u00b7 ' + escapeHtml(scopeTxt) + '</span>' : '') + '</div>' +
         '<div class="bal-v ' + (bal >= 0 ? "" : "down") + '">' + fmtBalance(bal) + '</div></div>' +
         '<div class="bal-side">' +
@@ -162,7 +162,8 @@
         const p = A.findPeriod(sc.period);
         if (p) carry = BM.balanceBefore(fullLedger.filter((e) => A.ledgerAccountId(e) === sc.ids[0]), all.filter((t) => t.account_id === sc.ids[0]), p.start);
       }
-      let html = drawStrip(carry);
+      let html = "";
+      let chipHtml = "";
       const groups = [];
       sc.ids.forEach((id) => {
         const acc = A.byId(id), periods = A.periodsFor(id);
@@ -178,24 +179,36 @@
         }
       });
       // Compare with what the broker shows. This is the only way to catch a withdrawal that was never logged.
+      // Lives inside the balance card as a small chip; the full wording is in the popover it opens.
       if (sc.ids.length === 1 && window.KV && typeof window.KV.get === "function") {
         const id = sc.ids[0], key = "balance_check:" + id;
         const accEntries = fullLedger.filter((e) => A.ledgerAccountId(e) === id);
         const journalNow = BM.balanceBefore(accEntries, all.filter((t) => t.account_id === id), "9999-12-31");
         const saved = window.KV.get(key);
-        let line = "";
-        if (saved && isFinite(saved.broker)) {
+        const hasSaved = !!(saved && isFinite(saved.broker));
+        let chipCls = "", chipLabel = "Match broker", result = "";
+        if (hasSaved) {
           const d = saved.broker - saved.journal;
-          const verdict = Math.abs(d) < 1 ? '<b class="up">matched</b> (within $1)'
-            : d < 0 ? '<b class="down">broker was ' + fmtBalance(-d) + ' lower</b> \u2014 usually a withdrawal that isn\u2019t logged, or fees the journal doesn\u2019t have'
-            : '<b class="down">broker was ' + fmtBalance(d) + ' higher</b> \u2014 usually a deposit that isn\u2019t logged, or interest/rebates';
-          line = '<span>Broker check on ' + escapeHtml(saved.at) + ': broker ' + fmtBalance(saved.broker) + ', journal ' + fmtBalance(saved.journal) + ' \u2192 ' + verdict + '</span> <button type="button" class="bal-link" data-bal-check-open>Check again</button> <button type="button" class="bal-link" data-bal-check-clear>Clear</button>';
-        } else {
-          line = '<button type="button" class="bal-link" data-bal-check-open>Check against my broker balance</button>';
+          let verdict;
+          if (Math.abs(d) < 1) { chipCls = " ok"; chipLabel = "Matches broker"; verdict = '<b class="up">Matched</b> (within $1)'; }
+          else if (d < 0) { chipCls = " off"; chipLabel = "Broker " + fmtBalance(-d) + " lower"; verdict = '<b class="down">Broker was ' + fmtBalance(-d) + ' lower</b> \u2014 usually a withdrawal that isn\u2019t logged, or fees the journal doesn\u2019t have'; }
+          else { chipCls = " off"; chipLabel = "Broker " + fmtBalance(d) + " higher"; verdict = '<b class="down">Broker was ' + fmtBalance(d) + ' higher</b> \u2014 usually a deposit that isn\u2019t logged, or interest/rebates'; }
+          result = '<div class="bal-pop-res"><div class="bal-pop-when">Last check \u00b7 ' + escapeHtml(saved.at) + '</div>' +
+            '<div class="bal-pop-nums"><span>Broker <b>' + fmtBalance(saved.broker) + '</b></span><span>Journal <b>' + fmtBalance(saved.journal) + '</b></span></div>' +
+            '<div class="bal-pop-verdict">' + verdict + '</div></div>';
         }
-        extras += '<div class="bal-check">' + line + '<span class="bal-check-form" style="display:none"> <input type="number" step="any" id="bal-check-in" class="filter-input" placeholder="Balance your broker shows"> <button type="button" class="bal-link" id="bal-check-save">Save</button></span></div>';
+        chipHtml = '<button type="button" class="bal-chip' + chipCls + '" data-bal-check-open title="Check against my broker balance" aria-haspopup="dialog" aria-expanded="false">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"></path><polyline points="9 12 11 14 15 10"></polyline></svg>' +
+          '<span>' + chipLabel + '</span></button>' +
+          '<div class="bal-pop" role="dialog" aria-label="Check against my broker balance" hidden>' +
+          '<div class="bal-pop-h">Check against your broker</div>' +
+          '<p class="bal-pop-p">Type the balance your broker shows right now. It\u2019s the only way to catch a withdrawal that was never logged.</p>' + result +
+          '<div class="bal-pop-row"><input type="number" step="any" id="bal-check-in" class="filter-input" placeholder="Balance your broker shows"><button type="button" class="bal-pop-save" id="bal-check-save">' + (hasSaved ? "Check again" : "Save") + '</button></div>' +
+          (hasSaved ? '<button type="button" class="bal-pop-clear" data-bal-check-clear>Clear this check</button>' : '') +
+          '</div>';
         el.__balCheck = { key: key, journal: journalNow };
       }
+      html = drawStrip(carry, chipHtml);
       html += extras;
       const rowsHtml = groups.map((g) => {
         const rows = g.periods.slice().reverse().map((p) => {
@@ -214,8 +227,30 @@
       el.querySelectorAll("[data-bal-period]").forEach((b) => b.addEventListener("click", () => {
         A.setScope({ ids: [b.getAttribute("data-bal-acc")], period: b.getAttribute("data-bal-period") });
       }));
-      const open = el.querySelector("[data-bal-check-open]"), form = el.querySelector(".bal-check-form");
-      if (open && form) open.addEventListener("click", () => { form.style.display = "inline"; const i = el.querySelector("#bal-check-in"); if (i) i.focus(); });
+      const chip = el.querySelector(".bal-chip"), pop = el.querySelector(".bal-pop");
+      if (chip && pop) {
+        chip.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const opening = pop.hidden;
+          pop.hidden = !opening;
+          chip.setAttribute("aria-expanded", String(opening));
+          if (opening) { const i = pop.querySelector("input"); if (i) i.focus(); }
+        });
+        const inp = pop.querySelector("#bal-check-in");
+        if (inp) inp.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { const sv = pop.querySelector("#bal-check-save"); if (sv) sv.click(); } });
+      }
+      if (!window.__balPopBound) {
+        window.__balPopBound = true;
+        const closePop = () => {
+          const p = document.querySelector("#dash-balance .bal-pop:not([hidden])");
+          if (!p) return;
+          p.hidden = true;
+          const c = document.querySelector("#dash-balance .bal-chip");
+          if (c) { c.setAttribute("aria-expanded", "false"); }
+        };
+        document.addEventListener("click", (ev) => { const p = document.querySelector("#dash-balance .bal-pop:not([hidden])"); if (p && !p.contains(ev.target)) closePop(); });
+        document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") closePop(); });
+      }
       const clr = el.querySelector("[data-bal-check-clear]");
       if (clr && el.__balCheck) clr.addEventListener("click", () => { if (window.KV.del) window.KV.del(el.__balCheck.key); else window.KV.set(el.__balCheck.key, null); renderBalance(); });
       const save = el.querySelector("#bal-check-save");
