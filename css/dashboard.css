@@ -299,3 +299,248 @@ g[data-drill]:focus-visible, circle[data-drill]:focus-visible { outline-offset: 
 .bal-check .up{color:var(--green)}.bal-check .down{color:var(--red)}
 .bal-link{background:none;border:0;padding:0;margin:0 6px 0 0;color:var(--primary);font:inherit;cursor:pointer;text-decoration:underline}
 .bal-check input{width:190px;margin:0 6px}
+
+
+/* ======================================================================
+   QUIET LEDGER RESTYLE: dashboard (all screen sizes). Companion to the
+   last block of glass.css. The BALANCE is the headline: it sits first on
+   the page and is set larger than the net P&L, which becomes the second
+   figure. Delete this block to go back to the previous dashboard look.
+====================================================================== */
+html body .card, html body .panel-box, html body .equity-panel, html body .day-group,
+  html body .stat-grid, html body .pnl-breakdown, html body .streak-strip,
+  html body .cal-summary-cells, html body .rr-strip, html body .th-card, html body .calc-box,
+  html body .calc-results, html body .tags-panel, html body .advanced-filters, html body .ts-card,
+  html body .chart-panel {
+    background: var(--g-fill) !important;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    border: 1px solid var(--g-line) !important;
+    border-radius: var(--g-r) !important;
+    box-shadow: none !important;
+  }
+html body .card:hover, html body .panel-box:hover, html body .chart-panel:hover,
+  html body .equity-panel:hover, html body .day-group:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    border-color: var(--g-line) !important;
+  }
+html body .panel-box, html body .equity-panel { padding: 22px 24px; }
+html body .dash-hero {
+    background: var(--g-fill) !important;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    border: 1px solid var(--g-line) !important;
+    border-radius: 18px !important;
+    box-shadow: none !important;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 400px);
+    align-items: end;
+    gap: 22px 56px;
+    padding: 30px 34px 24px;
+  }
+html body .dash-hero::before, html body .dash-hero::after { display: none; }
+html body .hero-label { font-size: 13px; margin-bottom: 6px; }
+html body .hero-value {
+    font-size: clamp(52px, 5.6vw, 76px);
+    font-weight: 600;
+    letter-spacing: -0.045em;
+    line-height: 1;
+    margin-bottom: 16px;
+    text-shadow: none;
+  }
+html body .hero-sub { font-family: var(--sans); font-size: 13px; color: var(--text-faint); }
+html body .hero-spark { width: 100%; align-self: end; gap: 10px; }
+html body .hero-spark-label { text-align: right; }
+html body .hero-spark svg { height: auto; aspect-ratio: 220 / 52; }
+html body .hero-cta-row {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding-top: 18px; margin-top: 2px;
+    border-top: 1px solid var(--g-line);
+  }
+html body .hero-day { display: flex; flex-direction: row; align-items: baseline; gap: 12px; background: none; border: 0; box-shadow: none; padding: 0; }
+html body .hero-day-k { font-size: 13px; color: var(--text-dim); }
+html body .hero-day-v { font-size: 18px; font-weight: 600; font-family: var(--sans); }
+html body .hero-cta {
+    display: inline-flex; align-items: center; gap: 8px;
+    min-height: 0; padding: 9px 16px; border-radius: 10px;
+    background: var(--text); color: var(--bg);
+    border: 0; box-shadow: none; animation: none;
+    font-size: 13.5px; font-weight: 600; letter-spacing: -0.005em;
+    text-decoration: none;
+  }
+html body .hero-cta i { background: none; border: 0; width: auto; height: auto; font-size: 18px; line-height: 1; color: inherit; }
+html body .hero-cta:hover { background: color-mix(in srgb, var(--text) 86%, var(--bg)); }
+html body .hero-streak { font-size: 12px; padding: 3px 9px; }
+html body .bal-strip {
+    margin: 16px 0 0;
+    padding: 20px 24px;
+    background: var(--g-fill);
+    border: 1px solid var(--g-line);
+    border-radius: 16px;
+    align-items: center;
+  }
+html body .bal-v { font: 600 34px/1.1 var(--sans); letter-spacing: -0.035em; }
+html body .bal-k { font-size: 13px; margin-bottom: 6px; }
+html body .bal-side { gap: 34px; }
+html body .bal-side div { font-size: 12.5px; color: var(--text-faint); gap: 4px; }
+html body .bal-side b { font: 600 15px var(--sans); }
+html body .bal-check { margin: 10px 2px 18px; }
+html body .bal-link {
+    color: var(--text-dim); text-decoration: underline;
+    text-decoration-color: rgba(255, 255, 255, 0.25); text-underline-offset: 3px;
+  }
+html body .bal-link:hover { color: var(--text); text-decoration-color: currentColor; }
+:root[data-theme="light"] body .bal-link { text-decoration-color: rgba(20, 22, 30, 0.3); }
+html body .kpi-grid.stat-grid {
+    gap: 0 !important;
+    margin: 16px 0 0;
+    background: var(--g-fill) !important;
+    border: 1px solid var(--g-line) !important;
+    border-radius: 16px !important;
+    overflow: hidden;
+    box-shadow: none !important;
+  }
+html body .kpi-card { border-radius: 0 !important; padding: 20px 24px; background: transparent !important; box-shadow: none; }
+html body .kpi-card + .kpi-card { box-shadow: -1px 0 0 var(--g-line) !important; }
+html body .kpi-icon { display: none; }
+html body .stat .label-row { margin-bottom: 10px; }
+html body .stat .value { font-size: 28px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.1; }
+html body .stat .sub-value { font-family: var(--sans); font-size: 12.5px; color: var(--text-faint); }
+html body .kpi-foot { margin-top: 10px; gap: 10px; }
+html body .kpi-delta { font-family: var(--sans); font-weight: 600; font-size: 11.5px; padding: 2px 7px; border-radius: 6px; }
+html body .stat:hover { background: transparent !important; }
+html body .fg-streak { font-size: 26px; font-weight: 600; letter-spacing: -0.03em; }
+html body .fg-sub { font-size: 12.5px; }
+html body .fg-stat b { font: 600 20px var(--sans); letter-spacing: -0.02em; }
+html body .fg-stat em { font-size: 12px; }
+html body .fg-dn { border-top-color: var(--g-line); }
+html body .sde-cell { border-radius: 12px; background: var(--panel-2); border: 1px solid var(--g-line); }
+html body .sde-cell.up { background: var(--green-soft); border-color: transparent; }
+html body .sde-cell.down { background: var(--red-soft); border-color: transparent; }
+html body .sde-pnl { font: 600 18px var(--sans); letter-spacing: -0.02em; }
+html body .cal-cell {
+    background: transparent !important;
+    border: 1px solid var(--g-line) !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+html body .cal-cell.has-trades:hover { transform: none !important; box-shadow: none !important; border-color: var(--border) !important; }
+html body .cal-cell .cell-pnl, html body .cal-week-box .week-pnl { font-family: var(--sans); font-weight: 600; letter-spacing: -0.02em; }
+html body .eq-range-toggle {
+    display: inline-flex; width: auto; gap: 2px; padding: 3px;
+    background: var(--panel-2) !important; border: 0 !important; border-radius: 10px;
+    margin: 4px 0 10px;
+  }
+html body .eq-range-toggle button {
+    border: 0; background: transparent; border-radius: 7px;
+    font: 500 12.5px var(--sans); letter-spacing: 0; padding: 5px 12px; color: var(--text-dim);
+  }
+html body .eq-range-toggle button:hover { color: var(--text); }
+html body .eq-range-toggle button.active { background: var(--panel-3); color: var(--text); box-shadow: none; }
+html body .equity-head .label { font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+html body .equity-head .value { font: 600 20px var(--sans); letter-spacing: -0.03em; }
+html body .equity-stats .eq-stat-value, html body .equity-compare-legend b { font-family: var(--sans); }
+html body .cal-cell.win {
+    background: rgba(47, 208, 138, calc(0.06 + var(--pnl-i, 0.55) * 0.16)) !important;
+    border-color: transparent !important;
+  }
+html body .cal-cell.loss {
+    background: rgba(242, 85, 90, calc(0.06 + var(--pnl-i, 0.55) * 0.16)) !important;
+    border-color: transparent !important;
+  }
+html body .cal-week-box { border-color: transparent !important; background: var(--panel-2) !important; border-radius: 10px; }
+html body .cal-week-box.win { background: rgba(47, 208, 138, 0.09) !important; }
+html body .cal-week-box.loss { background: rgba(242, 85, 90, 0.09) !important; }
+html body .cal-week-box .week-label {
+    text-transform: none; letter-spacing: 0; font-size: 11.5px; font-weight: 500; color: var(--text-faint);
+  }
+html body .cal-cell:not(.win):not(.loss) { border-color: transparent !important; background: transparent !important; }
+html body .cal-cell:not(.win):not(.loss) .date-num { color: var(--text-faint); }
+html body .cal-cell.has-trades .date-num { font-weight: 600; }
+html body .equity-drawdown { opacity: 0.4; }
+html body #equity-svg .equity-path { stroke-width: 1.75; }
+html body .equity-stats { border-top: 0; margin-top: 14px; padding-top: 0; gap: 8px; }
+html body .equity-stats .eq-stat-label { text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--text-faint); }
+html body .equity-stats > span, html body .equity-stats > a {
+    background: var(--panel-2); border: 0 !important; border-radius: 8px; padding: 6px 10px;
+  }
+html body .equity-stats .eq-stat-value { font-size: 12.5px; font-weight: 600; }
+html body .ts-tabs { border: 0 !important; border-radius: 10px; background: var(--panel-2) !important; gap: 2px; }
+html body .ts-tabs button { border-radius: 7px; font-weight: 500; }
+html body .ts-tabs button.on { background: var(--panel-3); box-shadow: none; }
+html body a:not(.hero-cta):not(.nav-item):not(.btn):not([class*="btn"]) { text-underline-offset: 3px; }
+html body .hero-streak, html body .kpi-delta, html body .pnl-tag { border-radius: 6px; }
+html body .bal-strip a, html body .bal-warn a, html body .equity-panel a:not([class]), html body #equity-hint a {
+    color: var(--text); text-decoration: underline; text-decoration-color: rgba(255,255,255,.28); text-underline-offset: 3px;
+  }
+html body .bal-strip a:hover, html body #equity-hint a:hover { text-decoration-color: currentColor; }
+:root[data-theme="light"] body .bal-strip a { text-decoration-color: rgba(20,22,30,.3); }
+html body .score-month-extra { margin-top: auto; padding-top: 18px; }
+html body .panel-box .panel-box-head .title,
+  html body .equity-panel .equity-head .label { font-size: 14.5px !important; font-weight: 600 !important; color: var(--text) !important; letter-spacing: -0.01em !important; }
+html body .cal-month-label { font-size: 13px; font-weight: 600; color: var(--text-dim); }
+/* ---- Balance first, biggest ---- */
+#tab-dashboard.active { display: flex; flex-direction: column; }
+#tab-dashboard.active > * { min-width: 0; }
+#dash-balance { order: -1; }
+#dash-balance:has(.bal-empty) { order: 0; }
+
+html body .bal-strip {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 22px 56px;
+  margin: 0 0 16px; padding: 30px 34px 28px;
+  background:
+    radial-gradient(70% 140% at 0% 0%, color-mix(in srgb, var(--primary) 13%, transparent), transparent 70%),
+    var(--g-fill);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--g-line));
+  border-radius: 18px;
+}
+html body .bal-strip.bal-empty { display: block; padding: 16px 22px; background: var(--g-fill); border-color: var(--g-line); margin: 16px 0 0; }
+html body .bal-k { font-size: 14px; margin-bottom: 8px; color: var(--text-dim); }
+html body .bal-v {
+  font: 600 clamp(56px, 7.2vw, 100px)/1 var(--sans);
+  letter-spacing: -0.05em; color: var(--text);
+}
+html body .bal-v.down { color: var(--red); }
+html body .bal-side { gap: 36px; align-self: end; padding-bottom: 6px; }
+html body .bal-side div { font-size: 13px; gap: 6px; }
+html body .bal-side b { font: 600 20px/1.1 var(--sans); letter-spacing: -0.025em; }
+html body .bal-check { margin: 0 2px 16px; }
+html body .bal-periods, html body .bal-warn { margin-bottom: 16px; }
+
+/* Net P&L is now the second figure */
+html body .dash-hero { margin-bottom: 0; }
+html body .hero-value { font-size: clamp(36px, 3.8vw, 52px); margin-bottom: 12px; }
+html body .dash-hero { padding: 24px 30px 20px; }
+
+/* ---- Phones: same design, stacked ---- */
+@media (max-width: 760px) {
+  html body .bal-strip { grid-template-columns: 1fr; padding: 22px 18px 20px; gap: 18px; }
+  html body .bal-strip.bal-empty { padding: 14px 16px; }
+  html body .bal-v { font-size: clamp(48px, 15vw, 68px); }
+  html body .bal-side { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: 12px; padding: 14px 0 0; border-top: 1px solid var(--g-line); }
+  html body .bal-side b { font-size: 16px; }
+
+  html body .dash-hero {
+    grid-template-columns: 1fr; gap: 16px; padding: 20px 18px 16px !important; border-radius: 18px !important;
+    background: var(--g-fill) !important; box-shadow: none !important; border: 1px solid var(--g-line) !important;
+  }
+  html body .hero-value { font-size: clamp(32px, 10vw, 42px) !important; text-shadow: none; margin-bottom: 10px; }
+  html body .hero-spark { padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
+  html body .hero-spark-label { text-align: left; }
+  html body .hero-cta-row { padding-top: 14px; }
+  html body .hero-cta { flex: 0 0 auto; min-height: 40px; padding: 9px 16px; font-size: 14px; border-radius: 10px; }
+
+  html body .kpi-grid.stat-grid {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px !important;
+    background: transparent !important; border: 0 !important; border-radius: 0 !important; overflow: visible;
+  }
+  html body .kpi-card {
+    padding: 16px !important; border-radius: 14px !important;
+    background: var(--g-fill) !important; border: 1px solid var(--g-line) !important; box-shadow: none !important;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  html body .kpi-card + .kpi-card { box-shadow: none !important; }
+  html body .kpi-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  html body .stat .value { font-size: 24px; }
+}

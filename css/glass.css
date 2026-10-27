@@ -1578,3 +1578,189 @@ table.data-table thead th, .trade-table thead th, .report-table thead th { font-
   :root .sidebar { border-radius: 0 24px 24px 0; }
   :root .sidebar.mobile-open { box-shadow: 18px 0 50px rgba(0,0,0,.35); }
 }
+
+
+/* ======================================================================
+   QUIET LEDGER RESTYLE (all screen sizes; last block in the file so it
+   wins over the glass blocks above). The glass skin stacked a blur, a
+   sheen, a cursor spotlight, a coloured wash, a gradient border and a
+   hover-lift on every box, so everything shouted at the same volume. This
+   turns that down to one idea: flat surfaces separated by hairlines, one
+   typeface, sentence-case labels, and the money figures as the loud thing.
+   Dashboard-specific parts of this restyle live at the end of dashboard.css.
+   To go back to the glass look, delete this block.
+====================================================================== */
+
+/* ---------- Type: one family, tabular figures ---------- */
+:root {
+  --sans: 'Geist', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display: var(--sans);
+  --mono: var(--sans);               /* figures are set in the UI face, not a terminal face */
+  --radius: 12px;
+  --radius-lg: 16px;
+}
+body { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1, "ss01" 1; }
+h1, h2, h3, .brand .name { letter-spacing: -0.02em; }
+
+/* Labels read as words, not as a control panel */
+html body .hero-label,
+html body .stat .label,
+html body .panel-box-head .title,
+html body .section-label,
+html body .nav-section-label,
+html body .fg-sub,
+html body .fg-stat .k,
+html body .sde-head,
+html body .sde-label,
+html body .bal-k,
+html body .bal-periods-h,
+html body .bal-group-h,
+html body .hero-spark-label,
+html body .equity-head .label,
+html body .trade-table th,
+html body .data-table th,
+html body .report-table th,
+html body .cal-dow,
+html body .cal-head {
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-weight: 500;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+html body .nav-section-label { font-size: 12px; padding-top: 18px; }
+html body .hero-label .dim { color: var(--text-faint); }
+
+
+/* ---------- Surfaces: flat, hairline, no glass ---------- */
+:root:not([data-theme="light"]) {
+    --bg: #090a0d;
+    --sidebar-bg: #0b0c10;
+    --g-fill: rgba(255, 255, 255, 0.028);
+    --g-fill-strong: #101218;
+    --g-line: rgba(255, 255, 255, 0.07);
+    --g-hi: rgba(255, 255, 255, 0);
+    --g-shadow: 0 0 0 0 transparent;
+    --g-blur: none;
+    --g-r: 16px;
+    --g-sheen: linear-gradient(transparent, transparent);
+    --g-spot: linear-gradient(transparent, transparent);
+    --g-depth: 0 0 0 0 transparent;
+    --panel-2: rgba(255, 255, 255, 0.04);
+    --panel-3: rgba(255, 255, 255, 0.075);
+    --border: rgba(255, 255, 255, 0.09);
+    --border-soft: rgba(255, 255, 255, 0.06);
+    --text-dim: #a4a8b5;
+    --text-faint: #858a98;
+  }
+:root[data-theme="light"] {
+    --g-sheen: linear-gradient(transparent, transparent);
+    --g-spot: linear-gradient(transparent, transparent);
+    --g-depth: 0 0 0 0 transparent;
+    --g-shadow: 0 1px 2px rgba(30, 30, 60, 0.05);
+    --g-hi: rgba(255, 255, 255, 0);
+    --g-blur: none;
+    --g-fill: #ffffff;
+    --g-fill-strong: #ffffff;
+    --g-line: rgba(20, 22, 30, 0.09);
+  }
+/* The coloured aurora behind everything: nearly gone */
+html body::before { opacity: 0.22 !important; animation: none !important; filter: saturate(.7); }
+html body::after { opacity: 0 !important; }
+html body .ts-card.tone-up, html body .ts-card.tone-down { background: var(--g-fill) !important; }
+html body .panel-box-head { margin-bottom: 18px; }
+html body .panel-box-head .title { font-size: 14px; color: var(--text); font-weight: 600; letter-spacing: -0.01em; }
+html body .panel-box-head .link { color: var(--text-dim); font-size: 12.5px; }
+html body .panel-box-head .link:hover { color: var(--text); text-decoration: none; }
+/* ---------- Chrome: rails that recede ---------- */
+html body .sidebar {
+    background: var(--sidebar-bg);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    box-shadow: none;
+    border-right: 1px solid var(--g-line);
+  }
+html body .topbar {
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    border-radius: 0 !important;
+    box-shadow: none;
+    border-bottom: 1px solid var(--g-line);
+  }
+html body .topbar::after { display: none !important; }
+html body .nav-item { border-radius: 9px; font-weight: 450; }
+html body .nav-item:hover { background: rgba(255, 255, 255, 0.05); }
+html body .nav-item.active {
+    background: rgba(255, 255, 255, 0.075);
+    box-shadow: none;
+    color: var(--text);
+  }
+html body .nav-item.active svg { color: var(--primary); }
+:root[data-theme="light"] body .nav-item:hover { background: rgba(20, 22, 30, 0.05); }
+:root[data-theme="light"] body .nav-item.active { background: rgba(20, 22, 30, 0.07); }
+html body .icon-btn { background: transparent; border: 1px solid var(--g-line); box-shadow: none; border-radius: 10px; }
+html body .icon-btn:hover { background: var(--panel-2); border-color: var(--border); }
+/* ---------- Dashboard hero: the one loud thing ---------- */
+/* ---------- Balance strip: its own row with air above it ---------- */
+/* ---------- KPI row: one strip, no icon tiles ---------- */
+/* ---------- Form guide + month ---------- */
+/* Calendar: days are quiet until they have trades, and then tint, not glow */
+/* ---------- Equity curve controls ---------- */
+/* ---------- Tables: rows, not a spreadsheet grid ---------- */
+html body table.data-table { background: transparent !important; border: 0 !important; border-radius: 0 !important; }
+html body .trade-table thead th, html body .data-table thead th, html body .report-table thead th {
+    background: transparent !important; border-bottom: 1px solid var(--g-line) !important; padding-bottom: 10px;
+  }
+html body .trade-table td, html body .data-table td, html body .report-table td { border-bottom: 1px solid var(--border-soft); }
+html body .trade-table tbody tr:last-child td { border-bottom: 0; }
+html body .trade-table td.mono, html body .pnl-tag { font-family: var(--sans); }
+html body .pnl-tag { font-weight: 600; border-radius: 6px; }
+/* ---------- Primary + secondary buttons: flat ---------- */
+html body .btn-primary, html body .btn-confirm {
+    box-shadow: none !important; animation: none !important;
+  }
+
+
+/* Motion: nothing on the page should lift, drift or pulse on its own */
+
+@media (min-width: 761px) {
+    html body .card, html body .panel-box, html body .stat, html body .kpi-card { animation: none !important; }
+  }
+
+
+/* ======================================================================
+   Pass 2: the pieces that were still loud
+====================================================================== */
+
+/* Sidebar: the active page is a quiet fill, with only its icon in colour */
+:root body .sidebar .nav-item.active,
+  :root body .sidebar.collapsed .nav-item.active {
+    background: rgba(255, 255, 255, 0.075);
+    box-shadow: none;
+    color: var(--text);
+  }
+:root[data-theme="light"] body .sidebar .nav-item.active { background: rgba(20, 22, 30, 0.07); color: var(--text); }
+:root body .sidebar .nav-item.active svg { color: var(--primary); }
+:root body .sidebar .nav-item { font-weight: 450; }
+/* Calendar: tinted, not outlined. Strength of tint still follows the size of the day */
+/* Equity: lighter drawdown wash, finer line, chips in sentence case */
+/* Today / Fri / This week tabs match the 30D / 90D control */
+html body .tf-switcher { border: 0 !important; border-radius: 10px; background: var(--panel-2) !important; }
+html body .tf-btn { border-radius: 7px; }
+html body .tf-btn.active { background: var(--panel-3); box-shadow: none; }
+/* Buttons that are links: dim, underline only on hover */
+/* Pills and chips: smaller radius so they stop looking like candy */
+
+
+
+
+
+
+
+
+/* Phone-only adjustments to the restyle above */
+@media (max-width: 760px) {
+  :root:not([data-theme="light"]) { --g-fill-strong: #101218; }
+  html body .panel-box, html body .equity-panel { padding: 18px 16px; }
+  html body .panel-box-head { margin-bottom: 14px; }
+  html body .topbar { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
