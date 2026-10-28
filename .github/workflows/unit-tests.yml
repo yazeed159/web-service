@@ -1,7 +1,7 @@
 name: Unit tests
 
 # Runs `npm run test:unit` on every push and pull request, so a broken helper is caught
-# before it is deployed. (The Playwright browser tests are separate: `npm test`.)
+# before it is deployed. The `e2e` job runs the Playwright specs against the fake backend.
 on:
   push:
   pull_request:
@@ -16,3 +16,19 @@ jobs:
           node-version: 22
       - run: npm ci --no-audit --no-fund
       - run: npm run test:unit
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/

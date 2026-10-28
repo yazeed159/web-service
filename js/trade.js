@@ -267,6 +267,8 @@
     const tagBlock = (title, html) => html ? `<div style="margin-bottom:10px;"><label style="font-size:11.5px; color:var(--text-faint); display:block; margin-bottom:4px;">${title}</label><div style="display:flex; flex-wrap:wrap; gap:6px;">${html}</div></div>` : "";
     const inputStyle = "background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 8px; font-size:13px; width:100%; box-sizing:border-box;";
     const lbl = "font-size:11.5px; color:var(--text-faint); display:block; margin-bottom:4px;";
+    // Small toggle button (used for the stop/target "None" switches). `attrs` is raw attribute text.
+    const chip = (label, on, attrs) => `<button type="button" ${attrs} aria-pressed="${on ? "true" : "false"}" style="flex:none; cursor:pointer; padding:5px 10px; border-radius:999px; font-size:12px; font-family:inherit; border:1px solid ${on ? "var(--primary)" : "var(--border)"}; background:${on ? "var(--primary-soft)" : "var(--panel-2)"}; color:${on ? "var(--primary)" : "var(--text-dim)"};">${escapeHtml(label)}</button>`;
 
     host.innerHTML = `
       <div class="card" style="margin-bottom:16px;">

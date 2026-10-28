@@ -29,25 +29,31 @@ npm test
 
 `playwright.config.js` defaults `BASE_URL` to `http://localhost:8788`.
 
-## Auth
+## Hermetic by default
 
-If any of these pages redirect to a login screen for a signed-out visitor,
-these tests need a logged-in session — record one once with Playwright's
-`codegen --save-storage=auth.json` against a real login, then run with:
+Every spec imports `test` from `tests/helpers/fixtures.js`, which swaps Supabase for the
+in-memory fake in `tests/browser-harness/fake_supabase.js` (a signed-in user, no network,
+no account; anything that isn't the local server is refused). Seed it per file or describe:
 
-```bash
-STORAGE_STATE=auth.json npm test
+```js
+const { test, expect } = require("./helpers/fixtures");
+const { trade } = require("./helpers/trades");
+test.use({ seed: { trades: [trade({ symbol: "ABCD", behavior_tags: ["fomo"] })] } });
 ```
 
-The tests themselves don't touch trade data (they never assert on rows in
-the Journal table, symbols, or anything else that depends on which trades
-happen to be logged) — only the sidebar's nav highlight and status label,
-which are the same regardless of what account is signed in.
+`seed` is `{ trades, kv, local }` (rows for `trades` / `user_kv`, and localStorage values
+seeded once). Keep it a single object: Playwright treats a 2-element array in `test.use`
+as a `[value, options]` tuple and would silently drop the second trade.
 
-## What's covered vs. not
+With no `BASE_URL`, `playwright.config.js` starts `tests/helpers/static-server.js` itself.
+To run against a deployed site instead, set `BASE_URL` (the fake backend still applies).
 
-These are deliberately narrow: they exist to catch a *specific* class of
-bug (a per-page bit of the persistent sidebar going stale across an SPA
-transition), not to be a general test suite for the site. If you add a new
-page-specific region to the sidebar or topbar later (see the checklist
-comment in `page-transition.js`), add a case here alongside it.
+## What's covered
+
+- `sidebar-nav.spec.js` -- the persistent sidebar staying in sync across SPA navigations.
+- `journal-table.spec.js` -- the Journal rendered with known trades: rows, the one-line Tags
+  cell and its "+N" card (row height / overflow), every filter, the Filters button badge,
+  sort, URL state, paging, empty state.
+
+Add the next screen the same way: seed trades, load the page, assert what is on screen.
+The Python scripts in `tests/browser-harness/` are older print-only probes using the same fake.

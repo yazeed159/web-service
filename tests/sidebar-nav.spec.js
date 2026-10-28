@@ -12,7 +12,12 @@
 //
 // See tests/README.md before running these -- in particular, whether
 // your pages need a logged-in session.
-const { test, expect } = require("@playwright/test");
+// Runs against the in-memory fake Supabase (tests/helpers/fixtures.js), so it needs no
+// login / STORAGE_STATE and works the same locally and in CI.
+const { test, expect } = require("./helpers/fixtures");
+const { trade } = require("./helpers/trades");
+
+test.use({ seed: { trades: [trade({ symbol: "ABCD" }), trade({ symbol: "WXYZ", pnl_after_comm: -22 })] } });
 
 test.describe("sidebar stays in sync across SPA navigations", () => {
   test("index.html Reports tab -> Journal: highlight and status label both update", async ({ page }) => {
@@ -44,7 +49,7 @@ test.describe("sidebar stays in sync across SPA navigations", () => {
 
   test("journal.html -> index.html: hand-written tab buttons come back and bind correctly", async ({ page }) => {
     await page.goto("/journal.html");
-    await page.locator('.sidebar a[href="index.html"]').click();
+    await page.locator('.sidebar a.nav-item[href="index.html"]').click(); // not the logo link, which has the same href
     await expect(page).toHaveURL(/index\.html$|\/$/);
 
     // index.html's Dashboard/Day View/Reports are real <button
@@ -82,12 +87,12 @@ test.describe("sidebar stays in sync across SPA navigations", () => {
     await page.locator('.sidebar a[href="patterns.html"]').click();
     await expect(page).toHaveURL(/patterns\.html$/);
 
-    // Exactly one item in each generated section should be active --
-    // catches a future region-boundary bug where the wrong node range
-    // gets replaced (see swapSidebarMain's node-walk in
-    // page-transition.js) and either nothing or more than one item
-    // ends up marked active.
-    await expect(page.locator("#sidebar-main-section .nav-item.active")).toHaveCount(1);
+    // Patterns lives in the "more" section (Analyze), so nothing in the main section may
+    // stay highlighted from settings.html's neighbours, and exactly one item overall is
+    // active -- catches a region-boundary bug in swapSidebarMain's node-walk (see
+    // page-transition.js) where the wrong range gets replaced and the highlight is lost
+    // or duplicated.
+    await expect(page.locator("#sidebar-main-section .nav-item.active")).toHaveCount(0);
     await expect(page.locator("#sidebar-more-section .nav-item.active")).toHaveCount(1);
     await expect(page.locator("#sidebar-more-section .nav-item.active")).toHaveAttribute("href", "patterns.html");
     await expect(page.locator(".pipeline-status")).toContainText("Patterns");
