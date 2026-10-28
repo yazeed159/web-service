@@ -316,14 +316,14 @@
 
           <label for="password">Password</label>
           <div class="field-pass">
-            <input id="password" type="password" autocomplete="current-password" required minlength="6">
+            <input id="password" type="password" autocomplete="current-password" required>
             <button class="pw-toggle" type="button" id="toggle-password" aria-label="Show password">Show</button>
           </div>
 
           <div class="field-confirm" id="confirm-wrap">
             <label for="confirm-password">Confirm password</label>
             <div class="field-pass">
-              <input id="confirm-password" type="password" autocomplete="new-password" minlength="6">
+              <input id="confirm-password" type="password" autocomplete="new-password" minlength="8">
               <button class="pw-toggle" type="button" id="toggle-confirm-password" aria-label="Show password">Show</button>
             </div>
           </div>
@@ -386,6 +386,10 @@
           toggleLink.textContent = "Sign in";
           confirmWrap.classList.add("show");
           confirmPasswordEl.required = true;
+          // New passwords need 8+ (same rule as Settings). Sign-in stays unrestricted so an older, shorter password still works.
+          passwordEl.setAttribute("minlength", "8");
+          passwordEl.setAttribute("autocomplete", "new-password");
+          modeSub.textContent = "Set a password (at least 8 characters) to start logging trades.";
         } else {
           formHeading.textContent = "Sign in";
           modeSub.textContent = "Enter your email and password to continue.";
@@ -394,6 +398,8 @@
           toggleLink.textContent = "Create one";
           confirmWrap.classList.remove("show");
           confirmPasswordEl.required = false;
+          passwordEl.removeAttribute("minlength");
+          passwordEl.setAttribute("autocomplete", "current-password");
           confirmPasswordEl.value = "";
         }
         setMsg("");
@@ -408,6 +414,10 @@
         var email = emailEl.value.trim();
         var password = passwordEl.value;
 
+        if (mode === "signup" && password.length < 8) {
+          setMsg("Password must be at least 8 characters.", "error");
+          return;
+        }
         if (mode === "signup" && password !== confirmPasswordEl.value) {
           setMsg("Passwords don't match.", "error");
           return;

@@ -126,7 +126,10 @@
     const trades = App.state.trades || [];
     const ledger = App.state.ledger || [];
     if (!ledger.length || !BM) {
-      el.innerHTML = '<div class="bal-strip bal-empty"><span>Balance</span> Add your deposits on <a href="accounts.html">Accounts</a> to see the money left in your account here.</div>';
+      let dismissed = false; try { dismissed = localStorage.getItem("tl:bal-hint-dismissed") === "1"; } catch (e) { /* ignore */ }
+      el.innerHTML = dismissed ? "" : '<div class="bal-hint"><a href="accounts.html">Add your deposits</a> to see your account balance here.<button type="button" class="bal-hint-x" aria-label="Dismiss">\u2715</button></div>';
+      const x = el.querySelector(".bal-hint-x");
+      if (x) x.addEventListener("click", () => { try { localStorage.setItem("tl:bal-hint-dismissed", "1"); } catch (e) { /* ignore */ } el.innerHTML = ""; });
       return;
     }
     const usable = A && A.isAvailable && A.isAvailable();

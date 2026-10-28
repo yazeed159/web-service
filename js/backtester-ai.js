@@ -46,7 +46,7 @@
 (function () {
   "use strict";
 
-  const AI_URL = window.N8N_BACKTEST_AI_URL || "";
+  const AI_URL = window.BACKTEST_AI_URL || window.N8N_BACKTEST_AI_URL || "";
 
   const messagesEl = document.getElementById("ai-cfg-messages");
   const chipsEl = document.getElementById("ai-cfg-chips");

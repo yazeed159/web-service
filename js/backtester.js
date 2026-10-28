@@ -64,7 +64,7 @@
     if (!job || !job.job_id || autoChartedJobs.has(job.job_id)) return;
     const trades = job.trades || [];
     if (!trades.length) return;
-    const url = window.N8N_BACKTEST_IMPORT_URL || "";
+    const url = window.BACKTEST_IMPORT_URL || window.N8N_BACKTEST_IMPORT_URL || "";
     if (!url || url.includes("YOUR-")) return; // not configured -- stay quiet, same as report.js
     autoChartedJobs.add(job.job_id);
     fetch(url, {

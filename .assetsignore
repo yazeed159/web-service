@@ -17,3 +17,6 @@ wrangler.jsonc
 .git
 .wrangler
 .github
+dist
+scripts
+wrangler.min.jsonc

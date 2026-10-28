@@ -644,8 +644,16 @@ window.EMPTY_STATE_ICONS = {
   flask: '<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M19 6h10M20 6v13l-9.5 17a3 3 0 0 0 2.6 4.5h21.8a3 3 0 0 0 2.6-4.5L28 19V6" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M15.5 30h17" stroke="currentColor" stroke-width="2.2" opacity="0.6"/></svg>',
   puzzle: '<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M17 8h8a2.5 2.5 0 0 1 0 5 2.5 2.5 0 0 0 0 5h8v8a2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 0-5 0v8H8v-8a2.5 2.5 0 0 1 5 0 2.5 2.5 0 0 0 5 0v-8a2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 0-5 0V8h9Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
 };
+// title/message are trusted HTML on purpose (callers pass fixed strings with entities like &amp;);
+// never pass user-typed text there -- run it through escapeHtml first. Links, labels and ids are escaped here.
 window.emptyStateHtml = function emptyStateHtml(opts) {
-  opts = opts || {};
+  opts = Object.assign({}, opts || {});
+  const safeHref = (h) => (/^\s*(javascript|data|vbscript):/i.test(String(h || "")) ? "#" : window.escapeHtml(h));
+  opts.actionHref = opts.actionHref ? safeHref(opts.actionHref) : opts.actionHref;
+  opts.secondaryHref = opts.secondaryHref ? safeHref(opts.secondaryHref) : opts.secondaryHref;
+  opts.actionId = opts.actionId ? window.escapeHtml(opts.actionId) : opts.actionId;
+  opts.actionLabel = opts.actionLabel ? window.escapeHtml(opts.actionLabel) : opts.actionLabel;
+  opts.secondaryLabel = opts.secondaryLabel ? window.escapeHtml(opts.secondaryLabel) : opts.secondaryLabel;
   const icon = window.EMPTY_STATE_ICONS[opts.icon] || window.EMPTY_STATE_ICONS.chart;
   const title = opts.title ? `<div class="empty-state-hero-title">${opts.title}</div>` : "";
   const message = opts.message ? `<div class="empty-state-hero-msg">${opts.message}</div>` : "";
@@ -689,3 +697,52 @@ window.chartThemeColors = function chartThemeColors() {
     ? { text: "#565a6b", grid: "rgba(90,80,160,0.08)", border: "rgba(90,80,160,0.16)", bg: "#ffffff", cross: "rgba(110,91,240,0.55)", crossLabel: "#6e5bf0", font: "Inter, system-ui, sans-serif" }
     : { text: "#8b98a5", grid: "rgba(255,255,255,0.045)", border: "rgba(255,255,255,0.10)", bg: "#14161c", cross: "rgba(139,124,246,0.6)", crossLabel: "#6e5bf0", font: "Inter, system-ui, sans-serif" };
 };
+
+// ---------------------------------------------------------------------
+// ServiceWake -- the chart service lives on a free Render instance that sleeps when idle, so the first call
+// after a quiet spell can take 30-60s. Instead of a request that just seems stuck, any fetch to that host
+// that takes more than ~2.5s shows a small "waking the server" note until it settles. We also send one
+// silent no-cors ping per browser session so it is usually already awake by the time you need it.
+// ---------------------------------------------------------------------
+(function () {
+  if (typeof document === "undefined" || window.ServiceWake || typeof window.fetch !== "function") return; // (unit tests load this file without a DOM)
+  const realFetch = window.fetch.bind(window);
+  let pending = 0, timer = null, note = null;
+  const hostOf = () => { try { return new URL(window.CHART_SERVICE_URL).host; } catch (e) { return null; } };
+  function show() {
+    if (note || !document.body) return;
+    note = document.createElement("div");
+    note.className = "service-wake";
+    note.setAttribute("role", "status");
+    note.innerHTML = '<i class="service-wake-dot" aria-hidden="true"></i><span>Waking the analysis server… the free host sleeps when idle, so the first request can take up to a minute.</span>';
+    document.body.appendChild(note);
+  }
+  function hide() { if (note) { note.remove(); note = null; } }
+  function done() { pending = Math.max(0, pending - 1); if (!pending) { clearTimeout(timer); timer = null; hide(); } }
+  window.fetch = function (input, init) {
+    let url = "";
+    try { url = typeof input === "string" ? input : (input && input.url) || ""; } catch (e) { /* ignore */ }
+    const host = hostOf();
+    if (!host || url.indexOf(host) === -1 || (init && init.__quiet)) return realFetch(input, init);
+    pending++;
+    if (!timer) timer = setTimeout(show, 2500);
+    return realFetch(input, init).then((r) => { done(); return r; }, (e) => { done(); throw e; });
+  };
+  window.ServiceWake = { active: () => pending > 0 };
+  const css = document.createElement("style");
+  css.textContent = ".service-wake{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9000;display:flex;align-items:center;gap:10px;max-width:min(520px,calc(100vw - 32px));padding:10px 16px;border-radius:999px;font-size:12.5px;line-height:1.35;color:var(--text);background:var(--panel);border:1px solid var(--border);box-shadow:0 12px 32px -8px rgba(0,0,0,.55)}"
+    + ".service-wake-dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--amber,#e8a94c);animation:swPulse 1.1s ease-in-out infinite}"
+    + "@keyframes swPulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}"
+    + "@media (max-width:760px){.service-wake{bottom:84px;border-radius:14px}}@media (prefers-reduced-motion:reduce){.service-wake-dot{animation:none}}";
+  (document.head || document.documentElement).appendChild(css);
+  // One quiet wake-up ping per session (no-cors: we only want the host to start, not the response).
+  window.addEventListener("load", () => {
+    setTimeout(() => {
+      try {
+        if (sessionStorage.getItem("tl:svc-ping")) return;
+        sessionStorage.setItem("tl:svc-ping", "1");
+        if (window.CHART_SERVICE_URL) realFetch(window.CHART_SERVICE_URL, { mode: "no-cors", keepalive: true }).catch(() => {});
+      } catch (e) { /* ignore */ }
+    }, 1500);
+  });
+})();

@@ -1,0 +1,57 @@
+/* stats.css -- classes that replace the static inline style="" attributes formerly in stats.html.
+   Names spell out the declarations (faint = var(--text-faint), mt8 = margin-top 8px, n = negative). */
+.st-absolute { position: absolute; }
+.st-primary-td-none { color: var(--primary); text-decoration: none; }
+.st-mb18 { margin-bottom: 18px; }
+.st-faint-fs12-mtn8 { color: var(--text-faint); font-size: 12px; margin-top: -8px; }
+.st-faint-fs12-m12-0-0 { color: var(--text-faint); font-size: 12px; margin: 12px 0 0; }
+.st-mt14 { margin-top: 14px; }
+.st-mt20 { margin-top: 20px; }
+.st-mb6 { margin-bottom: 6px; }
+.st-mt22 { margin-top: 22px; }
+.st-mb2 { margin-bottom: 2px; }
+.st-faint-fs12-m2-0-6 { color: var(--text-faint); font-size: 12px; margin: 2px 0 6px; }
+.st-fs22-fw700-m2-0-4 { font-size: 22px; font-weight: 700; margin: 2px 0 4px; }
+.st-h180 { height: 180px; }
+.st-flex-g4 { display: flex; gap: 4px; }
+.st-mt4 { margin-top: 4px; }
+.st-h130 { height: 130px; }
+.st-mt18 { margin-top: 18px; }
+.st-h160 { height: 160px; }
+.st-h220 { height: 220px; }
+.st-fs11-faint-mt6 { font-size: 11px; color: var(--text-faint); margin-top: 6px; }
+.st-cur-pointer-wrap { cursor: pointer; flex-wrap: wrap; }
+.st-w56-tr-nosh-faint { width: 56px; text-align: right; flex-shrink: 0; color: var(--text-faint); }
+.st-w60-tr-nosh-faint { width: 60px; text-align: right; flex-shrink: 0; color: var(--text-faint); }
+.st-w100pct-ord99-fs115-faint-mt2 { width: 100%; order: 99; font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
+.st-flex-jc-between-ai-center-g10 { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.st-fs105 { font-size: 10.5px; }
+.st-fs11-faint-p0-2-6 { font-size: 11px; color: var(--text-faint); padding: 0 2px 6px; }
+.st-mb4 { margin-bottom: 4px; }
+.st-green { color: var(--green); }
+.st-m0 { margin: 0; }
+.st-red { color: var(--red); }
+.st-w150 { width: 150px; }
+.st-p0-8-10-8-mtn4 { padding: 0 8px 10px 8px; margin-top: -4px; }
+.st-fs115-faint-flex-jc-between-td-none { font-size: 11.5px; color: var(--text-faint); display: flex; justify-content: space-between; text-decoration: none; }
+.st-backgroundvarnngreen { background: var(--green); }
+.st-backgroundvarnnred { background: var(--red); }
+.st-mb0 { margin-bottom: 0; }
+.st-minw210 { min-width: 210px; }
+.st-flex1-faint-fs12 { flex: 1; color: var(--text-faint); font-size: 12px; }
+.st-w60-tr-faint { width: 60px; text-align: right; color: var(--text-faint); }
+.st-w50-tr-nosh-faint { width: 50px; text-align: right; flex-shrink: 0; color: var(--text-faint); }
+.st-flex-ai-baseline-g14-m6-0-12 { display: flex; align-items: baseline; gap: 14px; margin: 6px 0 12px; }
+.st-fs14-dim { font-size: 14px; color: var(--text-dim); }
+.st-flex-g12-fs11-faint-jc-flex-end { display: flex; gap: 12px; font-size: 11px; color: var(--text-faint); justify-content: flex-end; }
+.st-w50-tr { width: 50px; text-align: right; }
+.st-w60-tr { width: 60px; text-align: right; }
+.st-minw130 { min-width: 130px; }
+.st-flex1 { flex: 1; }
+.st-w70-tr-nosh-faint { width: 70px; text-align: right; flex-shrink: 0; color: var(--text-faint); }
+.st-m14-0-6-fs12-fw600-dim { margin: 14px 0 6px; font-size: 12px; font-weight: 600; color: var(--text-dim); }
+.st-w110-tr { width: 110px; text-align: right; }
+.st-w70-tr { width: 70px; text-align: right; }
+.st-mt8-faint-fs115 { margin-top: 8px; color: var(--text-faint); font-size: 11.5px; }
+.st-fs20 { font-size: 20px; }
+.st-fs18 { font-size: 18px; }

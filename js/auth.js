@@ -785,13 +785,13 @@
   })();
 
   // ------------------------------------------------------------------
-  // Data helpers. These replace the old fetch("data/trades.json") /
+  // Data helpers. These replace the old fetch("Supabase trades table") /
   // fetch("data/trades/<id>.json") calls -- same output shapes, so
   // existing page code only needs to swap the fetch call itself.
   // ------------------------------------------------------------------
 
   // Returns a Promise<Array> of trade rows, sorted the same way the
-  // publish pipeline sorts data/trades.json (trade_date, entry_time).
+  // publish pipeline sorts Supabase trades table (trade_date, entry_time).
   window.fetchTradesIndex = function () {
     return sessionForData().then(function (session) {
       if (!session) return [];

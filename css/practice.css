@@ -298,7 +298,7 @@
 /* .icon-btn is display:none by default outside the mobile topbar
    (see core.css) -- this one lives in the order ticket and needs to
    always be visible. */
-.pp-shortcuts-gear { margin-left: auto; display: flex !important; width: 30px; height: 30px; }
+.pp-shortcuts-gear { margin-left: auto; display: flex; width: 30px; height: 30px; }
 
 /* ---------- quantity stepper ---------- */
 .pp-size-row { align-items: stretch; }

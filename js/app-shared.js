@@ -489,11 +489,23 @@
   function loadReportsModule() {
     if (App.tabs.reports.applyReportFiltersAndRender) return Promise.resolve();
     if (!reportsLoad) {
+      // The Reports code is split into small files that share one namespace
+      // (App.reports); they must run in this order, with the entry file
+      // (app-reports.js, which registers the tab's two entry points) last.
+      // async = false keeps dynamically-inserted scripts in insertion order.
+      const parts = [
+        "js/reports-kit.js", "js/reports-drill.js", "js/reports-charts.js", "js/reports-agg.js",
+        "js/reports-detail.js", "js/reports-insights.js", "js/reports-sections.js", "js/app-reports.js",
+      ];
       reportsLoad = new Promise((resolve) => {
-        const el = document.createElement("script");
-        el.src = "js/app-reports.js";
-        el.onload = el.onerror = () => resolve();
-        document.body.appendChild(el);
+        let left = parts.length;
+        parts.forEach((src) => {
+          const el = document.createElement("script");
+          el.src = src;
+          el.async = false;
+          el.onload = el.onerror = () => { if (--left === 0) resolve(); };
+          document.body.appendChild(el);
+        });
       });
     }
     return reportsLoad;

@@ -847,12 +847,12 @@
   // Same "Send to Journal" loop as backtester.js: POSTs to
   // N8N_BACKTEST_IMPORT_URL, which should call back to
   // /backtest/history/<id>/enrich on chart_service.py (never the real
-  // journal), and never touch data/trades.json.
+  // journal), and never touch Supabase trades table.
   els.sendJournal.addEventListener("click", () => {
     if (!currentReport || currentReport.source !== "backend") return;
-    const url = window.N8N_BACKTEST_IMPORT_URL || "";
+    const url = window.BACKTEST_IMPORT_URL || window.N8N_BACKTEST_IMPORT_URL || "";
     if (!url || url.includes("YOUR-")) {
-      els.toolbarStatus.textContent = "Set window.N8N_BACKTEST_IMPORT_URL in config.js to your analysis service first.";
+      els.toolbarStatus.textContent = "Set window.BACKTEST_IMPORT_URL in config.js to your analysis service first.";
       return;
     }
     const trades = currentReport.trades;

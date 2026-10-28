@@ -38,6 +38,17 @@
     .setup-row .setup-info { width: 100%; }
     .setup-row .setup-track { min-width: 0; }
   }
+
+.panel-box.is-waiting { display: none; }
+.stats-waiting-card summary { cursor: pointer; list-style: none; padding: 14px 18px; font-size: 13.5px; color: var(--text-dim); display: flex; align-items: center; gap: 8px; }
+.stats-waiting-card summary::-webkit-details-marker { display: none; }
+.stats-waiting-card summary::before { content: "\25B8"; font-size: 11px; transition: transform .15s; color: var(--text-faint); }
+.stats-waiting-card details[open] summary::before { transform: rotate(90deg); }
+.stats-waiting-card summary b { color: var(--primary); }
+.stats-waiting-card ul { list-style: none; margin: 0; padding: 2px 18px 14px; display: grid; gap: 8px; }
+.stats-waiting-card li { display: flex; flex-direction: column; gap: 1px; font-size: 12.5px; padding-top: 8px; border-top: 1px solid var(--border-soft); }
+.stats-waiting-card .sw-t { font-weight: 600; color: var(--text); }
+.stats-waiting-card .sw-why { color: var(--text-faint); }
 </style>
 <script src="js/vendor/lightweight-charts.js" defer></script>
 <link rel="manifest" href="manifest.json">
@@ -53,11 +64,12 @@
 <script src="js/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
+<link rel="stylesheet" href="css/stats.css">
 </head>
 <body>
 <div id="page-progress-bar"></div>
 <div id="page-loader-overlay" aria-hidden="true">
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <svg class="st-absolute" width="0" height="0" aria-hidden="true">
     <defs>
       <linearGradient id="page-loader-ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stop-color="#8b7cf6"/>
@@ -71,7 +83,7 @@
   </div>
 </div>
 <script src="js/page-transition.js"></script>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<svg class="st-absolute" width="0" height="0" aria-hidden="true">
   <defs>
     <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#8457ff"/>
@@ -128,7 +140,7 @@
 
     <div class="content">
       <div class="panel-head">
-        <div class="sub">Trends and edge, not the account view — for balance, day-by-day and recent trades, see <a href="index.html" style="color:var(--primary); text-decoration:none;">Dashboard</a>. Rolled up from every published trade in <span class="mono">data/trades.json</span>.</div>
+        <div class="sub">Trends and edge, not the account view — for balance, day-by-day and recent trades, see <a class="st-primary-td-none" href="index.html">Dashboard</a>. Rolled up from every trade in your journal.</div>
       </div>
 
       <div id="stats-content">
@@ -156,6 +168,42 @@
   "use strict";
 
   const content = document.getElementById("stats-content");
+
+  // Cards that only say "need more trades..." are folded into ONE summary card at the bottom, so a young
+  // journal reads as a short page with real numbers instead of a long column of empty boxes. The cards stay in
+  // the DOM (hidden) because the render code keeps writing into them; they come back as soon as they have data.
+  (function foldEmptyCards() {
+    let busy = false, t = null;
+    const isWaiting = (card) => {
+      if (!card.querySelector(".empty-state")) return false;
+      if (card.querySelector("canvas, svg, table, img, input, select, button, .stat, .kpi-card")) return false;
+      const c = card.cloneNode(true);
+      c.querySelectorAll(".panel-box-head, .empty-state, .sub, .panel-sub, p, .stats-waiting-card").forEach((n) => n.remove());
+      return c.textContent.trim() === "";
+    };
+    function run() {
+      if (busy) return; busy = true; obs.disconnect();
+      try {
+        const cards = Array.from(content.querySelectorAll(".panel-box")).filter((c) => !c.classList.contains("stats-waiting-card"));
+        const waiting = [];
+        cards.forEach((c) => {
+          const w = isWaiting(c);
+          c.classList.toggle("is-waiting", w);
+          if (w) waiting.push({ title: (c.querySelector(".title") || {}).textContent || "Section", why: (c.querySelector(".empty-state") || {}).textContent || "" });
+        });
+        let sum = content.querySelector(".stats-waiting-card");
+        if (!waiting.length) { if (sum) sum.remove(); }
+        else {
+          if (!sum) { sum = document.createElement("div"); sum.className = "panel-box stats-waiting-card mb-16"; content.appendChild(sum); }
+          const open = sum.querySelector("details") && sum.querySelector("details").open;
+          sum.innerHTML = `<details${open ? " open" : ""}><summary><b>${waiting.length}</b> section${waiting.length === 1 ? "" : "s"} waiting for more data</summary>
+            <ul>${waiting.map((w) => `<li><span class="sw-t">${escapeHtml(w.title)}</span><span class="sw-why">${escapeHtml(w.why.trim())}</span></li>`).join("")}</ul></details>`;
+        }
+      } finally { busy = false; obs.observe(content, { childList: true, subtree: true }); }
+    }
+    const obs = new MutationObserver(() => { clearTimeout(t); t = setTimeout(run, 120); });
+    obs.observe(content, { childList: true, subtree: true });
+  })();
 
   function load() {
     return Promise.all([window.fetchTradesIndex(), window.fetchCapitalLedger()])
@@ -281,7 +329,7 @@
     const avgLoss = avg(sorted.filter((r) => !r.win).map((r) => r.pnl_after_comm));
 
     content.innerHTML = `
-      <div class="stat-grid" style="margin-bottom:18px;">
+      <div class="stat-grid st-mb18">
         <div class="stat" id="streak-cell">
           <div class="label-row"><span class="label">Current Streak</span></div>
           <div class="value">—</div>
@@ -293,40 +341,40 @@
         </div>
         <div class="stat">
           <div class="label-row"><span class="label">Net P&amp;L (context)</span></div>
-          <div class="value ${totalPnl >= 0 ? "up" : "down"}" style="font-size:20px;">${fmtMoney(totalPnl)}</div>
+          <div class="value ${totalPnl >= 0 ? "up" : "down"} st-fs20">${fmtMoney(totalPnl)}</div>
           <div class="sub-value">${winRate}% win · ${wins}W/${sorted.length - wins}L</div>
         </div>
       </div>
 
       <div class="panel-box mb-16">
         <div class="panel-box-head"><span class="title">$/Share Edge by Position Size</span></div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Trades sorted by share count and split into quartiles — reveals whether your per-share edge holds up, improves, or gets diluted as you size up. For the win-rate cut of the same split, see <a href="edge-analysis.html" style="color:var(--primary); text-decoration:none;">Edge Analysis</a>.</p>
+        <p class="st-faint-fs12-mtn8">Trades sorted by share count and split into quartiles — reveals whether your per-share edge holds up, improves, or gets diluted as you size up. For the win-rate cut of the same split, see <a class="st-primary-td-none" href="edge-analysis.html">Edge Analysis</a>.</p>
         <div id="pershare-by-size"></div>
-        <p id="pershare-size-insight" style="color:var(--text-faint); font-size:12px; margin:12px 0 0;"></p>
+        <p class="st-faint-fs12-m12-0-0" id="pershare-size-insight"></p>
       </div>
 
       <div class="panel-box mb-16">
         <div class="panel-box-head"><span class="title">Best &amp; Worst by $/Share</span></div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Your most and least efficient trades per share traded — a $2,000 winner on 10,000 shares and a $200 winner on 200 shares show up here on equal footing, unlike a plain P&amp;L leaderboard.</p>
+        <p class="st-faint-fs12-mtn8">Your most and least efficient trades per share traded — a $2,000 winner on 10,000 shares and a $200 winner on 200 shares show up here on equal footing, unlike a plain P&amp;L leaderboard.</p>
         <div id="pershare-leaders"></div>
       </div>
 
       <div class="panel-box mb-16">
         <div class="panel-box-head"><span class="title">$/Share P&amp;L — Distribution &amp; Trend</span></div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Net P&amp;L divided by shares traded, so a 100-share and a 1,000-share trade are judged the same way. The numbers, the shape of the whole distribution, and how it's trending — three views of the same edge.</p>
+        <p class="st-faint-fs12-mtn8">Net P&amp;L divided by shares traded, so a 100-share and a 1,000-share trade are judged the same way. The numbers, the shape of the whole distribution, and how it's trending — three views of the same edge.</p>
 
-        <div class="stat-grid" id="pershare-stats-row" style="margin-top:14px;"></div>
+        <div class="stat-grid st-mt14" id="pershare-stats-row"></div>
 
-        <div style="margin-top:20px;">
-          <div class="label-row" style="margin-bottom:6px;"><span class="label">Distribution — every trade, bucketed by $/share</span></div>
+        <div class="st-mt20">
+          <div class="label-row st-mb6"><span class="label">Distribution — every trade, bucketed by $/share</span></div>
           <div id="pershare-histogram"></div>
         </div>
 
-        <div style="margin-top:22px;">
-          <div class="label-row" style="margin-bottom:2px;"><span class="label">Rolling Trend</span></div>
-          <p style="color:var(--text-faint); font-size:12px; margin:2px 0 6px;">Rolling average over the window set above in Performance Trends (10/20/50 trades).</p>
-          <div id="pershare-trend-headline" style="font-size:22px; font-weight:700; margin:2px 0 4px;">—</div>
-          <div id="pershare-trend-chart" style="height:180px;"></div>
+        <div class="st-mt22">
+          <div class="label-row st-mb2"><span class="label">Rolling Trend</span></div>
+          <p class="st-faint-fs12-m2-0-6">Rolling average over the window set above in Performance Trends (10/20/50 trades).</p>
+          <div class="st-fs22-fw700-m2-0-4" id="pershare-trend-headline">—</div>
+          <div class="st-h180" id="pershare-trend-chart"></div>
         </div>
       </div>
 
@@ -347,34 +395,34 @@
 
       <div class="panel-box mb-16">
         <div class="panel-box-head"><span class="title">Money Left on the Table</span></div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Sum of (suggested better price − actual fill) × shares, across every trade with a flagged better entry/exit.</p>
+        <p class="st-faint-fs12-mtn8">Sum of (suggested better price − actual fill) × shares, across every trade with a flagged better entry/exit.</p>
         <div id="slippage-breakdown"></div>
       </div>
 
       <div class="panel-box mb-16">
         <div class="panel-box-head"><span class="title">Slippage by Setup</span></div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Which setups are costing the most in chased entries and early/late exits.</p>
+        <p class="st-faint-fs12-mtn8">Which setups are costing the most in chased entries and early/late exits.</p>
         <div id="slippage-by-setup"></div>
       </div>
 
       <div class="panel-box mb-16">
         <div class="panel-box-head">
           <span class="title">Discipline Score</span>
-          <span id="discipline-window" style="display:flex; gap:4px;"></span>
+          <span class="st-flex-g4" id="discipline-window"></span>
         </div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">0–100 from what you control, not P&amp;L: rules followed, max daily loss held, journaling, having a plan, stops respected, no size-up after a loss. Parts with no data yet are left out, not scored 0.</p>
+        <p class="st-faint-fs12-mtn8">0–100 from what you control, not P&amp;L: rules followed, max daily loss held, journaling, having a plan, stops respected, no size-up after a loss. Parts with no data yet are left out, not scored 0.</p>
         <div id="discipline-score"></div>
       </div>
 
       <div class="panel-box mb-16">
         <div class="panel-box-head"><span class="title">Setups, Flags &amp; Clean Trades</span></div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Built from the tags, rules check and planned stop you enter on each trade's page — your own read, not the AI's.</p>
+        <p class="st-faint-fs12-mtn8">Built from the tags, rules check and planned stop you enter on each trade's page — your own read, not the AI's.</p>
         <div id="journal-insights"></div>
       </div>
 
       <div class="panel-box mb-16">
         <div class="panel-box-head"><span class="title">Grade vs. P&amp;L</span></div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Self-graded execution quality (1-5 stars, set on each trade's page) compared against net P&amp;L per trade — separate axis from win/loss: a clean 1-star loss and a chased 5-star win both happen.</p>
+        <p class="st-faint-fs12-mtn8">Self-graded execution quality (1-5 stars, set on each trade's page) compared against net P&amp;L per trade — separate axis from win/loss: a clean 1-star loss and a chased 5-star win both happen.</p>
         <div id="grade-breakdown"></div>
       </div>
 
@@ -387,32 +435,32 @@
             <button data-window="50">50</button>
           </div>
         </div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Rolling averages over your last N trades, in the order you took them — smooths out single-trade noise so you can see whether your edge is actually trending up or down.</p>
+        <p class="st-faint-fs12-mtn8">Rolling averages over your last N trades, in the order you took them — smooths out single-trade noise so you can see whether your edge is actually trending up or down.</p>
 
-        <div style="margin-top:4px;">
-          <div class="label-row" style="margin-bottom:2px;"><span class="label">Win Rate</span></div>
-          <div id="quality-winrate-headline" style="font-size:22px; font-weight:700; margin:2px 0 4px;">—</div>
-          <div id="quality-winrate-chart" style="height:130px;"></div>
+        <div class="st-mt4">
+          <div class="label-row st-mb2"><span class="label">Win Rate</span></div>
+          <div class="st-fs22-fw700-m2-0-4" id="quality-winrate-headline">—</div>
+          <div class="st-h130" id="quality-winrate-chart"></div>
         </div>
 
-        <div style="margin-top:18px;">
-          <div class="label-row" style="margin-bottom:2px;"><span class="label">Profit Factor — gross wins ÷ gross losses, capped at 5x</span></div>
-          <div id="quality-pf-headline" style="font-size:22px; font-weight:700; margin:2px 0 4px;">—</div>
-          <div id="quality-pf-chart" style="height:130px;"></div>
+        <div class="st-mt18">
+          <div class="label-row st-mb2"><span class="label">Profit Factor — gross wins ÷ gross losses, capped at 5x</span></div>
+          <div class="st-fs22-fw700-m2-0-4" id="quality-pf-headline">—</div>
+          <div class="st-h130" id="quality-pf-chart"></div>
         </div>
 
-        <div style="margin-top:20px;">
-          <div class="label-row" style="margin-bottom:2px;"><span class="label">Quality Score — blend of win rate, profit factor and avg win/loss, tracked over time</span></div>
-          <p style="color:var(--text-faint); font-size:12px; margin:2px 0 6px;">0–100, averaging win rate, profit factor, and avg win:loss ratio over the window above. Dashboard shows this number as of right now; this is the trend that got it there. Dashed lines mark the 40/70 bands the gauge itself uses.</p>
-          <div id="quality-score-headline" style="font-size:22px; font-weight:700; margin:2px 0 4px;">—</div>
-          <div id="quality-score-chart" style="height:160px;"></div>
+        <div class="st-mt20">
+          <div class="label-row st-mb2"><span class="label">Quality Score — blend of win rate, profit factor and avg win/loss, tracked over time</span></div>
+          <p class="st-faint-fs12-m2-0-6">0–100, averaging win rate, profit factor, and avg win:loss ratio over the window above. Dashboard shows this number as of right now; this is the trend that got it there. Dashed lines mark the 40/70 bands the gauge itself uses.</p>
+          <div class="st-fs22-fw700-m2-0-4" id="quality-score-headline">—</div>
+          <div class="st-h160" id="quality-score-chart"></div>
         </div>
       </div>
 
       <div class="panel-box mb-16">
         <div class="panel-box-head"><span class="title">Slippage Trend</span></div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:-8px;">Cumulative money left on the table over time — climbing means it's getting worse, flattening means fills are getting closer to the suggested price.</p>
-        <div id="slippage-trend-chart" style="height:220px;"></div>
+        <p class="st-faint-fs12-mtn8">Cumulative money left on the table over time — climbing means it's getting worse, flattening means fills are getting closer to the suggested price.</p>
+        <div class="st-h220" id="slippage-trend-chart"></div>
       </div>
     `;
 
@@ -676,7 +724,7 @@
     series.createPriceLine({ price: 0, color: "rgba(139,143,163,0.4)", lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false, title: "breakeven" });
     chart.timeScale().fitContent();
     el.insertAdjacentHTML("beforeend", `
-      <div style="font-size:11px; color:var(--text-faint); margin-top:6px;">${avgWindow}-trade rolling average</div>`);
+      <div class="st-fs11-faint-mt6">${avgWindow}-trade rolling average</div>`);
   }
 
   function renderPerShareBySize(sorted) {
@@ -702,13 +750,13 @@
       const pct = Math.round((Math.abs(perShareAvg) / maxAbsPerShare) * 100);
       const color = perShareAvg >= 0 ? "var(--green)" : "var(--red)";
       const uid = `report-trade-list-${reportRowSeq++}`;
-      return `<div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer; flex-wrap:wrap;">
+      return `<div class="bar-row st-cur-pointer-wrap" data-trade-toggle="${uid}">
         <div class="bar-label">${label}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${color};"></div></div>
         <div style="width:80px; text-align:right; flex-shrink:0; color:${color};">${(perShareAvg >= 0 ? "+" : "-") + "$" + Math.abs(perShareAvg).toFixed(3) + "/sh"}</div>
-        <div style="width:56px; text-align:right; flex-shrink:0; color:var(--text-faint);">${rate}% win</div>
-        <div style="width:60px; text-align:right; flex-shrink:0; color:var(--text-faint);">${bucket.length}x</div>
-        <div style="width:100%; order:99; font-size:11.5px; color:var(--text-faint); margin-top:2px;">${lo}–${hi} shares</div>
+        <div class="st-w56-tr-nosh-faint">${rate}% win</div>
+        <div class="st-w60-tr-nosh-faint">${bucket.length}x</div>
+        <div class="st-w100pct-ord99-fs115-faint-mt2">${lo}–${hi} shares</div>
       </div>
       ${tradeListHtml(bucket, uid)}`;
     }).join("");
@@ -746,19 +794,19 @@
     const ranked = withShares.slice().sort((a, b) => perShare(b) - perShare(a));
     const best = ranked.slice(0, 5);
     const worst = ranked.slice(-5).reverse();
-    const rowHtml = (r) => `<li><a href="trade.html?id=${encodeURIComponent(r.id)}" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-      <span>${escapeHtml(r.symbol)} <span class="${r.win ? "up" : "down"}" style="font-size:10.5px;">${r.win ? "WIN" : "LOSS"}</span></span>
+    const rowHtml = (r) => `<li><a class="st-flex-jc-between-ai-center-g10" href="trade.html?id=${encodeURIComponent(r.id)}">
+      <span>${escapeHtml(r.symbol)} <span class="${r.win ?  st-fs105"up" : "down"}">${r.win ? "WIN" : "LOSS"}</span></span>
       <span class="mono" style="color:${perShare(r) >= 0 ? "var(--green)" : "var(--red)"}; flex-shrink:0;">${(perShare(r) >= 0 ? "+" : "-") + "$" + Math.abs(perShare(r)).toFixed(3) + "/sh"}</span>
-    </a><div style="font-size:11px; color:var(--text-faint); padding:0 2px 6px;">${escapeHtml(r.trade_date)} · ${r.shares.toLocaleString()} sh · ${fmtMoney(r.pnl_after_comm || 0)} total</div></li>`;
+    </a><div class="st-fs11-faint-p0-2-6">${escapeHtml(r.trade_date)} · ${r.shares.toLocaleString()} sh · ${fmtMoney(r.pnl_after_comm || 0)} total</div></li>`;
     el.innerHTML = `
       <div class="report-grid">
         <div>
-          <div class="label-row" style="margin-bottom:4px;"><span class="label" style="color:var(--green);">Best</span></div>
-          <ul class="tag-trade-list open" style="margin:0;">${best.map(rowHtml).join("")}</ul>
+          <div class="label-row st-mb4"><span class="label st-green">Best</span></div>
+          <ul class="tag-trade-list open st-m0">${best.map(rowHtml).join("")}</ul>
         </div>
         <div>
-          <div class="label-row" style="margin-bottom:4px;"><span class="label" style="color:var(--red);">Worst</span></div>
-          <ul class="tag-trade-list open" style="margin:0;">${worst.map(rowHtml).join("")}</ul>
+          <div class="label-row st-mb4"><span class="label st-red">Worst</span></div>
+          <ul class="tag-trade-list open st-m0">${worst.map(rowHtml).join("")}</ul>
         </div>
       </div>
     `;
@@ -788,7 +836,7 @@
     const cell = (label, value, sub) => `
       <div class="stat">
         <div class="label-row"><span class="label">${label}</span></div>
-        <div class="value ${value >= 0 ? "up" : "down"}" style="font-size:18px;">${(value >= 0 ? "+" : "-") + "$" + Math.abs(value).toFixed(3)}</div>
+        <div class="value ${value >= 0 ? "up" : "down"} st-fs18">${(value >= 0 ? "+" : "-") + "$" + Math.abs(value).toFixed(3)}</div>
         ${sub ? `<div class="sub-value">${sub}</div>` : ""}
       </div>`;
     el.innerHTML = [
@@ -838,10 +886,10 @@
       const color = mid >= 0 ? "var(--green)" : "var(--red)";
       const pct = Math.round((b.trades.length / maxCount) * 100);
       const uid = `report-trade-list-${reportRowSeq++}`;
-      return `<div class="bar-row" data-trade-toggle="${uid}" style="cursor:pointer; flex-wrap:wrap;">
-        <div class="bar-label" style="width:150px;">${fmtEdge(b.lo)} to ${fmtEdge(b.hi)}</div>
+      return `<div class="bar-row st-cur-pointer-wrap" data-trade-toggle="${uid}">
+        <div class="bar-label st-w150">${fmtEdge(b.lo)} to ${fmtEdge(b.hi)}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${color};"></div></div>
-        <div style="width:60px; text-align:right; flex-shrink:0; color:var(--text-faint);">${b.trades.length}x</div>
+        <div class="st-w60-tr-nosh-faint">${b.trades.length}x</div>
       </div>
       ${tradeListHtml(b.trades, uid)}`;
     }).join("");
@@ -932,8 +980,8 @@
         <div class="setup-rate" style="color:${rateColor};">${rate}%</div>
         <div class="setup-pnl" style="color:${pnl >= 0 ? "var(--green)" : "var(--red)"};">${fmtMoney(pnl)}</div>
       </div>
-      <div style="padding:0 8px 10px 8px; margin-top:-4px;">
-        <a href="journal.html?setup=${encodeURIComponent(setup)}" style="font-size:11.5px; color:var(--text-faint); display:flex; justify-content:space-between; text-decoration:none;" onclick="event.stopPropagation();">
+      <div class="st-p0-8-10-8-mtn4">
+        <a class="st-fs115-faint-flex-jc-between-td-none" href="journal.html?setup=${encodeURIComponent(setup)}" onclick="event.stopPropagation();">
           <span>${topTag ? `Most common lesson: <span class="lesson-tag">${escapeHtml(topTag[0].replace(/_/g, " "))}</span> (${topTag[1]}x)` : "No recurring lesson tag on this setup."}</span>
           <span>View in Journal →</span>
         </a>
@@ -941,7 +989,7 @@
       ${tradeListHtml(trades, uid)}`;
     }).join("");
     el.innerHTML = entries.length
-      ? `<div class="setup-legend"><span><span class="swatch" style="background:var(--green);"></span>Win</span><span><span class="swatch" style="background:var(--red);"></span>Loss</span></div>${rowsHtml}`
+      ? `<div class="setup-legend"><span><span class="swatch st-backgroundvarnngreen"></span>Win</span><span><span class="swatch st-backgroundvarnnred"></span>Loss</span></div>${rowsHtml}`
       : `<div class="empty-state small">No setup_type data yet.</div>`;
     bindTradeToggles(el);
   }
@@ -961,7 +1009,7 @@
     }
     const el = document.getElementById("slippage-breakdown");
     el.innerHTML = `
-      <div class="stat-grid" style="margin-bottom:0;">
+      <div class="stat-grid st-mb0">
         <div class="stat">
           <div class="label-row"><span class="label">On Entries</span></div>
           <div class="value ${entrySlip <= 0 ? "up" : "down"}">${fmtMoney(-entrySlip)}</div>
@@ -1068,7 +1116,7 @@
         <div class="bar-label">${escapeHtml(setup.replace(/_/g, " "))}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${color};"></div></div>
         <div style="width:70px; text-align:right; flex-shrink:0; color:${color};">${fmtMoney(-cost)}</div>
-        <div style="width:60px; text-align:right; flex-shrink:0; color:var(--text-faint);">${rows.length}x</div>
+        <div class="st-w60-tr-nosh-faint">${rows.length}x</div>
       </div>
       ${tradeListHtml(rows, uid)}`;
     }).join("");
@@ -1112,26 +1160,26 @@
     const covered = Math.round(cur.coveredWeight);
     const bars = cur.components.map((c) => {
       if (c.value === null) {
-        return `<div class="bar-row"><div class="bar-label" style="min-width:210px;">${escapeHtml(c.label)}</div><div style="flex:1; color:var(--text-faint); font-size:12px;">no data yet</div><div style="width:60px; text-align:right; color:var(--text-faint);">${c.weight}%</div></div>`;
+        return `<div class="bar-row"><div class="bar-label st-minw210">${escapeHtml(c.label)}</div><div class="st-flex1-faint-fs12">no data yet</div><div class="st-w60-tr-faint">${c.weight}%</div></div>`;
       }
       const v = Math.round(c.value);
       const col = v >= 75 ? "var(--green)" : v >= 50 ? "var(--text-dim)" : "var(--red)";
-      return `<div class="bar-row"><div class="bar-label" style="min-width:210px;">${escapeHtml(c.label)}</div>
+      return `<div class="bar-row"><div class="bar-label st-minw210">${escapeHtml(c.label)}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${v}%; background:${col};"></div></div>
         <div style="width:50px; text-align:right; flex-shrink:0; color:${col};">${v}%</div>
-        <div style="width:60px; text-align:right; flex-shrink:0; color:var(--text-faint);">n=${c.n}</div>
-        <div style="width:50px; text-align:right; flex-shrink:0; color:var(--text-faint);">${c.weight}%</div></div>`;
+        <div class="st-w60-tr-nosh-faint">n=${c.n}</div>
+        <div class="st-w50-tr-nosh-faint">${c.weight}%</div></div>`;
     }).join("");
     const worst = cur.components.filter((c) => c.value !== null).sort((a, b) => a.value - b.value)[0];
     el.innerHTML = `
-      <div style="display:flex; align-items:baseline; gap:14px; margin:6px 0 12px;">
+      <div class="st-flex-ai-baseline-g14-m6-0-12">
         <span style="font-size:38px; font-weight:700; color:${color};">${score}</span>
-        <span style="font-size:14px; color:var(--text-dim);">${window.Discipline.grade(cur.score)}</span>
+        <span class="st-fs14-dim">${window.Discipline.grade(cur.score)}</span>
         ${delta}
       </div>
-      <div style="display:flex; gap:12px; font-size:11px; color:var(--text-faint); justify-content:flex-end;"><span style="width:50px; text-align:right;">Score</span><span style="width:60px; text-align:right;">Sample</span><span style="width:50px; text-align:right;">Weight</span></div>
+      <div class="st-flex-g12-fs11-faint-jc-flex-end"><span class="st-w50-tr">Score</span><span class="st-w60-tr">Sample</span><span class="st-w50-tr">Weight</span></div>
       ${bars}
-      <p style="color:var(--text-faint); font-size:12px; margin:12px 0 0;">Based on ${cur.trades} trade${cur.trades === 1 ? "" : "s"}; ${covered}% of the score's weight has data. Weakest area: <b>${escapeHtml(worst.label)}</b> (${Math.round(worst.value)}%).${covered < 60 ? " Low coverage — treat this as a rough read until more of the journal is filled in." : ""}</p>`;
+      <p class="st-faint-fs12-m12-0-0">Based on ${cur.trades} trade${cur.trades === 1 ? "" : "s"}; ${covered}% of the score's weight has data. Weakest area: <b>${escapeHtml(worst.label)}</b> (${Math.round(worst.value)}%).${covered < 60 ? " Low coverage — treat this as a rough read until more of the journal is filled in." : ""}</p>`;
   }
 
   // P&L by setup, the total cost of each flagged behaviour, clean vs not-clean trades (all from the
@@ -1159,16 +1207,16 @@
       const color = key === "total" ? (total >= 0 ? "var(--green)" : "var(--red)") : (avgPnl >= 0 ? "var(--green)" : "var(--red)");
       const uid = `report-trade-list-${reportRowSeq++}`;
       return `<div class="bar-row cursor-pointer" data-trade-toggle="${uid}">
-        <div class="bar-label" style="min-width:130px;">${escapeHtml(label)}</div>
-        <div style="flex:1;"></div>
+        <div class="bar-label st-minw130">${escapeHtml(label)}</div>
+        <div class="st-flex1"></div>
         <div style="width:110px; text-align:right; flex-shrink:0; color:${color};">${fmtMoney(key === "total" ? total : avgPnl)} ${key === "total" ? "total" : "avg"}</div>
-        <div style="width:70px; text-align:right; flex-shrink:0; color:var(--text-faint);">${winPct(items)}% win</div>
-        <div style="width:70px; text-align:right; flex-shrink:0; color:var(--text-faint);">${avgR === null ? "—" : (avgR >= 0 ? "+" : "") + avgR.toFixed(2) + "R"}</div>
-        <div style="width:50px; text-align:right; flex-shrink:0; color:var(--text-faint);">${items.length}x</div>
+        <div class="st-w70-tr-nosh-faint">${winPct(items)}% win</div>
+        <div class="st-w70-tr-nosh-faint">${avgR === null ? "—" : (avgR >= 0 ? "+" : "") + avgR.toFixed(2) + "R"}</div>
+        <div class="st-w50-tr-nosh-faint">${items.length}x</div>
       </div>
       ${tradeListHtml(items.map((x) => x.r), uid)}`;
     };
-    const section = (title, body) => `<div style="margin:14px 0 6px; font-size:12px; font-weight:600; color:var(--text-dim);">${title}</div>${body}`;
+    const section = (title, body) => `<div class="st-m14-0-6-fs12-fw600-dim">${title}</div>${body}`;
 
     const bySetup = {};
     tagged.forEach((x) => { if (x.r.setup_type) (bySetup[x.r.setup_type] = bySetup[x.r.setup_type] || []).push(x); });
@@ -1190,16 +1238,16 @@
       const lr = rs.filter((v) => v <= 0);
       const wrate = wr.length / rs.length;
       const expectancy = avgR; // mean R per trade == expectancy in R
-      rSummary = `<p style="color:var(--text-faint); font-size:12px; margin:12px 0 0;">R-stats over ${withR.length} trade${withR.length === 1 ? "" : "s"} with a planned stop: expectancy <b style="color:${expectancy >= 0 ? "var(--green)" : "var(--red)"};">${expectancy >= 0 ? "+" : ""}${expectancy.toFixed(2)}R</b> per trade, avg win ${wr.length ? "+" + (sum(wr) / wr.length).toFixed(2) : "—"}R, avg loss ${lr.length ? (sum(lr) / lr.length).toFixed(2) : "—"}R, win rate ${(wrate * 100).toFixed(0)}%.</p>`;
+      rSummary = `<p class="st-faint-fs12-m12-0-0">R-stats over ${withR.length} trade${withR.length === 1 ? "" : "s"} with a planned stop: expectancy <b style="color:${expectancy >= 0 ? "var(--green)" : "var(--red)"};">${expectancy >= 0 ? "+" : ""}${expectancy.toFixed(2)}R</b> per trade, avg win ${wr.length ? "+" + (sum(wr) / wr.length).toFixed(2) : "—"}R, avg loss ${lr.length ? (sum(lr) / lr.length).toFixed(2) : "—"}R, win rate ${(wrate * 100).toFixed(0)}%.</p>`;
     }
 
     el.innerHTML = `
-      <div style="display:flex; gap:12px; font-size:11px; color:var(--text-faint); justify-content:flex-end;"><span style="width:110px; text-align:right;">P&amp;L</span><span style="width:70px; text-align:right;">Win</span><span style="width:70px; text-align:right;">Avg R</span><span style="width:50px; text-align:right;">Trades</span></div>
+      <div class="st-flex-g12-fs11-faint-jc-flex-end"><span class="st-w110-tr">P&amp;L</span><span class="st-w70-tr">Win</span><span class="st-w70-tr">Avg R</span><span class="st-w50-tr">Trades</span></div>
       ${flagRows.length ? section("Flag cost (total P&L of trades with each flag)", flagRows.map(([k, v]) => bar(TC.label(k), v, "total")).join("")) : ""}
       ${setupRows.length ? section("By setup (avg per trade)", setupRows.map(([k, v]) => bar(window.setupLabel ? window.setupLabel(k) : k, v, "avg")).join("")) : ""}
       ${(yes.length || no.length) ? section("Clean vs not clean (avg per trade)", [yes.length ? bar("Clean trades", yes, "avg") : "", no.length ? bar("Not clean", no, "avg") : ""].join("")) : ""}
       ${rSummary}
-      <div style="margin-top:8px; color:var(--text-faint); font-size:11.5px;">${tagged.length} of ${sorted.length} trades tagged.</div>
+      <div class="st-mt8-faint-fs115">${tagged.length} of ${sorted.length} trades tagged.</div>
     `;
     bindTradeToggles(el);
   }
@@ -1242,8 +1290,8 @@
         <div class="bar-label">${window.TradeGrade.starsHtml(g, { size: 12 })}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${pct}%; background:${color};"></div></div>
         <div style="width:80px; text-align:right; flex-shrink:0; color:${color};">${fmtMoney(pnl)} avg</div>
-        <div style="width:70px; text-align:right; flex-shrink:0; color:var(--text-faint);">${rate}% win</div>
-        <div style="width:60px; text-align:right; flex-shrink:0; color:var(--text-faint);">${trades.length}x</div>
+        <div class="st-w70-tr-nosh-faint">${rate}% win</div>
+        <div class="st-w60-tr-nosh-faint">${trades.length}x</div>
       </div>
       ${tradeListHtml(trades, uid)}`;
     }).join("");
@@ -1255,8 +1303,8 @@
 
     el.innerHTML = `
       ${rows}
-      ${ungraded.length ? `<div style="margin-top:8px; color:var(--text-faint); font-size:11.5px;">${ungraded.length} trade${ungraded.length === 1 ? "" : "s"} not graded yet — excluded above.</div>` : ""}
-      <p style="color:var(--text-faint); font-size:12px; margin:12px 0 0;">${rNote}</p>
+      ${ungraded.length ? `<div class="st-mt8-faint-fs115">${ungraded.length} trade${ungraded.length === 1 ? "" : "s"} not graded yet — excluded above.</div>` : ""}
+      <p class="st-faint-fs12-m12-0-0">${rNote}</p>
     `;
     bindTradeToggles(el);
   }

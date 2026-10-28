@@ -1,0 +1,8 @@
+# Cloudflare Workers static-asset response headers (applies to every file).
+# Conservative on purpose: nothing here restricts scripts/styles (the pages use inline code), it only closes
+# the doors this site never needs -- being framed by other sites, plugin content, <base> hijacking, MIME sniffing.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Content-Security-Policy: object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'

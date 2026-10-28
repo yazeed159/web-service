@@ -9,7 +9,7 @@
   // instance the same way #import-trades-link in trade.html is pointed at
   // its form URL. The actual URL lives in config.js (window.N8N_SR_URL) so
   // it only has to be set in one place.
-  const SR_ANALYSIS_URL = window.N8N_SR_URL || "";
+  const SR_ANALYSIS_URL = window.SR_URL || window.N8N_SR_URL || "";
 
   const params = new URLSearchParams(window.location.search);
   const id = params.get("id");

@@ -6,12 +6,15 @@
   "scripts": {
     "test": "playwright test",
     "test:unit": "node --test tests/edge-stats.test.js tests/journal.test.js tests/more-buttons.test.js tests/broker-sync-details.test.js tests/tag-catalog-sheet.test.js tests/balance-math.test.js tests/setup-scorecards.test.js tests/import-gaps.test.js tests/backup.test.js tests/import-panel.test.js tests/market-date.test.js tests/loss-limit.test.js tests/kv-guard.test.js tests/kv-merge.test.js tests/review-math.test.js tests/a11y-static.test.js tests/error-ship.test.js tests/chat-links.test.js tests/chat-facts.test.js",
+    "build:min": "node scripts/build-min.mjs",
+    "deploy:min": "npm run build:min && npx wrangler deploy -c wrangler.min.jsonc",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui"
   },
   "devDependencies": {
     "@playwright/test": "^1.47.0",
     "axe-core": "^4.10.0",
+    "esbuild": "^0.28.2",
     "jsdom": "^25.0.0"
   }
 }

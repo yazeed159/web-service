@@ -109,6 +109,21 @@ before any page will show data.
 - **AI Chat** — floating bubble on every page, reads your trade history + optionally one trade's live indicators
 - **Backtester** — `POST /backtest/start` + poll `/backtest/status/<job_id>`; "Configure with AI" panel drives it conversationally; "Send to Journal" posts results through the same AI-verdict pipeline as real trades, into that run's own isolated report (never your real journal)
 
+## Optional: smaller (minified) deploy
+
+Normal deploys are unchanged: `git push` and Cloudflare serves this folder exactly as written, comments and all.
+If you ever want faster first loads, there is an opt-in build that writes a minified **copy** into `dist/`
+(about 621 KB -> 364 KB of JS/CSS as downloaded). Your source files are never modified.
+
+```
+npm install          # once (adds esbuild)
+npm run build:min    # writes ./dist and prints the size saving
+npm run deploy:min   # build + deploy ./dist using wrangler.min.jsonc
+```
+
+`dist/` is git-ignored and ignored by `wrangler.jsonc`, so it never gets uploaded by a normal deploy.
+The build script is `scripts/build-min.mjs` (commented). `sw.js` and `js/vendor/*` are copied as-is.
+
 ## History
 
 Earlier version of this project was a fully static, single-user,

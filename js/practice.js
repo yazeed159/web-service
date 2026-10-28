@@ -3,7 +3,7 @@
 
   // ==================================================================
   // Practice tab — free-form paper trading against a real logged
-  // trade's own chart window (data/trades.json + data/trades/<id>.json,
+  // trade's own chart window (your trades + their per-trade chart data (Supabase),
   // same files journal.html/trade.html/rewind.html already read).
   //
   // Unlike rewind.html (which asks graded yes/no questions about ONE
@@ -133,7 +133,7 @@
   // Webhook for the optional "Support & Resistance" box, same one
   // trade.js uses -- reads the symbol's prior daily bars and returns
   // support/resistance levels. Only ever called on click.
-  const SR_ANALYSIS_URL = window.N8N_SR_URL || "";
+  const SR_ANALYSIS_URL = window.SR_URL || window.N8N_SR_URL || "";
 
   // ---------------------------------------------------------------
   // shared helpers (same conventions as rewind.js / trade.js / app.js)
@@ -570,7 +570,7 @@
   // on resume, keyed by session.chartId)
   // ---------------------------------------------------------------
   const state = {
-    index: [],          // data/trades.json rows
+    index: [],          // Supabase trades table rows
     trade: null,        // full data/trades/<id>.json for the loaded chart
     bars: [],
     barIndex: 0,         // index of the bar currently forming
@@ -723,7 +723,7 @@
 
   // ---------------------------------------------------------------
   // setup screen -- single "pick a random chart" CTA over
-  // data/trades.json (same source rewind.js indexes). Used to be a
+  // Supabase trades table (same source rewind.js indexes). Used to be a
   // search box + setup-type filter + scrollable candidate list;
   // simplified down to just the random pick, since in practice
   // nobody was browsing the list -- they wanted a chart to trade.

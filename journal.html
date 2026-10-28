@@ -118,6 +118,7 @@
         <div id="fill-float-label">Starting…</div>
       </div>
 
+      <div class="filter-toolbar" id="filter-toolbar">
       <button type="button" class="filters-toggle" id="filters-toggle" aria-expanded="false" aria-controls="journal-filters">
         <span>Filters</span><span class="filters-toggle-count" id="filters-toggle-count"></span><span class="filters-toggle-chev" aria-hidden="true">&#9662;</span>
       </button>
@@ -160,6 +161,7 @@
       </div>
 
       <div class="filter-presets" id="filter-presets"></div>
+      </div>
 
       <div id="journal-content">
         <div class="loading-line skel-cards" role="status" aria-busy="true" aria-label="Loading"><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div><div class="skel-card"><div class="skel skel-avatar"></div><div class="skel-rowbody"><div class="skel skel-line w40"></div><div class="skel skel-line w60"></div></div><div class="skel skel-pnl"></div></div></div>
@@ -249,9 +251,16 @@
   // review's lesson tags). Tap a pill for its exact criteria; the pencil opens a quick note.
   function tagsCellHtml(r) {
     const all = (r.behavior_tags || []).concat(r.lesson_tags || []).filter(Boolean);
-    const pills = all.map((t) => window.TagCatalog.pillHtml(t, { label: tagLabel(t) })).join(" ");
+    const SHOW = 2; // first two inline; the rest tuck behind a "+N" chip so one trade is one tidy line
+    const pills = all.map((t, i) => {
+      const h = window.TagCatalog.pillHtml(t, { label: tagLabel(t) });
+      return i < SHOW ? h : h.replace('class="pill', 'class="tag-extra pill');
+    }).join("");
+    const more = all.length > SHOW
+      ? `<button type="button" class="tags-more" data-tags-toggle aria-expanded="false" title="Show all ${all.length} tags"><b>+${all.length - SHOW}</b></button>`
+      : "";
     return `<span class="tags-cell">
-        <span class="tags-cell-pills">${pills || `<span class="dim">—</span>`}</span>
+        <span class="tags-cell-pills">${pills || `<span class="dim">\u2014</span>`}${more}</span>
         <button type="button" class="tags-edit-btn" data-quick-edit="${escapeHtml(r.id)}" title="Quick edit note">&#9998;</button>
       </span>`;
   }
@@ -260,7 +269,7 @@
   const subtypeLabel = (c) => (c === "COMMON" ? "Common stock" : String(c));
   const commSplitOf = (r) => (r.commission_in != null && r.commission_out != null ? `in $${Number(r.commission_in).toFixed(2)} \u00b7 out $${Number(r.commission_out).toFixed(2)}` : "");
   const ALL_COLUMNS = [
-    { id: "trade_date", label: "Date", sortable: true, width: 100, csv: (r) => r.trade_date, render: (r) => escapeHtml(r.trade_date) },
+    { id: "trade_date", label: "Date", sortable: true, width: 112, csv: (r) => r.trade_date, render: (r) => escapeHtml(r.trade_date) },
     { id: "symbol", label: "Symbol", sortable: true, width: 90, csv: (r) => r.symbol, render: (r) => escapeHtml(r.symbol) },
     { id: "setup_type", label: "Setup", sortable: true, width: 130, csv: (r) => r.setup_type || "", render: (r) => `${r.setup_type ? window.setupTagDot(r.setup_type) : ""}${escapeHtml(r.setup_type ? (window.setupLabel ? window.setupLabel(r.setup_type) : r.setup_type.replace(/_/g, " ")) : "—")}` },
     { id: "entry_price", label: "Entry", sortable: true, width: 80, csv: (r) => Number(r.entry_price).toFixed(2), render: (r) => `$${Number(r.entry_price).toFixed(2)}` },
@@ -994,7 +1003,7 @@
           </button>
         </div>
         <div class="table-scroll">
-        <table class="data-table journal-data-table" id="journal-table">
+        <table class="data-table journal-data-table" id="journal-table" style="min-width:${colDefsByOrder().reduce((n, c) => n + (colWidths[c.id] || 100), 0)}px;">
           ${colgroupHtml()}
           <thead>${headerRowHtml()}</thead>
           <tbody id="journal-tbody">
@@ -1072,6 +1081,14 @@
       return;
     }
     if (e.target.closest("#export-btn")) { openExportDialog(); return; }
+    const moreBtn = e.target.closest("[data-tags-toggle]");
+    if (moreBtn) {
+      const cell = moreBtn.closest(".tags-cell"), open = !cell.classList.contains("open");
+      cell.classList.toggle("open", open);
+      moreBtn.setAttribute("aria-expanded", String(open));
+      moreBtn.innerHTML = open ? "<b>\u2212</b>" : `<b>+${cell.querySelectorAll(".tag-extra").length}</b>`;
+      return;
+    }
     const quickEditBtn = e.target.closest("[data-quick-edit]");
     if (quickEditBtn) { openQuickEdit(quickEditBtn.getAttribute("data-quick-edit"), quickEditBtn.closest(".tags-cell")); return; }
     if (e.target.closest(".quick-edit-panel")) return; // swallow, handled by its own buttons below
@@ -1168,10 +1185,13 @@
     btn.addEventListener("click", () => setOpen(!box.classList.contains("open")));
     // Coming back from a trade? Keep the panel the way it was left.
     try { if (smSnap && smSnap.back && sessionStorage.getItem("tl:journal:filters-open") === "1") setOpen(true); } catch (e) { /* ignore */ }
-    // Desktop shows the same Filters bar (with the active-filter count) but starts open.
+    // Desktop shows the same Filters button (with the active-filter count), folded until opened.
     if (!(window.matchMedia && window.matchMedia("(max-width: 760px)").matches)) {
       let saved = null; try { saved = sessionStorage.getItem("tl:journal:filters-open"); } catch (e) { /* ignore */ }
-      setOpen(saved !== "0");
+      setOpen(saved === "1"); // starts folded -- the open panel floats over the table, it never pushes it down
+      // Floating panel: click elsewhere / Esc folds it away.
+      document.addEventListener("click", (e) => { if (box.classList.contains("open") && !e.target.closest("#filter-toolbar")) setOpen(false); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && box.classList.contains("open")) { setOpen(false); btn.focus(); } });
     }
     box.addEventListener("input", refresh);
     box.addEventListener("change", refresh);

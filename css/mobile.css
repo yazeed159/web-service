@@ -25,7 +25,7 @@
     box-sizing: border-box;
     min-height: 44px;
     border-radius: 16px !important;
-    font-size: 16px !important;   /* anything smaller makes iOS Safari zoom on focus */
+    font-size: 16px;   /* anything smaller makes iOS Safari zoom on focus */
   }
   :root textarea:not(.chat-input):not([id^="chatw"]) { min-height: 88px; }
   /* Tables / inline editors that deliberately render tiny cells keep their size */
@@ -36,7 +36,7 @@
             .empty-state-hero, .th-card, .it-card, .panel-box) {
     border-radius: 24px !important;   /* glass.css sets some of these with !important */
   }
-  :root .it-card { border-radius: 24px !important; }       /* glass.css forces 26px with !important */
+  :root .it-card { border-radius: 24px; }       /* glass.css forces 26px with !important */
   :root :is(#edge-jumpnav, .lt-mode-banner, .sc-banner, .bt-run-row, .th-bar, .journal-sticky-bar) {
     border-radius: 18px;
   }
@@ -45,12 +45,12 @@
   /* The table itself used to draw a bordered box behind the row cards and
      the rows had no gap, so cards overlapped and the frame showed through. */
   :root .table-scroll:has(> table.journal-data-table) {
-    background: none !important; border: 0 !important; box-shadow: none !important;
+    background: none; border: 0; box-shadow: none;
     border-radius: 0; overflow: visible;
     -webkit-backdrop-filter: none; backdrop-filter: none;
   }
   :root table.journal-data-table {
-    background: none !important; border: 0 !important; box-shadow: none !important; border-radius: 0;
+    background: none; border: 0; box-shadow: none; border-radius: 0;
   }
   :root table.journal-data-table tbody { display: flex; flex-direction: column; gap: 10px; padding: 10px 10px 4px; }
   :root table.journal-data-table tbody tr[data-id] { margin: 0; }
@@ -80,7 +80,7 @@
   /* The tab bar's "More" button already opens the drawer (it just calls
      click() on this hamburger), so showing both was two buttons for one job.
      Hidden, not removed: "More" still needs it in the DOM. */
-  :root #mobile-nav-btn { display: none !important; }
+  :root #mobile-nav-btn { display: none; }
 
   /* ---- 8. Folded intro blurbs: show that they can be unfolded --------- */
   /* common.css folds long intros to 2 lines and unfolds on tap, with nothing
@@ -145,7 +145,6 @@
 }
 @media (max-width: 360px) {
   :root .ts-main { gap: 8px; }
-  :root .ts-right { width: 104px; }
   :root .ts-tabs { max-width: 100%; }
   :root div.dn-datebar { flex-wrap: wrap; }
   :root div.dn-datebar input#dn-date { min-width: 0; }
@@ -188,9 +187,9 @@
   :root[data-theme="light"] { --g-shadow: 0 6px 16px rgba(70,60,140,.12); }
 
   /* Static background: no endless repaint under every card */
-  :root body::before { animation: none !important; will-change: auto !important; filter: none !important; }
-  :root body::after { display: none !important; }              /* grain + blend mode */
-  :root .topbar::after { animation: none !important; }          /* endless gradient ticker */
+  :root body::before { animation: none; will-change: auto !important; filter: none !important; }
+  :root body::after { display: none; }              /* grain + blend mode */
+  :root .topbar::after { animation: none; }          /* endless gradient ticker */
 
   /* Top bar: sticky over scrolling content, so use a dense fill instead of live blur */
   :root .topbar { background: color-mix(in srgb, var(--panel) 92%, transparent) !important; }
@@ -202,13 +201,13 @@
     -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
   }
   :root .sidebar-backdrop, :root .qa-backdrop, :root .ui-modal-overlay, :root .rpt-chart-modal-backdrop {
-    -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: rgba(5,6,12,.58) !important;
+    -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(5,6,12,.58) !important;
   }
   :root .chatw-launcher { -webkit-backdrop-filter: none; backdrop-filter: none; }
 
   /* Chart readouts move under your finger: no live blur on those */
   :root .equity-tooltip, :root .equity-yval-label, :root .chart-info-overlay {
-    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
     background: color-mix(in srgb, var(--panel) 92%, transparent) !important;
   }
 

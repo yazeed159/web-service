@@ -233,7 +233,7 @@
   // Shared renderer for the "More" and "Work in Progress" sections --
   // same item shape, same markup, just a different label and list.
   function itemHtml(item) {
-    const href = item.href || window.N8N_IMPORT_URL || "import-trades.html";
+    const href = item.href || window.IMPORT_URL || window.N8N_IMPORT_URL || "import-trades.html";
     const isActive = href !== "#" && normalizeFile(href.split("?")[0]) === currentFile;
     const idAttr = item.id ? ` id="${item.id}"` : "";
     // Every item gets a title tooltip (falling back to its label) so hovering an icon identifies
@@ -589,4 +589,34 @@
   // Day View / Reports are hash tabs on index.html, which change without a
   // page load, so keep the bar's highlight in step with them.
   window.addEventListener("hashchange", function () { bottomNav(); });
+})();
+
+// ---------------------------------------------------------------------
+// Sidebar overflow cue: on short screens the nav list scrolls, but nothing said so (Practice / Import Trades
+// simply looked cut off). Fade the edge that has more behind it, and keep the current page's link in view.
+// ---------------------------------------------------------------------
+(function () {
+  function init() {
+    const nav = document.querySelector(".sidebar-nav");
+    if (!nav || nav.__fadeWired) return;
+    nav.__fadeWired = true;
+    const update = () => {
+      const more = nav.scrollHeight - nav.clientHeight > 4;
+      const top = more && nav.scrollTop > 4, bottom = more && nav.scrollTop + nav.clientHeight < nav.scrollHeight - 4;
+      nav.setAttribute("data-fade", top && bottom ? "both" : top ? "top" : bottom ? "bottom" : "");
+    };
+    const reveal = () => {
+      const a = nav.querySelector(".nav-item.active");
+      if (!a) return;
+      const n = nav.getBoundingClientRect(), r = a.getBoundingClientRect();
+      if (r.top < n.top + 8 || r.bottom > n.bottom - 8) nav.scrollTop += (r.top + r.height / 2) - (n.top + n.height / 2);
+    };
+    nav.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    new MutationObserver(() => { update(); reveal(); }).observe(nav, { childList: true, subtree: true });
+    setTimeout(() => { reveal(); update(); }, 60);
+    update();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
+  window.addEventListener("pageshow", init);
 })();

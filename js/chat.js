@@ -19,7 +19,7 @@
   // The actual URL lives in config.js (window.N8N_CHAT_URL), same pattern
   // as the Support/Resistance webhook in trade.js -- point it at your own
   // n8n webhook there.
-  const CHAT_URL = window.N8N_CHAT_URL || "";
+  const CHAT_URL = window.CHAT_URL || window.N8N_CHAT_URL || "";
   const Facts = window.ChatFacts || null; // js/chat-facts.js (loaded just before this file)
 
   const HISTORY_SENT = 6;      // turns sent with each AI call

@@ -1,57 +1,30 @@
 // Site-wide settings.
-// Change your import-trades page link ONCE here — every page picks it up automatically.
-window.N8N_IMPORT_URL = "import-trades.html";
 
-// SR / Chat / Backtest AI now go straight to chart_service.py on Render
-// (ai_routes.py's blueprint) instead of n8n webhooks -- same request/
-// response contracts, just served from the same host as CHART_SERVICE_URL
-// below. Kept as separate window.* names (not derived from
-// CHART_SERVICE_URL) in case you ever want to point them at a different
-// host again.
-window.N8N_SR_URL = "https://chart-service-wroj.onrender.com/support-resistance";
-window.N8N_CHAT_URL = "https://chart-service-wroj.onrender.com/trade-chat";
+// Where the Import Trades sidebar link points (js/nav-render.js reads this at render time).
+window.IMPORT_URL = "import-trades.html";
 
-// "Configure with AI" panel on the Backtester tab (backtester.html /
-// backtester-ai.js). Same request/response pattern as N8N_CHAT_URL:
-// each turn POSTs { message, history, draft, schema } and expects back
-// { reply, config?, status } where status is "asking" while it's still
-// gathering info and "ready" once it has enough to show the person a
-// final summary to confirm. See the header comment in backtester-ai.js
-// for the exact contract -- wire this to a new webhook node in n8n
-// (same "Build Prompt -> LLM -> Parse Reply -> Respond" shape as the
-// existing "Chat Webhook Trigger" branch).
-window.N8N_BACKTEST_AI_URL = "https://chart-service-wroj.onrender.com/backtest-ai";
-
-// Backtester tab's "Send to Journal" button (backtester.js). POSTs the
-// current run's trades to an n8n webhook so each trade can get the SAME
-// chart-generation + vision-LLM verdict treatment a real fill gets.
-// IMPORTANT -- this must stay isolated from your real trading journal:
-// the webhook node should NOT write these into data/trades.json or the
-// shared Google Sheet. Instead have it POST its per-trade output (chart
-// image, verdict, lessons, better-entry/exit) back to the `callback_url`
-// included in the request body -- chart_service.py's POST
-// /backtest/history/<job_id>/enrich -- which merges that onto the
-// matching trade inside THIS run's own saved report
-// (backtest_reports/<job_id>.json) only. Reopening the run later (View
-// Report) then shows it as that run's own self-contained mini report,
-// with zero effect on real trading stats/dashboards.
-window.N8N_BACKTEST_IMPORT_URL = "https://chart-service-wroj.onrender.com/backtest-import";
-
-// Base URL for chart_service.py -- used directly (no n8n) by both:
-//  - Backtester tab (backtester.html / backtester.js), for /backtest/* routes
-//    (a multi-day scan is started + polled rather than a single request/response)
-//  - AI Chat tab (chat.html / chat.js), for a lightweight /generate-chart call
-//    when a message clearly refers to a specific logged trade -- gives the
-//    model real indicator data (VWAP/EMA/MACD at entry, S/R levels, etc.)
-//    instead of just the trade's raw P&L row. Fails silently if unset or
-//    unreachable; chat still works off the trade-journal text alone either way.
-// Stable Render URL for the chart-service deploy -- unlike LIVE_SERVICE_URL
-// below, this one doesn't rotate; no per-session update needed. (Leftover
-// from the pre-migration architecture: this used to be a local
-// start_chart_service.ps1 + ngrok tunnel that changed on every restart --
-// see README's "History" section. That's gone; this is now just the
-// Render deploy's URL, same as N8N_SR_URL/N8N_CHAT_URL/etc. above.)
+// chart_service.py -- the Flask API deployed on Render (see the companion chart-service repo).
+// Everything AI/heavy goes through it: support/resistance, chat, backtests, chart generation, CSV import.
+// The Render URL is stable. (Free instances sleep when idle, so the first request after a quiet spell can
+// take a while; js/utils.js's ServiceWake shows a "waking the server" note while that happens.)
 window.CHART_SERVICE_URL = "https://chart-service-wroj.onrender.com";
+
+// Endpoints on that service. Each is derived from CHART_SERVICE_URL so there is one place to change.
+window.SR_URL = window.CHART_SERVICE_URL + "/support-resistance";            // trade.html / practice.html S/R
+window.CHAT_URL = window.CHART_SERVICE_URL + "/trade-chat";                  // floating chat bubble
+window.BACKTEST_AI_URL = window.CHART_SERVICE_URL + "/backtest-ai";          // Backtester "Configure with AI"
+// Backtester "Send to Journal": POSTs a run's trades so each gets the same chart + AI verdict treatment as a
+// real fill. It is isolated from the real journal -- results are merged back onto that run's own saved report only
+// (POST /backtest/history/<job_id>/enrich), never into real trades or dashboards.
+window.BACKTEST_IMPORT_URL = window.CHART_SERVICE_URL + "/backtest-import";
+
+// Legacy names from when these were n8n webhooks. Nothing should need them any more, but old code and
+// bookmarks of this file may still read them, so they stay as aliases.
+window.N8N_IMPORT_URL = window.IMPORT_URL;
+window.N8N_SR_URL = window.SR_URL;
+window.N8N_CHAT_URL = window.CHAT_URL;
+window.N8N_BACKTEST_AI_URL = window.BACKTEST_AI_URL;
+window.N8N_BACKTEST_IMPORT_URL = window.BACKTEST_IMPORT_URL;
 
 // live-trading.html / live-trading.js. THIS IS NOT chart_service.py --
 // it's live-service, a separate Docker container that runs on YOUR OWN
@@ -72,11 +45,11 @@ window.LIVE_SERVICE_URL = "https://pushing-republican-education-livecam.trycloud
 // this user's own trades (Row Level Security scopes every query to
 // auth.uid() automatically, so no user_id filtering is needed client-side).
 // The anon key is safe to expose in the browser; it can only do what RLS
-// allows. NEVER put the service_role key here -- that one only belongs in
-// n8n's credentials store.
+// allows. NEVER put the service_role key here -- that one belongs only in
+// server-side secrets (the Render service / GitHub Actions), never in the browser.
 window.SUPABASE_URL = "https://vxddylzwyyhkvptztkpr.supabase.co";
 window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4ZGR5bHp3eXloa3ZwdHp0a3ByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyOTI5MTgsImV4cCI6MjEwMzg2ODkxOH0.c8CsoRwoSSTboXhi8asY3FgFXPCFaCxEOftnACGedrI";
 
 // Note: the Import Trades sidebar link no longer needs a patch here --
-// js/nav-render.js resolves window.N8N_IMPORT_URL itself at render time
+// js/nav-render.js resolves window.IMPORT_URL itself at render time
 // (including on every SPA navigation, not just once on initial load).

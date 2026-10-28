@@ -2,7 +2,7 @@
 // stars), completely separate from win/loss (a trade can be a winner
 // with sloppy execution, or a loser that was played exactly to plan).
 //
-// Schema: `grade` (integer 1-5, optional) on both the data/trades.json
+// Schema: `grade` (integer 1-5, optional) on both the trades table
 // index row and the data/trades/<id>.json detail file -- same "flat
 // optional field, missing = no data yet" pattern as sector/country and
 // the avg_volume_tag/rvol_tag/float_tag trio. See README's Data Schema
