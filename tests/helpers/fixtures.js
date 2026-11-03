@@ -32,8 +32,8 @@ const test = base.test.extend({
     const { trades = [], kv = [], local = {} } = seed;
     // Hermetic: anything that isn't the local server is refused.
     await context.route((u) => !/^http:\/\/(localhost|127\.0\.0\.1)/.test(u.toString()), (r) => r.abort());
-    await context.route("**/vendor/supabase.js", (r) => r.fulfill({ body: FAKE, contentType: "application/javascript" }));
-    await context.route("**/vendor/lightweight-charts.js", (r) => r.fulfill({ body: CHARTS_STUB, contentType: "application/javascript" }));
+    await context.route("**/vendor/supabase.js*", (r) => r.fulfill({ body: FAKE, contentType: "application/javascript" }));
+    await context.route("**/vendor/lightweight-charts.js*", (r) => r.fulfill({ body: CHARTS_STUB, contentType: "application/javascript" }));
     // Seed before any page script runs. localStorage seeds only apply on first load
     // so a reload inside a test sees what the page itself saved.
     await page.addInitScript(({ trades, kv, local }) => {

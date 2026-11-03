@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Daily — trade.log</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/glass.css">
+<style>
+  .dn-grid{display:grid;gap:16px;max-width:980px;}
+  .dn-datebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .dn-datebar input[type=date]{background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:13px;}
+  .dn-lbl{font-size:11.5px;color:var(--text-faint);display:block;margin-bottom:4px;}
+  .dn-in,.dn-ta{background:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 9px;font-size:13px;width:100%;box-sizing:border-box;font-family:inherit;}
+  .dn-ta{resize:vertical;}
+  .dn-row2{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;}
+  .dn-check{display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0;}
+  .dn-check button{margin-left:auto;background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:12px;}
+  .dn-stats{display:flex;flex-wrap:wrap;gap:18px;font-size:13px;}
+  .dn-stats b{font-size:15px;}
+  .dn-status{font-size:11.5px;color:var(--text-faint);}
+  .dn-week{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .dn-week th,.dn-week td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--border);}
+  .dn-week th:first-child,.dn-week td:first-child{text-align:left;}
+  .dn-week th{color:var(--text-faint);font-weight:500;font-size:11.5px;}
+  .dn-week tr.sel td{background:var(--primary-soft);}
+  .dn-week a{color:inherit;text-decoration:none;}
+  .dn-warn{color:var(--red);}
+  .dn-lblrow{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px;}
+  .dn-quickfill{background:none;border:none;color:var(--primary);cursor:pointer;font-size:11.5px;padding:0;}
+  .dn-quickfill:hover{text-decoration:underline;}
+  .dn-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+  .dn-hint{font-size:12px;color:var(--text-faint);display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px;}
+  .dn-hint .pill{cursor:default;}
+  .dn-badge{font-size:11.5px;color:var(--text-faint);}
+  .dn-more-toggle{background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:11.5px;padding:0;text-decoration:underline;margin-top:8px;}
+  .dn-extra{display:none;margin-top:10px;}
+  .dn-extra.open{display:block;}
+  .dn-streak{display:inline-flex;align-items:center;gap:4px;}
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0b0f">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light"){var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#f5f6f9");}}catch(e){}})();</script>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="trade.log">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="expect" href="#page-title" blocking="render">
+<script src="js/core/app-boot.js"></script>
+<script src="js/core/pwa-register.js" defer></script>
+<link rel="stylesheet" href="css/buttons.css">
+<link rel="stylesheet" href="css/mobile.css">
+</head>
+<body>
+<div id="page-progress-bar"></div>
+<div id="page-loader-overlay" aria-hidden="true">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="page-loader-ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#8b7cf6"/>
+        <stop offset="100%" stop-color="#22d3ee"/>
+      </linearGradient>
+    </defs>
+  </svg>
+  <div class="page-loader-mark">
+    <span><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="6" y1="11" x2="6" y2="17"></line><rect x="4.5" y="12" width="3" height="4" rx="1" stroke="none"></rect><line x1="12" y1="6" x2="12" y2="19"></line><rect x="10.5" y="8" width="3" height="8" rx="1" stroke="none"></rect><line x1="18" y1="3" x2="18" y2="15"></line><rect x="16.5" y="5" width="3" height="6" rx="1" stroke="none"></rect></g></svg></span>
+    <svg class="page-loader-ring" viewBox="0 0 78 78"><circle cx="39" cy="39" r="31"></circle></svg>
+  </div>
+</div>
+<script src="js/core/page-transition.js"></script>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="modernEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <a href="index.html" class="brand">
+        <span class="mark"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="6" y1="11" x2="6" y2="17"></line><rect x="4.5" y="12" width="3" height="4" rx="1" stroke="none"></rect><line x1="12" y1="6" x2="12" y2="19"></line><rect x="10.5" y="8" width="3" height="8" rx="1" stroke="none"></rect><line x1="18" y1="3" x2="18" y2="15"></line><rect x="16.5" y="5" width="3" height="6" rx="1" stroke="none"></rect></g></svg></span>
+        <span class="name">trade<span class="muted">.log</span></span>
+      </a>
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div id="sidebar-main-section"></div>
+
+
+      <div id="sidebar-more-section"></div>
+
+
+      <div id="sidebar-wip-section"></div>
+<script src="js/core/nav-render.js"></script>
+</nav>
+
+    <div class="sidebar-bottom">
+      <div class="pipeline-status"><span class="dot"></span><span>Daily</span></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 id="page-title">Daily Plan &amp; Review</h1>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="dn-grid">
+
+        <div class="dn-datebar">
+          <button class="icon-btn icon-btn-visible" id="dn-prev" style="width:auto;padding:4px 10px;">← Prev</button>
+          <input type="date" id="dn-date" aria-label="Date">
+          <button class="icon-btn icon-btn-visible" id="dn-next" style="width:auto;padding:4px 10px;">Next →</button>
+          <button class="icon-btn icon-btn-visible" id="dn-today" style="width:auto;padding:4px 10px;">Today</button>
+          <span class="dn-status" id="dn-status"></span>
+        </div>
+
+        <div class="card" id="dn-summary-card">
+          <div style="font-weight:600;margin-bottom:10px;">This day's trading</div>
+          <div class="dn-stats" id="dn-summary"><span class="skel skel-line" role="status" aria-busy="true" aria-label="Loading" style="display:inline-block;width:180px;"></span></div>
+        </div>
+
+        <div class="card" id="dn-thoughts-card" style="display:none;">
+          <div style="font-weight:600;margin-bottom:8px;">Quick notes <span style="font-weight:400;color:var(--text-faint);font-size:12px;">— jotted from your phone during the day</span></div>
+          <div id="dn-thoughts"></div>
+        </div>
+
+        <div class="card">
+          <div style="font-weight:600;margin-bottom:12px;">Plan <span style="font-weight:400;color:var(--text-faint);font-size:12px;">— fill in before the open</span> <span class="dn-badge dn-streak" id="dn-streak" style="float:right;"></span></div>
+          <div class="dn-hint" id="dn-watchfor"></div>
+          <div class="dn-row2" style="margin-bottom:12px;">
+            <div>
+              <div class="dn-lblrow"><label class="dn-lbl" for="dn-maxloss" style="margin-bottom:0;">Max daily loss ($)</label><button type="button" class="dn-quickfill" id="dn-maxloss-fill" style="display:none;"></button></div>
+              <input class="dn-in" id="dn-maxloss" type="number" min="0" step="1" inputmode="decimal">
+            </div>
+            <div>
+              <div class="dn-lblrow"><label class="dn-lbl" for="dn-goal" style="margin-bottom:0;">Daily goal ($)</label><button type="button" class="dn-quickfill" id="dn-goal-fill" style="display:none;"></button></div>
+              <input class="dn-in" id="dn-goal" type="number" min="0" step="1" inputmode="decimal">
+            </div>
+          </div>
+          <div style="margin-bottom:12px;">
+            <label class="dn-lbl" for="dn-plan">Game plan</label>
+            <textarea class="dn-ta" id="dn-plan" rows="3" placeholder="Watchlist, catalysts, setups I'll take, what I'll skip…"></textarea>
+          </div>
+          <div class="dn-lblrow"><label class="dn-lbl" style="margin-bottom:0;">Pre-market checklist</label><span class="dn-badge" id="dn-checklist-count"></span></div>
+          <div id="dn-checklist"></div>
+          <div style="display:flex;gap:6px;margin-top:6px;">
+            <input class="dn-in" id="dn-check-new" placeholder="+ add checklist item (Enter)" style="max-width:280px;">
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="font-weight:600;margin-bottom:12px;">Review <span style="font-weight:400;color:var(--text-faint);font-size:12px;">— after the close, tap what applies</span></div>
+          <div style="margin-bottom:14px;">
+            <label class="dn-lbl">Did I follow my plan?</label>
+            <div id="dn-followed" style="display:flex;gap:6px;"></div>
+          </div>
+          <div class="dn-row2" style="margin-bottom:6px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));">
+            <div>
+              <label class="dn-lbl">What went well <span style="font-weight:400;color:var(--text-faint);">(auto)</span></label>
+              <div class="dn-chips" id="dn-well-chips"></div>
+            </div>
+            <div>
+              <label class="dn-lbl">What to fix <span style="font-weight:400;color:var(--text-faint);">(auto)</span></label>
+              <div class="dn-chips" id="dn-fix-chips"></div>
+            </div>
+          </div>
+          <button type="button" class="dn-more-toggle" id="dn-extra-toggle">+ add a note</button>
+          <div class="dn-extra dn-row2" id="dn-extra" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr));">
+            <div><label class="dn-lbl" for="dn-well">Anything else that went well</label><textarea class="dn-ta" id="dn-well" rows="2"></textarea></div>
+            <div><label class="dn-lbl" for="dn-fix">Anything else to fix</label><textarea class="dn-ta" id="dn-fix" rows="2"></textarea></div>
+          </div>
+          <div style="margin-top:12px;"><label class="dn-lbl" for="dn-tomorrow">Focus for tomorrow</label><textarea class="dn-ta" id="dn-tomorrow" rows="2" placeholder="Optional — today's 'to fix' picks already carry forward automatically."></textarea></div>
+        </div>
+
+        <div class="card">
+          <div style="font-weight:600;margin-bottom:4px;">Week rollup <span style="font-weight:400;color:var(--text-faint);font-size:12px;" id="dn-week-range"></span></div>
+          <div style="overflow-x:auto;"><table class="dn-week" id="dn-week"></table></div>
+          <div id="dn-week-foot" style="margin-top:10px;font-size:12.5px;color:var(--text-dim);"></div>
+        </div>
+
+        <div class="footer">trade.log</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/core/utils.js"></script>
+<script src="js/core/config.js"></script>
+<script src="js/vendor/supabase.js?v=1"></script>
+<script src="js/core/auth.js"></script>
+<script src="js/accounts/accounts.js"></script>
+<script src="js/trade/tag-catalog.js"></script>
+<script src="js/trade/trade-notes.js"></script>
+<script src="js/daily/daily-notes.js"></script>
+<script src="js/daily/discipline.js"></script>
+<script src="js/core/global-search.js"></script>
+<script src="js/core/shortcuts-help.js"></script>
+<script src="js/core/common.js"></script>
+<script src="js/core/select-enhance.js" defer></script>
+<script src="js/core/mobile-tables.js"></script>
+<script src="js/core/glossary.js"></script>
+<script src="js/core/mobile-extras.js"></script>
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const pad = (n) => String(n).padStart(2, "0");
+  const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parse = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); };
+  const money = (v) => (v < 0 ? "-$" : "$") + Math.abs(v).toFixed(2);
+  const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  let trades = [];
+  const todayISO = () => (window.MarketDate ? window.MarketDate.today() : iso(new Date()));   // US market date, not the device's
+  let date = (new URLSearchParams(location.search).get("date")) || todayISO();
+  let day = null;
+  let timer = null;
+
+  function load() {
+    day = Object.assign(
+      { plan: "", max_loss: null, goal: null, checks: {}, went_well: "", to_fix: "",
+        went_well_tags: [], to_fix_tags: [], followed_plan: null, tomorrow: "", thoughts: [] },
+      window.DailyNotes.get(date) || {}
+    );
+    day.thoughts = (day.thoughts || []).slice();
+    day.checks = Object.assign({}, day.checks);
+    day.went_well_tags = (day.went_well_tags || []).slice();
+    day.to_fix_tags = (day.to_fix_tags || []).slice();
+  }
+  function persist() {
+    const st = $("dn-status");
+    st.textContent = "Saving…";
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      window.DailyNotes.save(date, day);
+      st.textContent = "Saved";
+      setTimeout(() => { if (st.textContent === "Saved") st.textContent = ""; }, 1500);
+      renderSummary(); renderWeek();
+    }, 500);
+  }
+
+  // ---- per-day numbers: trades from Supabase + your trade-notes tags ----
+  function dayStats(d) {
+    const rows = trades.filter((t) => t.trade_date === d);
+    const entries = window.TradeNotes.all();
+    const pnl = rows.reduce((s, t) => s + (typeof t.pnl_after_comm === "number" ? t.pnl_after_comm : 0), 0);
+    const wins = rows.filter((t) => t.win).length;
+    let broke = 0, mistakes = 0, journaled = 0;
+    rows.forEach((t) => {
+      if (window.TagCatalog.isClean(t) === false) broke++;                 // tagged, but not a clean trade
+      (t.behavior_tags || []).forEach((k) => { if (window.TagCatalog.tone(k) === "watch") mistakes++; });
+      if (entries[t.id]) journaled++;
+    });
+    // Worst intraday drawdown of cumulative net P&L (in entry-time order),
+    // so "breached max loss" also catches a day you clawed back from.
+    let cum = 0, low = 0;
+    rows.slice().sort((a, b) => String(a.entry_time).localeCompare(String(b.entry_time))).forEach((t) => {
+      cum += typeof t.pnl_after_comm === "number" ? t.pnl_after_comm : 0;
+      if (cum < low) low = cum;
+    });
+    return { rows, n: rows.length, pnl, wins, broke, mistakes, journaled, worst: low };
+  }
+
+  function renderSummary() {
+    const s = dayStats(date);
+    const el = $("dn-summary");
+    if (!s.n) { el.innerHTML = `<span style="color:var(--text-faint);">No trades on this day.</span>`; return; }
+    const parts = [
+      `<span>Trades <b>${s.n}</b></span>`,
+      `<span>Net P&amp;L <b class="${s.pnl >= 0 ? "up" : "down"}">${money(s.pnl)}</b></span>`,
+      `<span>Win rate <b>${Math.round((s.wins / s.n) * 100)}%</b></span>`,
+      `<span>Journaled <b>${s.journaled}/${s.n}</b></span>`,
+      `<span>Not clean <b class="${s.broke ? "dn-warn" : ""}">${s.broke}</b></span>`,
+    ];
+    if (day.max_loss != null) {
+      const breached = -s.worst > day.max_loss;
+      parts.push(`<span>Max loss <b class="${breached ? "dn-warn" : ""}">${breached ? "BREACHED" : "held"}</b> <span style="color:var(--text-faint);font-size:12px;">(worst drawdown ${money(s.worst)} vs -$${day.max_loss})</span></span>`);
+    }
+    if (day.goal != null) parts.push(`<span>Goal <b class="${s.pnl >= day.goal ? "up" : ""}">${s.pnl >= day.goal ? "hit" : "not hit"}</b></span>`);
+    el.innerHTML = parts.join("");
+  }
+
+  function renderWeek() {
+    const d = parse(date);
+    const monday = addDays(date, -((d.getDay() + 6) % 7));
+    const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+    $("dn-week-range").textContent = `· ${monday} → ${days[6]}`;
+    const notes = window.DailyNotes.allDays();
+    let tN = 0, tPnl = 0, tBroke = 0, tBreach = 0, tPlanned = 0, tFollowedNo = 0, tFollowedAnswered = 0;
+    const mistakeCount = {};
+    const entries = window.TradeNotes.all();
+    const rowsHtml = days.map((dd) => {
+      const s = dayStats(dd);
+      const n = dd === date ? day : notes[dd];
+      const hasNote = !!(n && (n.plan || n.went_well || n.to_fix || n.tomorrow || (n.thoughts && n.thoughts.length) ||
+        (n.went_well_tags && n.went_well_tags.length) || (n.to_fix_tags && n.to_fix_tags.length)));
+      const breached = n && n.max_loss != null && s.n && -s.worst > n.max_loss;
+      if (n && n.max_loss != null) tPlanned++;
+      if (breached) tBreach++;
+      tN += s.n; tPnl += s.pnl; tBroke += s.broke;
+      if (n && n.followed_plan !== null && n.followed_plan !== undefined) { tFollowedAnswered++; if (n.followed_plan === false) tFollowedNo++; }
+      s.rows.forEach((t) => (t.behavior_tags || []).forEach((k) => { if (window.TagCatalog.tone(k) === "watch") mistakeCount[k] = (mistakeCount[k] || 0) + 1; }));
+      return `<tr class="${dd === date ? "sel" : ""}">
+        <td><a href="daily.html?date=${dd}">${DOW[parse(dd).getDay()]} ${dd.slice(5)}</a></td>
+        <td>${s.n || "—"}</td>
+        <td class="${s.pnl >= 0 ? "up" : "down"}">${s.n ? money(s.pnl) : "—"}</td>
+        <td class="${s.broke ? "dn-warn" : ""}">${s.n ? s.broke : "—"}</td>
+        <td class="${breached ? "dn-warn" : ""}">${breached ? "breached" : (n && n.max_loss != null && s.n ? "held" : "—")}</td>
+        <td>${n && n.followed_plan === true ? "yes" : n && n.followed_plan === false ? '<span class="dn-warn">no</span>' : "—"}</td>
+        <td>${hasNote ? "✓" : "—"}</td></tr>`;
+    }).join("");
+    $("dn-week").innerHTML = `<tr><th>Day</th><th>Trades</th><th>Net P&amp;L</th><th>Not clean</th><th>Max loss</th><th>Followed plan</th><th>Notes</th></tr>${rowsHtml}`;
+    const topM = Object.entries(mistakeCount).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${escapeHtml(window.TagCatalog.label(k))} ×${v}`).join(", ");
+    // Same window as the table; the selected day's unsaved edits are included
+    // via the days override so the score moves as you type.
+    const wk = window.Discipline.compute(trades, { from: monday, to: days[6], days: Object.assign({}, notes, { [date]: day }) });
+    const scoreTxt = wk.score === null ? "" : ` Discipline score this week: <b>${Math.round(wk.score)}</b> (${window.Discipline.grade(wk.score)}).`;
+    $("dn-week-foot").innerHTML = tN
+      ? `${tN} trade${tN === 1 ? "" : "s"}, <b class="${tPnl >= 0 ? "up" : "down"}">${money(tPnl)}</b>. Not clean on <b>${tBroke}</b> of ${tN} trades (${Math.round((tBroke / tN) * 100)}%). ${tPlanned ? `Max daily loss breached on <b>${tBreach}</b> of ${tPlanned} planned day${tPlanned === 1 ? "" : "s"}. ` : ""}${tFollowedAnswered ? `Plan followed on ${tFollowedAnswered - tFollowedNo} of ${tFollowedAnswered} reviewed days. ` : ""}${topM ? `Most common flags: ${topM}.` : ""}${scoreTxt}`
+      : "No trades this week.";
+  }
+
+  // Timestamped one-liners added through the phone quick-note sheet (mobile-extras.js).
+  function renderThoughts() {
+    const list = day.thoughts || [];
+    $("dn-thoughts-card").style.display = list.length ? "" : "none";
+    $("dn-thoughts").innerHTML = list.map((t, i) => {
+      const d = t.t ? new Date(t.t) : null;
+      const hm = d && !isNaN(d) ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : "";
+      return `<div style="display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-top:${i ? "1px solid var(--border-soft)" : "0"};">
+        <span style="flex:none;font-family:var(--mono);font-size:12px;color:var(--text-faint);padding-top:2px;">${hm}</span>
+        <span style="flex:1;font-size:14px;line-height:1.4;white-space:pre-wrap;">${escapeHtml(t.text)}</span>
+        <button type="button" data-del-thought="${i}" title="Delete note" aria-label="Delete note" style="flex:none;min-width:36px;min-height:36px;background:none;border:0;color:var(--text-faint);cursor:pointer;">✕</button></div>`;
+    }).join("");
+    $("dn-thoughts").querySelectorAll("[data-del-thought]").forEach((b) => b.addEventListener("click", () => {
+      day.thoughts = (day.thoughts || []).filter((_, i) => i !== Number(b.dataset.delThought));
+      persist(); renderThoughts();
+    }));
+  }
+  // A note added from the quick sheet (the "+" in the bottom nav) while this page is open:
+  // pull it into the in-memory day so the next autosave here doesn't wipe it.
+  window.addEventListener("tradelog:note-saved", (e) => {
+    if (!e.detail || e.detail.day !== date) return;
+    const stored = window.DailyNotes.get(date);
+    day.thoughts = ((stored && stored.thoughts) || []).slice();
+    renderThoughts();
+  });
+
+  function renderForm() {
+    $("dn-date").value = date;
+    $("dn-maxloss").value = day.max_loss ?? "";
+    $("dn-goal").value = day.goal ?? "";
+    $("dn-plan").value = day.plan;
+    $("dn-well").value = day.went_well;
+    $("dn-fix").value = day.to_fix;
+    $("dn-tomorrow").value = day.tomorrow;
+    $("dn-extra").classList.toggle("open", !!(day.went_well || day.to_fix));
+    renderThoughts();
+    renderChecklist();
+    renderFollowed();
+    renderChips();
+    renderQuickFill();
+    renderWatchFor();
+    renderStreak();
+  }
+  function renderChecklist() {
+    const list = window.DailyNotes.getChecklist();
+    const done = list.filter((item) => day.checks[item]).length;
+    $("dn-checklist-count").textContent = list.length ? `${done}/${list.length}` : "";
+    $("dn-checklist").innerHTML = list.map((item, i) => `
+      <label class="dn-check"><input type="checkbox" data-i="${i}" ${day.checks[item] ? "checked" : ""}> ${escapeHtml(item)}
+      <button type="button" data-del="${i}" title="Remove from checklist">✕</button></label>`).join("");
+    $("dn-checklist").querySelectorAll("input[type=checkbox]").forEach((cb) => cb.addEventListener("change", () => {
+      day.checks[list[Number(cb.dataset.i)]] = cb.checked; persist(); renderChecklist();
+    }));
+    $("dn-checklist").querySelectorAll("button[data-del]").forEach((b) => b.addEventListener("click", (e) => {
+      e.preventDefault();
+      const next = list.filter((_, i) => i !== Number(b.dataset.del));
+      window.DailyNotes.setChecklist(next);
+      renderChecklist();
+    }));
+  }
+  // "What went well" / "What to fix" are filled in automatically from the day's trade tags
+  // (good habits and things worth a look). Tap a tag to see its exact criteria.
+  function renderChips() {
+    const TC = window.TagCatalog, counts = { good: {}, watch: {} };
+    trades.filter((t) => t.trade_date === date).forEach((t) => (t.behavior_tags || []).forEach((k) => {
+      const tn = TC.tone(k);
+      if (counts[tn]) counts[tn][k] = (counts[tn][k] || 0) + 1;
+    }));
+    const paint = (hostId, map, empty) => {
+      const list = Object.entries(map).sort((a, b) => b[1] - a[1]);
+      $(hostId).innerHTML = list.length
+        ? list.map(([k, n]) => TC.pillHtml(k, { label: TC.label(k) + (n > 1 ? " ×" + n : "") })).join("")
+        : `<span style="color:var(--text-faint);font-size:12.5px;">${empty}</span>`;
+    };
+    const tagged = trades.some((t) => t.trade_date === date && Array.isArray(t.behavior_tags));
+    paint("dn-well-chips", counts.good, tagged ? "Nothing flagged as a good habit today." : "Shows up once the day's trades are tagged.");
+    paint("dn-fix-chips", counts.watch, tagged ? "Nothing worth a look today." : "Shows up once the day's trades are tagged.");
+  }
+  // "Use last time's numbers" — one click instead of retyping max loss /
+  // goal on every fresh day.
+  function renderQuickFill() {
+    const last = window.DailyNotes.lastPlanned(date);
+    const setup = (btnId, fieldId, key) => {
+      const btn = $(btnId);
+      if (!last || last[key] == null) { btn.style.display = "none"; return; }
+      btn.style.display = "";
+      btn.textContent = `Use last (${money(last[key])})`;
+      btn.onclick = () => { $(fieldId).value = last[key]; day[key] = last[key]; persist(); renderQuickFill(); };
+    };
+    setup("dn-maxloss-fill", "dn-maxloss", "max_loss");
+    setup("dn-goal-fill", "dn-goal", "goal");
+  }
+  // Quiet, read-only reminder of what you were working on last time —
+  // fully computed from history, nothing to fill in for it to show up.
+  function renderWatchFor() {
+    const TC = window.TagCatalog, el = $("dn-watchfor");
+    const dates = Array.from(new Set(trades.filter((t) => t.trade_date < date).map((t) => t.trade_date))).sort().reverse();
+    let prior = null;
+    for (const d of dates) {
+      const c = {};
+      trades.filter((t) => t.trade_date === d).forEach((t) => (t.behavior_tags || []).forEach((k) => { if (TC.tone(k) === "watch") c[k] = (c[k] || 0) + 1; }));
+      const top = Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 3).map((x) => x[0]);
+      if (top.length) { prior = { date: d, tags: top }; break; }
+    }
+    if (!prior) { el.innerHTML = ""; return; }
+    el.innerHTML = `Watch for (from ${prior.date}):` + prior.tags.map((t) => TC.pillHtml(t)).join("");
+  }
+  function renderStreak() {
+    const n = window.DailyNotes.streak(date);
+    $("dn-streak").textContent = n > 1 ? `🔥 ${n}-day streak` : "";
+  }
+  function renderFollowed() {
+    const chip = (label, on, v) => `<button type="button" class="pill tagpill" data-v="${v}" style="cursor:pointer;${on ? "background:var(--primary);color:#fff;border-color:var(--primary);" : ""}">${label}</button>`;
+    $("dn-followed").innerHTML = chip("Yes", day.followed_plan === true, "yes") + chip("No", day.followed_plan === false, "no");
+    $("dn-followed").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+      const v = b.dataset.v === "yes";
+      day.followed_plan = day.followed_plan === v ? null : v;
+      renderFollowed(); persist();
+    }));
+  }
+
+  function go(newDate) {
+    window.DailyNotes.save(date, day); // flush any pending edit before switching
+    clearTimeout(timer);
+    date = newDate;
+    history.replaceState(null, "", "daily.html?date=" + date);
+    load(); renderForm(); renderSummary(); renderWeek();
+  }
+
+  function bind() {
+    const text = (id, key) => $(id).addEventListener("input", (e) => { day[key] = e.target.value; persist(); });
+    const numIn = (id, key) => $(id).addEventListener("input", (e) => { day[key] = e.target.value === "" ? null : Number(e.target.value); persist(); });
+    text("dn-plan", "plan"); text("dn-well", "went_well"); text("dn-fix", "to_fix"); text("dn-tomorrow", "tomorrow");
+    numIn("dn-maxloss", "max_loss"); numIn("dn-goal", "goal");
+    $("dn-check-new").addEventListener("keydown", (e) => {
+      const v = e.target.value.trim();
+      if (e.key !== "Enter" || !v) return;
+      window.DailyNotes.setChecklist(window.DailyNotes.getChecklist().concat(v));
+      e.target.value = ""; renderChecklist();
+    });
+    $("dn-date").addEventListener("change", (e) => { if (e.target.value) go(e.target.value); });
+    $("dn-prev").addEventListener("click", () => go(addDays(date, -1)));
+    $("dn-next").addEventListener("click", () => go(addDays(date, 1)));
+    $("dn-today").addEventListener("click", () => go(todayISO()));
+    $("dn-extra-toggle").addEventListener("click", () => $("dn-extra").classList.toggle("open"));
+  }
+
+  // Wait for the synced notes to land before first paint, so a remote copy
+  // isn't shown as an empty form and then overwritten by the first edit.
+  const kvReady = window.KV ? window.KV.ready : Promise.resolve(null);
+  Promise.all([kvReady, window.fetchTradesIndex().catch(() => [])]).then(([, rows]) => {
+    trades = Array.isArray(rows) ? rows : [];
+    load(); renderForm(); bind(); renderSummary(); renderWeek();
+  });
+  // Phones: pull down at the top to re-fetch trades. Only the numbers are redrawn,
+  // so text you're typing in the plan is never overwritten.
+  if (window.PullRefresh) window.PullRefresh.set(() =>
+    window.fetchTradesIndex().then((rows) => {
+      trades = Array.isArray(rows) ? rows : [];
+      renderSummary(); renderWeek();
+    }));
+})();
+</script>
+</body>
+</html>

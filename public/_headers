@@ -1,0 +1,19 @@
+# Cloudflare Workers static-asset response headers (applies to every file).
+# Conservative on purpose: nothing here restricts scripts/styles (the pages use inline code), it only closes
+# the doors this site never needs -- being framed by other sites, plugin content, <base> hijacking, MIME sniffing.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Content-Security-Policy: object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'
+
+# Third-party bundles and icons never change without a file rename/bump, so let browsers keep them for a week
+# instead of revalidating on every page. (HTML, own JS/CSS and sw.js keep the default revalidate-every-time.)
+/js/vendor/*
+  Cache-Control: public, max-age=604800
+/icons/*
+  Cache-Control: public, max-age=604800
+/favicon.svg
+  Cache-Control: public, max-age=604800
+# Vendor scripts are referenced as ...js?v=N in the pages: when you swap in a new version of a library, bump N in the
+# <script> tags (search for "?v=") and every visitor fetches the new file immediately instead of after the week is up.

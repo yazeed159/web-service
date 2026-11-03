@@ -21,12 +21,29 @@ no build step) deployed on **Cloudflare Workers** (static assets, see `wrangler.
 | AI / heavy compute | Flask API — chart generation, vision-LLM verdicts, backtesting, support/resistance, chat, CSV import | Render (`chart-service` repo) |
 | Daily sync | Pulls the day's IBKR Flex report, matches fills, generates charts, gets an AI verdict, publishes to Supabase | GitHub Actions cron → `POST /daily-sync` on Render |
 
-Pages live at the project root; shared JS lives in `js/` and shared CSS in
-`css/` (e.g. `js/config.js`, `css/common.css`).
+## Project layout
 
-Every page loads, in this order: `js/config.js` (sets `window.SUPABASE_URL` /
+```
+public/                 the whole site -- exactly what wrangler.jsonc serves
+  *.html                one file per page (URLs are flat: /journal.html)
+  css/                  shared + page-specific styles
+  js/<feature>/         scripts grouped by feature (see below); js/vendor/ = third-party libs
+  sw.js  manifest.json  _headers  favicon.svg  icons/
+tests/
+  unit/                 node:test files (npm run test:unit)
+  e2e/                  Playwright specs (npm test)
+  helpers/  fixtures/   shared test support
+  browser-harness/      older print-only Chromium probes (python)
+scripts/                build-min.mjs, push.bat
+```
+
+`sw.js` stays at the top of `public/` on purpose: a service worker can only control pages at or below its own folder.
+
+`public/js/` folders: `core` (config, auth, utils, shell/nav, search, mobile helpers), `dashboard` (Dashboard / Day View / Reports tab shell), `reports`, `rewind`, `practice`, `trade` (trade page, notes, grading, tags, chart tools, share), `daily` (daily plan, discipline, loss limit, weekly/monthly review), `accounts` (accounts, balances, brokers, import, backup), `backtester`, `edge`, `chat`, `tools` (calculator, scanner, live trading).
+
+Every page loads, in this order: `js/core/config.js` (sets `window.SUPABASE_URL` /
 `SUPABASE_ANON_KEY` and the Render API base URL) → the Supabase JS CDN
-script → `js/auth.js` (resolves the session, exposes `window.fetchTradesIndex()`
+script → `js/core/auth.js` (resolves the session, exposes `window.fetchTradesIndex()`
 / `window.fetchTradeDetail()` / etc., and redirects to `login.html` if
 there's no session) → the page's own script.
 
@@ -37,7 +54,7 @@ there's no session) → the page's own script.
 - **`index.html`** — Dashboard / Day View / Reports tabs (hash-routed, one page)
 - **`journal.html`** — full trade log, filterable/sortable, deep-linkable via `?setup=`
 - **`stats.html`** ("Performance") — equity curve, win rate, setup breakdown, slippage, feedback tally
-- **`edge-analysis.html`** — deeper statistical breakdown of what's actually working: setup decay, volume/float tags, confidence ranges (t-test + bootstrap), regret curve, MAE/MFE with stop/target sweeps, position sizing, and a trade-shuffle simulation of losing streaks and drawdown. The bar-level sections (regret + MAE/MFE) share one on-demand run over the most recent 100 trades. Pure math lives in `js/edge-stats.js` (unit-tested: `npm run test:unit`).
+- **`edge-analysis.html`** — deeper statistical breakdown of what's actually working: setup decay, volume/float tags, confidence ranges (t-test + bootstrap), regret curve, MAE/MFE with stop/target sweeps, position sizing, and a trade-shuffle simulation of losing streaks and drawdown. The bar-level sections (regret + MAE/MFE) share one on-demand run over the most recent 100 trades. Pure math lives in `js/edge/edge-stats.js` (unit-tested: `npm run test:unit`).
 - **`patterns.html`** — recurring `lesson_tags` clustered by frequency
 - **`calculator.html`** — position-size / risk-per-trade calculator
 - **`backtester.html`** — ORB/gap-gainer strategy backtester against real Polygon minute bars
@@ -53,27 +70,22 @@ there's no session) → the page's own script.
 - **`import-trades.html`** — CSV import of new trades
 - **`login.html`** — Supabase email/password sign-in; `auth.js` redirects here on any page when there's no session
 
-**Redirect stubs** (old standalone pages, features moved elsewhere; each just bounces to the new location so old bookmarks/links don't 404):
-- `notes.html` → `journal.html` (Notes Search is now the search icon / `/` shortcut in every topbar)
-- `chat.html` → `index.html` (AI Chat is now the floating chat bubble on every page)
-- `practice-analytics.html` → `practice.html?tab=analytics`
-- `playbooks.html` → `stats.html` (the per-setup scorecard it showed is now part of Performance's setup breakdown)
+The old standalone pages `notes.html`, `chat.html`, `practice-analytics.html` and `playbooks.html` were redirect stubs and have been deleted; their features live in Journal search, the floating chat bubble, Practice's Analytics tab and Performance's setup breakdown.
 
 ## Shared assets
 
-All shared/page JS lives in `js/`, all shared/page CSS lives in `css/`;
-pages themselves (`index.html`, `journal.html`, etc.) stay at the project
-root so existing links between pages don't need `js/`/`css/` prefixes.
+All shared/page JS lives in `public/js/<feature>/`, all shared/page CSS in `public/css/`;
+pages themselves (`index.html`, `journal.html`, etc.) sit directly in `public/` so links between pages stay flat.
 
 - **`css/common.css`** — design tokens + app-shell/sidebar layout + additive feature styles (including the floating AI Chat launcher/panel), loaded by every page. Consolidation of what used to be separate `core.css` / `chat-widget.css` / `global-search.css` files.
 - Page-specific CSS loaded only where needed: `css/dashboard.css` (Dashboard tab), `css/rewind.css`, `css/practice.css`, `css/quiz-shared.css`, `css/report.css`, `css/ui-modal.css` (shared modal widget, loaded everywhere). Backtester/report-only styles (previously `css/polish.css`) now live in a scoped section at the end of `css/common.css`.
-- **`js/common.js`** — shared sidebar (main-nav + "More" section, both generated from a single item list — see `SIDEBAR_MAIN_ITEMS` / `SIDEBAR_MORE_ITEMS`) + mobile-nav wiring + the floating AI Chat widget + `NavState` (mirrors in-page UI state into the URL via `history.replaceState` so Back doesn't lose your place — every page here is a real navigation, not an SPA route). Consolidation of what used to be separate `nav.js` / `chat-widget.js` files.
-- **`js/auth.js`** — session/auth layer + `window.KV` (a small per-user key/value store backed by Supabase, used for things like Settings' capital ledger) + `window.fetchTradesIndex()` / `window.fetchTradeDetail()`. Falls back to rejected-promise stubs instead of throwing if the Supabase CDN script fails to load, so a blocked/slow CDN request degrades to an error message instead of a blank broken page.
-- **`js/config.js`** — the only file you should need to touch per-deployment: Supabase project URL/anon key, and the Render API base URL used for chart generation, backtesting, AI chat, and Support/Resistance.
+- **`js/core/common.js`** — shared sidebar (main-nav + "More" section, both generated from a single item list — see `SIDEBAR_MAIN_ITEMS` / `SIDEBAR_MORE_ITEMS`) + mobile-nav wiring + the floating AI Chat widget + `NavState` (mirrors in-page UI state into the URL via `history.replaceState` so Back doesn't lose your place — every page here is a real navigation, not an SPA route). Consolidation of what used to be separate `nav.js` / `chat-widget.js` files.
+- **`js/core/auth.js`** — session/auth layer + `window.KV` (a small per-user key/value store backed by Supabase, used for things like Settings' capital ledger) + `window.fetchTradesIndex()` / `window.fetchTradeDetail()`. Falls back to rejected-promise stubs instead of throwing if the Supabase CDN script fails to load, so a blocked/slow CDN request degrades to an error message instead of a blank broken page.
+- **`js/core/config.js`** — the only file you should need to touch per-deployment: Supabase project URL/anon key, and the Render API base URL used for chart generation, backtesting, AI chat, and Support/Resistance.
 
 ## Config
 
-Set in `js/config.js`:
+Set in `js/core/config.js`:
 
 ```js
 window.SUPABASE_URL = "https://<project>.supabase.co";
@@ -121,7 +133,7 @@ npm run build:min    # writes ./dist and prints the size saving
 npm run deploy:min   # build + deploy ./dist using wrangler.min.jsonc
 ```
 
-`dist/` is git-ignored and ignored by `wrangler.jsonc`, so it never gets uploaded by a normal deploy.
+`dist/` is git-ignored and sits outside `public/`, so it never gets uploaded by a normal deploy.
 The build script is `scripts/build-min.mjs` (commented). `sw.js` and `js/vendor/*` are copied as-is.
 
 ## History
@@ -138,7 +150,7 @@ account's history is confirmed migrated.)
 
 ## Phone navigation (<=760px)
 
-Built in `js/nav-render.js` (+ `js/global-search.js`, styles at the end of `css/common.css`). None of it shows on desktop.
+Built in `js/core/nav-render.js` (+ `js/core/global-search.js`, styles at the end of `css/common.css`). None of it shows on desktop.
 
 - **Editable tab bar** -- the bar is four pages of your choosing, a centre "+" quick note, Search, and More. Press and hold any tab, or use "Customize tab bar" at the foot of the drawer, to pick four pages (the order you tap them is the order on the bar; Reset restores Home / Journal / Daily / Practice). Stored per device in `localStorage["trade.log:bottom-tabs"]`. The choices come from the sidebar item lists, so a page added there is selectable automatically; long names get a short form on the bar via `BAR_SHORT`.
 - **Search in the bar** -- the top-right search icon is hidden on phones. The Search tab opens the same control (`window.GlobalSearch.open/close/toggle`) as a sheet docked to the bottom edge and lifted above the keyboard. While open it is moved to `<body>`, because the topbar's `backdrop-filter` would otherwise make it the containing block for `position: fixed`.
@@ -156,11 +168,11 @@ The site is an installable PWA and is meant to be wrapped as an Android APK
   shows up one navigation later; bump `CACHE_VERSION` in `sw.js` to force a
   full purge. If you add a page/CSS/JS file, add it to `SHELL` in `sw.js` so
   it is pre-cached (it still works if you forget -- it just caches on first use).
-- `js/pwa-register.js` -- registers the service worker; loaded from every page's `<head>`.
+- `js/core/pwa-register.js` -- registers the service worker; loaded from every page's `<head>`.
 - **View transitions** -- `css/common.css` opts every page into cross-document
   view transitions (`@view-transition`), so a normal page load cross-fades from
   the old page instead of flashing a loader; the desktop sidebar is pinned so
-  it never animates. `js/page-transition.js` skips the loader overlay when the
+  it never animates. `js/core/page-transition.js` skips the loader overlay when the
   browser supports this (Chrome / Android WebView 126+) and wraps the in-place
   SPA swaps in `document.startViewTransition()`. Browsers without support, or
   with `prefers-reduced-motion`, keep the original loader-overlay behaviour.
@@ -170,7 +182,7 @@ The site is an installable PWA and is meant to be wrapped as an Android APK
 
 
 ## Reliability notes
-- `js/auth.js` retries transient data failures (network blips, 5xx/429, expired JWT with a session refresh, clock skew, hung requests) before any page sees an error; the dashboard/reports page then shows a banner with a Retry button and retries on its own (backoff, `online`, tab refocus).
+- `js/core/auth.js` retries transient data failures (network blips, 5xx/429, expired JWT with a session refresh, clock skew, hung requests) before any page sees an error; the dashboard/reports page then shows a banner with a Retry button and retries on its own (backoff, `online`, tab refocus).
 - `supabase-js` and `lightweight-charts` are self-hosted in `js/vendor/` (no CDN dependency). Bump `CACHE_VERSION` in `sw.js` when you update them.
 - `tests/browser-harness/flaky_test.py` injects failures against the real pages.
 
@@ -182,7 +194,7 @@ Supabase SQL editor. Until it runs, the site behaves exactly as before.
 - **Accounts** (`accounts` table): `kind = 'live'` for real accounts, `'paper'` for
   practice attempts. `trades.account_id` says which real account a trade belongs to;
   `broker_accounts.account_id` says which account the daily IBKR sync feeds.
-- **Scope**: `js/accounts.js` (loaded right after `auth.js` everywhere) wraps
+- **Scope**: `js/accounts/accounts.js` (loaded right after `auth.js` everywhere) wraps
   `fetchTradesIndex()` / `fetchCapitalLedger()` so every page automatically shows only
   the accounts (and optional period) picked in the top-bar switcher. `equity_after` is
   recomputed over the filtered set. `fetchTradesIndexRaw()` is the unfiltered version
@@ -234,7 +246,7 @@ Per-fill detail lives in `trade_details.fills` (jsonb): `commission_entry / comm
 ### Lists: one paging rule
 
 Every Reports list opens on 5 rows. Up to 15 in total you get "Show 5 more" + "Show all"; past 15 it is
-"Load 20 more" + "Load all". Implemented once in `js/utils.js` (`moreButtonsHtml`, `moreStep`,
+"Load 20 more" + "Load all". Implemented once in `js/core/utils.js` (`moreButtonsHtml`, `moreStep`,
 `paginateReportList`) and used by the drill-downs, the trade lists, the breakdown tables and the
 long tables; `tests/more-buttons.test.js` covers the rule.
 
@@ -256,7 +268,7 @@ because an IBKR paper account is a separate login. Run `sql/002_account_flex.sql
   `last_sync_at / last_sync_status / last_sync_message` for the sync to write back.
 - **Token is write-only** from the browser (no SELECT privilege on that column). The site reads
   `account_flex_status`, which only exposes `has_ibkr_flex_token`.
-- **UI**: `js/broker-connections.js` (`window.BrokerConnections`) renders the editor. It appears on
+- **UI**: `js/accounts/broker-connections.js` (`window.BrokerConnections`) renders the editor. It appears on
   `accounts.html` (a **Broker sync** button + status chip on every account card; new accounts open it
   straight away; `?broker=<account id>` deep-links to it) and `settings.html` (Broker connections panel).
   `import-trades.html` shows whether the chosen account already auto-syncs.
@@ -282,29 +294,29 @@ The site side is done; the sync must read the new table or only the old single t
 5. Keep the old `broker_accounts` path only as a fallback for users with no `account_flex` rows.
 6. IBKR throttles Flex requests per token, so run accounts one after another with a short pause.
    The sync also stores `user_kv` key `sync_report` (per account: open positions, trades with no chart yet, skipped fills);
-   `js/broker-connections.js` reads it for the "Sync details" list in the Broker sync box and the amber "N trade(s)/item(s) need attention" pill (stuck trades, skipped fills and open positions all count; trades already saved by a manual import are dropped; `OPEN_NEEDS_ATTENTION` in that file turns the open-position part off).
+   `js/accounts/broker-connections.js` reads it for the "Sync details" list in the Broker sync box and the amber "N trade(s)/item(s) need attention" pill (stuck trades, skipped fills and open positions all count; trades already saved by a manual import are dropped; `OPEN_NEEDS_ATTENTION` in that file turns the open-position part off).
    The same box has a **Sync now** button: it POSTs `{account_id}` to the chart service's `/sync-now` (logged-in user's Supabase token, own accounts only, 90 s cooldown, shares the cron's one-run-at-a-time lock), then polls until `last_sync_at` changes. The details also show an "IBKR statement" line (period, fills, latest fill) so you can see at a glance whether today's fills reached the sync.
 
 ## Phone daily-use features
 
-- **`js/mobile-extras.js`** (loaded on every app page): quick-note sheet (`QuickAdd`, opened by the bottom-nav "+", the `?quick=trade|note` home-screen shortcuts, and Journal swipes), pull-to-refresh (`PullRefresh.set(fn)` — dashboard + Journal opt in), scroll memory (`ScrollMemory`), and Journal card swipe gestures (left: Tag/Delete, right: Note).
-- **`js/today-strip.js`**: the dashboard "Today" card (Today / Yesterday / This week / Last week).
+- **`js/core/mobile-extras.js`** (loaded on every app page): quick-note sheet (`QuickAdd`, opened by the bottom-nav "+", the `?quick=trade|note` home-screen shortcuts, and Journal swipes), pull-to-refresh (`PullRefresh.set(fn)` — dashboard + Journal opt in), scroll memory (`ScrollMemory`), and Journal card swipe gestures (left: Tag/Delete, right: Note).
+- **`js/dashboard/today-strip.js`**: the dashboard "Today" card (Today / Yesterday / This week / Last week).
 - Quick day notes are stored in `DailyNotes` as `thoughts: [{t, text}]` and listed on `daily.html`.
 - Trades are not created by hand in the app (they come from the IBKR sync / CSV import), so "log a trade" = a note/tags on a trade.
 
 ## Phone helpers (PWA)
 
 - **Share a CSV into the app** -- `manifest.json` declares a `share_target`; `sw.js` answers the POST to `/share-target`, parks the file in the `tradelog-share` cache and redirects to `import-trades.html?shared=1`, which loads it into the file field (you still tap Import). Android Chrome only, and only once the app is installed.
-- **Keypads** -- `js/mobile-extras.js` gives every `type="number"` field with `min >= 0` a numeric (whole numbers) or decimal keypad automatically; the calculator's text price fields set `inputmode` by hand.
+- **Keypads** -- `js/core/mobile-extras.js` gives every `type="number"` field with `min >= 0` a numeric (whole numbers) or decimal keypad automatically; the calculator's text price fields set `inputmode` by hand.
 - **Skeletons** -- `.skel-cards` / `.skel-stack` placeholders (css/common.css) on Journal, Patterns, Performance and Edge Analysis.
-- **Offline** -- `TradeCache` + `swrFetch` (js/auth.js) keep the last loaded trades on the device; Journal falls back to them and shows "Offline - data from ...".
+- **Offline** -- `TradeCache` + `swrFetch` (js/core/auth.js) keep the last loaded trades on the device; Journal falls back to them and shows "Offline - data from ...".
 - **Haptics** -- `Haptics.play("tap"|"select"|"success"|"warn"|"buy"|"sell")` or `data-haptic="..."` on a button. Off switch: `localStorage["trade.log:haptics"] = "off"`.
 
 ## Phone charts & Practice (portrait + landscape)
 
-- **Chart gestures** (`touchChartOpts()` / `buildStandardChart()` in `js/chart-indicators.js`, rules at `.chart-touch*` in `css/common.css`). Every price chart on a phone: pinch zooms, horizontal drag pans, a long press (~0.25 s) drops the crosshair and dragging moves it; lifting your finger clears it (so the OHLC/indicator readout never freezes). The browser's long-press menu is suppressed on the chart. Trade/Report charts still hand a *vertical* swipe back to the page; **Practice** passes `touchMode: "capture"`, so one finger owns the chart (`touch-action: none`) and the page doesn't scroll under it -- scroll from the transport row or anywhere outside the chart.
+- **Chart gestures** (`touchChartOpts()` / `buildStandardChart()` in `js/trade/chart-indicators.js`, rules at `.chart-touch*` in `css/common.css`). Every price chart on a phone: pinch zooms, horizontal drag pans, a long press (~0.25 s) drops the crosshair and dragging moves it; lifting your finger clears it (so the OHLC/indicator readout never freezes). The browser's long-press menu is suppressed on the chart. Trade/Report charts still hand a *vertical* swipe back to the page; **Practice** passes `touchMode: "capture"`, so one finger owns the chart (`touch-action: none`) and the page doesn't scroll under it -- scroll from the transport row or anywhere outside the chart.
 - **Landscape charts**: "phone" now also means a short touch screen (`(orientation: landscape) and (max-height: 500px) and (pointer: coarse)`), so the fullscreen / zoom buttons show sideways too. Turning the phone to landscape while a Trade/Report chart is on screen opens it fullscreen; turning back closes it (only if the rotation opened it).
-- **Practice order dock** (`js/practice-mobile.js`, styles at the end of `css/practice.css`). On phones the order ticket is re-parented into a body-level `#pp-dock`: your shortcut buttons (key badges hidden -- no keyboard) and big BUY / SELL stay pinned above the tab bar; tap the price/size handle (or the dim background) to slide the full ticket up -- size, % presets, position, fills, the shortcuts gear. Order feedback floats above the dock so buttons never shift under your thumb. On desktop widths nothing changes and the ticket goes back to its column.
+- **Practice order dock** (`js/practice/practice-mobile.js`, styles at the end of `css/practice.css`). On phones the order ticket is re-parented into a body-level `#pp-dock`: your shortcut buttons (key badges hidden -- no keyboard) and big BUY / SELL stay pinned above the tab bar; tap the price/size handle (or the dim background) to slide the full ticket up -- size, % presets, position, fills, the shortcuts gear. Order feedback floats above the dock so buttons never shift under your thumb. On desktop widths nothing changes and the ticket goes back to its column.
 - **Practice landscape**: `html.pp-landscape` makes the play screen full-screen -- slim header, chart filling the middle, transport row, and the dock as one strip (size - shortcuts - BUY - SELL) with the same slide-up sheet. `practice.js` only calls `PracticeMobile.sync()` / `onChartBuilt()` and tags the chart handle as `window.__ppChart`; all order logic is unchanged.
 
 ## Phone daily-use: shortcut icons & resume-last-view
@@ -315,28 +327,28 @@ The site side is done; the sync must read the new table or only the old single t
 
 ## Chart fullscreen + drawing tools
 
-- **Fullscreen** (`attachFullscreen()` in `js/chart-indicators.js`): the expand button (top-right of every price chart built by `buildStandardChart()` -- Trade, Report, Practice, Rewind) now shows on desktop as well as phones. `Esc` closes it.
-- **Drawing tools** (`js/chart-draw.js`, toolbar down the left edge while fullscreen): horizontal line (support / resistance, with a price tag), trend line, ray, zone (rectangle), fib retracement, measure (price / % / bars / time, not saved) and text note. Also: colour picker, snap-to-candle (magnet), stay-in-tool, undo (Ctrl+Z), delete (Del), clear all. Click-click or press-drag-release to draw; in Select mode click a drawing to move it, drag its dots to reshape it. `Esc` backs out of a tool / selection first, then closes fullscreen.
+- **Fullscreen** (`attachFullscreen()` in `js/trade/chart-indicators.js`): the expand button (top-right of every price chart built by `buildStandardChart()` -- Trade, Report, Practice, Rewind) now shows on desktop as well as phones. `Esc` closes it.
+- **Drawing tools** (`js/trade/chart-draw.js`, toolbar down the left edge while fullscreen): horizontal line (support / resistance, with a price tag), trend line, ray, zone (rectangle), fib retracement, measure (price / % / bars / time, not saved) and text note. Also: colour picker, snap-to-candle (magnet), stay-in-tool, undo (Ctrl+Z), delete (Del), clear all. Click-click or press-drag-release to draw; in Select mode click a drawing to move it, drag its dots to reshape it. `Esc` backs out of a tool / selection first, then closes fullscreen.
 - Drawings render through a lightweight-charts series primitive (follows pan / zoom / resize automatically) and are stored as `{t, p}` (time + price), so they carry across the 1m / 5m / 15m / 1h switcher. Trade and Report save them in `localStorage` under `trade.log:draw:v1:<SYMBOL>:<date>` (same key on both pages); Practice / Rewind keep them for the session only so a replay never shows lines from an earlier round. Pass `drawKey` to `buildStandardChart()` to persist elsewhere, or `fullscreen: false` to turn the whole thing off for a chart.
 
 
 ## Phone glass skin
 
-- On phones (`max-width: 760px`) the whole UI is restyled as frosted glass: translucent cards over a soft colour wash, a floating pill tab bar, glass modals/sheets/drawer, springy press feedback and staggered entrances. It is **pure CSS** in the `GLASS SKIN` blocks at the end of `css/common.css` (parts 1-7); delete them to revert. Parts 8-9 add the Journal, Reports, Day view, Daily plan and Trade page; **part 10** covers the remaining pages (Accounts, Live trading, Scanner, Edge analysis, Performance setup bars, Backtester, Calculator, Rewind/Practice setup + stats, Search, Report import) at every screen size. **Part 11** (end of `css/common.css`) restyles dropdowns and menus (select trigger + options, account menu, tag picker, shortcuts overlay, keycaps, quick-add sheet, chat bubbles, toasts, native checkbox/radio/range accents); the buttons are a glass pass at the end of `css/buttons.css` (frosted secondary buttons, glass segmented tracks, lit active pills, theme-aware surfaces). **Part 12** (end of `css/common.css`) is the consistency pass: one radius scale (`--r-xs…--r-xl`), leftover solid surfaces on Practice/Rewind/Calculator turned to glass, tabular numbers, glass skeletons and status pill, shared disclosure (`<summary>`) style, link and touch behaviour. `login.html` now has a desktop glass block too (it carries its own CSS). **Part 13** covers JS-built pieces: chart marker tooltips (`.pointer-tooltip`, overriding their inline styles), the account-scope switcher (CSS injected by `js/accounts.js`, overridden via `.topbar .scope-*`), the fullscreen drawing toolbar and colour popover, and the Today strip. Chart canvases (which CSS can't reach) are themed from `window.chartThemeColors()` / `window.chartCrosshair()` in `js/utils.js`: soft translucent grid and axis lines so the glass shows through, dashed purple crosshair with purple axis labels, and Inter on the axes. Used by the main candle chart, the MACD panes (Trade, Report) and the equity charts; the standalone share-export page keeps its own fixed chart colours (but its page chrome is glass, via a self-contained block at the end of `BASE_CSS` in `js/share-export.js`). **Part 14** (end of `css/common.css`) adds fallbacks: `prefers-reduced-transparency` swaps glass for solid surfaces with no blur, `prefers-contrast: more` makes edges crisper and secondary text stronger, and touch devices skip the blur on small controls (cards, sheets, top bar and tab bar keep theirs) to keep scrolling smooth. The theme toggle reloads the page (`js/common.js`), so charts always draw with the right colours. The four redirect stubs (`notes`, `chat`, `playbooks`, `practice-analytics`) show a glass card with a spinner while they bounce. Desktop is untouched. `login.html` carries its own copy (it doesn't load `common.css`).
+- On phones (`max-width: 760px`) the whole UI is restyled as frosted glass: translucent cards over a soft colour wash, a floating pill tab bar, glass modals/sheets/drawer, springy press feedback and staggered entrances. It is **pure CSS** in the `GLASS SKIN` blocks at the end of `css/common.css` (parts 1-7); delete them to revert. Parts 8-9 add the Journal, Reports, Day view, Daily plan and Trade page; **part 10** covers the remaining pages (Accounts, Live trading, Scanner, Edge analysis, Performance setup bars, Backtester, Calculator, Rewind/Practice setup + stats, Search, Report import) at every screen size. **Part 11** (end of `css/common.css`) restyles dropdowns and menus (select trigger + options, account menu, tag picker, shortcuts overlay, keycaps, quick-add sheet, chat bubbles, toasts, native checkbox/radio/range accents); the buttons are a glass pass at the end of `css/buttons.css` (frosted secondary buttons, glass segmented tracks, lit active pills, theme-aware surfaces). **Part 12** (end of `css/common.css`) is the consistency pass: one radius scale (`--r-xs…--r-xl`), leftover solid surfaces on Practice/Rewind/Calculator turned to glass, tabular numbers, glass skeletons and status pill, shared disclosure (`<summary>`) style, link and touch behaviour. `login.html` now has a desktop glass block too (it carries its own CSS). **Part 13** covers JS-built pieces: chart marker tooltips (`.pointer-tooltip`, overriding their inline styles), the account-scope switcher (CSS injected by `js/accounts/accounts.js`, overridden via `.topbar .scope-*`), the fullscreen drawing toolbar and colour popover, and the Today strip. Chart canvases (which CSS can't reach) are themed from `window.chartThemeColors()` / `window.chartCrosshair()` in `js/core/utils.js`: soft translucent grid and axis lines so the glass shows through, dashed purple crosshair with purple axis labels, and Inter on the axes. Used by the main candle chart, the MACD panes (Trade, Report) and the equity charts; the standalone share-export page keeps its own fixed chart colours (but its page chrome is glass, via a self-contained block at the end of `BASE_CSS` in `js/trade/share-export.js`). **Part 14** (end of `css/common.css`) adds fallbacks: `prefers-reduced-transparency` swaps glass for solid surfaces with no blur, `prefers-contrast: more` makes edges crisper and secondary text stronger, and touch devices skip the blur on small controls (cards, sheets, top bar and tab bar keep theirs) to keep scrolling smooth. The theme toggle reloads the page (`js/core/common.js`), so charts always draw with the right colours. The four redirect stubs (`notes`, `chat`, `playbooks`, `practice-analytics`) show a glass card with a spinner while they bounce. Desktop is untouched. `login.html` carries its own copy (it doesn't load `common.css`).
 - Dark and light themes share the same blocks: secondary-surface tokens (`--panel-2/3`, `--border*`) are made translucent on phones, and `--g-fill`, `--g-line`, `--g-hi`, `--g-blur` drive the glass.
 - Animations respect `prefers-reduced-motion`. Charts' panels deliberately skip `backdrop-filter` (it would trap the fullscreen chart).
-- The dashboard hero (`renderStats()` in `js/app-dashboard.js`) adds a phone-only footer: last-session P&L and an "Add trade note" button (opens `QuickAdd`).
+- The dashboard hero (`renderStats()` in `js/dashboard/app-dashboard.js`) adds a phone-only footer: last-session P&L and an "Add trade note" button (opens `QuickAdd`).
 - After changing cached assets, bump `CACHE_VERSION` in `sw.js` so installed phones pick the change up on the next open.
 
 ## Journal CSV export
 
-The Journal's Export CSV picker lists the table columns plus a "Your journal entries" group: planned stop / target, planned R:R, realised R, your setup tag, mistakes, followed rules, notes (from `TradeNotes`, `js/trade-notes.js`). Free-text fields starting with `= + - @` get a leading apostrophe so spreadsheets never evaluate them.
+The Journal's Export CSV picker lists the table columns plus a "Your journal entries" group: planned stop / target, planned R:R, realised R, your setup tag, mistakes, followed rules, notes (from `TradeNotes`, `js/trade/trade-notes.js`). Free-text fields starting with `= + - @` get a leading apostrophe so spreadsheets never evaluate them.
 
 ## Safety nets, daily loss limit, review page (Oct 2026 audit fixes)
 
-- **`js/app-boot.js`** loads first on every page. It gives `window.MarketDate` (today in New York time, so after-hours trades from Cairo land on the right US trading day), logs every uncaught error / unhandled rejection (console + `trade.log:errors` in localStorage, shown as a toast with "Copy details"), pings the Render service's `/health` on page load, and shows a "waking up the server…" banner when a call to it is slow and the server isn't known to be awake.
-- **Daily loss limit**: on the dashboard's Today card, "Set a daily loss limit" saves a default (`user_kv` key `daily_loss_limit`: `{amount, since}`). A day's own plan limit (Daily page) overrides it. The default only applies from the day it was set, so old days keep their old scoring. Warns at 75% used, stop banner at 100%. The discipline score and the week-lens adherence rows use it too. Maths: `js/loss-limit.js`.
+- **`js/core/app-boot.js`** loads first on every page. It gives `window.MarketDate` (today in New York time, so after-hours trades from Cairo land on the right US trading day), logs every uncaught error / unhandled rejection (console + `trade.log:errors` in localStorage, shown as a toast with "Copy details"), pings the Render service's `/health` on page load, and shows a "waking up the server…" banner when a call to it is slow and the server isn't known to be awake.
+- **Daily loss limit**: on the dashboard's Today card, "Set a daily loss limit" saves a default (`user_kv` key `daily_loss_limit`: `{amount, since}`). A day's own plan limit (Daily page) overrides it. The default only applies from the day it was set, so old days keep their old scoring. Warns at 75% used, stop banner at 100%. The discipline score and the week-lens adherence rows use it too. Maths: `js/daily/loss-limit.js`.
 - **Deposits conflict check**: `KV.setGuarded()` (auth.js) refuses to overwrite a copy that changed on another device; `Accounts.setLedger` asks whether to overwrite or load the other copy. A backgrounded tab also warns on return if the ledger changed.
-- **Review page** (`review.html`, `js/review.js`, maths in `js/review-math.js`): week or month, P&L, best/worst day and setup, rule breaks (not-clean trades, process tags, loss-limit hits, days marked off-plan).
+- **Review page** (`review.html`, `js/daily/review.js`, maths in `js/daily/review-math.js`): week or month, P&L, best/worst day and setup, rule breaks (not-clean trades, process tags, loss-limit hits, days marked off-plan).
 - **Trades CSV**: Settings → Backup → "Download trades (CSV)" exports every trade from every account. (The Journal's Export… still exports the filtered view with a column picker.)
 - **Tests**: `npm run test:unit` runs on every push via `.github/workflows/unit-tests.yml`.

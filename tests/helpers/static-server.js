@@ -6,7 +6,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const ROOT = path.resolve(__dirname, "..", "..");
+const ROOT = path.resolve(__dirname, "..", "..", "public");
 const PORT = Number(process.argv[2] || process.env.PORT || 8788);
 const TYPES = {
   ".html": "text/html; charset=utf-8", ".js": "application/javascript; charset=utf-8",

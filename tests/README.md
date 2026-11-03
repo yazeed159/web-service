@@ -1,6 +1,6 @@
 # E2E smoke tests
 
-Regression coverage for `js/page-transition.js`'s SPA router — specifically
+Regression coverage for `js/core/page-transition.js`'s SPA router — specifically
 the "stale sidebar" class of bug (nav highlight or status label left over
 from the page you navigated *from*). See the "Known page-specific regions
 of the persistent shell" comment at the top of `page-transition.js`.
@@ -23,7 +23,7 @@ one; this is a static site).
 BASE_URL=https://web-service.yazeedayman.workers.dev npm test
 
 # or against a plain static server for the checked-out repo
-npx http-server . -p 8788 &
+npx http-server public -p 8788 &
 npm test
 ```
 

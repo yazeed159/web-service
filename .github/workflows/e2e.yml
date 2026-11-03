@@ -20,7 +20,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Serve the static site
         run: |
-          python3 -m http.server 8788 >/dev/null 2>&1 &
+          python3 -m http.server 8788 -d public >/dev/null 2>&1 &
           for i in $(seq 1 20); do curl -fs http://localhost:8788/ >/dev/null && break; sleep 1; done
       - run: npx playwright test
         env:

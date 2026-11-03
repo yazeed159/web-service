@@ -4,7 +4,7 @@
 //   npm run deploy:min     ->  builds, then deploys ./dist (uses wrangler.min.jsonc)
 //
 // What it does
-//   * copies every file the site needs into ./dist (same list wrangler uses: see .assetsignore)
+//   * copies every file in ./public (the site wrangler serves) into ./dist
 //   * minifies the .js and .css files in the COPY (comments and spacing removed, names shortened inside functions)
 //   * leaves .html, images, manifest, _headers, sw.js and js/vendor/* exactly as they are
 //
@@ -14,18 +14,19 @@
 //
 // Normal deploys (git push -> Cloudflare serving "." as-is, wrangler.jsonc) are untouched by this file.
 
+import { fileURLToPath } from "node:url";
 import { build, transform } from "esbuild";   // eslint-disable-line -- installed as a devDependency
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
-const OUT = path.join(ROOT, "dist");
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const ROOT = path.join(REPO, "public");   // the site: exactly what wrangler.jsonc serves
+const OUT = path.join(REPO, "dist");
 
-// Never copied into dist (mirrors .assetsignore, plus dist itself and this script).
-const SKIP_DIRS = new Set(["node_modules", "tests", "test-results", "playwright-report", ".git", ".github", ".wrangler", "dist", "scripts"]);
-const SKIP_FILES = new Set(["package.json", "package-lock.json", "bun.lock", "bun.lockb", "playwright.config.js", "push.bat",
-  "wrangler.jsonc", "wrangler.min.jsonc", ".assetsignore", ".gitignore", "README.md"]);
+// public/ holds only the site, so nothing needs excluding (tests, configs and scripts live outside it).
+const SKIP_DIRS = new Set();
+const SKIP_FILES = new Set([".DS_Store"]);
 // Copied untouched even though they are .js: the service worker (keep it debuggable) and already-minified libraries.
 const KEEP_AS_IS = (rel) => rel === "sw.js" || rel.startsWith("js/vendor/");
 

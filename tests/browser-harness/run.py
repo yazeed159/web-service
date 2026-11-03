@@ -1,14 +1,16 @@
 import sys, json, subprocess, time, os
+HERE = os.path.dirname(os.path.abspath(__file__))
+SITE = os.path.join(HERE, "..", "..", "public")   # the folder wrangler serves
 os.environ["PLAYWRIGHT_BROWSERS_PATH"]="/opt/pw-browsers"
 from playwright.sync_api import sync_playwright
-fake = open("/home/claude/t/fake_supabase.js").read()
-srv = subprocess.Popen(["python3","-m","http.server","8788","-d","/home/claude/ws"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+fake = open(os.path.join(HERE, "fake_supabase.js")).read()
+srv = subprocess.Popen(["python3","-m","http.server","8788","-d",SITE],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 time.sleep(1)
 errors=[]
 def setup(ctx):
     ctx.route(lambda u: not u.startswith("http://localhost"), lambda r: r.abort())
-    ctx.route("**/vendor/supabase.js", lambda r: r.fulfill(body=fake, content_type="application/javascript"))
-    ctx.route("**/vendor/lightweight-charts.js", lambda r: r.fulfill(body="(function(){const mk=()=>new Proxy(function(){},{get:(t,k)=>k===Symbol.toPrimitive?()=>0:mk(),apply:()=>mk(),construct:()=>mk()});window.LightweightCharts=new Proxy({},{get:(t,k)=>mk()});})()", content_type="application/javascript"))
+    ctx.route("**/vendor/supabase.js*", lambda r: r.fulfill(body=fake, content_type="application/javascript"))
+    ctx.route("**/vendor/lightweight-charts.js*", lambda r: r.fulfill(body="(function(){const mk=()=>new Proxy(function(){},{get:(t,k)=>k===Symbol.toPrimitive?()=>0:mk(),apply:()=>mk(),construct:()=>mk()});window.LightweightCharts=new Proxy({},{get:(t,k)=>mk()});})()", content_type="application/javascript"))
 try:
   with sync_playwright() as p:
     b = p.chromium.launch()

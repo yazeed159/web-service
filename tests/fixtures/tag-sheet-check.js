@@ -4,7 +4,7 @@
 const { JSDOM } = require("jsdom");
 const fs = require("fs");
 const path = require("path");
-const file = path.join(__dirname, "../../js/tag-catalog.js");
+const file = path.join(__dirname, "../../public/js/trade/tag-catalog.js");
 const src = fs.readFileSync(file, "utf8");
 const catalog = JSON.parse(src.match(/var SNAPSHOT = (\{.*\});\n/)[1]);
 const dom = new JSDOM('<body><button id="old" data-tag-info="breakout">a</button><button id="ai" data-tag-info="some_ai_lesson">b</button><button id="cur" data-tag-info="revenge_trade">c</button></body>',

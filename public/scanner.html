@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Scanner — trade.log</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/glass.css">
+<style>
+  .sc-wrap { max-width: 980px; margin: 0 auto; }
+
+  /* Banner -- same visual language as Live Trading's paper/live mode
+     banner (see live-trading.html), defined locally here since this page
+     doesn't otherwise share that stylesheet. "scanning" is an extra state
+     this page needs that Live Trading doesn't: a live pulsing dot while
+     today's premarket session (4:00-9:30 ET) is actually running. */
+  .sc-banner {
+    display: flex; align-items: center; gap: 9px; padding: 10px 14px; border-radius: 6px;
+    font-size: 12.5px; font-weight: 600; margin-bottom: 18px; border: 1px solid;
+  }
+  .sc-banner.scanning { background: var(--green-soft); color: var(--green); border-color: rgba(47,208,138,0.3); }
+  .sc-banner.idle { background: var(--panel-2); color: var(--text-dim); border-color: var(--border); }
+  .sc-banner .sc-live-dot {
+    flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--green);
+    box-shadow: 0 0 0 3px var(--green-soft); animation: pulseDot 2.2s ease-in-out infinite;
+  }
+  .sc-banner .sc-banner-sub { font-weight: 400; color: var(--text-faint); margin-left: auto; white-space: nowrap; }
+
+  /* Summary stat row -- reuses common.css's .stat-grid/.stat, just like
+     the dashboard and stats pages, so this page's headline numbers look
+     like every other headline number in the app instead of one-off. */
+  .sc-stats { margin-bottom: 18px; }
+
+  .sc-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .sc-search { position: relative; width: 220px; max-width: 100%; }
+  .sc-search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-faint); pointer-events: none; }
+  .sc-search input {
+    width: 100%; background: var(--panel); border: 1px solid var(--border); color: var(--text);
+    font-family: var(--sans); font-size: 13px; padding: 8px 12px 8px 32px; border-radius: var(--radius-sm);
+  }
+  .sc-search input:focus { outline: none; border-color: var(--primary); }
+  .sc-search input::placeholder { color: var(--text-faint); }
+  .sc-refresh-note { font-size: 11.5px; color: var(--text-faint); white-space: nowrap; }
+
+  /* Table -- built on common.css's table.data-table (same hover/header
+     treatment used elsewhere) plus a few gappers-specific touches: bold
+     mono symbols, tabular-number alignment, sortable numeric columns,
+     and a fade for rows the poll hasn't refreshed in a while. */
+  #sc-table th .headcell { display: inline-block; }
+  #sc-table td.sym { font-weight: 700; font-family: var(--mono); }
+  #sc-table td.mono-num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  #sc-table tbody tr.stale { opacity: .45; }
+  #sc-table tbody tr { animation: scRowIn .25s ease; }
+  @keyframes scRowIn { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Badge cell -- small wrapped row of pills (Low Float / Above VWAP /
+     Extended From EMA9 / High RVol), reusing common.css's .pill look so
+     these read as the same visual language as the journal's float/rvol
+     tags on trade.html, just computed live instead of per-trade. */
+  .sc-badges { display: flex; flex-wrap: wrap; gap: 4px; max-width: 260px; }
+  .pill.amberbadge { background: var(--amber-soft); color: var(--amber); border-color: rgba(232,169,76,0.3); }
+
+  /* Enrichment-scope note under the toolbar -- explains why only the top
+     rows show float/VWAP/EMA/badges (see scanner_enrich.py's docstring:
+     Polygon's free-tier 5-calls/min limit means enriching every row would
+     make the page uselessly stale). */
+  .sc-enrich-note { font-size: 11.5px; color: var(--text-faint); margin: -6px 0 14px; }
+</style>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0b0f">
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light"){var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute("content","#f5f6f9");}}catch(e){}})();</script>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="trade.log">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="expect" href="#page-title" blocking="render">
+<script src="js/core/app-boot.js"></script>
+<script src="js/core/pwa-register.js" defer></script>
+<link rel="stylesheet" href="css/buttons.css">
+<link rel="stylesheet" href="css/mobile.css">
+</head>
+<body>
+<div id="page-progress-bar"></div>
+<div id="page-loader-overlay" aria-hidden="true">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="page-loader-ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#8b7cf6"/>
+        <stop offset="100%" stop-color="#22d3ee"/>
+      </linearGradient>
+    </defs>
+  </svg>
+  <div class="page-loader-mark">
+    <span><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="6" y1="11" x2="6" y2="17"></line><rect x="4.5" y="12" width="3" height="4" rx="1" stroke="none"></rect><line x1="12" y1="6" x2="12" y2="19"></line><rect x="10.5" y="8" width="3" height="8" rx="1" stroke="none"></rect><line x1="18" y1="3" x2="18" y2="15"></line><rect x="16.5" y="5" width="3" height="6" rx="1" stroke="none"></rect></g></svg></span>
+    <svg class="page-loader-ring" viewBox="0 0 78 78"><circle cx="39" cy="39" r="31"></circle></svg>
+  </div>
+</div>
+<script src="js/core/page-transition.js"></script>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="modernGaugeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="modernEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8457ff"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="app-shell">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <a href="index.html" class="brand">
+        <span class="mark"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="6" y1="11" x2="6" y2="17"></line><rect x="4.5" y="12" width="3" height="4" rx="1" stroke="none"></rect><line x1="12" y1="6" x2="12" y2="19"></line><rect x="10.5" y="8" width="3" height="8" rx="1" stroke="none"></rect><line x1="18" y1="3" x2="18" y2="15"></line><rect x="16.5" y="5" width="3" height="6" rx="1" stroke="none"></rect></g></svg></span>
+        <span class="name">trade<span class="muted">.log</span></span>
+      </a>
+      <button class="sidebar-toggle" id="sidebar-toggle" title="Collapse sidebar" aria-label="Collapse sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div id="sidebar-main-section"></div>
+
+
+      <div id="sidebar-more-section"></div>
+
+
+      <div id="sidebar-wip-section"></div>
+<script src="js/core/nav-render.js"></script>
+</nav>
+
+    <div class="sidebar-bottom">
+      <div class="pipeline-status"><span class="dot"></span><span>Scanner</span></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 id="page-title">Scanner</h1>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" id="mobile-nav-btn" title="Menu" aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+
+  <main class="sc-wrap">
+    <div class="panel-head">
+      <div class="sub">Premarket gap scan (4:00–9:30 ET), powered by real-time Alpaca IEX data. Updates every few seconds — this is the same feed a "top_gappers" strategy trades from on the Live Trading page.</div>
+    </div>
+
+    <div id="sc-banner" class="sc-banner idle">Loading…</div>
+    <div class="sc-enrich-note" id="sc-enrich-note"></div>
+
+    <div class="stat-grid sc-stats hidden" id="sc-stats">
+      <div class="stat">
+        <div class="label-row"><span class="label">Qualifying now</span></div>
+        <div class="value" id="sc-stat-count">—</div>
+      </div>
+      <div class="stat">
+        <div class="label-row"><span class="label">Top gapper</span></div>
+        <div class="value mono" id="sc-stat-top">—</div>
+        <div class="sub-value" id="sc-stat-top-sub"></div>
+      </div>
+      <div class="stat">
+        <div class="label-row"><span class="label">Avg gap</span></div>
+        <div class="value" id="sc-stat-avg">—</div>
+      </div>
+      <div class="stat">
+        <div class="label-row"><span class="label">Last scan</span></div>
+        <div class="value" id="sc-stat-updated" style="font-size:15px;">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sc-toolbar">
+        <div class="sc-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input id="sc-filter" type="text" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="Filter symbol…" autocomplete="off">
+        </div>
+        <label class="sc-mobile-sort"><span>Sort</span>
+          <select id="sc-mobile-sort" class="select-clean" aria-label="Sort gappers">
+            <option value="gap_pct">Gap %</option><option value="premkt_volume">Premkt vol</option>
+            <option value="relative_volume">RVol</option><option value="float_shares">Float</option>
+            <option value="price">Price</option><option value="day_high">Day high</option>
+            <option value="vwap">VWAP</option><option value="symbol">Symbol</option>
+          </select>
+          <button type="button" class="filter-btn" id="sc-mobile-dir" aria-label="Reverse sort direction">&#8645;</button>
+        </label>
+        <div class="sc-refresh-note" id="sc-refresh-note"></div>
+      </div>
+      <div class="sr-only" id="sc-result-summary" aria-live="polite" aria-atomic="true"></div>
+      <div class="table-scroll">
+        <table id="sc-table" class="data-table">
+          <thead>
+            <tr>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="symbol">Symbol</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="price">Price</button></th>
+              <th scope="col" aria-sort="descending"><button type="button" class="headcell sorted" data-sort="gap_pct">Gap %</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="premkt_volume">Premkt Vol</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="day_high">Day High</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="vwap">VWAP</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="ema9">EMA9</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="ema200">EMA200</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="float_shares">Float</button></th>
+              <th scope="col" aria-sort="none"><button type="button" class="headcell" data-sort="relative_volume">RVol</button></th>
+              <th scope="col"><span class="headcell no-sort">Badges</span></th>
+              <th scope="col"><span class="headcell no-sort">Updated</span></th>
+            </tr>
+          </thead>
+          <tbody id="sc-tbody"><tr><td colspan="13"><div class="loading-line skel-table" role="status" aria-busy="true" aria-label="Loading"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div></td></tr></tbody>
+        </table>
+      </div>
+      <div id="sc-empty" class="empty-state small hidden">No gappers found yet today.</div>
+    </div>
+  </main>
+
+    </div>
+  </div>
+</div>
+
+<script src="js/core/utils.js" defer></script>
+<script src="js/core/config.js" defer></script>
+<script src="js/vendor/supabase.js?v=1" defer></script>
+<script src="js/core/auth.js" defer></script>
+<script src="js/accounts/accounts.js" defer></script>
+<script src="js/tools/scanner.js" defer></script>
+<script src="js/core/common.js" defer></script>
+<script src="js/core/select-enhance.js" defer></script>
+<script src="js/core/mobile-tables.js" defer></script>
+<script src="js/core/glossary.js" defer></script>
+<script src="js/core/mobile-extras.js" defer></script>
+<script src="js/core/global-search.js" defer></script>
+<script src="js/core/shortcuts-help.js" defer></script>
+</body>
+</html>
