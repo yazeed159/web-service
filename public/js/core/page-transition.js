@@ -227,6 +227,61 @@
     });
   }
 
+  // Linked stylesheets: the same problem as the inline <style> blocks above, but
+  // worse. dashboard.css (the hero, KPI cards, calendar...) is only <link>ed by
+  // index.html/stats.html, ui-modal.css only by a few others -- so arriving at the
+  // Dashboard from Journal/Reports/etc. via the sidebar swapped in the dashboard
+  // markup with its stylesheet missing, and the top of the page rendered as an
+  // unstyled, half-built version until a hard refresh. Here every destination
+  // <link rel="stylesheet"> not already in the document is added, and the swap
+  // WAITS for them to load (the old page stays on screen meanwhile), so the new
+  // content never paints without its CSS. Links are kept once added (they're cached
+  // and harmless to later pages), and a slow/failed sheet can't block more than 4s.
+  function absHref(href) {
+    try { var u = new URL(href, document.baseURI); u.hash = ""; return u.href; } catch (e) { return href; }
+  }
+  // Same-origin stylesheet links of a document, in source order. Third-party sheets
+  // (Google Fonts) are shared by every page and left alone.
+  function localSheets(doc) {
+    return Array.prototype.filter.call(doc.head.querySelectorAll('link[rel~="stylesheet"][href]'), function (l) {
+      return !/^(https?:)?\/\//.test(l.getAttribute("href"));
+    });
+  }
+  function ensureStylesheets(newDoc) {
+    var have = {};
+    localSheets(document).forEach(function (l) { have[absHref(l.getAttribute("href"))] = l; });
+    var waits = [], prev = null;
+    localSheets(newDoc).forEach(function (l) {
+      var href = l.getAttribute("href"), key = absHref(href);
+      if (have[key]) { prev = have[key]; return; }
+      var link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = href;
+      have[key] = link;
+      waits.push(new Promise(function (resolve) {
+        var timer = setTimeout(resolve, 4000);
+        link.onload = link.onerror = function () { clearTimeout(timer); resolve(); };
+      }));
+      // Keep the destination's own source order (cascade order matters: e.g. ui-modal.css
+      // comes after mobile.css on Journal) by slotting each new sheet after the sheet that
+      // precedes it in the destination's <head>.
+      if (prev && prev.parentNode) prev.parentNode.insertBefore(link, prev.nextSibling);
+      else document.head.insertBefore(link, document.head.querySelector('link[rel~="stylesheet"][href]') || null);
+      prev = link;
+    });
+    return waits.length ? Promise.all(waits) : Promise.resolve();
+  }
+  // After the swap: drop page-specific sheets the destination doesn't use, so each page
+  // ends up with exactly the stylesheets a fresh load of it would have (dashboard.css
+  // restyling Journal, or page A's rules leaking onto page B, is the mirror-image bug).
+  function pruneStylesheets(newDoc) {
+    var want = {};
+    localSheets(newDoc).forEach(function (l) { want[absHref(l.getAttribute("href"))] = true; });
+    localSheets(document).forEach(function (l) {
+      if (!want[absHref(l.getAttribute("href"))]) l.remove();
+    });
+  }
+
   function swapContent(newDoc) {
     var curMain = document.querySelector(".main");
     var newMain = newDoc.querySelector(".main");
@@ -371,6 +426,11 @@
       .then(function (html) {
         if (stale()) return; // a newer click superseded this one while it was in flight
         var newDoc = new DOMParser().parseFromString(html, "text/html");
+        // Make sure the destination's stylesheets are loaded BEFORE anything is swapped.
+        return ensureStylesheets(newDoc).then(function () { return newDoc; });
+      })
+      .then(function (newDoc) {
+        if (stale()) return;
 
         // Everything that mutates the live page. With view transitions this
         // runs inside document.startViewTransition(): the browser snapshots the
@@ -385,6 +445,7 @@
           if (window.PullRefresh) window.PullRefresh.set(null);
           document.title = newDoc.title || document.title;
           swapContent(newDoc);
+          pruneStylesheets(newDoc);
           swapSidebarMain(newDoc);
           swapSidebarBottom(newDoc);
           return runPageScripts(cfg, newDoc, stale).then(function () {
