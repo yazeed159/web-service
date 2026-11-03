@@ -1237,7 +1237,12 @@
 
     function repositionPointers() {
       pointers.forEach((p) => {
-        const x = rptCandleChart.timeScale().timeToCoordinate(p.time);
+        // Snap the 1m bar time to the start of its candle at the current
+        // timeframe -- timeToCoordinate() returns null for times that
+        // aren't an exact candle start (any non-1m timeframe).
+        const bucketSec = rptCurrentInterval * 60;
+        const snapped = rptCurrentInterval > 1 ? Math.floor(p.time / bucketSec) * bucketSec : p.time;
+        const x = rptCandleChart.timeScale().timeToCoordinate(snapped);
         const y = candleSeries.priceToCoordinate(p.price);
         if (x === null || y === null) {
           p.el.style.display = "none";

@@ -1371,7 +1371,14 @@
 
     function repositionPointers() {
       pointers.forEach((p) => {
-        const x0 = candleChart.timeScale().timeToCoordinate(p.time);
+        // p.time is the 1-minute bar the fill landed in. On 5m/15m/1h the
+        // chart only has candles at bucket starts, and timeToCoordinate()
+        // returns null for any time that isn't exactly one of them -- so
+        // snap to the start of the candle that 1m bar belongs to (same
+        // floor rule resampleBars() uses), or the pointer gets hidden.
+        const bucketSec = currentInterval * 60;
+        const snapped = currentInterval > 1 ? Math.floor(p.time / bucketSec) * bucketSec : p.time;
+        const x0 = candleChart.timeScale().timeToCoordinate(snapped);
         const x = x0 === null ? null : x0 + (p.dx || 0);
         const y = candleSeries.priceToCoordinate(p.price);
         if ((p.better && !showBetter) || x === null || y === null) {
@@ -1597,9 +1604,10 @@
     // Timeframe switcher (1m/5m/15m/1h), resampled client-side from the
     // 1-minute bars already loaded -- no extra network call. Switching
     // just re-derives each series' data and calls setData() again; the
-    // pointers/price-lines below are positioned by absolute time/price
-    // (timeToCoordinate/priceToCoordinate), so they keep working
-    // unchanged at any timeframe.
+    // pointers/price-lines are positioned by time/price
+    // (timeToCoordinate/priceToCoordinate). Prices work at any timeframe,
+    // but times must be snapped to the current timeframe's candle start --
+    // see repositionPointers().
     function applyInterval(minutes) {
       currentInterval = minutes;
       if (window.ChartIndicators.syncTimeframeSwitchers) window.ChartIndicators.syncTimeframeSwitchers(minutes);
