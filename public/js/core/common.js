@@ -647,3 +647,72 @@ window.NavState = (function () {
     return '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + c.fg + ';margin-right:6px;vertical-align:middle;"></span>';
   };
 })();
+
+/* ---- UI refresh helpers: collapsible explainers + Settings section nav ---- */
+(function () {
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  function enhanceExplainers() {
+    var items = document.querySelectorAll(".edge-intro:not([data-xp]), .calc-intro:not([data-xp])");
+    items.forEach(function (el) {
+      el.setAttribute("data-xp", "1");
+      var key = "tl:explainer:" + (el.classList.contains("edge-intro") ? "edge" : "calc");
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "xp-toggle";
+      function paint() {
+        var collapsed = el.classList.contains("xp-collapsed");
+        btn.textContent = collapsed ? "Show intro" : "Hide";
+        btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      }
+      btn.addEventListener("click", function () {
+        el.classList.toggle("xp-collapsed");
+        lsSet(key, el.classList.contains("xp-collapsed") ? "1" : "0");
+        paint();
+      });
+      // First visit shows the intro; once seen, it starts collapsed.
+      if (lsGet(key) === "1") el.classList.add("xp-collapsed");
+      else if (lsGet(key) === null) lsSet(key, "1");
+      el.appendChild(btn);
+      paint();
+    });
+  }
+
+  function buildSettingsNav() {
+    var content = document.querySelector(".main .content");
+    if (!content || document.getElementById("page-title") == null) return;
+    if (document.getElementById("page-title").textContent.trim() !== "Settings") return;
+    if (content.querySelector(".set-nav")) return;
+    var boxes = content.querySelectorAll(":scope > .panel-box");
+    if (boxes.length < 3) return;
+    var nav = document.createElement("nav");
+    nav.className = "set-nav";
+    nav.setAttribute("aria-label", "Settings sections");
+    boxes.forEach(function (box, i) {
+      var t = box.querySelector(".panel-box-head .title");
+      if (!t) return;
+      if (!box.id) box.id = "set-sec-" + i;
+      var a = document.createElement("a");
+      a.href = "#" + box.id;
+      a.textContent = t.textContent.trim();
+      a.addEventListener("click", function (e) {
+        e.preventDefault();
+        box.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      nav.appendChild(a);
+    });
+    content.classList.add("has-set-nav");
+    content.insertBefore(nav, content.firstChild);
+  }
+
+  function run() { enhanceExplainers(); buildSettingsNav(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", run); else run();
+  new MutationObserver(function () { run(); }).observe(document.body || document.documentElement, { childList: true, subtree: true });
+})();
+document.addEventListener("click", function (e) {
+  var b = e.target.closest && e.target.closest(".pr-empty-cta");
+  if (!b) return;
+  var go = document.getElementById("pf-random-btn");
+  if (go) go.click();
+});

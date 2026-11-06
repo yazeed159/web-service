@@ -104,6 +104,45 @@
     settings: { shared: ["js/core/ui-modal.js"], owned: [] }
   };
 
+  // Self-heal for the "skeleton that never resolves until I refresh" failure, on EVERY page.
+  // After a page has had 12s to load, if a visible loading skeleton is STILL sitting in the
+  // content, reload (the same cure as the manual refresh, minus the manual part: a fresh load
+  // gets a fresh connection and a fresh session check). Guarded: at most twice per page per
+  // 5 minutes (so a genuinely down backend can't cause a reload loop), and never while the tab
+  // is hidden. Long-running tool pages are left out on purpose -- their spinners are legitimate.
+  var NO_WATCHDOG = { "backtester": 1, "live-trading": 1, "scanner": 1, "import-trades": 1, "login": 1 };
+  function armSkeletonWatchdog() {
+    var path = currentPath;
+    if (NO_WATCHDOG[keyFor(path)]) return;
+    function stuck() {
+      return Array.prototype.some.call(document.querySelectorAll(".main .loading-line"), function (el) {
+        return el.offsetParent !== null;
+      });
+    }
+    function check() {
+      if (currentPath !== path) return;
+      if (document.hidden) {
+        document.addEventListener("visibilitychange", function once() {
+          if (document.hidden) return;
+          document.removeEventListener("visibilitychange", once);
+          setTimeout(check, 4000);
+        });
+        return;
+      }
+      if (!stuck()) return;
+      try {
+        var log = JSON.parse(sessionStorage.getItem("tl:skel-reload") || "{}");
+        var now = Date.now();
+        var hits = (log[path] || []).filter(function (t) { return now - t < 300000; });
+        if (hits.length >= 2) return;
+        hits.push(now); log[path] = hits;
+        sessionStorage.setItem("tl:skel-reload", JSON.stringify(log));
+      } catch (e) { /* storage blocked: reload anyway, once per page view */ }
+      window.location.reload();
+    }
+    setTimeout(check, 12000);
+  }
+
   function normalizeFile(name) {
     try {
       return decodeURIComponent(name || "").toLowerCase().replace(/\/+$/, "").replace(/\.html$/, "");
@@ -404,6 +443,9 @@
     });
   }
 
+  if (document.readyState === "complete") armSkeletonWatchdog();
+  else window.addEventListener("load", armSkeletonWatchdog, { once: true });
+
   var navSeq = 0; // bumped by every swap; a swap whose number is no longer current is stale
 
   function swapTo(url, cfg, push) {
@@ -453,6 +495,7 @@
             window.scrollTo(0, 0);
             if (window.__rebootDecor) window.__rebootDecor();
             hideLoader();
+            armSkeletonWatchdog();
           });
         }
 

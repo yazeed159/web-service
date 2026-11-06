@@ -159,7 +159,13 @@
           });
         });
       }
-      return Promise.resolve().then(fetcher).then(function (value) {
+      // Watchdog: if the fetcher never settles (a hung request/session), reject after 45s so the
+      // page can show its error + Retry instead of an endless skeleton.
+      var guarded = new Promise(function (resolve, reject) {
+        var t = setTimeout(function () { reject(new Error("Timed out loading " + name.split(":")[0])); }, 45000);
+        Promise.resolve().then(fetcher).then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
+      });
+      return guarded.then(function (value) {
         settled = true;
         TradeCache.set(name, value);
         announce("fresh", Date.now());
@@ -395,8 +401,21 @@
   // Only a clean "no session, no error" answer means signed out; an error
   // gets a few retries and, if it persists, does NOT bounce you to the login
   // page -- it sets window.AUTH_ERROR so data helpers can say what happened.
+  // getSession() can hang forever (a stuck cross-tab auth lock, a stalled token refresh) and
+  // everything on the page awaits AUTH_READY -- that was an endless skeleton until a refresh.
+  // Each attempt now gets 8s, then counts as a failed attempt and goes through the retry path.
+  function getSessionBounded() {
+    return new Promise(function (resolve, reject) {
+      var done = false;
+      var t = setTimeout(function () { if (!done) { done = true; reject(new Error("getSession timed out")); } }, 8000);
+      Promise.resolve().then(function () { return window.sb.auth.getSession(); }).then(
+        function (v) { if (!done) { done = true; clearTimeout(t); resolve(v); } },
+        function (e) { if (!done) { done = true; clearTimeout(t); reject(e); } }
+      );
+    });
+  }
   function loadSession(attempt) {
-    return window.sb.auth.getSession().then(function (res) {
+    return getSessionBounded().then(function (res) {
       var hasSession = res && res.data && res.data.session;
       if (!hasSession && res && res.error && attempt < 3) {
         return sleep(jitter(800 * (attempt + 1))).then(function () { return loadSession(attempt + 1); });
@@ -513,7 +532,7 @@
   // Real errors (RLS denied, bad column, ...) are NOT retried.
   // ------------------------------------------------------------------
   var RETRY_DELAYS = [600, 1500, 3000, 6000];   // ms between attempts (+ jitter)
-  var ATTEMPT_TIMEOUT_MS = 20000;
+  var ATTEMPT_TIMEOUT_MS = 12000;
 
   function errKind(err, status) {
     if (!err && !status) return null;

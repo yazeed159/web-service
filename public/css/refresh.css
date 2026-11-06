@@ -1,0 +1,168 @@
+/* ======================================================================
+   UI REFRESH — loaded last on every page.
+   Width, ambient depth, one stat-tile look, calmer colour, readable text,
+   page headers, collapsible explainers, Settings nav, small page fixes.
+====================================================================== */
+:root {
+  --r-card: 18px;
+  --r-ctl: 10px;
+  --card-rim: rgba(255,255,255,.07);
+  --card-shadow: 0 1px 0 rgba(255,255,255,.05) inset, 0 10px 30px -14px rgba(0,0,0,.55);
+}
+:root[data-theme="light"] {
+  --card-rim: rgba(20,24,40,.08);
+  --card-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 8px 24px -14px rgba(30,40,80,.22);
+}
+
+/* ---- Text contrast ---- */
+:root { --text-dim: #b6bacb; --text-faint: #9ea2b1; }
+:root[data-theme="light"] { --text-dim: #4a4e5f; --text-faint: #565a6b; }
+
+/* ---- Wider layout ---- */
+html body .content { max-width: 1560px; }
+
+/* ---- Ambient glow so the glass has something to blur (desktop only) ---- */
+@media (min-width: 900px) {
+  body { background-attachment: fixed; }
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(900px 520px at 78% -8%, rgba(124,92,255,.16), transparent 62%),
+      radial-gradient(720px 480px at 4% 108%, rgba(56,189,248,.10), transparent 60%);
+  }
+  :root[data-theme="light"] body::before {
+    background:
+      radial-gradient(900px 520px at 78% -8%, rgba(124,92,255,.10), transparent 62%),
+      radial-gradient(720px 480px at 4% 108%, rgba(56,189,248,.08), transparent 60%);
+  }
+}
+
+/* ---- Card depth + radii ---- */
+html body :is(.panel-box, .card, .chart-panel, .equity-panel, .day-group, .playbook-card, .highlight-card, .calc-box) {
+  border-radius: var(--r-card);
+  border-color: var(--card-rim);
+  box-shadow: var(--card-shadow);
+}
+html body :is(input, select, textarea, .calc-toggle, .chip) { border-radius: var(--r-ctl); }
+
+/* ---- Card titles: one size ---- */
+html body :is(.panel-box-head .title, .card-title, .chart-title) { font-size: 15px; font-weight: 650; }
+
+/* ---- Readable small labels, sans tabular numerals ---- */
+html body :is(.label, .kpi-card .label, .eq-stat-label, .calc-stat .lbl, .pr-stat-cell .label, .cal-legend-label) {
+  font-size: 12px;
+}
+html body :is(.stat .value, .kpi-card .value, .calc-stat .val, .pr-stat-cell .value, .equity-head .value, .eq-stat-value) {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+html body .kpi-card .value.neutral { color: var(--text); }
+
+/* ---- One stat tile ---- */
+html body :is(.calc-stat, .pr-stat-cell) {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--g-fill);
+  border: 1px solid var(--card-rim);
+}
+html body .calc-stat .val { font-size: 22px; font-weight: 700; }
+html body .calc-stat .sub { font-size: 12px; }
+
+/* ---- Topbar: bigger title, calmer chips ---- */
+html body .topbar h1, :root body #page-title { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+html body .date-range-pill, :root body .pipeline-status {
+  background: transparent; border: 0; box-shadow: none; color: var(--text-faint); font-size: 12px; padding: 0 4px;
+}
+
+/* ---- Collapsible explainers ---- */
+.edge-intro, .calc-intro { position: relative; }
+.xp-toggle {
+  position: absolute; top: 50%; transform: translateY(-50%); right: 12px; font: inherit; font-size: 12px;
+  color: var(--text-faint); background: transparent; border: 0; cursor: pointer; padding: 4px 8px; border-radius: 8px;
+}
+.xp-toggle:hover { color: var(--text); background: var(--g-fill); }
+.xp-collapsed { padding-top: 10px !important; padding-bottom: 10px !important; min-height: 0; }
+.xp-collapsed.calc-intro { font-size: 0; line-height: 1; padding-right: 96px; }
+.xp-collapsed.calc-intro .calc-intro-title { display: inline-block; font-size: 13px; margin: 0; line-height: 1.4; }
+.xp-collapsed.calc-intro > :not(.calc-intro-title):not(.xp-toggle) { display: none !important; }
+.xp-collapsed.edge-intro > div:not(.edge-intro-icon) p { display: none; }
+.xp-collapsed.edge-intro > div:not(.edge-intro-icon) { display: block !important; }
+.xp-collapsed.edge-intro h2 { margin: 0; }
+
+/* ---- Calculator ---- */
+.calc-toggle button { white-space: nowrap; }
+.calc-row-head { flex-wrap: wrap; gap: 8px; }
+input[type="number"].calc-input, .calc-box input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.calc-box input[type="number"]::-webkit-outer-spin-button,
+.calc-box input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* ---- Dashboard mini-calendar fills its card ---- */
+
+/* ---- Practice empty state ---- */
+.pr-equity-empty { flex-direction: column; gap: 6px; text-align: center; }
+.pr-equity-empty:not(.hidden) { display: flex; align-items: center; justify-content: center; }
+.pr-empty-title { font-size: 14px; font-weight: 650; color: var(--text); }
+.pr-empty-sub { font-size: 12.5px; color: var(--text-faint); max-width: 32ch; }
+.pr-empty-cta { margin-top: 8px; }
+
+/* ---- Settings: left section nav on wide screens ---- */
+.set-nav { display: none; }
+@media (min-width: 1100px) {
+  .content.has-set-nav { display: grid; grid-template-columns: 200px minmax(0, 1fr); column-gap: 28px; align-items: start; }
+  .content.has-set-nav > * { grid-column: 2; }
+  .content.has-set-nav > .set-nav {
+    grid-column: 1; grid-row: 1 / span 20; position: sticky; top: 90px; display: flex; flex-direction: column; gap: 2px;
+  }
+  .set-nav a {
+    padding: 8px 12px; border-radius: var(--r-ctl); color: var(--text-dim); text-decoration: none; font-size: 13.5px;
+  }
+  .set-nav a:hover { background: var(--g-fill); color: var(--text); }
+}
+.edge-intro, .calc-intro { padding-right: 96px; }
+
+/* ---- Card titles: win over the older small-caps tier ---- */
+html body .panel-box .panel-box-head .title,
+html body .panel-box-head .title,
+html body .pp-order-panel .title,
+html body .pp-fill-log-block .title {
+  font-size: 15px !important; font-weight: 650 !important; text-transform: none !important;
+  letter-spacing: -.005em !important; color: var(--text) !important;
+}
+html body .panel-box-head .title[style] { font-size: 14px !important; }
+
+/* ---- Dashboard mini-calendar fills its card ---- */
+html body .cal-mini-wrap { width: 100%; }
+html body .cal-grid.cal-mini { max-width: none; width: 100%; gap: 6px; }
+html body .cal-grid.cal-mini .cal-cell, html body .cal-grid.cal-mini .cal-week-box { min-height: 62px; }
+html body .cal-grid.cal-mini .cal-dow { font-size: 11px; padding-bottom: 4px; }
+html body .cal-grid.cal-mini .cal-cell .date-num { font-size: 11px; }
+html body .cal-grid.cal-mini .cal-cell .cell-pnl { font-size: 13px; }
+
+/* ---- Page header: one-line subtitle style ---- */
+html body .panel-head h1 { font-size: 22px; font-weight: 700; margin: 0; }
+html body .panel-head .sub { font-size: 13.5px; color: var(--text-dim); margin-top: 4px; max-width: 80ch; line-height: 1.5; }
+
+/* ---- Calendar: blank / no-trade cells don't force tall rows ---- */
+html body .cal-grid.cal-mini .cal-cell:not(:has(.cell-pnl)),
+html body .cal-grid.cal-mini .cal-cell.empty,
+html body .cal-grid.cal-mini .cal-cell.other-month,
+html body .cal-grid.cal-mini .cal-week-box:not(:has(.cell-pnl)) { min-height: 38px; }
+html body .cal-grid.cal-mini .cal-week-box { min-height: 38px; }
+html body .cal-grid.cal-mini .cal-cell:has(.cell-pnl) { min-height: 58px; }
+
+/* ---- Edge decay chart: less dead space ---- */
+#decay-chart { height: 180px !important; }
+html body .cal-grid.cal-mini .cal-cell { aspect-ratio: auto; }
+html body .cal-grid.cal-mini { align-content: center; }
+
+/* ---- Day View: empty days don't take a full card's height ---- */
+html body .cal-grid:not(.cal-mini) .cal-cell:not(:has(.cell-pnl)),
+html body .cal-grid:not(.cal-mini) .cal-cell.empty { min-height: 72px; }
+html body .cal-grid:not(.cal-mini) .cal-week-box:not(:has(.week-pnl)) { min-height: 72px; }
+
+/* ---- Textareas use the UI font, not monospace ---- */
+html body textarea { font-family: var(--sans); line-height: 1.5; }
+
+/* ---- Checkbox row labels: plain text, not small-caps tracking ---- */
+html body .quiz-check-row label, html body .quiz-check-row { letter-spacing: 0; font-family: var(--sans); }

@@ -315,11 +315,11 @@
 
     // ---------- Supporting KPI cards ----------
     const cards = [
-      { label: "Trade win %", value: s.winRate.toFixed(0) + "%", cls: s.winRate >= 50 ? "up" : "down", sub: `${App.state.trades.length} trades`, icon: "target",
+      { label: "Trade win %", value: s.winRate.toFixed(0) + "%", cls: "neutral", sub: `${App.state.trades.length} trades`, icon: "target",
         delta: w ? deltaChip(w.recent.winRate, w.prior.winRate, (d) => (d >= 0 ? "+" : "") + d.toFixed(0) + "pt") : "" },
-      { label: "Profit factor", value: pfDisplay, cls: s.profitFactor >= 1 ? "up" : "down", sub: s.profitFactor >= 1 ? "profitable" : "below 1.0", icon: "scale",
+      { label: "Profit factor", value: pfDisplay, cls: "neutral", sub: s.profitFactor >= 1 ? "profitable" : "below 1.0", icon: "scale",
         delta: w ? deltaChip(w.recent.profitFactor, w.prior.profitFactor, (d) => (d >= 0 ? "+" : "") + d.toFixed(2)) : "" },
-      { label: "Day win %", value: s.dayWinRate.toFixed(0) + "%", cls: s.dayWinRate >= 50 ? "up" : "down", sub: `${s.dayCount} trading days`, icon: "calendarCheck",
+      { label: "Day win %", value: s.dayWinRate.toFixed(0) + "%", cls: "neutral", sub: `${s.dayCount} trading days`, icon: "calendarCheck",
         delta: w ? deltaChip(w.recent.dayWinRate, w.prior.dayWinRate, (d) => (d >= 0 ? "+" : "") + d.toFixed(0) + "pt") : "" },
       { label: "Avg win", value: fmtMoney(s.avgWin), cls: "up", sub: `${s.wins.length} wins`, icon: "trendUp",
         delta: w ? deltaChip(w.recent.avgWin, w.prior.avgWin, fmtMoney) : "" },

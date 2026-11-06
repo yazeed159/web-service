@@ -55,6 +55,7 @@
 <script src="js/core/pwa-register.js" defer></script>
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
+<link rel="stylesheet" href="css/refresh.css">
 </head>
 <body>
 <div id="page-progress-bar"></div>
@@ -653,6 +654,7 @@
     if (!session) return;
     return window.Accounts.ready.then(() => {
       if (!window.Accounts.isAvailable()) {
+        ["acc-live-grid", "acc-paper-grid", "acc-period-list"].forEach((id) => { const el = $(id); if (el) el.innerHTML = ""; });   // drop the loading skeletons
         document.querySelector(".content").insertAdjacentHTML("afterbegin", '<div class="panel-box mb-16"><div class="empty-state small">Accounts aren\u2019t set up in your database yet. Run <b>001_accounts.sql</b> in the Supabase SQL editor, then reload.</div></div>');
         return;
       }

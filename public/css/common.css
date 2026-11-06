@@ -2684,10 +2684,17 @@ table.journal-data-table th.col-th { position: relative; user-select: none; }
 table.journal-data-table th.col-th[draggable="true"] { cursor: grab; }
 table.journal-data-table td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .col-resize-handle {
-  position: absolute; top: 0; right: -3px; width: 7px; height: 100%;
-  cursor: col-resize; z-index: 2;
+  position: absolute; top: 0; right: 0; width: 12px; height: 100%;
+  cursor: col-resize; z-index: 2; display: flex; align-items: center; justify-content: flex-end; padding-right: 3px;
 }
-.col-resize-handle:hover, .col-resize-handle:active { background: var(--primary-soft); }
+/* Always-visible grip: a short divider at each column edge so you can see where to drag. */
+.col-resize-handle i {
+  display: block; width: 2px; height: 55%; border-radius: 2px;
+  background: var(--text-faint); opacity: .45; transition: opacity .12s, background-color .12s, height .12s;
+}
+.col-resize-handle:hover i, .col-resize-handle:active i { opacity: 1; background: var(--primary); height: 75%; }
+/* The last column's handle used to poke 3px past the table and trigger a horizontal scrollbar on its own. */
+
 
 /* Export dialog (journal.html) */
 .exp-group { margin: 14px 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); }
@@ -4208,4 +4215,29 @@ a.th-nav:active { transform: translateY(1px); }
   .sidebar-nav[data-fade="bottom"] { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 38px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 38px), transparent); }
   .sidebar-nav[data-fade="top"] { -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 38px), transparent); mask-image: linear-gradient(to top, #000 calc(100% - 38px), transparent); }
   .sidebar-nav[data-fade="both"] { -webkit-mask-image: linear-gradient(to bottom, transparent, #000 34px, #000 calc(100% - 38px), transparent); mask-image: linear-gradient(to bottom, transparent, #000 34px, #000 calc(100% - 38px), transparent); }
+}
+
+/* ======================================================================
+   Layout polish: spacing that was missing between stacked blocks
+   ====================================================================== */
+/* Reports: the Filters button sat flush on the KPI cards below it. */
+@media (min-width: 761px) {
+  html body .rpt-filter-wrap .rpt-filters-toggle { margin-bottom: 14px; }
+  html body .rpt-filter-wrap .rpt-filter-sheet.open { top: 52px; }
+}
+/* Stacked cards (Live Trading, Scanner, Backtester ...) had no gap between them. */
+html body .card + .card,
+html body .lt-wrap > * + .card,
+html body .card + .section-label-row,
+html body #bt-strategies + .bt-run-row,
+html body .bt-run-row + .section-label-row { margin-top: 16px; }
+/* Section heading + its explanation: one tidy row; the hint was a boxed block that sat on the heading. */
+html body .section-label-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 28px 0 12px; }
+html body .section-label-row > .hint-text {
+  flex: 0 1 auto; max-width: min(760px, 72%); margin: 0; padding: 0; background: none; border: 0; border-radius: 0;
+  text-align: right; line-height: 1.5;
+}
+@media (max-width: 760px) {
+  html body .section-label-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+  html body .section-label-row > .hint-text { max-width: none; width: 100%; text-align: left; }
 }

@@ -436,3 +436,181 @@ button.pill.tagpill:focus-visible, .int-disconnect:focus-visible {
 /* Broker-connection editor (styles injected by js/broker-connections.js) joins the shared shapes. */
 :root .bc-sync, :root .bc-details, :root .bc-grid input, :root .bc-row input { border-radius: var(--ctl-radius); }
 :root .bc-h { font-size: 10.5px; letter-spacing: 0.06em; font-weight: 600; }
+
+
+/* ======================================================================
+   GLASS BUTTONS v2 -- ONE recipe for every button on the site.
+   A frosted translucent fill (lighter at the top, like light catching the
+   pane), a bright specular rim along the top edge, a soft drop shadow, and a
+   violet glow when you hover. Pressing springs the pane in. Active/toggled
+   buttons are lit violet glass. Before this, a dozen button families
+   (Day View arrows, Daily Prev/Next/Today, Order shortcuts, Load more,
+   Compare, Cancel, Share, preset chips, day-of-week chips ...) each had their
+   own flat look or none at all. Delete this block to go back.
+   Written with ":root body" so it out-ranks the older per-page ":root .x" rules.
+   ====================================================================== */
+:root {
+  --gb-top: rgba(255,255,255,.14);
+  --gb-bot: rgba(255,255,255,.04);
+  --gb-edge: rgba(255,255,255,.13);
+  --gb-rim: rgba(255,255,255,.32);
+  --gb-drop: 0 8px 20px -10px rgba(0,0,0,.75);
+  --gb-blur: blur(12px) saturate(1.5);
+  --gb-lit-top: color-mix(in srgb, var(--primary) 40%, rgba(255,255,255,.14));
+  --gb-lit-bot: color-mix(in srgb, var(--primary) 16%, rgba(255,255,255,.03));
+}
+:root[data-theme="light"] {
+  --gb-top: rgba(255,255,255,.96);
+  --gb-bot: rgba(255,255,255,.58);
+  --gb-edge: rgba(24,28,46,.13);
+  --gb-rim: rgba(255,255,255,1);
+  --gb-drop: 0 6px 16px -9px rgba(40,50,90,.38);
+  --gb-lit-top: color-mix(in srgb, var(--primary) 26%, rgba(255,255,255,.9));
+  --gb-lit-bot: color-mix(in srgb, var(--primary) 10%, rgba(255,255,255,.55));
+}
+
+/* ---- 1. frosted (secondary) buttons ---- */
+:root body :is(
+  .btn-advanced, .filter-btn, .icon-btn, .btn-icon, .cal-nav-btn, .sidebar-toggle, .th-btn, .btn,
+  .btn-load-more, .eq-compare-btn, .bt-cancel-btn, .preset-save-btn, .quiz-quit-btn,
+  .rpt-chart-rewind-btn, .rpt-chart-practice-btn, .chart-fs-btn, .ts-ghost, .ts-btn, .tags-more,
+  .pp-head-shortcuts-btn, .pp-stepper-btn, .pp-order-btn, .pp-size-mode-btn, .sr-run-btn
+) {
+  color: var(--text); cursor: pointer;
+  background: linear-gradient(180deg, var(--gb-top), var(--gb-bot));
+  border: 1px solid var(--gb-edge);
+  box-shadow: inset 0 1px 0 var(--gb-rim), inset 0 -1px 0 rgba(0,0,0,.16), var(--gb-drop);
+  -webkit-backdrop-filter: var(--gb-blur); backdrop-filter: var(--gb-blur);
+  transition: background .18s var(--btn-ease), border-color .18s var(--btn-ease), box-shadow .22s var(--btn-ease), transform .14s var(--btn-ease), color .18s var(--btn-ease);
+}
+:root body :is(
+  .btn-advanced, .filter-btn, .icon-btn, .btn-icon, .cal-nav-btn, .sidebar-toggle, .th-btn, .btn,
+  .btn-load-more, .eq-compare-btn, .bt-cancel-btn, .preset-save-btn, .quiz-quit-btn,
+  .rpt-chart-rewind-btn, .rpt-chart-practice-btn, .chart-fs-btn, .ts-ghost, .ts-btn, .tags-more,
+  .pp-head-shortcuts-btn, .pp-stepper-btn, .pp-order-btn, .pp-size-mode-btn, .sr-run-btn
+):hover:not(:disabled) {
+  color: var(--text);
+  background: linear-gradient(180deg, var(--gb-lit-top), var(--gb-lit-bot));
+  border-color: color-mix(in srgb, var(--primary) 58%, transparent);
+  box-shadow: inset 0 1px 0 var(--gb-rim), 0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent), 0 12px 28px -10px color-mix(in srgb, var(--primary) 65%, transparent);
+  transform: translateY(-1px);
+}
+:root body :is(
+  .btn-advanced, .filter-btn, .icon-btn, .btn-icon, .cal-nav-btn, .sidebar-toggle, .th-btn, .btn,
+  .btn-load-more, .eq-compare-btn, .bt-cancel-btn, .preset-save-btn, .quiz-quit-btn,
+  .rpt-chart-rewind-btn, .rpt-chart-practice-btn, .chart-fs-btn, .ts-ghost, .ts-btn, .tags-more,
+  .pp-head-shortcuts-btn, .pp-stepper-btn, .pp-order-btn, .pp-size-mode-btn, .sr-run-btn
+):active:not(:disabled) {
+  transform: translateY(0) scale(.97);
+  box-shadow: inset 0 2px 8px rgba(0,0,0,.35), inset 0 1px 0 var(--gb-rim);
+  transition-timing-function: var(--btn-spring, cubic-bezier(.34,1.56,.64,1));
+}
+/* toggled / selected */
+:root body :is(.filter-btn, .btn-advanced, .icon-btn, .btn-icon, .eq-compare-btn, .pp-size-mode-btn, .pp-order-btn).active,
+:root body :is(.filter-btn, .btn-advanced, .icon-btn, .btn-icon, .eq-compare-btn, .pp-size-mode-btn, .pp-order-btn)[aria-pressed="true"],
+:root body :is(.filters-toggle, .rpt-filters-toggle)[aria-expanded="true"] {
+  background: linear-gradient(180deg, var(--gb-lit-top), var(--gb-lit-bot));
+  border-color: color-mix(in srgb, var(--primary) 62%, transparent);
+  box-shadow: inset 0 1px 0 var(--gb-rim), 0 8px 22px -10px var(--primary);
+}
+:root body :is(.btn-advanced, .filter-btn, .icon-btn, .btn-icon, .cal-nav-btn, .th-btn, .btn):focus-visible {
+  outline: none; box-shadow: inset 0 1px 0 var(--gb-rim), var(--ctl-ring, 0 0 0 4px color-mix(in srgb, var(--primary) 25%, transparent));
+}
+:root body :is(.btn-advanced, .filter-btn, .icon-btn, .btn-icon, .cal-nav-btn, .th-btn, .btn):disabled { opacity: .42; transform: none; box-shadow: none; }
+
+/* Filters toggles (Journal / Reports) are the same pane */
+:root body :is(.filters-toggle, .rpt-filters-toggle) {
+  background: linear-gradient(180deg, var(--gb-top), var(--gb-bot)); border-color: var(--gb-edge);
+  box-shadow: inset 0 1px 0 var(--gb-rim), var(--gb-drop);
+  -webkit-backdrop-filter: var(--gb-blur); backdrop-filter: var(--gb-blur);
+}
+:root body :is(.filters-toggle, .rpt-filters-toggle):hover { border-color: color-mix(in srgb, var(--primary) 55%, transparent); }
+
+/* ---- 2. primary (lit violet glass) ---- */
+:root body :is(.btn-confirm, .pr-start-btn, .quiz-start-btn) {
+  color: #fff; cursor: pointer;
+  background: linear-gradient(180deg, rgba(255,255,255,.34) 0%, rgba(255,255,255,0) 46%),
+              linear-gradient(135deg, var(--violet, #8457ff), var(--primary-2, #6e5bf0));
+  border: 1px solid rgba(255,255,255,.30);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -1px 0 rgba(0,0,0,.2), 0 12px 28px -10px var(--glow-violet, rgba(132,87,255,.7));
+}
+:root body :is(.btn-confirm, .pr-start-btn, .quiz-start-btn):hover:not(:disabled) {
+  filter: brightness(1.08); transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(0,0,0,.2), 0 16px 34px -10px var(--glow-violet, rgba(132,87,255,.85));
+}
+:root body :is(.btn-confirm, .pr-start-btn, .quiz-start-btn):active:not(:disabled) { transform: scale(.97); filter: brightness(.95); }
+
+/* ---- 3. danger (red glass) ---- */
+:root body :is(.btn-danger, .int-disconnect, .strat-card-delete) {
+  color: var(--red);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--red) 24%, rgba(255,255,255,.08)), color-mix(in srgb, var(--red) 9%, transparent));
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 30%, transparent), 0 8px 20px -12px var(--red);
+}
+:root body :is(.btn-danger, .int-disconnect, .strat-card-delete):hover:not(:disabled) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--red) 36%, rgba(255,255,255,.1)), color-mix(in srgb, var(--red) 16%, transparent));
+  border-color: color-mix(in srgb, var(--red) 65%, transparent); transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 34%, transparent), 0 12px 26px -10px var(--red);
+}
+
+/* ---- 4. pills / chips ---- */
+:root body :is(.date-chip, .dow-chip, .preset-chip, .subtab-btn, .calc-chip, .calc-symbol-chip, .chat-chip, button.pill.tagpill) {
+  color: var(--text-dim); cursor: pointer;
+  background: linear-gradient(180deg, var(--gb-top), var(--gb-bot));
+  border: 1px solid var(--gb-edge);
+  box-shadow: inset 0 1px 0 var(--gb-rim), 0 4px 12px -8px rgba(0,0,0,.6);
+  -webkit-backdrop-filter: var(--gb-blur); backdrop-filter: var(--gb-blur);
+  transition: background .18s var(--btn-ease), border-color .18s var(--btn-ease), color .18s var(--btn-ease), box-shadow .2s var(--btn-ease), transform .14s var(--btn-ease);
+}
+:root body :is(.date-chip, .preset-chip, .subtab-btn, .calc-chip, .chat-chip, button.pill.tagpill) { border-radius: 999px; }
+:root body :is(.dow-chip) { border-radius: 10px; }
+:root body :is(.date-chip, .dow-chip, .preset-chip, .subtab-btn, .calc-chip, .calc-symbol-chip, .chat-chip, button.pill.tagpill):hover {
+  color: var(--text); transform: translateY(-1px);
+  background: linear-gradient(180deg, var(--gb-lit-top), var(--gb-lit-bot));
+  border-color: color-mix(in srgb, var(--primary) 55%, transparent);
+  box-shadow: inset 0 1px 0 var(--gb-rim), 0 10px 22px -10px color-mix(in srgb, var(--primary) 60%, transparent);
+}
+:root body :is(.date-chip, .dow-chip, .preset-chip, .subtab-btn, .calc-chip, button.pill.tagpill):is(.active, .on, [aria-pressed="true"]) {
+  color: var(--text); font-weight: 600;
+  background: linear-gradient(180deg, var(--gb-lit-top), var(--gb-lit-bot));
+  border-color: color-mix(in srgb, var(--primary) 65%, transparent);
+  box-shadow: inset 0 1px 0 var(--gb-rim), 0 0 18px -4px var(--primary);
+}
+:root:not([data-theme="light"]) body :is(.date-chip, .dow-chip, .preset-chip, .subtab-btn, .calc-chip, button.pill.tagpill):is(.active, .on) { color: #fff; }
+
+/* ---- 5. segmented tracks and their tabs ---- */
+:root body :is(.report-toptabs, .tf-switcher, .eq-range-toggle, .calc-toggle, .pr-view-tabs, .quiz-mode-row) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--gb-top) 70%, transparent), color-mix(in srgb, var(--gb-bot) 70%, transparent));
+  border: 1px solid var(--gb-edge);
+  box-shadow: inset 0 1px 0 var(--gb-rim), inset 0 -1px 0 rgba(0,0,0,.12), var(--gb-drop);
+  -webkit-backdrop-filter: var(--gb-blur); backdrop-filter: var(--gb-blur);
+}
+:root body :is(.toptab-btn, .pr-view-tab, .tf-btn, .quiz-mode-btn, .eq-range-toggle button, .calc-toggle button) { transition: background .18s var(--btn-ease), box-shadow .2s var(--btn-ease), color .18s var(--btn-ease), transform .14s var(--btn-ease); }
+:root body :is(.toptab-btn, .pr-view-tab, .tf-btn, .quiz-mode-btn, .eq-range-toggle button, .calc-toggle button):hover:not(.active):not(.on) {
+  color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+:root body :is(.toptab-btn, .pr-view-tab, .tf-btn, .quiz-mode-btn, .eq-range-toggle button, .calc-toggle button):is(.active, .on, [aria-selected="true"]) {
+  color: var(--text);
+  background: linear-gradient(180deg, var(--gb-lit-top), var(--gb-lit-bot));
+  border: 1px solid color-mix(in srgb, var(--primary) 60%, transparent);
+  box-shadow: inset 0 1px 0 var(--gb-rim), 0 6px 18px -8px var(--primary);
+}
+:root:not([data-theme="light"]) body :is(.toptab-btn, .pr-view-tab, .tf-btn, .quiz-mode-btn, .eq-range-toggle button, .calc-toggle button):is(.active, .on, [aria-selected="true"]) { color: #fff; }
+
+/* ---- 6. shapes ---- */
+/* Day View month arrows: proper square glass keys */
+:root body .cal-nav-btn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; padding: 0; border-radius: 12px; }
+:root body .cal-nav-btn svg { width: 16px; height: 16px; }
+/* Daily Prev / Next / Today (icon-btn-visible is the wide, labelled variant) */
+:root body .icon-btn.icon-btn-visible { width: auto; min-height: 36px; padding: 0 14px; gap: 6px; align-items: center; font: 500 13px var(--sans); border-radius: var(--btn-radius); }
+:root body .icon-btn.icon-btn-visible[style] { width: auto !important; padding: 0 14px !important; }
+:root body .dn-datebar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+:root body .btn-load-more { padding: 9px 18px; font-weight: 600; border-radius: var(--btn-radius); }
+:root body .pp-head-shortcuts-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 16px; font-weight: 600; }
+
+/* keep fullscreen charts safe: the blur would trap them */
+.chart-fs :is(.btn-advanced, .filter-btn, .icon-btn, .btn-icon, .tf-btn, .tf-switcher, .th-btn, .chart-fs-btn) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+@media (prefers-reduced-motion: reduce) {
+  :root body :is(.btn-advanced, .filter-btn, .icon-btn, .btn-icon, .cal-nav-btn, .btn-confirm, .date-chip, .dow-chip, .preset-chip, .subtab-btn):hover { transform: none; }
+}
+:root body .preset-save-btn { min-height: 34px; padding: 0 14px; border-radius: 999px; font-weight: 600; }

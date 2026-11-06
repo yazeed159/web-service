@@ -25,6 +25,7 @@
 <link rel="stylesheet" href="css/buttons.css">
 <link rel="stylesheet" href="css/mobile.css">
 <link rel="stylesheet" href="css/ui-modal.css">
+<link rel="stylesheet" href="css/refresh.css">
 </head>
 <body>
 <div id="page-progress-bar"></div>
@@ -274,21 +275,25 @@
   const ALL_COLUMNS = [
     { id: "trade_date", label: "Date", sortable: true, width: 112, csv: (r) => r.trade_date, render: (r) => escapeHtml(r.trade_date) },
     { id: "symbol", label: "Symbol", sortable: true, width: 90, csv: (r) => r.symbol, render: (r) => escapeHtml(r.symbol) },
-    { id: "setup_type", label: "Setup", sortable: true, width: 130, csv: (r) => r.setup_type || "", render: (r) => `${r.setup_type ? window.setupTagDot(r.setup_type) : ""}${escapeHtml(r.setup_type ? (window.setupLabel ? window.setupLabel(r.setup_type) : r.setup_type.replace(/_/g, " ")) : "—")}` },
+    { id: "pnl_after_comm", label: "Net P&L", sortable: true, width: 100, csv: (r) => (r.pnl_after_comm || 0).toFixed(2), render: (r) => `<span class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</span>` },
+    { id: "win", label: "Result", sortable: true, width: 80, csv: (r) => (r.win ? "WIN" : "LOSS"), render: (r) => `<span class="pill ${r.win ? "win" : "loss"}">${r.win ? "WIN" : "LOSS"}</span>` },
     { id: "entry_price", label: "Entry", sortable: true, width: 80, csv: (r) => Number(r.entry_price).toFixed(2), render: (r) => `$${Number(r.entry_price).toFixed(2)}` },
     { id: "exit_price", label: "Exit", sortable: true, width: 80, csv: (r) => Number(r.exit_price).toFixed(2), render: (r) => `$${Number(r.exit_price).toFixed(2)}${r.fill_count > 1 ? `<span class="pill" title="Averaged across ${r.fill_count} fills -- open the trade for the breakdown" style="margin-left:5px; padding:1px 5px; font-size:10px; opacity:.75;">×${r.fill_count}</span>` : ""}` },
     { id: "shares", label: "Shares", sortable: true, width: 80, csv: (r) => (r.shares != null ? r.shares : ""), render: (r) => (r.shares != null ? Number(r.shares).toLocaleString() : '<span class="nodata">\u2014</span>') },
     { id: "commission", label: "Comm.", sortable: true, width: 90, csv: (r) => Number(r.commission || 0).toFixed(2),
       render: (r) => `<span title="${escapeHtml(commSplitOf(r) || "Commission total")}">$${Number(r.commission || 0).toFixed(2)}</span>` },
-    { id: "pnl_after_comm", label: "Net P&L", sortable: true, width: 100, csv: (r) => (r.pnl_after_comm || 0).toFixed(2), render: (r) => `<span class="${r.pnl_after_comm >= 0 ? "up" : "down"}">${fmtMoney(r.pnl_after_comm)}</span>` },
-    { id: "win", label: "Result", sortable: true, width: 80, csv: (r) => (r.win ? "WIN" : "LOSS"), render: (r) => `<span class="pill ${r.win ? "win" : "loss"}">${r.win ? "WIN" : "LOSS"}</span>` },
     { id: "issuer_country", label: "Country", sortable: true, width: 110, csv: (r) => (r.issuer_country ? countryLabel(r.issuer_country) : ""), render: (r) => (r.issuer_country ? escapeHtml(countryLabel(r.issuer_country)) : '<span class="nodata">\u2014</span>') },
-    { id: "exchange", label: "Exchange", sortable: false, width: 120, csv: (r) => (r.venues && typeof r.venues === "object" ? Object.keys(r.venues).join("; ") : ""), render: (r) => (r.venues && typeof r.venues === "object" && Object.keys(r.venues).length ? escapeHtml(Object.keys(r.venues).sort((a, b) => (r.venues[b].sh || 0) - (r.venues[a].sh || 0)).slice(0, 2).join(", ")) + (Object.keys(r.venues).length > 2 ? ` <span class="pill" title="${escapeHtml(Object.keys(r.venues).join(", "))}" style="padding:1px 5px; font-size:10px;">+${Object.keys(r.venues).length - 2}</span>` : "") : '<span class="nodata">\u2014</span>') },
-    { id: "sub_category", label: "Type", sortable: true, width: 100, csv: (r) => (r.sub_category ? subtypeLabel(r.sub_category) : ""), render: (r) => (r.sub_category ? escapeHtml(subtypeLabel(r.sub_category)) : '<span class="nodata">\u2014</span>') },
+    { id: "setup_type", label: "Setup", sortable: true, width: 130, csv: (r) => r.setup_type || "", render: (r) => `${r.setup_type ? window.setupTagDot(r.setup_type) : ""}${escapeHtml(r.setup_type ? (window.setupLabel ? window.setupLabel(r.setup_type) : r.setup_type.replace(/_/g, " ")) : "—")}` },
     { id: "grade", label: "Grade", sortable: true, width: 100, csv: (r) => (window.TradeGrade ? (window.TradeGrade.get(r) || "") : ""), render: (r) => (window.TradeGrade ? window.TradeGrade.starsHtml(window.TradeGrade.get(r), { size: 12 }) : "—") },
-    { id: "tags", label: "Tags", sortable: false, width: 240,
+    { id: "tags", label: "Tags", sortable: false, width: 330,
       csv: (r) => (r.behavior_tags || []).map(tagLabel).concat(r.lesson_tags || []).join("; "),
       render: tagsCellHtml },
+  ];
+  // Exchange and Type are no longer table columns (the Journal fits without sideways scrolling now);
+  // they stay available in the CSV export, and the Exchange/Type filters still work.
+  const TABLE_HIDDEN_COLUMNS = [
+    { id: "exchange", label: "Exchange", sortable: false, width: 120, csv: (r) => (r.venues && typeof r.venues === "object" ? Object.keys(r.venues).join("; ") : ""), render: (r) => (r.venues && typeof r.venues === "object" && Object.keys(r.venues).length ? escapeHtml(Object.keys(r.venues).sort((a, b) => (r.venues[b].sh || 0) - (r.venues[a].sh || 0)).slice(0, 2).join(", ")) + (Object.keys(r.venues).length > 2 ? ` <span class="pill" title="${escapeHtml(Object.keys(r.venues).join(", "))}" style="padding:1px 5px; font-size:10px;">+${Object.keys(r.venues).length - 2}</span>` : "") : '<span class="nodata">\u2014</span>') },
+    { id: "sub_category", label: "Type", sortable: true, width: 100, csv: (r) => (r.sub_category ? subtypeLabel(r.sub_category) : ""), render: (r) => (r.sub_category ? escapeHtml(subtypeLabel(r.sub_category)) : '<span class="nodata">\u2014</span>') },
   ];
   // Journal fields for the CSV export only (kept out of ALL_COLUMNS so the table
   // and its column picker are unchanged). Text fields are prefixed with an
@@ -306,15 +311,19 @@
     { id: "j_r_multiple", label: "Realised R", csv: (r) => { const m = jMetrics(r); return m.r_multiple != null ? m.r_multiple.toFixed(2) : ""; } },
     { id: "j_notes", label: "My notes", csv: (r) => { const e = jEntry(r); return csvSafe(e ? e.notes : ""); } },
   ];
-  const EXPORT_COLUMNS = ALL_COLUMNS.concat(JOURNAL_EXPORT_COLUMNS);
+  const EXPORT_COLUMNS = ALL_COLUMNS.concat(TABLE_HIDDEN_COLUMNS, JOURNAL_EXPORT_COLUMNS);
   const DEFAULT_ORDER = ALL_COLUMNS.map((c) => c.id);
   let colOrder = DEFAULT_ORDER.slice();
   let colWidths = {};
   ALL_COLUMNS.forEach((c) => { colWidths[c.id] = c.width; });
   function colDefsByOrder() { return colOrder.map((id) => ALL_COLUMNS.find((c) => c.id === id)).filter(Boolean); }
 
+  // Bump when the default column order/width model changes: older saved layouts (which would pin the
+  // previous order, and pixel widths that are now relative weights) are ignored once, then replaced
+  // the next time you drag a column.
+  const COLS_PREFS_VERSION = 2;
   function applyColumnPrefs(prefs) {
-    if (!prefs) return;
+    if (!prefs || prefs.v !== COLS_PREFS_VERSION) return;
     if (Array.isArray(prefs.order) && prefs.order.length) {
       const valid = prefs.order.filter((id) => DEFAULT_ORDER.includes(id));
       const missing = DEFAULT_ORDER.filter((id) => !valid.includes(id));
@@ -328,7 +337,7 @@
     }
   }
   function saveColumnPrefs() {
-    const prefs = { order: colOrder, widths: colWidths };
+    const prefs = { v: COLS_PREFS_VERSION, order: colOrder, widths: colWidths };
     writeLocal(COLS_KEY, prefs);
     if (window.KV) window.KV.set(COLS_KEY, prefs);
   }
@@ -764,8 +773,11 @@
   window.swrFetch("trades", window.fetchTradesIndex, boot)
     .then(boot)
     .catch((err) => {
-      if (booted) return; // snapshot is already on screen; keep it
-      content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String(err.message))}).</div>`;
+      // A snapshot already on screen stays. But if the draw itself threw (booted, yet the skeleton is
+      // still showing) the error used to be swallowed here and the page sat loading until a refresh.
+      if (booted && !content.querySelector(".skel-cards")) return;
+      if (window.console) console.error("Journal failed to render:", err);
+      content.innerHTML = `<div class="empty-state">Couldn't load your trades (${escapeHtml(String((err && err.message) || err))}). <button type="button" class="btn" onclick="location.reload()">Retry</button></div>`;
     });
 
   // escapeHtml() now in utils.js (loads first on every page).
@@ -953,8 +965,27 @@
       <button type="button" class="btn-load-more" id="table-load-more-btn">Load more (${remaining} left)</button>
     </td></tr>`;
   }
+  // Column widths are WEIGHTS, rendered as percentages of the table, so the table always fills its
+  // container: on a wide screen the columns share the room (no sideways scrolling), and only below
+  // MIN_TABLE_W does the wrapper scroll. (They used to be fixed pixels summing to more than the panel.)
+  const MIN_TABLE_W = 900;
+  function colPct(id) {
+    const total = colDefsByOrder().reduce((n, c) => n + (colWidths[c.id] || 100), 0) || 1;
+    return ((colWidths[id] || 100) / total * 100).toFixed(3) + "%";
+  }
+  function refitColumns() {
+    content.querySelectorAll("col[data-col-id]").forEach((el) => { el.style.width = colPct(el.getAttribute("data-col-id")); });
+  }
+  // Before a manual resize, turn every weight into the width it is really rendering at, so the
+  // column you drag grows/shrinks by what you see and the others give way proportionally.
+  function snapWidthsToRendered() {
+    content.querySelectorAll("th[data-col-id]").forEach((th) => {
+      const id = th.getAttribute("data-col-id");
+      if (th.offsetWidth > 0) colWidths[id] = th.offsetWidth;
+    });
+  }
   function colgroupHtml() {
-    return `<colgroup>${colDefsByOrder().map((c) => `<col data-col-id="${c.id}" style="width:${colWidths[c.id]}px;">`).join("")}</colgroup>`;
+    return `<colgroup>${colDefsByOrder().map((c) => `<col data-col-id="${c.id}" style="width:${colPct(c.id)};">`).join("")}</colgroup>`;
   }
   function headerRowHtml() {
     const defs = colDefsByOrder();
@@ -966,7 +997,7 @@
           ? `<button type="button" class="headcell${isSorted ? " sorted " + sortDir : ""}" data-sort="${c.id}">${escapeHtml(c.label)}</button>`
           : `<span class="headcell no-sort">${escapeHtml(c.label)}</span>`;
         // Keyboard/screen-reader equivalent of the mouse-only drag-to-reorder
-        // and drag-to-resize handles: same colOrder/colWidths state, same
+        // handle: same colOrder state, same
         // persistence, just reachable without a pointer. Hidden until
         // hovered/focused so it doesn't visually clutter every header for
         // mouse users who already have drag.
@@ -974,13 +1005,11 @@
           <div class="col-kbd-actions">
             <button type="button" data-move="left" data-col-id="${c.id}" aria-label="Move ${escapeHtml(c.label)} column left"${i === 0 ? " disabled" : ""}>‹</button>
             <button type="button" data-move="right" data-col-id="${c.id}" aria-label="Move ${escapeHtml(c.label)} column right"${i === defs.length - 1 ? " disabled" : ""}>›</button>
-            <button type="button" data-resize="narrower" data-col-id="${c.id}" aria-label="Make ${escapeHtml(c.label)} column narrower">−</button>
-            <button type="button" data-resize="wider" data-col-id="${c.id}" aria-label="Make ${escapeHtml(c.label)} column wider">+</button>
           </div>`;
         return `
         <th data-col-id="${c.id}" draggable="true" class="col-th" title="Drag to reorder" scope="col"${ariaSort}>
           ${headcell}
-          <span class="col-resize-handle" data-col-id="${c.id}" title="Drag to resize"></span>
+          <span class="col-resize-handle" data-col-id="${c.id}" title="Drag to resize"><i aria-hidden="true"></i></span>
           ${kbdActions}
         </th>`;
       }).join("")}
@@ -1006,7 +1035,7 @@
           </button>
         </div>
         <div class="table-scroll">
-        <table class="data-table journal-data-table" id="journal-table" style="min-width:${colDefsByOrder().reduce((n, c) => n + (colWidths[c.id] || 100), 0)}px;">
+        <table class="data-table journal-data-table" id="journal-table" style="width:100%; min-width:${MIN_TABLE_W}px;">
           ${colgroupHtml()}
           <thead>${headerRowHtml()}</thead>
           <tbody id="journal-tbody">
@@ -1045,16 +1074,6 @@
       const restored = content.querySelector(`[data-move="${dir}"][data-col-id="${id}"]`)
         || content.querySelector(`[data-col-id="${id}"] .headcell`);
       if (restored) restored.focus();
-      return;
-    }
-    const resizeBtn = e.target.closest("[data-resize]");
-    if (resizeBtn) {
-      const id = resizeBtn.getAttribute("data-col-id");
-      const delta = resizeBtn.getAttribute("data-resize") === "wider" ? 20 : -20;
-      colWidths[id] = Math.max(50, (colWidths[id] || 100) + delta);
-      const colEl = content.querySelector(`col[data-col-id="${id}"]`);
-      if (colEl) colEl.style.width = colWidths[id] + "px";
-      saveColumnPrefs();
       return;
     }
     const sortHead = e.target.closest(".headcell[data-sort]");
@@ -1260,14 +1279,14 @@
     if (!handle) return;
     e.preventDefault();
     const id = handle.getAttribute("data-col-id");
+    snapWidthsToRendered();
     resizing = { id, startX: e.clientX, startWidth: colWidths[id] };
   });
   document.addEventListener("mousemove", (e) => {
     if (!resizing) return;
     const w = Math.max(50, resizing.startWidth + (e.clientX - resizing.startX));
     colWidths[resizing.id] = w;
-    const colEl = content.querySelector(`col[data-col-id="${resizing.id}"]`);
-    if (colEl) colEl.style.width = w + "px";
+    refitColumns();
   });
   document.addEventListener("mouseup", () => {
     if (!resizing) return;
@@ -1362,7 +1381,7 @@
         <details class="exp-cols" id="exp-cols">
           <summary>Columns to include</summary>
           <div class="export-col-picker">
-            ${ALL_COLUMNS.map((c) => `<label class="export-col-row"><input type="checkbox" value="${c.id}" checked> ${escapeHtml(c.label)}</label>`).join("")}
+            ${ALL_COLUMNS.concat(TABLE_HIDDEN_COLUMNS).map((c) => `<label class="export-col-row"><input type="checkbox" value="${c.id}" checked> ${escapeHtml(c.label)}</label>`).join("")}
             <div class="export-col-group" style="margin:10px 0 4px; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint);">Your journal entries</div>
             ${JOURNAL_EXPORT_COLUMNS.map((c) => `<label class="export-col-row"><input type="checkbox" value="${c.id}" checked> ${escapeHtml(c.label)}</label>`).join("")}
           </div>

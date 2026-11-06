@@ -507,3 +507,16 @@
   html.pp-landscape .pp-dock-foot .pp-order-btn-row { flex: 0 0 auto; }
   html.pp-landscape .pp-dock-foot .pp-order-btn { flex: 0 0 auto; width: 112px; min-height: 46px; font-size: 16px; }
 }
+
+/* Practice account stats: roomy tiles with real numerals (they were 40px-tall boxes with the
+   number jammed against the label, in a bold monospace). Matches the Dashboard / Reports tiles. */
+html body .pr-stat-row { gap: 12px; margin-bottom: 14px; }
+html body .pr-stat-cell { padding: 14px 16px; gap: 8px; border-radius: 14px; min-width: 0; }
+html body .pr-stat-cell .label { font-size: 11px; letter-spacing: .05em; font-weight: 600; color: var(--text-faint); }
+html body .pr-stat-cell .value, html body .pr-stat-cell .value.mono {
+  font-family: var(--sans); font-size: 24px; font-weight: 600; line-height: 1.1; letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Empty-state caption sits centred INSIDE the equity card (it used to fall below the chart box). */
+html body .pr-equity-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 0 16px; }
+html body .pr-equity-empty.hidden { display: none; }
