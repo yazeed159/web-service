@@ -657,7 +657,7 @@ window.NavState = (function () {
     var items = document.querySelectorAll(".edge-intro:not([data-xp]), .calc-intro:not([data-xp])");
     items.forEach(function (el) {
       el.setAttribute("data-xp", "1");
-      var key = "tl:explainer:" + (el.classList.contains("edge-intro") ? "edge" : "calc");
+      var key = "tl:explainer:" + (el.getAttribute("data-xp-key") || (el.classList.contains("edge-intro") ? "edge" : "calc"));
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "xp-toggle";
@@ -673,7 +673,16 @@ window.NavState = (function () {
       });
       // First visit shows the intro; once seen, it starts collapsed.
       if (lsGet(key) === "1") el.classList.add("xp-collapsed");
-      else if (lsGet(key) === null) lsSet(key, "1");
+      else if (lsGet(key) === null && "IntersectionObserver" in window) {
+        // Mark as seen only once it has actually been on screen for a moment
+        // (it may sit inside a tab that is not open yet).
+        var io = new IntersectionObserver(function (ents) {
+          if (!ents.some(function (e) { return e.isIntersecting; })) return;
+          io.disconnect();
+          setTimeout(function () { lsSet(key, el.classList.contains("xp-collapsed") ? "1" : "1"); }, 1500);
+        });
+        io.observe(el);
+      }
       el.appendChild(btn);
       paint();
     });

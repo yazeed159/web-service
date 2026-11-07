@@ -292,7 +292,7 @@
   function renderSummary() {
     const s = dayStats(date);
     const el = $("dn-summary");
-    if (!s.n) { el.innerHTML = `<span style="color:var(--text-faint);">No trades on this day.</span>`; return; }
+    if (!s.n) { el.innerHTML = `<span style="color:var(--text-dim);">No trades on this day. You can still write a plan or review below.</span>`; return; }
     const parts = [
       `<span>Trades <b>${s.n}</b></span>`,
       `<span>Net P&amp;L <b class="${s.pnl >= 0 ? "up" : "down"}">${money(s.pnl)}</b></span>`,

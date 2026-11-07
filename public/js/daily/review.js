@@ -35,7 +35,7 @@
       isProcessTag: function (k) { return !window.TagCatalog || window.TagCatalog.get(k).group === "process"; },
     });
     body.setAttribute("aria-busy", "false");
-    if (!s.n) { body.innerHTML = '<div class="rv-empty">No trades in this ' + (kind === "week" ? "week" : "month") + '. Use the arrows to look at another period.</div>'; return; }
+    if (!s.n) { body.innerHTML = window.emptyStateHtml ? window.emptyStateHtml({ icon: "journal", title: "No trades this " + (kind === "week" ? "week" : "month"), message: "Nothing was traded in this period. Use the arrows to look at another one, or jump back to the current period.", actionHref: "journal.html", actionLabel: "Open journal" }) : '<div class="rv-empty">No trades in this ' + (kind === "week" ? "week" : "month") + '. Use the arrows to look at another period.</div>'; return; }
 
     var kpis =
       '<div class="rv-kpi"><span>Net P&amp;L</span><b class="' + cls(s.net) + '">' + esc(money(s.net)) + '</b></div>' +

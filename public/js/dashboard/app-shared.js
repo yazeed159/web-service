@@ -346,23 +346,27 @@
       message: "Import a broker CSV, or wait for your next daily sync. Your Net P&amp;L, win rate and equity curve will show up here.",
       actionHref: "import-trades.html", actionLabel: "Import trades",
       secondaryHref: "daily.html", secondaryLabel: "Plan today",
-    });
-    document.getElementById("score-wrap").innerHTML = '<div class="empty-state small">No data yet.</div>';
-    document.getElementById("mini-cal").innerHTML = '<div class="empty-state small">No data yet.</div>';
-    document.getElementById("recent-trades").innerHTML = '<div class="empty-state small">No trades logged yet.</div>';
+    }) + '<div class="firstrun"><div class="firstrun-title">Get set up</div><ol class="firstrun-list">' +
+      '<li><a href="import-trades.html"><b>Import your trades</b><span>Upload a broker CSV or IBKR Flex statement.</span></a></li>' +
+      '<li><a href="accounts.html"><b>Add your starting balance</b><span>So the equity curve and risk numbers use your real account.</span></a></li>' +
+      '<li><a href="daily.html"><b>Write today\u2019s plan</b><span>Set a max loss and a short checklist before the open.</span></a></li>' +
+      '<li><a href="practice.html"><b>Try Practice</b><span>Trade a real chart bar by bar while you wait for data.</span></a></li></ol></div>';
+    document.getElementById("score-wrap").innerHTML = '<div class="empty-state small">Fills in after your first trade.</div>';
+    document.getElementById("mini-cal").innerHTML = '<div class="empty-state small">Fills in after your first trade.</div>';
+    document.getElementById("recent-trades").innerHTML = '<div class="empty-state small">Your trades will appear here.</div>';
     document.getElementById("equity-total").textContent = "";
     document.getElementById("equity-stats").innerHTML = "";
-    document.getElementById("cal-grid").innerHTML = '<div class="empty-state">No trades logged yet.</div>';
+    document.getElementById("cal-grid").innerHTML = '<div class="empty-state">Your trades will appear here.</div>';
     document.getElementById("cal-summary-strip").innerHTML = "";
     document.getElementById("cal-month-label").textContent = new Date().toLocaleDateString(undefined, { month: "long", year: "numeric" });
     document.getElementById("streak-strip").innerHTML = "";
     document.getElementById("highlight-pair").innerHTML = "";
-    document.getElementById("report-symbol").innerHTML = '<div class="empty-state small">No data yet.</div>';
-    document.getElementById("report-dow").innerHTML = '<div class="empty-state small">No data yet.</div>';
-    document.getElementById("report-timeofday").innerHTML = '<div class="empty-state small">No data yet.</div>';
-    document.getElementById("report-duration").innerHTML = '<div class="empty-state small">No data yet.</div>';
-    document.getElementById("report-sector").innerHTML = '<div class="empty-state small">No data yet.</div>';
-    document.getElementById("report-country").innerHTML = '<div class="empty-state small">No data yet.</div>';
+    document.getElementById("report-symbol").innerHTML = '<div class="empty-state small">Fills in after your first trade.</div>';
+    document.getElementById("report-dow").innerHTML = '<div class="empty-state small">Fills in after your first trade.</div>';
+    document.getElementById("report-timeofday").innerHTML = '<div class="empty-state small">Fills in after your first trade.</div>';
+    document.getElementById("report-duration").innerHTML = '<div class="empty-state small">Fills in after your first trade.</div>';
+    document.getElementById("report-sector").innerHTML = '<div class="empty-state small">Fills in after your first trade.</div>';
+    document.getElementById("report-country").innerHTML = '<div class="empty-state small">Fills in after your first trade.</div>';
     document.getElementById("detailed-stat-grid").innerHTML = "";
     [
       "detail-dow", "detail-hour", "detail-price-dist", "detail-price-perf", "detail-size-dist", "detail-size-perf",
@@ -372,12 +376,12 @@
       "detail-rvol-dist", "detail-rvol-perf", "detail-avgvol-dist", "detail-avgvol-perf", "detail-float",
       "report-month-dist", "report-month-perf", "dd-cum-pnl", "dd-cum-drawdown",
       "report-cum-pnl", "detail-cum-pnl",
-    ].forEach((id) => { const el = document.getElementById(id); if (el) el.innerHTML = '<div class="empty-state small">No data yet.</div>'; });
+    ].forEach((id) => { const el = document.getElementById(id); if (el) el.innerHTML = '<div class="empty-state small">Fills in after your first trade.</div>'; });
     [
       "wld-summary", "wld-top-win", "wld-top-loss", "dd-summary", "dd-periods",
       "compare-table", "tagb-setup", "tagb-lessons",
       "insights-breakeven", "insights-timesize", "insights-behavior", "insights-rules", "insights-concentration",
-    ].forEach((id) => { const el = document.getElementById(id); if (el) el.innerHTML = '<div class="empty-state small">No data yet.</div>'; });
+    ].forEach((id) => { const el = document.getElementById(id); if (el) el.innerHTML = '<div class="empty-state small">Fills in after your first trade.</div>'; });
     document.getElementById("advanced-grid").innerHTML = "";
   }
 

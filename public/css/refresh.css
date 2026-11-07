@@ -166,3 +166,94 @@ html body textarea { font-family: var(--sans); line-height: 1.5; }
 
 /* ---- Checkbox row labels: plain text, not small-caps tracking ---- */
 html body .quiz-check-row label, html body .quiz-check-row { letter-spacing: 0; font-family: var(--sans); }
+
+/* ---- Native file picker button matches the glass buttons ---- */
+html body input[type="file"]::file-selector-button {
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer;
+  padding: 7px 14px; margin-right: 12px; border-radius: var(--r-ctl);
+  border: 1px solid var(--card-rim); background: var(--g-fill);
+}
+html body input[type="file"]::file-selector-button:hover { background: var(--g-hi, var(--g-fill)); }
+
+/* ---- Intro blocks reused on Reports / Backtester / Rewind ---- */
+.calc-intro[data-xp-key] { margin-bottom: 16px; }
+
+/* ---- Dashboard first-run checklist ---- */
+.firstrun { margin: 6px auto 0; max-width: 760px; padding: 0 8px 26px; }
+.firstrun-title { font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 10px; text-align: center; }
+.firstrun-list { list-style: none; counter-reset: fr; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.firstrun-list li { counter-increment: fr; }
+.firstrun-list a {
+  display: grid; grid-template-columns: 30px 1fr; column-gap: 12px; align-items: start; padding: 14px 16px; height: 100%;
+  border: 1px solid var(--card-rim); border-radius: 14px; background: var(--g-fill); color: var(--text); text-decoration: none;
+}
+.firstrun-list a::before {
+  content: counter(fr); grid-row: 1 / span 2; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 13px; font-weight: 700; background: var(--primary-soft); color: var(--primary);
+}
+.firstrun-list a b { font-size: 14px; font-weight: 650; }
+.firstrun-list a span { font-size: 12.5px; color: var(--text-dim); line-height: 1.45; margin-top: 2px; }
+.firstrun-list a:hover { border-color: var(--primary); }
+@media (max-width: 640px) { .firstrun-list { grid-template-columns: 1fr; } }
+
+/* Dashboard hero with the first-run checklist: stack, full width */
+html body .dash-hero:has(.firstrun) { display: block; }
+html body .dash-hero:has(.firstrun) .empty-state-hero { margin: 0 auto; }
+html body .dash-hero .firstrun { max-width: 900px; margin-top: 18px; }
+html body .dash-hero .firstrun-list { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 1100px) { html body .dash-hero .firstrun-list { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 640px) { html body .dash-hero .firstrun-list { grid-template-columns: 1fr; } }
+html body .cal-grid.cal-mini > .empty-state { grid-column: 1 / -1; padding: 28px 12px; }
+
+/* Phones: the journal turns into cards, so the desktop min-width must not apply */
+@media (max-width: 760px) {
+  html body table.journal-data-table { min-width: 0 !important; width: 100% !important; }
+  html body .journal-data-table tbody tr[data-id] { box-sizing: border-box; max-width: 100%; }
+}
+@media (max-width: 760px) {
+  html body .journal-data-table tbody tr[data-id] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas:
+      "sym     sym   pnl"
+      "date    setup res"
+      "entry   exit  grade"
+      "shares  comm  comm"
+      "country country country"
+      "tags    tags  tags";
+  }
+  html body .journal-data-table td.col-issuer_country { grid-area: country; font-size: 12px; color: var(--text-faint); }
+}
+
+@media (max-width: 760px) {
+  /* Intro toggle sits under the text instead of over it */
+  .edge-intro, .calc-intro { padding-right: 16px; }
+  .xp-toggle { position: static; transform: none; display: block; margin: 8px 0 0 auto; padding: 6px 10px; }
+  .xp-collapsed.calc-intro { padding-right: 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .xp-collapsed .xp-toggle { margin: 0; }
+  /* Stat numbers fit two-up tiles */
+  html body .pr-stat-cell { padding: 12px 12px; }
+  html body .pr-stat-cell .value { font-size: 19px; overflow: visible; text-overflow: clip; white-space: nowrap; }
+}
+
+@media (max-width: 760px) {
+  .xp-toggle { position: absolute; top: 8px; right: 10px; margin: 0; display: block; transform: none; z-index: 2; }
+  .calc-intro .calc-intro-title, .edge-intro h2 { padding-right: 72px; }
+  .xp-collapsed.calc-intro { display: block; }
+}
+
+/* ---- Phone fixes: Daily date row, Backtester chat, Accounts header ---- */
+@media (max-width: 760px) {
+  html body div.dn-datebar { flex-wrap: wrap; }
+  html body div.dn-datebar input#dn-date { flex: 1 1 150px; min-width: 150px; }
+  html body .ai-cfg-shell { height: auto; min-height: 380px; }
+  html body .ai-cfg-shell .chat-messages { min-height: 150px; }
+  html body #acc-money-box .panel-box-head { flex-wrap: wrap; gap: 10px; }
+  html body #acc-money-box .panel-box-head select { width: 100%; flex: 1 1 100%; }
+}
+
+/* Light mode: the chat launcher icon was white on a white glass fill */
+:root[data-theme="light"] .chatw-launcher { color: var(--primary); }
+:root[data-theme="light"] .chatw-launcher svg { stroke: currentColor; }
+
+/* Calendar tile sub-labels were below 4.5:1 on coloured tiles */
+html body .cal-cell .cell-count, html body .cal-week-box .week-count { color: var(--text-dim); }
