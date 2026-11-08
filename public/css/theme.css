@@ -1,0 +1,201 @@
+/* ======================================================================
+   THEME — "ink & brass". Loaded last on every page (after refresh.css).
+
+   Why it exists: the earlier layers (glass, refresh, flat) all kept the same look -- near-black
+   neutral, a purple accent, neon green/red, every region a bordered rounded box in Geist. This layer
+   changes the identity without touching those files:
+     * Colour   deep teal-ink ground, brass accent, softer sage / coral for gains and losses
+     * Type     Instrument Sans for the interface, Newsreader (serif) for page titles, card titles and
+                the big money figures. Both are self-hosted from /fonts (SIL OFL licence files alongside).
+     * Surface  flat tonal steps instead of outlined glass boxes; hairlines only where they separate rows
+     * One loud thing: the Net P&L figure on the dashboard. Everything else stays quiet.
+   To go back to the previous look, remove the <link> to css/theme.css (and optionally /fonts).
+====================================================================== */
+
+@font-face { font-family: "Instrument Sans"; src: url("../fonts/instrument-sans-latin-wght-normal.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: "Newsreader"; src: url("../fonts/newsreader-latin-wght-normal.woff2") format("woff2"); font-weight: 200 800; font-display: swap; }
+
+/* ---------- Tokens ---------- */
+:root {
+  --sans: "Instrument Sans", "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: var(--sans);
+  --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --on-primary: #1a1407;                 /* text that sits ON a brass fill */
+}
+:root, :root:not([data-theme="light"]) {
+  --bg: #0b1315;
+  --sidebar-bg: #091012;
+  --panel: #111b1e;
+  --panel-2: #172428;
+  --panel-3: #1e2f34;
+  --border: #25363b;
+  --border-soft: #1a282c;
+  --text: #e9efeb;
+  --text-dim: #b3c0ba;
+  --text-faint: #8e9d97;
+  --green: #5fc79b;
+  --green-soft: rgba(95, 199, 155, 0.13);
+  --red: #ee7b6d;
+  --red-soft: rgba(238, 123, 109, 0.13);
+  --blue: #6fa8dc;
+  --blue-soft: rgba(111, 168, 220, 0.13);
+  --amber: #e3b04b;
+  --amber-soft: rgba(227, 176, 75, 0.13);
+  --primary: #e3b04b;
+  --primary-2: #c99a35;
+  --primary-soft: rgba(227, 176, 75, 0.13);
+  --violet: #e3b04b;
+  --cyan: #8e9d97;
+  --glow-violet: rgba(227, 176, 75, 0.12);
+  --glow-cyan: transparent;
+  --g-fill: #111b1e;
+  --g-fill-strong: #172428;
+  --g-line: rgba(233, 239, 235, 0.07);
+  --g-hi: transparent;
+  --g-shadow: none;
+  --card-rim: transparent;
+  --card-shadow: none;
+  --sb-hover: rgba(233, 239, 235, 0.05);
+  --sb-on: transparent;
+  --sb-line: rgba(233, 239, 235, 0.08);
+}
+:root[data-theme="light"] {
+  --on-primary: #ffffff;
+  --bg: #eff3f1;
+  --sidebar-bg: #e6ece9;
+  --panel: #fbfcfb;
+  --panel-2: #eef2f0;
+  --panel-3: #e2e9e6;
+  --border: #d3ddd9;
+  --border-soft: #e1e8e5;
+  --text: #14211f;
+  --text-dim: #43524e;
+  --text-faint: #53625e;
+  --green: #11704a;
+  --green-soft: rgba(17, 112, 74, 0.12);
+  --red: #b5352a;
+  --red-soft: rgba(181, 53, 42, 0.11);
+  --blue: #2a63a6;
+  --blue-soft: rgba(42, 99, 166, 0.11);
+  --amber: #8a5d10;
+  --amber-soft: rgba(138, 93, 16, 0.13);
+  --primary: #0e6b66;
+  --primary-2: #0b5753;
+  --primary-soft: rgba(14, 107, 102, 0.11);
+  --violet: #0e6b66;
+  --cyan: #53625e;
+  --glow-violet: rgba(14, 107, 102, 0.10);
+  --glow-cyan: transparent;
+  --g-fill: #fbfcfb;
+  --g-fill-strong: #ffffff;
+  --g-line: rgba(20, 33, 31, 0.09);
+  --g-hi: transparent;
+  --g-shadow: none;
+  --card-rim: transparent;
+  --card-shadow: none;
+  --sb-hover: rgba(20, 33, 31, 0.05);
+  --sb-on: transparent;
+  --sb-line: rgba(20, 33, 31, 0.10);
+}
+html { color-scheme: dark; }
+html[data-theme="light"] { color-scheme: light; }
+
+/* ---------- Atmosphere: flat ink, no glow ---------- */
+html body { background: var(--bg); background-image: none; }
+html body::before, html body::after { display: none !important; }
+html body .topbar::after { display: none; }
+html body .topbar { background: var(--bg); border-bottom: 1px solid var(--border-soft); backdrop-filter: none; -webkit-backdrop-filter: none; }
+html body .sidebar { background: var(--sidebar-bg); backdrop-filter: none; -webkit-backdrop-filter: none; border-right: 1px solid var(--border-soft); }
+
+/* ---------- Type ---------- */
+html body { font-family: var(--sans); font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1, "cv11" 1; letter-spacing: -0.003em; }
+html body :is(.topbar h1, #page-title) { font-family: var(--display); font-size: 26px; font-weight: 500; letter-spacing: -0.015em; }
+html body :is(.panel-box-head .title, .card-title, .chart-title, .equity-head .label, .card h2) {
+  font-family: var(--display); font-size: 18px; font-weight: 500; letter-spacing: -0.01em; color: var(--text);
+}
+html body .brand .name { font-family: var(--display); font-size: 19px; font-weight: 500; letter-spacing: -0.01em; }
+html body .brand .name .muted { font-style: normal; color: var(--primary); }
+html body :is(.cal-month-label, .score-gauge .num) { font-family: var(--display); }
+
+/* ---------- Surfaces: tonal steps, not outlined boxes ---------- */
+html body :is(.panel-box, .card, .chart-panel, .equity-panel, .day-group, .playbook-card, .highlight-card, .calc-box, .dash-hero, .kpi-grid.stat-grid, .calc-stat, .pr-stat-cell, .journal-table-wrap, .cal-summary-strip) {
+  background: var(--panel); border: 0; box-shadow: none; border-radius: 16px;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+html body .kpi-grid.stat-grid { background: transparent; }
+html body .kpi-card, html body .kpi-grid.stat-grid .kpi-card { background: var(--panel); border: 0; box-shadow: none; border-radius: 16px; }
+html body .kpi-grid.stat-grid { gap: 10px !important; border-radius: 0; }
+html body :is(input, select, textarea, .filter-input) { background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: 10px; color: var(--text); }
+html body :is(input, select, textarea, .filter-input):focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 3px var(--primary-soft); }
+html body :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ---------- Sidebar: brass tick, no filled box ---------- */
+html body .sidebar .nav-section-label { font-size: 12px; letter-spacing: 0; text-transform: none; color: var(--text-faint); font-weight: 500; }
+html body .sidebar .nav-item { font-size: 14px; color: var(--text-dim); }
+html body .sidebar .nav-item.active { background: var(--primary-soft); color: var(--text); font-weight: 600; }
+html body .sidebar .nav-item.active svg { color: var(--primary); }
+html body .sidebar .nav-item.active::before { background: var(--primary); }
+html body .sidebar .brand .mark { background: var(--primary); color: var(--on-primary); border-radius: 9px; }
+
+/* ---------- Buttons: brass fills carry dark text ---------- */
+html body :is(.btn-confirm, .chatw-launcher, .chatw-panel-head .chatw-head-icon, .chat-avatar.ai, .calc-toggle button.active, .calc-step-num, .empty-state-hero-action:not(.secondary), .tabedit-done, #pp-playpause-btn, .page-loader-mark, .bal-pop-save) {
+  color: var(--on-primary); background: var(--primary); background-image: none; border-color: transparent; box-shadow: none;
+}
+html body :is(.btn-confirm, .empty-state-hero-action:not(.secondary)):hover { background: var(--primary-2); color: var(--on-primary); }
+html body :is(.chatw-launcher, .page-loader-mark) svg { color: var(--on-primary); stroke: currentColor; }
+html body .hero-cta { background: var(--text); color: var(--bg); }
+
+/* ---------- Chips and tabs: quiet until active ---------- */
+html body :is(.filter-btn, .date-chip, .dow-chip, .preset-chip, .subtab-btn, .calc-chip, .tf-btn, .pr-view-tab, .toptab-btn, .quiz-mode-btn, .btn-advanced) {
+  background: transparent; border: 1px solid var(--border); color: var(--text-dim); box-shadow: none; border-radius: 999px; font-weight: 500;
+}
+html body :is(.filter-btn, .date-chip, .dow-chip, .preset-chip, .subtab-btn, .calc-chip, .tf-btn, .pr-view-tab, .toptab-btn, .quiz-mode-btn, .btn-advanced):hover { color: var(--text); border-color: var(--text-faint); background: var(--panel-2); }
+html body :is(.filter-btn, .date-chip, .dow-chip, .preset-chip, .subtab-btn, .calc-chip, .tf-btn, .pr-view-tab, .toptab-btn, .quiz-mode-btn, .btn-advanced).active { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+html body .eq-range-toggle button.active { background: var(--primary-soft); color: var(--primary); }
+
+/* ---------- Dashboard: Net P&L is the loud thing ---------- */
+html body .dash-hero { padding: 30px 34px 24px; }
+html body .hero-label { font-size: 14px; color: var(--text-dim); font-weight: 500; text-transform: none; letter-spacing: 0; }
+html body .hero-value { font-family: var(--display); font-weight: 400; font-size: clamp(54px, 6.4vw, 92px); line-height: 1; letter-spacing: -0.03em; margin-bottom: 14px; }
+html body .hero-value.up { color: var(--green); }
+html body .hero-value.down { color: var(--red); }
+html body .hero-sub { color: var(--text-faint); font-size: 13px; }
+html body .stat .value, html body .kpi-card .value { font-family: var(--sans); font-weight: 600; }
+html body .kpi-card .label, html body .stat .label { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+html body .bal-slim { background: transparent; border: 0; padding: 0 0 4px; margin-bottom: 14px; }
+html body .bal-scope { background: var(--panel); }
+html body .bal-scope:hover { background: var(--panel-2); }
+
+/* ---------- Win / loss: colour as text, not a boxed badge ---------- */
+html body .col-win .pill {
+  background: transparent; border: 0; padding: 0; font-size: 12px; font-weight: 700; letter-spacing: .04em; box-shadow: none;
+}
+html body .col-win .pill.win { color: var(--green); } html body .col-win .pill.loss { color: var(--red); }
+
+/* ---------- Tables: hairlines between rows, room for dates and money ---------- */
+html body :is(.trade-table, .data-table, .report-table) th {
+  font-size: 12px; font-weight: 600; color: var(--text-faint); text-transform: none; letter-spacing: 0; background: transparent; border-bottom: 1px solid var(--border);
+}
+html body :is(.trade-table, .data-table, .report-table) td { border-bottom: 1px solid var(--border-soft); }
+html body :is(.trade-table, .data-table) tbody tr:hover { background: var(--panel-2); }
+html body .journal-data-table :is(th, td) { padding-left: 10px; padding-right: 10px; }
+/* The old boxed WIN/LOSS badge used to set the row height; give rows a floor so a row with tag pills isn't taller than its neighbours */
+html body .journal-data-table td { height: 40px; }
+html body .grade-star { font-size: 11px; opacity: .5; }
+
+/* ---------- Calendar cells and heat tiles: softer tints ---------- */
+html body .cal-day.win, html body .cal-cell.win { background: var(--green-soft); }
+html body .cal-day.loss, html body .cal-cell.loss { background: var(--red-soft); }
+
+@media (max-width: 760px) {
+  html body :is(.topbar h1, #page-title) { font-size: 22px; }
+  html body .dash-hero { padding: 22px 20px 18px; }
+  html body .hero-value { font-size: clamp(48px, 15vw, 68px); }
+}
+@media (prefers-reduced-motion: reduce) { html body * { scroll-behavior: auto; } }
+
+/* ---------- Beat the older !important layers (glass.css) where they would undo the above ---------- */
+html body :is(.card, .panel-box, .stat-grid, .calc-box, .calc-results, .ts-card) { border-width: 0 !important; }
+html body :is(.chatw-launcher, .chatw-panel-head .chatw-head-icon) { background: var(--primary) !important; color: var(--on-primary) !important; border: 0 !important; box-shadow: 0 6px 20px -8px rgba(0, 0, 0, .6) !important; }
+html body .chatw-launcher svg { stroke: var(--on-primary) !important; color: var(--on-primary) !important; }
+html body .panel-box-head { border-bottom: 0; }

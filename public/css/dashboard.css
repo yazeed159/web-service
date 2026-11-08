@@ -271,28 +271,6 @@ g[data-drill]:focus-visible, circle[data-drill]:focus-visible { outline-offset: 
 .report-hint .hint-chev { color: var(--primary); font-weight: 700; }
 
 /* Balance strip + per-period balances (dashboard) */
-.bal-strip{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px 28px;padding:16px 20px;margin:0 0 14px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius)}
-.bal-k{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-faint);margin-bottom:4px}
-.bal-v{font:600 clamp(30px,8vw,40px) var(--mono);letter-spacing:-.02em;color:var(--text)}
-.bal-v.down{color:var(--red)}
-.bal-side{display:flex;gap:22px;flex-wrap:wrap}
-.bal-side div{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--text-faint)}
-.bal-side b{font:600 15px var(--mono);color:var(--text)}
-.bal-side b.up,.bp-cell em.up{color:var(--green)}.bal-side b.down,.bp-cell em.down{color:var(--red)}
-.bal-empty{font-size:13px;color:var(--text-dim);align-items:center;justify-content:flex-start;gap:8px}
-.bal-empty span{font-weight:600;color:var(--text)}
-.bal-periods{margin:-4px 0 14px;padding:12px 14px;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius)}
-.bal-periods-h,.bal-group-h{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);margin:0 2px 8px}
-.bal-group+.bal-group{margin-top:10px}
-.bal-period{display:grid;grid-template-columns:minmax(120px,1.4fr) repeat(3,minmax(0,1fr));gap:10px;align-items:center;width:100%;text-align:left;padding:10px 12px;margin-bottom:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font:inherit;cursor:pointer}
-.bal-period:hover{border-color:var(--text-faint)}
-.bal-period.current{border-color:var(--primary);background:var(--primary-soft)}
-.bp-name{font-weight:600;font-size:13px;display:flex;flex-direction:column;gap:2px}
-.bp-name i,.bp-cell i{font-style:normal;font-weight:400;font-size:10.5px;color:var(--text-faint)}
-.bp-cell{display:flex;flex-direction:column;gap:2px;font:500 13px var(--mono)}
-.bp-cell em{font-style:normal}
-.bp-bal{font-weight:700;font-size:14px}
-@media(max-width:640px){.bal-strip{padding:14px 16px}.bal-period{grid-template-columns:1fr 1fr}.bp-name{grid-column:1/-1}}
 
 .bal-warn{margin:0 0 12px;padding:10px 14px;border:1px solid var(--red);border-radius:var(--radius-sm);background:var(--red-soft,transparent);font-size:12.5px;color:var(--text)}
 .bal-check{margin:0 0 14px;font-size:12.5px;color:var(--text-dim)}
@@ -371,16 +349,6 @@ html body .hero-cta {
 html body .hero-cta i { background: none; border: 0; width: auto; height: auto; font-size: 18px; line-height: 1; color: inherit; }
 html body .hero-cta:hover { background: color-mix(in srgb, var(--text) 86%, var(--bg)); }
 html body .hero-streak { font-size: 12px; padding: 3px 9px; }
-html body .bal-strip {
-    
-    
-    background: var(--g-fill);
-    border: 1px solid var(--g-line);
-    
-    
-  }
-html body .bal-v { font: 600 34px/1.1 var(--sans);  }
-html body .bal-side div {  color: var(--text-faint);  }
 html body .bal-link {
     color: var(--text-dim); text-decoration: underline;
     text-decoration-color: rgba(255, 255, 255, 0.25); text-underline-offset: 3px;
@@ -467,42 +435,21 @@ html body .ts-tabs button { border-radius: 7px; font-weight: 500; }
 html body .ts-tabs button.on { background: var(--panel-3); box-shadow: none; }
 html body a:not(.hero-cta):not(.nav-item):not(.btn):not([class*="btn"]) { text-underline-offset: 3px; }
 html body .hero-streak, html body .kpi-delta, html body .pnl-tag { border-radius: 6px; }
-html body .bal-strip a, html body .bal-warn a, html body .equity-panel a:not([class]), html body #equity-hint a {
+html body .bal-slim a, html body .bal-warn a, html body .equity-panel a:not([class]), html body #equity-hint a {
     color: var(--text); text-decoration: underline; text-decoration-color: rgba(255,255,255,.28); text-underline-offset: 3px;
   }
-html body .bal-strip a:hover, html body #equity-hint a:hover { text-decoration-color: currentColor; }
-:root[data-theme="light"] body .bal-strip a { text-decoration-color: rgba(20,22,30,.3); }
+html body .bal-slim a:hover, html body #equity-hint a:hover { text-decoration-color: currentColor; }
+:root[data-theme="light"] body .bal-slim a { text-decoration-color: rgba(20,22,30,.3); }
 html body .score-month-extra { margin-top: auto; padding-top: 18px; }
 html body .panel-box .panel-box-head .title,
   html body .equity-panel .equity-head .label { font-size: 14.5px !important; font-weight: 600; color: var(--text); letter-spacing: -0.01em !important; }
 html body .cal-month-label { font-size: 13px; font-weight: 600; color: var(--text-dim); }
-/* ---- Balance first, biggest ---- */
+/* ---- Balance line sits first, slim: it's the scope bar, not a hero ---- */
 #tab-dashboard.active { display: flex; flex-direction: column; }
 #tab-dashboard.active > * { min-width: 0; }
 #dash-balance { order: -1; }
 #dash-balance:has(.bal-empty) { order: 0; }
 
-html body .bal-strip {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 22px 56px;
-  margin: 0 0 16px; padding: 30px 34px 28px;
-  background:
-    radial-gradient(70% 140% at 0% 0%, color-mix(in srgb, var(--primary) 13%, transparent), transparent 70%),
-    var(--g-fill);
-  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--g-line));
-  border-radius: 18px;
-}
-html body .bal-strip.bal-empty { display: block; padding: 16px 22px; background: var(--g-fill); border-color: var(--g-line); margin: 16px 0 0; }
-html body .bal-k { font-size: 14px; margin-bottom: 8px; color: var(--text-dim); }
-html body .bal-v {
-  font: 600 clamp(56px, 7.2vw, 100px)/1 var(--sans);
-  letter-spacing: -0.05em; color: var(--text);
-}
-html body .bal-v.down { color: var(--red); }
-html body .bal-side { gap: 36px; align-self: end; padding-bottom: 6px; }
-html body .bal-side div { font-size: 13px; gap: 6px; }
-html body .bal-side b { font: 600 20px/1.1 var(--sans); letter-spacing: -0.025em; }
-html body .bal-check { margin: 0 2px 16px; }
-html body .bal-periods, html body .bal-warn { margin-bottom: 16px; }
 
 /* Net P&L is now the second figure */
 html body .dash-hero { margin-bottom: 0; }
@@ -511,11 +458,6 @@ html body .dash-hero { padding: 24px 30px 20px; }
 
 /* ---- Phones: same design, stacked ---- */
 @media (max-width: 760px) {
-  html body .bal-strip { grid-template-columns: 1fr; padding: 22px 18px 20px; gap: 18px; }
-  html body .bal-strip.bal-empty { padding: 14px 16px; }
-  html body .bal-v { font-size: clamp(48px, 15vw, 68px); }
-  html body .bal-side { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; gap: 12px; padding: 14px 0 0; border-top: 1px solid var(--g-line); }
-  html body .bal-side b { font-size: 16px; }
 
   html body .dash-hero {
     grid-template-columns: 1fr; gap: 16px; padding: 20px 18px 16px !important; border-radius: 18px;
@@ -541,10 +483,9 @@ html body .dash-hero { padding: 24px 30px 20px; }
   html body .stat .value { font-size: 24px; }
 }
 
-/* ---- Broker check: a chip on the balance card, full wording in a popover ---- */
-html body .bal-strip { position: relative; }
+/* ---- Broker check: a chip at the end of the balance line, full wording in a popover ---- */
 html body .bal-chip {
-  position: absolute; top: 20px; right: 22px; z-index: 2;
+  margin-left: auto;
   display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px 6px 9px;
   border-radius: 9px; border: 1px solid var(--g-line); background: var(--panel-2);
   color: var(--text-dim); font: 500 12.5px var(--sans); cursor: pointer; transition: color .15s, background-color .15s, border-color .15s;
@@ -556,7 +497,7 @@ html body .bal-chip.off { color: var(--amber); background: var(--amber-soft); bo
 html body .bal-chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 html body .bal-pop {
-  position: absolute; top: 62px; right: 22px; z-index: 30; width: min(360px, calc(100% - 32px));
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; width: min(360px, calc(100vw - 32px));
   padding: 16px 16px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
 }
@@ -577,10 +518,6 @@ html body .bal-pop-save {
 html body .bal-pop-save:hover { background: color-mix(in srgb, var(--text) 86%, var(--bg)); }
 html body .bal-pop-clear { display: block; margin: 10px 0 0; padding: 0; border: 0; background: none; color: var(--text-faint); font: 500 12px var(--sans); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 html body .bal-pop-clear:hover { color: var(--text); }
-@media (max-width: 760px) {
-  html body .bal-chip { top: 14px; right: 14px; }
-  html body .bal-pop { top: 54px; right: 14px; }
-}
 
 /* Dashboard: "add your deposits" is a small dismissible hint, not a full-width banner. */
 .bal-hint { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 14px; padding: 5px 6px 5px 12px; font-size: 12.5px; color: var(--text-dim); background: var(--panel); border: 1px solid var(--border-soft); border-radius: 999px; }
@@ -588,3 +525,33 @@ html body .bal-pop-clear:hover { color: var(--text); }
 .bal-hint a:hover { text-decoration: underline; }
 .bal-hint-x { border: 0; background: transparent; color: var(--text-faint); cursor: pointer; width: 22px; height: 22px; border-radius: 50%; font-size: 11px; line-height: 1; }
 .bal-hint-x:hover { background: var(--panel-2); color: var(--text); }
+
+/* ---- Balance line (js/dashboard/app-dashboard.js renderBalance) ----
+   One quiet row: [account / period button] [Balance] [Return] [broker check]. The button opens the View
+   sheet from accounts.js, where accounts and periods are actually chosen. */
+html body .bal-slim {
+  position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 26px;
+  margin: 0 0 14px; padding: 8px 8px 8px 8px;
+  background: var(--g-fill); border: 1px solid var(--g-line); border-radius: 14px;
+}
+html body .bal-scope {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%; height: 36px; padding: 0 10px 0 12px;
+  border: 0; border-radius: 10px; background: var(--panel-2); color: var(--text);
+  font: 600 13px var(--sans); cursor: pointer; transition: background-color .15s;
+}
+html body .bal-scope:hover { background: color-mix(in srgb, var(--primary) 14%, var(--panel-2)); }
+html body .bal-scope:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+html body .bal-scope-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--primary); }
+html body .bal-scope-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html body .bal-scope svg { width: 14px; height: 14px; flex: none; color: var(--text-faint); }
+html body .bal-fig { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+html body .bal-k { font-size: 12px; color: var(--text-faint); }
+html body .bal-fig b { font: 600 17px/1.1 var(--sans); letter-spacing: -0.02em; color: var(--text); }
+html body .bal-fig b.up { color: var(--green); }
+html body .bal-fig b.down { color: var(--red); }
+html body .bal-warn { margin-bottom: 14px; }
+@media (max-width: 760px) {
+  html body .bal-slim { gap: 8px 18px; }
+  html body .bal-scope { flex: 1 1 100%; }
+  html body .bal-chip { margin-left: 0; }
+}

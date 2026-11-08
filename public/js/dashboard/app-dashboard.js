@@ -113,9 +113,11 @@
     return `<div class="hero-cta-row">${day}<a class="hero-cta" id="hero-add" href="daily.html"><span>${isToday ? "Review today" : "Plan today"}</span><i aria-hidden="true">\u203A</i></a></div>`;
   }
 
-  // ---------- Balance strip + per-period balances ----------
-  // Balance = every deposit/withdrawal in the current scope + every trade's net P&L in it, plus (when
-  // one period is selected) the balance carried in from earlier periods. Maths lives in balance-math.js.
+  // ---------- Balance line ----------
+  // One slim line: which account/period you're on (tap = open the View sheet), the balance, the return and
+  // the broker check. Balance = every deposit/withdrawal in the current scope + every trade's net P&L in
+  // it, plus (when one period is selected) the balance carried in from earlier periods. Maths lives in
+  // balance-math.js. The per-period breakdown lives in the View sheet (accounts.js), not on the dashboard.
   function fmtPct(v) { return v === null || v === undefined ? "\u2014" : (v >= 0 ? "+" : "") + (v * 100).toFixed(1) + "%"; }
   let _balToken = 0;
   function renderBalance() {
@@ -143,17 +145,20 @@
       const bal = carry + added + pnl;
       // Time-weighted return for the slice on screen (deposits/withdrawals don't count as profit or loss).
       const twr = BM.timeWeightedReturn(carry, ledger, trades);
-      return '<div class="bal-strip">' + (chip || '') +
-        '<div class="bal-main"><div class="bal-k">Balance remaining' + (scopeTxt ? ' <span class="dim">\u00b7 ' + escapeHtml(scopeTxt) + '</span>' : '') + '</div>' +
-        '<div class="bal-v ' + (bal >= 0 ? "" : "down") + '">' + fmtBalance(bal) + '</div></div>' +
-        '<div class="bal-side">' +
-        (carry ? '<div><span>Carried in</span><b>' + fmtBalance(carry) + '</b></div>' : '') +
-        '<div><span>Money added</span><b>' + fmtBalance(added) + '</b></div>' +
-        '<div><span>Net P&amp;L</span><b class="' + (pnl >= 0 ? "up" : "down") + '">' + fmtMoney(pnl) + '</b></div>' +
-        '<div title="Time-weighted: deposits and withdrawals are not counted as profit or loss"><span>Return</span><b class="' + (twr === null ? "" : twr >= 0 ? "up" : "down") + '">' + fmtPct(twr) + '</b></div>' +
-        '</div></div>';
+      const detail = (carry ? "Carried in " + fmtBalance(carry) + " \u00b7 " : "") + "Money added " + fmtBalance(added) + " \u00b7 Net P&L " + fmtMoney(pnl);
+      const scopeBtn = scopeTxt
+        ? '<button type="button" class="bal-scope" data-open-scope title="Change account or period" aria-haspopup="dialog">' +
+          '<span class="bal-scope-dot"></span><span class="bal-scope-txt">' + escapeHtml(scopeTxt) + '</span>' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"></polyline></svg></button>'
+        : '';
+      return '<div class="bal-slim">' + scopeBtn +
+        '<div class="bal-fig" title="' + escapeHtml(detail) + '"><span class="bal-k">Balance</span><b class="bal-v ' + (bal >= 0 ? "" : "down") + '">' + fmtBalance(bal) + '</b></div>' +
+        '<div class="bal-fig" title="Time-weighted: deposits and withdrawals are not counted as profit or loss"><span class="bal-k">Return</span><b class="' + (twr === null ? "" : twr >= 0 ? "up" : "down") + '">' + fmtPct(twr) + '</b></div>' +
+        (chip || '') + '</div>';
     };
     el.innerHTML = drawStrip(0);
+    const wireScopeBtn = () => { const b = el.querySelector("[data-open-scope]"); if (b && A && A.openScopeSheet) b.addEventListener("click", () => A.openScopeSheet()); };
+    wireScopeBtn();
     if (!usable) return;
 
     // Everything else needs EVERY trade (not just the scoped ones), so other periods are right too.
@@ -213,23 +218,8 @@
       }
       html = drawStrip(carry, chipHtml);
       html += extras;
-      const rowsHtml = groups.map((g) => {
-        const rows = g.periods.slice().reverse().map((p) => {
-          const m = BM.periodSummary(g.entries, g.accTrades, p);
-          const current = sc.period === p.id;
-          return '<button type="button" class="bal-period' + (current ? " current" : "") + '" data-bal-acc="' + escapeHtml(g.acc.id) + '" data-bal-period="' + escapeHtml(p.id) + '">' +
-            '<span class="bp-name">' + escapeHtml(p.name) + '<i>' + escapeHtml(p.start) + (p.end === null ? " \u2192 now" : " \u2192 " + escapeHtml(p.end)) + '</i></span>' +
-            '<span class="bp-cell"><i>' + (m.carryIn ? "Carried in " + fmtBalance(m.carryIn) + " \u00b7 added" : "Added") + '</i>' + fmtBalance(m.added) + '</span>' +
-            '<span class="bp-cell"><i>P&amp;L \u00b7 return</i><em class="' + (m.pnl >= 0 ? "up" : "down") + '">' + fmtMoney(m.pnl) + ' \u00b7 ' + fmtPct(m.twr) + '</em></span>' +
-            '<span class="bp-cell bp-bal"><i>' + (p.end === null ? "Balance now" : "Balance at end") + '</i>' + fmtBalance(m.endBalance) + '</span></button>';
-        }).join("");
-        return '<div class="bal-group">' + (groups.length > 1 ? '<div class="bal-group-h">' + escapeHtml(g.acc.name) + '</div>' : '') + rows + '</div>';
-      }).join("");
-      if (rowsHtml) html += '<div class="bal-periods"><div class="bal-periods-h">Balance by period <span class="dim">\u00b7 balances carry over from the period before \u00b7 tap one to view just that period</span></div>' + rowsHtml + '</div>';
       el.innerHTML = html;
-      el.querySelectorAll("[data-bal-period]").forEach((b) => b.addEventListener("click", () => {
-        A.setScope({ ids: [b.getAttribute("data-bal-acc")], period: b.getAttribute("data-bal-period") });
-      }));
+      wireScopeBtn();
       const chip = el.querySelector(".bal-chip"), pop = el.querySelector(".bal-pop");
       if (chip && pop) {
         chip.addEventListener("click", (ev) => {

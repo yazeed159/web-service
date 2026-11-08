@@ -13,7 +13,8 @@
 //      and the risk calculator are correct for whatever slice is selected
 //      (the stored column is a running total over ALL of a user's trades).
 //
-//   3. A topbar switcher so the current scope is always visible.
+//   3. A topbar pill that always shows the current scope and opens the "View" sheet
+//      (account cards + period timeline) where you change it.
 //
 // Concepts
 //   live account    a real brokerage account. Trades live in `trades`
@@ -449,35 +450,281 @@
   watchLedgerStale();
 
   // ------------------------------------------------------------------
-  // topbar switcher
+  // "View" sheet -- the one place you choose WHAT you're looking at
   // ------------------------------------------------------------------
+  // The topbar pill (always shows the current scope) opens a slide-over sheet (bottom sheet on phones):
+  //
+  //   Account   cards: "All real accounts" + one per account (+ broker paper accounts, kept apart).
+  //             Tap = view that account. "Select several" turns the cards into checkboxes to combine some.
+  //   Period    only when exactly one account is picked: a timeline, "Entire account" first, then each
+  //             period newest-first with its P&L, return and balance. Tap = apply. No Apply button, no <select>.
+  //
+  // Nothing here changes the scope until you tap a final choice (an account with no periods, "All", a
+  // period row, or "Show N accounts"). setScope() reloads the page, as it always has, so every page
+  // re-fetches its data for the new slice.
   var CSS =
-    ".scope-switch{position:relative;display:inline-flex;align-items:center}" +
-    ".scope-btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:999px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);font:600 12.5px var(--sans);cursor:pointer;max-width:260px}" +
+    ".scope-btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:999px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);font:600 12.5px var(--sans);cursor:pointer;max-width:280px}" +
     ".scope-btn:hover{border-color:var(--text-faint)}" +
     ".scope-btn.filtered{border-color:var(--primary);background:var(--primary-soft)}" +
+    ".scope-btn svg{width:14px;height:14px;flex:none;color:var(--text-faint)}" +
     ".scope-dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--primary)}" +
     ".scope-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
-    ".scope-btn svg{width:12px;height:12px;flex:none;color:var(--text-faint)}" +
-    ".scope-panel{display:none;position:absolute;top:calc(100% + 10px);right:0;width:292px;z-index:120;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 14px 28px -12px rgba(0,0,0,.55);padding:12px}" +
-    ".scope-panel.open{display:block}" +
-    ".scope-h{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);margin:2px 2px 8px}" +
-    ".scope-row{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;color:var(--text)}" +
-    ".scope-row:hover{background:var(--panel-2)}" +
-    ".scope-row input{accent-color:var(--primary);margin:0}" +
-    ".scope-row .tag{margin-left:auto;font-size:10.5px;color:var(--text-faint)}" +
-    ".scope-sub{margin:8px 2px 0}.scope-sub label{display:block;font-size:11px;color:var(--text-faint);margin-bottom:4px}" +
-    ".scope-sub select{width:100%}" +
-    ".scope-apply{width:100%;margin-top:12px}" +
-    ".scope-links{margin-top:10px;padding-top:10px;border-top:1px solid var(--border-soft);display:flex;flex-direction:column;gap:2px}" +
-    ".scope-links a{font-size:12.5px;color:var(--text-dim);text-decoration:none;padding:6px 8px;border-radius:var(--radius-sm)}" +
-    ".scope-links a:hover{background:var(--panel-2);color:var(--text)}" +
-    "@media(max-width:640px){.scope-label{display:none}.scope-btn{padding:0 10px;height:38px}.scope-panel{position:fixed;left:12px;right:12px;top:calc(var(--topbar-h) + var(--safe-top) + 6px);width:auto;max-height:calc(100dvh - var(--topbar-h) - var(--safe-top) - 90px);overflow-y:auto;z-index:400}.scope-h{font-size:12px}.scope-row{min-height:44px;font-size:14px}.scope-links a{min-height:44px;display:flex;align-items:center;font-size:14px}}";
+    ".sv-backdrop{position:fixed;inset:0;z-index:390;background:rgba(6,8,12,.5);opacity:0;transition:opacity .2s}" +
+    ".sv-sheet{position:fixed;z-index:400;top:0;right:0;bottom:0;width:min(400px,100vw);display:flex;flex-direction:column;background:var(--panel);border-left:1px solid var(--border);box-shadow:-24px 0 60px -20px rgba(0,0,0,.55);transform:translateX(24px);opacity:0;transition:transform .22s cubic-bezier(.2,.8,.2,1),opacity .2s;outline:none}" +
+    "html.sv-lock{overflow:hidden}html.sv-lock .chatw-launcher{display:none}" + // page doesn't scroll behind the sheet; chat bubble stays out of its way
+    ".sv-open .sv-backdrop{opacity:1}.sv-open .sv-sheet{transform:none;opacity:1}" +
+    ".sv-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 20px 14px}" +
+    ".sv-eyebrow{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-faint);margin-bottom:4px}" +
+    ".sv-title{margin:0;font:600 18px/1.25 var(--sans);letter-spacing:-.015em;color:var(--text)}" +
+    ".sv-title i{font-style:normal;color:var(--text-dim);font-weight:500}" +
+    ".sv-x{flex:none;width:34px;height:34px;display:grid;place-items:center;border:0;border-radius:10px;background:transparent;color:var(--text-dim);cursor:pointer}" +
+    ".sv-x:hover{background:var(--panel-2);color:var(--text)}.sv-x svg{width:18px;height:18px}" +
+    ".sv-body{flex:1;overflow-y:auto;padding:0 20px 20px;overscroll-behavior:contain}" +
+    ".sv-sec+.sv-sec{margin-top:22px}" +
+    ".sv-sec-h{display:flex;align-items:center;justify-content:space-between;margin:0 2px 8px;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-faint)}" +
+    ".sv-link{border:0;background:none;padding:0;font:500 12px var(--sans);letter-spacing:0;text-transform:none;color:var(--text-dim);cursor:pointer;text-decoration:underline;text-underline-offset:3px}" +
+    ".sv-link:hover{color:var(--text)}" +
+    ".sv-card{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:12px 14px;margin:0 0 8px;background:var(--panel-2);border:1px solid var(--border);border-radius:12px;color:var(--text);font:inherit;cursor:pointer;transition:border-color .15s,background-color .15s}" +
+    ".sv-card:hover{border-color:var(--text-faint)}" +
+    ".sv-card.on{border-color:var(--primary);background:var(--primary-soft)}" +
+    ".sv-card:focus-visible,.sv-row:focus-visible,.sv-go:focus-visible{outline:2px solid var(--primary);outline-offset:2px}" +
+    ".sv-card .scope-dot{width:11px;height:11px}" +
+    ".sv-card-main{flex:1;min-width:0}.sv-card-name{display:block;font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+    ".sv-sub{display:block;margin-top:2px;font-size:12px;color:var(--text-faint)}" +
+    ".sv-card-val{font:600 14px var(--mono);color:var(--text);white-space:nowrap}" +
+    ".sv-tick{flex:none;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--text-faint);display:grid;place-items:center}" +
+    ".sv-card.on .sv-tick{border-color:var(--primary);background:var(--primary)}" +
+    ".sv-card.on .sv-tick::after{content:'';width:6px;height:6px;border-radius:50%;background:#fff}" +
+    ".sv-multi .sv-tick{border-radius:5px}.sv-multi .sv-card.on .sv-tick::after{width:9px;height:5px;border-radius:0;background:none;border:solid #fff;border-width:0 0 2px 2px;transform:rotate(-45deg) translate(1px,-1px)}" +
+    ".sv-group-h{margin:16px 2px 8px;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-faint)}" +
+    ".sv-tl{position:relative;margin:0;padding:0;list-style:none}" +
+    ".sv-tl::before{content:'';position:absolute;left:8px;top:14px;bottom:14px;width:2px;background:var(--border)}" +
+    ".sv-row{position:relative;display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px 10px 0;margin:0 0 2px;border:0;border-radius:10px;background:transparent;color:var(--text);font:inherit;cursor:pointer}" +
+    ".sv-row:hover{background:var(--panel-2)}" +
+    ".sv-row.on{background:var(--primary-soft)}" +
+    ".sv-pin{position:relative;flex:none;width:18px;height:18px;display:grid;place-items:center}" +
+    ".sv-pin::after{content:'';width:10px;height:10px;border-radius:50%;background:var(--panel);border:2px solid var(--text-faint)}" +
+    ".sv-row.on .sv-pin::after{border-color:var(--primary);background:var(--primary)}" +
+    ".sv-row.now .sv-pin::after{border-color:var(--green)}.sv-row.now.on .sv-pin::after{background:var(--green)}" +
+    ".sv-row-main{flex:1;min-width:0}.sv-row-name{display:block;font-weight:600;font-size:13.5px}" +
+    ".sv-row-name em{font:600 10px var(--sans);font-style:normal;letter-spacing:.05em;text-transform:uppercase;color:var(--green);margin-left:6px}" +
+    ".sv-row-end{text-align:right;white-space:nowrap}.sv-row-bal{display:block;font:600 13.5px var(--mono)}" +
+    ".sv-row-pl{display:block;margin-top:2px;font-size:12px;color:var(--text-faint)}" +
+    ".sv-up{color:var(--green)}.sv-down{color:var(--red)}" +
+    ".sv-hint{margin:2px 2px 0;font-size:12.5px;line-height:1.5;color:var(--text-faint)}" +
+    ".sv-foot{padding:12px 20px calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--border-soft);display:flex;flex-direction:column;gap:8px}" +
+    ".sv-go{width:100%;height:42px;border:0;border-radius:11px;background:var(--text);color:var(--bg);font:600 13.5px var(--sans);cursor:pointer}" +
+    ".sv-go:disabled{opacity:.4;cursor:default}" +
+    ".sv-links{display:flex;gap:16px;flex-wrap:wrap}.sv-links a{font-size:12.5px;color:var(--text-dim);text-decoration:none}.sv-links a:hover{color:var(--text);text-decoration:underline}" +
+    "@media(max-width:640px){.scope-label{display:none}.scope-btn{padding:0 10px;height:38px}" +
+    ".sv-sheet{top:auto;left:0;right:0;width:auto;max-height:88dvh;border-left:0;border-top:1px solid var(--border);border-radius:18px 18px 0 0;box-shadow:0 -24px 60px -20px rgba(0,0,0,.6);transform:translateY(24px)}" +
+    ".sv-sheet::before{content:'';align-self:center;width:38px;height:4px;border-radius:4px;background:var(--border);margin-top:8px}" +
+    ".sv-head{padding-top:12px}.sv-card,.sv-row{min-height:48px}}" +
+    "@media(prefers-reduced-motion:reduce){.sv-backdrop,.sv-sheet{transition:none}}";
 
   function dotColor() {
     var sc = getScope();
     if (sc.ids.length === 1 && byId(sc.ids[0])) return byId(sc.ids[0]).color || PALETTE[0];
     return "var(--primary)";
+  }
+
+  // ---- small formatters (this file loads on every page, so it can't borrow the dashboard's) ----
+  function money(v, signed) {
+    var n = Math.round(Number(v) || 0);
+    return (n < 0 ? "-" : signed && n > 0 ? "+" : "") + "$" + Math.abs(n).toLocaleString("en-US");
+  }
+  function pctTxt(v) { return v === null || v === undefined ? "" : (v >= 0 ? "+" : "") + (v * 100).toFixed(1) + "%"; }
+  function shortDate(iso) {
+    var d = new Date(iso + "T12:00:00");
+    return isNaN(d) ? iso : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+  function cls(v) { return v > 0 ? "sv-up" : v < 0 ? "sv-down" : ""; }
+
+  // The balance maths only ships on a couple of pages; fetch it on demand everywhere else.
+  function withBalanceMath(cb) {
+    if (window.BalanceMath) return cb(window.BalanceMath);
+    var s = document.createElement("script");
+    s.src = "js/accounts/balance-math.js";
+    s.onload = function () { cb(window.BalanceMath || null); };
+    s.onerror = function () { cb(null); };
+    document.head.appendChild(s);
+  }
+
+  // Per-account and per-period numbers shown in the sheet. {accId: {trades, pnl, balance|null, periods:{pid:summary}}}
+  function computeSheetStats(BM, allTrades) {
+    var ledger = getLedger(), out = {};
+    liveAll().forEach(function (a) {
+      var entries = ledger.filter(function (e) { return ledgerAccountId(e) === a.id; });
+      var tr = allTrades.filter(function (t) { return t.account_id === a.id; });
+      var pnl = tr.reduce(function (s, t) { return s + (Number(t.pnl_after_comm) || 0); }, 0);
+      var st = { trades: tr.length, pnl: pnl, balance: entries.length ? BM.balanceBefore(entries, tr, "9999-12-31") : null, periods: {} };
+      periodsFor(a.id).forEach(function (p) { st.periods[p.id] = BM.periodSummary(entries, tr, p); });
+      out[a.id] = st;
+    });
+    return out;
+  }
+
+  var sheet = null; // the open sheet, if any
+
+  function openSheet() {
+    if (sheet) return;
+    var style = document.getElementById("sv-style");
+    if (!style) { style = document.createElement("style"); style.id = "sv-style"; style.textContent = CSS; document.head.appendChild(style); }
+
+    var cur = getScope();
+    var realIds = live().map(function (a) { return a.id; });
+    // What's ticked in the sheet right now (not applied until a final tap).
+    var pick = { all: cur.all && !cur.period && realIds.length > 1, ids: cur.ids.slice(), multi: false, stats: null };
+    var opener = document.activeElement;
+
+    var root = document.createElement("div");
+    root.className = "sv-root";
+    root.innerHTML =
+      '<div class="sv-backdrop"></div>' +
+      '<aside class="sv-sheet" role="dialog" aria-modal="true" aria-labelledby="sv-title" tabindex="-1">' +
+      '<header class="sv-head"><div><div class="sv-eyebrow">Viewing</div><h2 class="sv-title" id="sv-title"></h2></div>' +
+      '<button type="button" class="sv-x" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button></header>' +
+      '<div class="sv-body"></div><footer class="sv-foot"></footer></aside>';
+    document.body.appendChild(root);
+    document.documentElement.classList.add("sv-lock");
+    var shell = root.querySelector(".sv-sheet");
+    var body = root.querySelector(".sv-body");
+    var foot = root.querySelector(".sv-foot");
+    requestAnimationFrame(function () { root.classList.add("sv-open"); shell.focus(); });
+
+    function close() {
+      if (!sheet) return;
+      sheet = null;
+      document.documentElement.classList.remove("sv-lock");
+      document.removeEventListener("keydown", onKey, true);
+      root.classList.remove("sv-open");
+      setTimeout(function () { root.remove(); }, 220);
+      if (opener && opener.focus) opener.focus();
+    }
+    function onKey(e) {
+      if (e.key === "Escape") { e.stopPropagation(); close(); return; }
+      if (e.key !== "Tab") return; // keep Tab inside the sheet
+      var f = shell.querySelectorAll("button:not([disabled]),a[href]");
+      if (!f.length) return;
+      var first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === shell)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+    document.addEventListener("keydown", onKey, true);
+    root.querySelector(".sv-backdrop").addEventListener("click", close);
+    root.querySelector(".sv-x").addEventListener("click", close);
+    sheet = { close: close };
+
+    function apply(ids, period) { close(); setScope({ ids: ids, period: period || null }); }
+    function statOf(id) { return pick.stats && pick.stats[id]; }
+
+    function cardHtml(a, paper) {
+      var on = pick.multi ? pick.ids.indexOf(a.id) !== -1 : (!pick.all && pick.ids.length === 1 && pick.ids[0] === a.id);
+      var st = statOf(a.id), nP = periodsFor(a.id).length;
+      var sub = st ? st.trades + " trade" + (st.trades === 1 ? "" : "s") + ' · <span class="' + cls(st.pnl) + '">' + money(st.pnl, true) + "</span>" : "&nbsp;";
+      if (nP > 1 && !pick.multi) sub += " · " + nP + " periods";
+      return '<button type="button" class="sv-card' + (on ? " on" : "") + '" data-acc="' + esc(a.id) + '"' + (paper ? " data-paper" : "") + ' aria-pressed="' + on + '">' +
+        '<span class="scope-dot" style="background:' + esc(a.color || PALETTE[0]) + '"></span>' +
+        '<span class="sv-card-main"><span class="sv-card-name">' + esc(a.name) + (a.status === "archived" ? ' <i style="font-style:normal;color:var(--text-faint);font-weight:500">· archived</i>' : "") + "</span>" +
+        '<span class="sv-sub">' + sub + "</span></span>" +
+        (st && st.balance !== null ? '<span class="sv-card-val">' + money(st.balance) + "</span>" : "") +
+        (pick.multi ? '<span class="sv-tick"></span>' : "") + "</button>";
+    }
+
+    function allCardHtml() {
+      if (realIds.length < 2) return ""; // one real account: "All" would just be a duplicate of it
+      var on = !pick.multi && pick.all;
+      var n = realIds.length, tot = 0, haveBal = false, pnl = 0, trades = 0;
+      realIds.forEach(function (id) { var st = statOf(id); if (!st) return; trades += st.trades; pnl += st.pnl; if (st.balance !== null) { tot += st.balance; haveBal = true; } });
+      var sub = pick.stats ? trades + " trade" + (trades === 1 ? "" : "s") + ' · <span class="' + cls(pnl) + '">' + money(pnl, true) + "</span>" : "&nbsp;";
+      return '<button type="button" class="sv-card' + (on ? " on" : "") + '" data-all aria-pressed="' + on + '">' +
+        '<span class="scope-dot" style="background:var(--primary)"></span>' +
+        '<span class="sv-card-main"><span class="sv-card-name">All real accounts</span><span class="sv-sub">' + (n > 1 ? n + " accounts · " : "") + sub + "</span></span>" +
+        (haveBal ? '<span class="sv-card-val">' + money(tot) + "</span>" : "") + "</button>";
+    }
+
+    function periodsHtml(acc) {
+      var ps = periodsFor(acc.id).slice().reverse(), st = statOf(acc.id);
+      if (ps.length < 2) return ""; // one period = the whole account, nothing to choose
+      var wholeOn = cur.ids.length === 1 && cur.ids[0] === acc.id && !cur.period;
+      var html = '<div class="sv-sec-h"><span>Period · ' + esc(acc.name) + '</span></div><ul class="sv-tl">' +
+        '<li><button type="button" class="sv-row' + (wholeOn ? " on" : "") + '" data-period="">' +
+        '<span class="sv-pin"></span><span class="sv-row-main"><span class="sv-row-name">Entire account</span><span class="sv-sub">Every period together</span></span>' +
+        '<span class="sv-row-end">' + (st && st.balance !== null ? '<span class="sv-row-bal">' + money(st.balance) + "</span>" : "") +
+        (st ? '<span class="sv-row-pl ' + cls(st.pnl) + '">' + money(st.pnl, true) + " P&amp;L</span>" : "") + "</span></button></li>";
+      ps.forEach(function (p) {
+        var m = st && st.periods[p.id], open = p.end === null;
+        html += '<li><button type="button" class="sv-row' + (open ? " now" : "") + (cur.period === p.id ? " on" : "") + '" data-period="' + esc(p.id) + '">' +
+          '<span class="sv-pin"></span><span class="sv-row-main"><span class="sv-row-name">' + esc(p.name) + (open ? "<em>Current</em>" : "") + "</span>" +
+          '<span class="sv-sub">' + esc(shortDate(p.start)) + (open ? " → now" : " → " + esc(shortDate(p.end))) + "</span></span>" +
+          '<span class="sv-row-end">' + (m ? '<span class="sv-row-bal">' + money(m.endBalance) + '</span><span class="sv-row-pl ' + cls(m.pnl) + '">' + money(m.pnl, true) + (m.twr !== null ? " · " + pctTxt(m.twr) : "") + "</span>" : "") + "</span></button></li>";
+      });
+      return html + "</ul>";
+    }
+
+    function paint() {
+      root.classList.toggle("sv-multi", pick.multi);
+      var title = root.querySelector("#sv-title");
+      title.innerHTML = esc(scopeLabel().split(" · ")[0]) + (cur.period ? " <i>· " + esc(scopeLabel().split(" · ").slice(1).join(" · ")) + "</i>" : "");
+
+      var bp = brokerPaper();
+      var html = '<div class="sv-sec"><div class="sv-sec-h"><span>Account</span>' +
+        (liveAll().length > 1 ? '<button type="button" class="sv-link" data-multi>' + (pick.multi ? "Done" : "Select several") + "</button>" : "") + "</div>" +
+        allCardHtml() + live().map(function (a) { return cardHtml(a, false); }).join("") +
+        (bp.length ? '<div class="sv-group-h">Paper accounts (broker)</div>' + bp.map(function (a) { return cardHtml(a, true); }).join("") : "") + "</div>";
+
+      // Periods: only when exactly one account is picked (a period belongs to one account).
+      var single = !pick.multi && !pick.all && pick.ids.length === 1 ? byId(pick.ids[0]) : null;
+      if (single && periodsFor(single.id).length > 1) html += '<div class="sv-sec">' + periodsHtml(single) + "</div>";
+      else if (!pick.multi && pick.all && live().some(function (a) { return periodsFor(a.id).length > 1; }))
+        html += '<div class="sv-sec"><p class="sv-hint">Pick one account to browse its periods.</p></div>';
+      body.innerHTML = html;
+
+      var n = pick.ids.length;
+      foot.innerHTML = (pick.multi ? '<button type="button" class="sv-go"' + (n ? "" : " disabled") + ">" + (n ? "Show " + n + " account" + (n === 1 ? "" : "s") : "Pick at least one account") + "</button>" : "") +
+        '<div class="sv-links"><a href="accounts.html">Manage accounts &amp; periods</a><a href="practice.html?tab=analytics">Practice attempts</a></div>';
+    }
+
+    // One delegated handler for everything in the sheet.
+    shell.addEventListener("click", function (e) {
+      var t = e.target.closest("button");
+      if (!t || !shell.contains(t)) return;
+      if (t.hasAttribute("data-multi")) {
+        pick.multi = !pick.multi;
+        if (pick.multi && pick.all) pick.ids = realIds.slice();
+        paint(); return;
+      }
+      if (t.classList.contains("sv-go")) {
+        var ids = pick.ids.slice();
+        var onlyReal = ids.length === realIds.length && realIds.every(function (id) { return ids.indexOf(id) !== -1; });
+        apply(onlyReal ? [] : ids, null); return;
+      }
+      if (t.hasAttribute("data-all")) { if (pick.multi) { pick.ids = realIds.slice(); paint(); } else apply([], null); return; }
+      if (t.hasAttribute("data-acc")) {
+        var id = t.getAttribute("data-acc");
+        if (pick.multi) {
+          var i = pick.ids.indexOf(id);
+          if (i === -1) pick.ids.push(id); else pick.ids.splice(i, 1);
+          paint(); return;
+        }
+        // Single account: if it has several periods, show them and let the next tap decide; otherwise apply now.
+        if (periodsFor(id).length > 1) { pick.all = false; pick.ids = [id]; paint(); var r = body.querySelector(".sv-row.on") || body.querySelector(".sv-row"); if (r && r.scrollIntoView) r.scrollIntoView({ block: "nearest" }); }
+        else apply([id], null);
+        return;
+      }
+      if (t.hasAttribute("data-period")) apply([pick.ids[0]], t.getAttribute("data-period") || null);
+    });
+
+    paint();
+    // Numbers arrive a moment later (they need every trade, not just the scoped ones).
+    withBalanceMath(function (BM) {
+      if (!BM) return;
+      fetchAllTrades().then(function (all) {
+        if (!sheet) return;
+        pick.stats = computeSheetStats(BM, all);
+        paint();
+      }).catch(function (e) { if (window.console) console.warn("scope sheet numbers failed", e); });
+    });
   }
 
   function mountSwitcher() {
@@ -490,94 +737,24 @@
     if (onlyOne) return;
 
     var style = document.createElement("style");
+    style.id = "sv-style";
     style.textContent = CSS;
     document.head.appendChild(style);
 
-    var wrap = document.createElement("div");
-    wrap.id = "scope-switch";
-    wrap.className = "scope-switch";
     var sc = getScope();
-    wrap.innerHTML =
-      '<button type="button" class="scope-btn' + (sc.all ? "" : " filtered") + '" aria-haspopup="true" aria-label="Choose which accounts to view" title="Which accounts and period the whole site is showing">' +
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "scope-switch";
+    btn.className = "scope-btn" + (sc.all ? "" : " filtered");
+    btn.setAttribute("aria-haspopup", "dialog");
+    btn.setAttribute("aria-label", "Choose which account and period to view");
+    btn.title = "Which account and period the whole site is showing";
+    btn.innerHTML =
       '<span class="scope-dot" style="background:' + dotColor() + '"></span>' +
       '<span class="scope-label">' + esc(scopeLabel()) + "</span>" +
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button>' +
-      '<div class="scope-panel" role="dialog" aria-label="Account scope"></div>';
-    bar.insertBefore(wrap, bar.firstChild);
-
-    var btn = wrap.querySelector(".scope-btn");
-    var panel = wrap.querySelector(".scope-panel");
-
-    function periodOptionLabel(p) {
-      return p.name + " \u00b7 from " + p.start + (p.end === null ? " (current)" : "");
-    }
-
-    function renderPanel() {
-      var cur = getScope();
-      function rowHtml(a, paperRow) {
-        var checked = cur.ids.indexOf(a.id) !== -1;
-        return '<label class="scope-row"><input type="checkbox" data-acc="' + esc(a.id) + '"' + (paperRow ? " data-paper" : "") + (checked ? " checked" : "") + ">" +
-          '<span class="scope-dot" style="background:' + esc(a.color || PALETTE[0]) + '"></span><span>' + esc(a.name) + "</span>" +
-          (a.status === "archived" ? '<span class="tag">archived</span>' : "") + "</label>";
-      }
-      var rows = live().map(function (a) { return rowHtml(a, false); }).join("");
-      var bp = brokerPaper();
-      if (bp.length) rows += '<div class="scope-h" style="margin-top:12px">Paper accounts (broker)</div>' + bp.map(function (a) { return rowHtml(a, true); }).join("");
-      panel.innerHTML =
-        '<div class="scope-h">Showing trades from</div>' +
-        '<label class="scope-row"><input type="checkbox" data-all' + (cur.all ? " checked" : "") + '><span style="font-weight:600">All real accounts</span></label>' +
-        rows +
-        '<div class="scope-sub" id="scope-period-wrap" style="display:none"><label for="scope-period">Period</label><select id="scope-period" class="filter-input"></select></div>' +
-        '<button type="button" class="btn-confirm scope-apply">Apply</button>' +
-        '<div class="scope-links"><a href="accounts.html">Manage accounts &amp; periods</a><a href="practice.html?tab=analytics">Practice simulator attempts</a></div>';
-
-      var boxes = panel.querySelectorAll("input[data-acc]");
-      var allBox = panel.querySelector("input[data-all]");
-      var pWrap = panel.querySelector("#scope-period-wrap");
-      var pSel = panel.querySelector("#scope-period");
-
-      function checkedIds() { return Array.prototype.filter.call(boxes, function (b) { return b.checked; }).map(function (b) { return b.getAttribute("data-acc"); }); }
-      function refreshPeriod() {
-        var ids = checkedIds();
-        var ps = ids.length === 1 ? periodsFor(ids[0]) : [];
-        if (!ps.length) { pWrap.style.display = "none"; pSel.innerHTML = ""; return; }
-        var keep = cur.ids.length === 1 && cur.ids[0] === ids[0] ? cur.period : null;
-        pSel.innerHTML = '<option value="">All time</option>' + ps.map(function (p) {
-          return '<option value="' + esc(p.id) + '"' + (p.id === keep ? " selected" : "") + ">" + esc(periodOptionLabel(p)) + "</option>";
-        }).join("");
-        pWrap.style.display = "block";
-      }
-      var realBoxes = Array.prototype.filter.call(boxes, function (b) { return !b.hasAttribute("data-paper"); });
-      function onlyRealChecked() {
-        return realBoxes.length > 0 && Array.prototype.every.call(boxes, function (b) { return b.checked === !b.hasAttribute("data-paper"); });
-      }
-      allBox.addEventListener("change", function () {
-        Array.prototype.forEach.call(boxes, function (b) { b.checked = b.hasAttribute("data-paper") ? false : allBox.checked; });
-        refreshPeriod();
-      });
-      Array.prototype.forEach.call(boxes, function (b) {
-        b.addEventListener("change", function () {
-          allBox.checked = onlyRealChecked();
-          refreshPeriod();
-        });
-      });
-      panel.querySelector(".scope-apply").addEventListener("click", function () {
-        var ids = checkedIds();
-        if (!ids.length) { if (window.showToast) window.showToast("Pick at least one account.", { tone: "error" }); return; }
-        setScope({ ids: onlyRealChecked() ? [] : ids, period: ids.length === 1 ? (pSel.value || null) : null });
-        panel.classList.remove("open");
-      });
-      refreshPeriod();
-    }
-
-    btn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      if (!panel.classList.contains("open")) renderPanel();
-      panel.classList.toggle("open");
-    });
-    panel.addEventListener("click", function (e) { e.stopPropagation(); });
-    document.addEventListener("click", function () { panel.classList.remove("open"); });
-    document.addEventListener("keydown", function (e) { if (e.key === "Escape") panel.classList.remove("open"); });
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2.2" fill="var(--panel-2)"/><circle cx="15" cy="17" r="2.2" fill="var(--panel-2)"/></svg>';
+    bar.insertBefore(btn, bar.firstChild);
+    btn.addEventListener("click", openSheet);
   }
 
   ready.then(function (session) {
@@ -614,6 +791,7 @@
     getScope: getScope,
     setScope: setScope,
     scopeLabel: scopeLabel,
+    openScopeSheet: openSheet,   // the dashboard's balance line opens the same sheet
     newId: uid,
     paperApi: {
       key: paperKey,
