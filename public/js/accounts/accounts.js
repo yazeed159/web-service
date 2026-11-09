@@ -238,6 +238,50 @@
   function inRange(date, p) { return !!date && date >= p.start && (p.end === null || date < p.end); }
 
   // ------------------------------------------------------------------
+  // date range -- the third part of "what am I looking at" (account, period, dates)
+  // ------------------------------------------------------------------
+  // Stored in the scope as a preset key ("month") or {from,to}. Presets are resolved against today's
+  // date every time they're read, so "This week" is always this week. A range only ever narrows the
+  // TRADES and deposits shown; the dashboard balance still starts from everything that came before it.
+  var RANGE_PRESETS = [
+    { key: "today", label: "Today" }, { key: "week", label: "This week" }, { key: "month", label: "This month" },
+    { key: "30d", label: "Last 30 days" }, { key: "90d", label: "Last 90 days" }, { key: "ytd", label: "This year" }
+  ];
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function isoDate(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+  function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+  function validDate(v) { return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v); }
+  function nextDay(iso) { return isoDate(addDays(new Date(iso + "T12:00:00"), 1)); }
+  function resolveRange(r) {
+    if (!r) return null;
+    var now = new Date(), today = isoDate(now), from = null, to = null, key = null, label = "";
+    if (typeof r === "string") {
+      key = r;
+      if (r === "today") { from = to = today; label = "Today"; }
+      else if (r === "week") { from = isoDate(addDays(now, -((now.getDay() + 6) % 7))); label = "This week"; }   // weeks start Monday
+      else if (r === "month") { from = today.slice(0, 8) + "01"; label = "This month"; }
+      else if (r === "30d") { from = isoDate(addDays(now, -29)); label = "Last 30 days"; }
+      else if (r === "90d") { from = isoDate(addDays(now, -89)); label = "Last 90 days"; }
+      else if (r === "ytd") { from = today.slice(0, 4) + "-01-01"; label = "This year"; }
+      else return null;
+    } else if (typeof r === "object" && (validDate(r.from) || validDate(r.to))) {
+      key = "custom";
+      from = validDate(r.from) ? r.from : null;
+      to = validDate(r.to) ? r.to : null;
+      if (from && to && from > to) { var t = from; from = to; to = t; }
+      label = from && to ? shortDate(from) + " \u2013 " + shortDate(to) : from ? "From " + shortDate(from) : "Until " + shortDate(to);
+    } else return null;
+    return { key: key, from: from, to: to, label: label, raw: r };
+  }
+  // A date is inside the scope's window when it passes both the account's period and the date range.
+  function inWindow(date, period, range) {
+    if (!date) return false;
+    if (period && !inRange(date, period)) return false;
+    if (range && ((range.from && date < range.from) || (range.to && date > range.to))) return false;
+    return true;
+  }
+
+  // ------------------------------------------------------------------
   // scope
   // ------------------------------------------------------------------
   function getScope() {
@@ -258,12 +302,17 @@
       if (p) period = p.id;
     }
     if (period) all = false;
-    return { ids: ids, all: all, period: period };
+    var range = raw ? resolveRange(raw.range) : null;
+    return { ids: ids, all: all, period: period, range: range };
   }
 
   function setScope(scope, opts) {
-    var next = { ids: (scope && scope.ids) || [], period: (scope && scope.period) || null };
     var prev = lsGet(SCOPE_KEY);
+    var next = { ids: (scope && scope.ids) || [], period: (scope && scope.period) || null };
+    // range: omitted = keep what's set, null = back to all time, "month" / {from,to} = set it
+    var keep = null; try { keep = (JSON.parse(prev || "null") || {}).range || null; } catch (e) { /* ignore */ }
+    next.range = scope && scope.range !== undefined ? (scope.range || null) : keep;
+    if (!next.range) delete next.range;
     lsSet(SCOPE_KEY, JSON.stringify(next));
     if (!opts || opts.reload !== false) {
       if (prev !== JSON.stringify(next)) window.location.reload();
@@ -274,21 +323,34 @@
   function scopeKey() {
     if (!available) return "";
     var sc = getScope();
-    return sc.ids.slice().sort().join(",") + "|" + (sc.period || "");
+    // resolved dates, not the preset name, so "Today" doesn't reuse yesterday's cached snapshot
+    return sc.ids.slice().sort().join(",") + "|" + (sc.period || "") + (sc.range ? "|" + (sc.range.from || "") + "~" + (sc.range.to || "") : "");
   }
 
   function scopeLabel() {
     if (!available) return "";
-    var sc = getScope();
-    if (sc.all && !sc.period) return live().length > 1 ? "All real accounts" : (live()[0] ? live()[0].name : "Real account");
-    if (sc.ids.length === 1) {
+    var sc = getScope(), label;
+    if (sc.all && !sc.period) label = live().length > 1 ? "All real accounts" : (live()[0] ? live()[0].name : "Real account");
+    else if (sc.ids.length === 1) {
       var a = byId(sc.ids[0]);
-      var label = a ? a.name : "Account";
+      label = a ? a.name : "Account";
       if (isBrokerPaper(a) && !/paper/i.test(label)) label += " (paper)";
       if (sc.period) { var p = findPeriod(sc.period); if (p) label += " \u00b7 " + p.name; }
-      return label;
-    }
-    return sc.ids.length + " accounts";
+    } else label = sc.ids.length + " accounts";
+    if (sc.range) label += " \u00b7 " + sc.range.label;
+    return label;
+  }
+
+  // The dates the scope covers once the account's period and the date range are both applied:
+  // {start, end} with end EXCLUSIVE (matches BalanceMath's periods), either may be null = unbounded.
+  // The dashboard uses start to work out the balance carried in from before the window.
+  function scopeWindow() {
+    var sc = getScope(), p = sc.period ? findPeriod(sc.period) : null, r = sc.range;
+    var start = null, end = null;
+    if (p) { start = p.start; end = p.end; }
+    if (r && r.from && (!start || r.from > start)) start = r.from;
+    if (r && r.to) { var e = nextDay(r.to); if (!end || e < end) end = e; }
+    return { start: start, end: end };
   }
 
   // ------------------------------------------------------------------
@@ -305,7 +367,7 @@
       var allowed = {};
       sc.ids.forEach(function (id) { allowed[id] = true; });
       var p = sc.period ? findPeriod(sc.period) : null;
-      var out = rows.filter(function (t) { return allowed[effAccountId(t)] && (!p || inRange(t.trade_date, p)); });
+      var out = rows.filter(function (t) { return allowed[effAccountId(t)] && inWindow(t.trade_date, p, sc.range); });
       var eq = 0;
       out.forEach(function (t) { eq += t.pnl_after_comm || 0; t.equity_after = Math.round(eq * 100) / 100; });
       return out;
@@ -322,7 +384,7 @@
         var allowed = {};
         sc.ids.forEach(function (id) { allowed[id] = true; });
         var p = sc.period ? findPeriod(sc.period) : null;
-        return list.filter(function (e) { return allowed[ledgerAccountId(e)] && (!p || inRange(e.date, p)); });
+        return list.filter(function (e) { return allowed[ledgerAccountId(e)] && inWindow(e.date, p, sc.range); });
       });
     };
   }
@@ -452,16 +514,20 @@
   // ------------------------------------------------------------------
   // "View" sheet -- the one place you choose WHAT you're looking at
   // ------------------------------------------------------------------
-  // The topbar pill (always shows the current scope) opens a slide-over sheet (bottom sheet on phones):
+  // The topbar pill (always shows the current scope; press V anywhere) opens a slide-over sheet (bottom
+  // sheet on phones):
   //
   //   Account   cards: "All real accounts" + one per account (+ broker paper accounts, kept apart).
-  //             Tap = view that account. "Select several" turns the cards into checkboxes to combine some.
+  //             Each card shows trades, P&L and return for the chosen dates, so the cards also work as a
+  //             side-by-side compare. Tap = view that account; "Select several" combines some.
   //   Period    only when exactly one account is picked: a timeline, "Entire account" first, then each
-  //             period newest-first with its P&L, return and balance. Tap = apply. No Apply button, no <select>.
+  //             period newest-first with its P&L, return and balance. Tap = apply.
+  //   Dates     chips: All time, Today, This week, This month, Last 30 / 90 days, This year, Custom.
+  //             Applies to every page. Changing one part keeps the other two.
   //
   // Nothing here changes the scope until you tap a final choice (an account with no periods, "All", a
-  // period row, or "Show N accounts"). setScope() reloads the page, as it always has, so every page
-  // re-fetches its data for the new slice.
+  // period row, a date chip, or "Show N accounts"). setScope() reloads the page, as it always has, so
+  // every page re-fetches its data for the new slice.
   var CSS =
     ".scope-btn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px;border-radius:999px;background:var(--panel-2);border:1px solid var(--border);color:var(--text);font:600 12.5px var(--sans);cursor:pointer;max-width:280px}" +
     ".scope-btn:hover{border-color:var(--text-faint)}" +
@@ -564,69 +630,125 @@
     return out;
   }
 
-  var sheet = null; // the open sheet, if any
+  // Extra rules for the Dates section and the shared shell (the base sheet rules are in CSS above).
+  var CSS2 =
+    ".sv-chips{display:flex;flex-wrap:wrap;gap:6px}" +
+    ".sv-chip{height:32px;padding:0 13px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-dim);font:500 13px var(--sans);cursor:pointer}" +
+    ".sv-chip:hover{color:var(--text);border-color:var(--text-faint)}" +
+    ".sv-chip.on{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}" +
+    ".sv-chip:focus-visible{outline:2px solid var(--primary);outline-offset:2px}" +
+    ".sv-dates{display:flex;align-items:flex-end;gap:8px;margin-top:10px;flex-wrap:wrap}" +
+    ".sv-dates label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--text-faint);flex:1;min-width:120px}" +
+    ".sv-dates input{height:38px;padding:0 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);font:13px var(--sans)}" +
+    ".sv-dates .sv-go{width:auto;height:38px;padding:0 18px}" +
+    ".sv-sub .sv-sep{margin:0 5px;color:var(--text-faint)}" +
+    ".sv-kbd{display:inline-block;min-width:18px;padding:0 5px;border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;font:600 11px/17px var(--sans);text-align:center;color:var(--text-dim)}";
 
-  function openSheet() {
-    if (sheet) return;
-    var style = document.getElementById("sv-style");
-    if (!style) { style = document.createElement("style"); style.id = "sv-style"; style.textContent = CSS; document.head.appendChild(style); }
+  function ensureStyles() {
+    if (document.getElementById("sv-style")) return;
+    var style = document.createElement("style");
+    style.id = "sv-style";
+    style.textContent = CSS + CSS2;
+    document.head.appendChild(style);
+  }
 
-    var cur = getScope();
-    var realIds = live().map(function (a) { return a.id; });
-    // What's ticked in the sheet right now (not applied until a final tap).
-    var pick = { all: cur.all && !cur.period && realIds.length > 1, ids: cur.ids.slice(), multi: false, stats: null };
+  var sheet = null; // the open sheet (View or Customize), if any -- only one at a time
+
+  // The slide-over shell both sheets use: backdrop, focus trap, Esc, close button, bottom sheet on phones.
+  // Returns {body, foot, close, setTitle}; fill body/foot yourself.
+  function openSheetShell(o) {
+    if (sheet) sheet.close();
+    ensureStyles();
     var opener = document.activeElement;
-
     var root = document.createElement("div");
     root.className = "sv-root";
     root.innerHTML =
       '<div class="sv-backdrop"></div>' +
       '<aside class="sv-sheet" role="dialog" aria-modal="true" aria-labelledby="sv-title" tabindex="-1">' +
-      '<header class="sv-head"><div><div class="sv-eyebrow">Viewing</div><h2 class="sv-title" id="sv-title"></h2></div>' +
+      '<header class="sv-head"><div><div class="sv-eyebrow">' + esc(o.eyebrow || "") + '</div><h2 class="sv-title" id="sv-title"></h2></div>' +
       '<button type="button" class="sv-x" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button></header>' +
       '<div class="sv-body"></div><footer class="sv-foot"></footer></aside>';
     document.body.appendChild(root);
     document.documentElement.classList.add("sv-lock");
     var shell = root.querySelector(".sv-sheet");
-    var body = root.querySelector(".sv-body");
-    var foot = root.querySelector(".sv-foot");
     requestAnimationFrame(function () { root.classList.add("sv-open"); shell.focus(); });
 
-    function close() {
-      if (!sheet) return;
+    var api = { root: root, shell: shell, body: root.querySelector(".sv-body"), foot: root.querySelector(".sv-foot") };
+    api.setTitle = function (html) { root.querySelector("#sv-title").innerHTML = html; };
+    api.close = function () {
+      if (sheet !== api) return;
       sheet = null;
       document.documentElement.classList.remove("sv-lock");
       document.removeEventListener("keydown", onKey, true);
       root.classList.remove("sv-open");
       setTimeout(function () { root.remove(); }, 220);
-      if (opener && opener.focus) opener.focus();
-    }
+      if (opener && opener.focus && document.contains(opener)) opener.focus();
+      if (o.onClose) o.onClose();
+    };
     function onKey(e) {
-      if (e.key === "Escape") { e.stopPropagation(); close(); return; }
+      if (e.key === "Escape") { e.stopPropagation(); api.close(); return; }
       if (e.key !== "Tab") return; // keep Tab inside the sheet
-      var f = shell.querySelectorAll("button:not([disabled]),a[href]");
+      var f = shell.querySelectorAll("button:not([disabled]),a[href],input");
       if (!f.length) return;
       var first = f[0], last = f[f.length - 1];
       if (e.shiftKey && (document.activeElement === first || document.activeElement === shell)) { e.preventDefault(); last.focus(); }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     }
     document.addEventListener("keydown", onKey, true);
-    root.querySelector(".sv-backdrop").addEventListener("click", close);
-    root.querySelector(".sv-x").addEventListener("click", close);
-    sheet = { close: close };
+    root.querySelector(".sv-backdrop").addEventListener("click", api.close);
+    root.querySelector(".sv-x").addEventListener("click", api.close);
+    sheet = api;
+    return api;
+  }
 
-    function apply(ids, period) { close(); setScope({ ids: ids, period: period || null }); }
+  // Per-account and per-period numbers shown in the sheet, for the date range that's on right now:
+  // {accId: {trades, pnl, twr, balance|null, periods:{pid:summary}}}. The account cards line up side by
+  // side, so they double as the compare view.
+  function computeSheetStats(BM, allTrades, range) {
+    var ledger = getLedger(), out = {};
+    var win = { start: (range && range.from) || "0000-01-01", end: range && range.to ? nextDay(range.to) : null };
+    liveAll().forEach(function (a) {
+      var entries = ledger.filter(function (e) { return ledgerAccountId(e) === a.id; });
+      var tr = allTrades.filter(function (t) { return t.account_id === a.id; });
+      var w = BM.periodSummary(entries, tr, win);
+      var st = { trades: w.trades, pnl: w.pnl, twr: w.twr, balance: entries.length ? w.endBalance : null, periods: {} };
+      periodsFor(a.id).forEach(function (p) { st.periods[p.id] = BM.periodSummary(entries, tr, p); });
+      out[a.id] = st;
+    });
+    return out;
+  }
+
+  function openSheet() {
+    if (sheet && sheet.isView) { sheet.close(); return; }
+    var cur = getScope();
+    var realIds = live().map(function (a) { return a.id; });
+    // What's ticked in the sheet right now (an account with several periods isn't applied until you pick one).
+    var pick = { all: cur.all && !cur.period && realIds.length > 1, ids: cur.ids.slice(), multi: false, custom: false, stats: null };
+
+    var ui = openSheetShell({ eyebrow: "Viewing" });
+    ui.isView = true;
+    var shell = ui.shell, body = ui.body, foot = ui.foot, close = ui.close;
+
+    // Change one part of the scope and keep the rest (range is kept unless passed).
+    function apply(ids, period, range) { close(); setScope({ ids: ids, period: period || null, range: range }); }
+    function applyRange(raw) { apply(cur.all && !cur.period ? [] : cur.ids, cur.period, raw); }
     function statOf(id) { return pick.stats && pick.stats[id]; }
+
+    function subLine(st, extra) {
+      if (!st) return "&nbsp;";
+      var s = st.trades + " trade" + (st.trades === 1 ? "" : "s") + '<span class="sv-sep">·</span><span class="' + cls(st.pnl) + '">' + money(st.pnl, true) + "</span>";
+      if (st.twr !== null && st.twr !== undefined) s += '<span class="sv-sep">·</span><span class="' + cls(st.twr) + '">' + pctTxt(st.twr) + "</span>";
+      return s + (extra || "");
+    }
 
     function cardHtml(a, paper) {
       var on = pick.multi ? pick.ids.indexOf(a.id) !== -1 : (!pick.all && pick.ids.length === 1 && pick.ids[0] === a.id);
       var st = statOf(a.id), nP = periodsFor(a.id).length;
-      var sub = st ? st.trades + " trade" + (st.trades === 1 ? "" : "s") + ' · <span class="' + cls(st.pnl) + '">' + money(st.pnl, true) + "</span>" : "&nbsp;";
-      if (nP > 1 && !pick.multi) sub += " · " + nP + " periods";
+      var extra = nP > 1 && !pick.multi ? '<span class="sv-sep">·</span>' + nP + " periods" : "";
       return '<button type="button" class="sv-card' + (on ? " on" : "") + '" data-acc="' + esc(a.id) + '"' + (paper ? " data-paper" : "") + ' aria-pressed="' + on + '">' +
         '<span class="scope-dot" style="background:' + esc(a.color || PALETTE[0]) + '"></span>' +
         '<span class="sv-card-main"><span class="sv-card-name">' + esc(a.name) + (a.status === "archived" ? ' <i style="font-style:normal;color:var(--text-faint);font-weight:500">· archived</i>' : "") + "</span>" +
-        '<span class="sv-sub">' + sub + "</span></span>" +
+        '<span class="sv-sub">' + subLine(st, extra) + "</span></span>" +
         (st && st.balance !== null ? '<span class="sv-card-val">' + money(st.balance) + "</span>" : "") +
         (pick.multi ? '<span class="sv-tick"></span>' : "") + "</button>";
     }
@@ -634,12 +756,12 @@
     function allCardHtml() {
       if (realIds.length < 2) return ""; // one real account: "All" would just be a duplicate of it
       var on = !pick.multi && pick.all;
-      var n = realIds.length, tot = 0, haveBal = false, pnl = 0, trades = 0;
+      var tot = 0, haveBal = false, pnl = 0, trades = 0;
       realIds.forEach(function (id) { var st = statOf(id); if (!st) return; trades += st.trades; pnl += st.pnl; if (st.balance !== null) { tot += st.balance; haveBal = true; } });
-      var sub = pick.stats ? trades + " trade" + (trades === 1 ? "" : "s") + ' · <span class="' + cls(pnl) + '">' + money(pnl, true) + "</span>" : "&nbsp;";
+      var sub = pick.stats ? subLine({ trades: trades, pnl: pnl, twr: null }) : "&nbsp;";
       return '<button type="button" class="sv-card' + (on ? " on" : "") + '" data-all aria-pressed="' + on + '">' +
         '<span class="scope-dot" style="background:var(--primary)"></span>' +
-        '<span class="sv-card-main"><span class="sv-card-name">All real accounts</span><span class="sv-sub">' + (n > 1 ? n + " accounts · " : "") + sub + "</span></span>" +
+        '<span class="sv-card-main"><span class="sv-card-name">All real accounts</span><span class="sv-sub">' + realIds.length + ' accounts<span class="sv-sep">·</span>' + sub + "</span></span>" +
         (haveBal ? '<span class="sv-card-val">' + money(tot) + "</span>" : "") + "</button>";
     }
 
@@ -662,10 +784,26 @@
       return html + "</ul>";
     }
 
+    // Dates: one tap on a chip applies it, same as the account cards. Custom opens two date fields.
+    function datesHtml() {
+      var r = cur.range, isCustom = pick.custom || (r && r.key === "custom");
+      var chip = function (attr, label, on) { return '<button type="button" class="sv-chip' + (on ? " on" : "") + '" ' + attr + ' aria-pressed="' + !!on + '">' + esc(label) + "</button>"; };
+      var h = '<div class="sv-sec-h"><span>Dates</span></div><div class="sv-chips">' + chip('data-range=""', "All time", !r && !pick.custom);
+      RANGE_PRESETS.forEach(function (p) { h += chip('data-range="' + p.key + '"', p.label, r && r.key === p.key); });
+      h += chip("data-range-custom", "Custom", isCustom) + "</div>";
+      if (isCustom) {
+        h += '<div class="sv-dates"><label>From<input type="date" id="sv-from" value="' + esc((r && r.from) || "") + '"></label>' +
+          '<label>To<input type="date" id="sv-to" value="' + esc((r && r.to) || "") + '"></label>' +
+          '<button type="button" class="sv-go" data-range-apply>Show</button></div>';
+      }
+      if (r) h += '<p class="sv-hint" style="margin-top:10px">Everything on the site is limited to ' + esc(r.label.toLowerCase()) + '. The balance still counts what came before.</p>';
+      return h;
+    }
+
     function paint() {
-      root.classList.toggle("sv-multi", pick.multi);
-      var title = root.querySelector("#sv-title");
-      title.innerHTML = esc(scopeLabel().split(" · ")[0]) + (cur.period ? " <i>· " + esc(scopeLabel().split(" · ").slice(1).join(" · ")) + "</i>" : "");
+      ui.shell.classList.toggle("sv-multi", pick.multi);
+      var parts = scopeLabel().split(" · ");
+      ui.setTitle(esc(parts[0]) + (parts.length > 1 ? " <i>· " + esc(parts.slice(1).join(" · ")) + "</i>" : ""));
 
       var bp = brokerPaper();
       var html = '<div class="sv-sec"><div class="sv-sec-h"><span>Account</span>' +
@@ -678,11 +816,12 @@
       if (single && periodsFor(single.id).length > 1) html += '<div class="sv-sec">' + periodsHtml(single) + "</div>";
       else if (!pick.multi && pick.all && live().some(function (a) { return periodsFor(a.id).length > 1; }))
         html += '<div class="sv-sec"><p class="sv-hint">Pick one account to browse its periods.</p></div>';
+      if (!pick.multi) html += '<div class="sv-sec">' + datesHtml() + "</div>";
       body.innerHTML = html;
 
       var n = pick.ids.length;
       foot.innerHTML = (pick.multi ? '<button type="button" class="sv-go"' + (n ? "" : " disabled") + ">" + (n ? "Show " + n + " account" + (n === 1 ? "" : "s") : "Pick at least one account") + "</button>" : "") +
-        '<div class="sv-links"><a href="accounts.html">Manage accounts &amp; periods</a><a href="practice.html?tab=analytics">Practice attempts</a></div>';
+        '<div class="sv-links"><a href="accounts.html">Manage accounts &amp; periods</a><span style="margin-left:auto;font-size:12px;color:var(--text-faint)">Press <kbd class="sv-kbd">V</kbd> anywhere</span></div>';
     }
 
     // One delegated handler for everything in the sheet.
@@ -694,10 +833,21 @@
         if (pick.multi && pick.all) pick.ids = realIds.slice();
         paint(); return;
       }
-      if (t.classList.contains("sv-go")) {
+      if (t.classList.contains("sv-go") && !t.hasAttribute("data-range-apply")) {
         var ids = pick.ids.slice();
         var onlyReal = ids.length === realIds.length && realIds.every(function (id) { return ids.indexOf(id) !== -1; });
         apply(onlyReal ? [] : ids, null); return;
+      }
+      if (t.hasAttribute("data-range")) { applyRange(t.getAttribute("data-range") || null); return; }
+      if (t.hasAttribute("data-range-custom")) {
+        pick.custom = true; paint();
+        var f = body.querySelector("#sv-from"); if (f) f.focus();
+        return;
+      }
+      if (t.hasAttribute("data-range-apply")) {
+        var from = body.querySelector("#sv-from").value, to = body.querySelector("#sv-to").value;
+        if (!from && !to) { body.querySelector("#sv-from").focus(); return; }
+        applyRange({ from: from || null, to: to || null }); return;
       }
       if (t.hasAttribute("data-all")) { if (pick.multi) { pick.ids = realIds.slice(); paint(); } else apply([], null); return; }
       if (t.hasAttribute("data-acc")) {
@@ -720,8 +870,8 @@
     withBalanceMath(function (BM) {
       if (!BM) return;
       fetchAllTrades().then(function (all) {
-        if (!sheet) return;
-        pick.stats = computeSheetStats(BM, all);
+        if (sheet !== ui) return;
+        pick.stats = computeSheetStats(BM, all, cur.range);
         paint();
       }).catch(function (e) { if (window.console) console.warn("scope sheet numbers failed", e); });
     });
@@ -732,29 +882,32 @@
     if (/\/login(\.html)?\/?$/.test(window.location.pathname)) return;
     var bar = document.querySelector(".topbar-right");
     if (!bar) return;
-    // One real account and no periods -> nothing to switch between; stay out of the way.
-    var onlyOne = liveAll().length <= 1 && liveAll().every(function (a) { return periodsFor(a.id).length <= 1; });
-    if (onlyOne) return;
-
-    var style = document.createElement("style");
-    style.id = "sv-style";
-    style.textContent = CSS;
-    document.head.appendChild(style);
+    ensureStyles();
 
     var sc = getScope();
     var btn = document.createElement("button");
     btn.type = "button";
     btn.id = "scope-switch";
-    btn.className = "scope-btn" + (sc.all ? "" : " filtered");
+    btn.className = "scope-btn" + (sc.all && !sc.range ? "" : " filtered");
     btn.setAttribute("aria-haspopup", "dialog");
-    btn.setAttribute("aria-label", "Choose which account and period to view");
-    btn.title = "Which account and period the whole site is showing";
+    btn.setAttribute("aria-label", "Choose which account, period and dates to view");
+    btn.title = "What the whole site is showing (press V)";
     btn.innerHTML =
       '<span class="scope-dot" style="background:' + dotColor() + '"></span>' +
       '<span class="scope-label">' + esc(scopeLabel()) + "</span>" +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2.2" fill="var(--panel-2)"/><circle cx="15" cy="17" r="2.2" fill="var(--panel-2)"/></svg>';
     bar.insertBefore(btn, bar.firstChild);
     btn.addEventListener("click", openSheet);
+
+    // "V" opens/closes the sheet from anywhere that isn't a text field.
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "v" && e.key !== "V") return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      var el = document.activeElement, tag = el && el.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (el && el.isContentEditable)) return;
+      e.preventDefault();
+      openSheet();
+    });
   }
 
   ready.then(function (session) {
@@ -791,7 +944,10 @@
     getScope: getScope,
     setScope: setScope,
     scopeLabel: scopeLabel,
+    scopeWindow: scopeWindow,    // {start,end} after period + date range (end exclusive)
+    rangePresets: RANGE_PRESETS,
     openScopeSheet: openSheet,   // the dashboard's balance line opens the same sheet
+    openSheetShell: openSheetShell, // slide-over shell other panels reuse (dashboard Customize)
     newId: uid,
     paperApi: {
       key: paperKey,

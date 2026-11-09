@@ -199,3 +199,9 @@ html body :is(.card, .panel-box, .stat-grid, .calc-box, .calc-results, .ts-card)
 html body :is(.chatw-launcher, .chatw-panel-head .chatw-head-icon) { background: var(--primary) !important; color: var(--on-primary) !important; border: 0 !important; box-shadow: 0 6px 20px -8px rgba(0, 0, 0, .6) !important; }
 html body .chatw-launcher svg { stroke: var(--on-primary) !important; color: var(--on-primary) !important; }
 html body .panel-box-head { border-bottom: 0; }
+
+/* ---------- The one entrance: the Net P&L card settles in when the dashboard opens ---------- */
+@keyframes dash-settle { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  html body #dash-hero { animation: dash-settle .42s cubic-bezier(.2, .8, .2, 1) both; }
+}

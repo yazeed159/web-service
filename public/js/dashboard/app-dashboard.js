@@ -14,7 +14,7 @@
   // (equity curve's running total/tooltip), not a gain/loss delta. A
   // "+" there misleadingly reads as extra cash on top of the balance.
   function fmtBalance(v) {
-    return (v < 0 ? "-" : "") + "$" + Math.abs(v).toFixed(2);
+    return (v < 0 ? "-" : "") + "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
   // Splits the chronological trade list into two equal, back-to-back
   // windows -- "recent" (the last N trades) and "prior" (the N before
@@ -113,6 +113,19 @@
     return `<div class="hero-cta-row">${day}<a class="hero-cta" id="hero-add" href="daily.html"><span>${isToday ? "Review today" : "Plan today"}</span><i aria-hidden="true">\u203A</i></a></div>`;
   }
 
+  // What the hero's "Net P&L" covers, in words: the date range, else the account's period, else all time.
+  function heroSpan() {
+    try {
+      const A = window.Accounts;
+      if (A && A.isAvailable && A.isAvailable()) {
+        const sc = A.getScope();
+        if (sc.range) return sc.range.key === "custom" ? sc.range.label : sc.range.label.toLowerCase();
+        if (sc.period) { const p = A.findPeriod(sc.period); if (p) return p.name; }
+      }
+    } catch (e) { /* fall through */ }
+    return "all time";
+  }
+
   // ---------- Balance line ----------
   // One slim line: which account/period you're on (tap = open the View sheet), the balance, the return and
   // the broker check. Balance = every deposit/withdrawal in the current scope + every trade's net P&L in
@@ -165,10 +178,11 @@
     A.fetchAllTrades().then((all) => {
       if (token !== _balToken || !document.body.contains(el)) return;
       const fullLedger = A.getLedger();
+      // Balance carried in from before the window on screen (the account's period and/or the date range).
       let carry = 0;
-      if (sc.period && sc.ids.length === 1) {
-        const p = A.findPeriod(sc.period);
-        if (p) carry = BM.balanceBefore(fullLedger.filter((e) => A.ledgerAccountId(e) === sc.ids[0]), all.filter((t) => t.account_id === sc.ids[0]), p.start);
+      const win = A.scopeWindow ? A.scopeWindow() : { start: null };
+      if (win.start) {
+        carry = sc.ids.reduce((sum, id) => sum + BM.balanceBefore(fullLedger.filter((e) => A.ledgerAccountId(e) === id), all.filter((t) => t.account_id === id), win.start), 0);
       }
       let html = "";
       let chipHtml = "";
@@ -273,7 +287,7 @@
         : "";
       heroEl.innerHTML = `
         <div class="hero-main">
-          <div class="hero-label">Net P&amp;L <span class="dim" style="font-weight:500; text-transform:none; letter-spacing:0;">· all time</span></div>
+          <div class="hero-label">Net P&amp;L <span class="dim" style="font-weight:500; text-transform:none; letter-spacing:0;">· ${escapeHtml(heroSpan())}</span></div>
           <div class="hero-value ${s.netPnl >= 0 ? "up" : "down"}">${fmtMoney(s.netPnl)}</div>
           <div class="hero-meta">
             ${heroDelta ? `${heroDelta}<span class="dim" style="font-size:11.5px;">vs prior ${w.n} trades</span>` : ""}

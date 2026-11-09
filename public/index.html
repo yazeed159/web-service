@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();</script>
+<script>(function(){try{if(localStorage.getItem("trade.log:theme")==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}try{document.documentElement.setAttribute("data-skin",localStorage.getItem("trade.log:skin")||"pro");}catch(e){document.documentElement.setAttribute("data-skin","pro");}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>trade.log — journal</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -27,6 +27,7 @@
 <link rel="stylesheet" href="css/mobile.css">
 <link rel="stylesheet" href="css/refresh.css">
 <link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/skins.css">
 </head>
 <body>
 <div id="page-progress-bar"></div>
@@ -128,7 +129,7 @@
 
       <!-- ===================== DASHBOARD TAB ===================== -->
       <section class="tab-panel active" id="tab-dashboard">
-        <div class="dash-hero" id="dash-hero">
+        <div class="dash-hero" id="dash-hero" data-dash-unit="hero">
           <div class="loading-line hero-skel">
             <div class="hero-skel-text">
               <div class="skel skel-line w40"></div>
@@ -140,7 +141,7 @@
 
         <div id="dash-balance"></div>
 
-        <div class="kpi-grid stat-grid" id="stat-grid">
+        <div class="kpi-grid stat-grid" id="stat-grid" data-dash-unit="kpis">
           <div class="loading-line kpi-skel">
             <div class="skel"></div>
             <div class="skel"></div>
@@ -149,8 +150,8 @@
           </div>
         </div>
 
-        <div class="dash-two-col">
-          <div class="panel-box">
+        <div class="dash-two-col" data-dash-unit="pair">
+          <div class="panel-box" data-dash-part="form">
             <div class="panel-box-head">
               <span class="title">Form guide</span>
             </div>
@@ -160,7 +161,7 @@
             <div class="score-month-extra" id="score-month-extra"></div>
           </div>
 
-          <div class="panel-box panel-box-square">
+          <div class="panel-box panel-box-square" data-dash-part="month">
             <div class="panel-box-head">
               <span class="title">This month</span>
               <button class="link" data-goto="dayview">Open Day View →</button>
@@ -174,7 +175,7 @@
           </div>
         </div>
 
-        <div class="equity-panel">
+        <div class="equity-panel" data-dash-unit="equity">
           <div class="equity-head">
             <span class="label" id="equity-label">Equity curve — account balance</span>
             <span class="value mono" id="equity-total"></span>
@@ -197,7 +198,7 @@
           <div id="equity-hint"></div>
         </div>
 
-        <div class="panel-box" style="margin-top:18px;">
+        <div class="panel-box" style="margin-top:18px;" data-dash-unit="recent">
           <div class="panel-box-head">
             <span class="title">Recent trades</span>
             <a class="link" href="journal.html">View all →</a>
@@ -244,7 +245,7 @@
         </div>
 
         <!-- Today strip (notes / plan card): filled by js/dashboard/today-strip.js -->
-        <div class="ts-mount" id="today-strip" aria-live="polite" style="margin-top:18px;"></div>
+        <div class="ts-mount" id="today-strip" aria-live="polite" style="margin-top:18px;" data-dash-unit="today"></div>
       </section>
 
       <!-- ===================== DAY VIEW TAB ===================== -->
@@ -757,6 +758,7 @@
 <script src="js/dashboard/today-strip.js" defer></script>
 <script src="js/accounts/balance-math.js" defer></script>
 <script src="js/dashboard/app-dashboard.js" defer></script>
+<script src="js/dashboard/dash-layout.js" defer></script>
 <script src="js/dashboard/app-dayview.js" defer></script>
 <script src="js/core/common.js" defer></script>
 <script src="js/core/select-enhance.js" defer></script>

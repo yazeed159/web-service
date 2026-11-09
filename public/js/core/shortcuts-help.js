@@ -27,6 +27,7 @@
   const UNIVERSAL = [
     { keys: ["Ctrl", "K"], mac: ["\u2318", "K"], label: "Search trades or jump to a page" },
     { keys: ["/"], label: "Focus search" },
+    { keys: ["V"], label: "Choose account, period and dates" },
     { keys: ["Esc"], label: "Close a dialog, panel, or search" },
     { keys: ["?"], label: "Show this list" },
   ];

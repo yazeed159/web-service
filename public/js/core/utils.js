@@ -164,7 +164,8 @@ window.escapeHtml = function escapeHtml(s) {
 window.fmtMoney = function fmtMoney(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return "—";
-  return (n >= 0 ? "+$" : "-$") + Math.abs(n).toFixed(2);
+  // Thousands separators so 12345.6 reads $12,345.60 (hero, balance, tables all share this).
+  return (n >= 0 ? "+$" : "-$") + Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 // Canonical form: always 2 decimals, no "$" (callers prepend their own

@@ -90,3 +90,71 @@ test("All real accounts applies in one tap", async ({ page }) => {
   await page.waitForLoadState("load");
   await expect(page.locator("#scope-switch .scope-label")).toHaveText("All real accounts");
 });
+
+test("a custom date range limits every page and shows in the pill and hero", async ({ page }) => {
+  await page.goto("/index.html");
+  await page.locator("#scope-switch").click();
+  await page.locator("[data-range-custom]").click();
+  await page.locator("#sv-from").fill("2026-02-01");
+  await page.locator("#sv-to").fill("2026-03-31");
+  await page.locator("[data-range-apply]").click();
+  await page.waitForLoadState("load");
+  await expect(page.locator("#scope-switch .scope-label")).toContainText("Feb 1, 2026 \u2013 Mar 31, 2026");
+  // Main +300 (Feb) and Swing +80 (Mar) are inside; Main -120 (Jul) is not.
+  await expect(page.locator(".hero-value")).toHaveText("+$380.00");
+  const scope = await page.evaluate(() => JSON.parse(localStorage.getItem("scope:v1")));
+  expect(scope.range).toEqual({ from: "2026-02-01", to: "2026-03-31" });
+  // Picking an account keeps the dates; "All time" clears them.
+  await page.locator("#scope-switch").click();
+  await page.locator('.sv-card[data-acc="' + A2 + '"]').click();
+  await page.waitForLoadState("load");
+  expect((await page.evaluate(() => JSON.parse(localStorage.getItem("scope:v1")))).range).toBeTruthy();
+  await page.locator("#scope-switch").click();
+  await page.locator('[data-range=""]').click();
+  await page.waitForLoadState("load");
+  expect((await page.evaluate(() => JSON.parse(localStorage.getItem("scope:v1")))).range).toBeUndefined();
+});
+
+test("a preset like This year resolves against today and V opens the sheet", async ({ page }) => {
+  await page.goto("/index.html");
+  await page.locator("#scope-switch").waitFor(); // the V key is wired when the pill mounts
+  await page.keyboard.press("v");
+  await expect(page.locator(".sv-sheet")).toBeVisible();
+  await page.locator('[data-range="ytd"]').click();
+  await page.waitForLoadState("load");
+  await expect(page.locator("#scope-switch .scope-label")).toContainText("This year");
+  await expect(page.locator(".hero-label")).toContainText("this year");
+});
+
+test("Customize: hide and reorder dashboard sections, remembered after reload", async ({ page }) => {
+  await page.goto("/index.html");
+  await page.locator("#dash-customize").click();
+  await expect(page.locator(".sv-sheet")).toBeVisible();
+  await page.locator('[data-toggle="recent"]').click();
+  await expect(page.locator('[data-dash-unit="recent"]')).toBeHidden();
+  await page.locator('[data-move="equity"][data-dir="-1"]').click(); // equity above the Form guide / calendar row
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".dash-hidden-note")).toContainText("1 section is hidden");
+  await page.reload();
+  await expect(page.locator('[data-dash-unit="recent"]')).toBeHidden();
+  const orders = await page.evaluate(() => ["equity", "pair"].map((u) => Number(document.querySelector('[data-dash-unit="' + u + '"]').style.order)));
+  expect(orders[0]).toBeLessThan(orders[1]);
+  // Calm preset hides the two cards and recent trades; hiding only one card gives the other the full row.
+  await page.locator("#dash-customize").click();
+  await page.locator('[data-preset="calm"]').click();
+  await expect(page.locator('[data-dash-unit="pair"]')).toBeHidden();
+  await page.locator('[data-preset="all"]').click();
+  await page.locator('[data-toggle="month"]').click();
+  await expect(page.locator('[data-dash-unit="pair"]')).toHaveClass(/dash-one/);
+});
+
+test("Customize > Look switches the whole site's skin and remembers it", async ({ page }) => {
+  await page.goto("/index.html");
+  await expect(page.locator("html")).toHaveAttribute("data-skin", "pro"); // default
+  await page.locator("#dash-customize").click();
+  await page.locator('.dl-skin[data-skin="navy"]').click();
+  await expect(page.locator("html")).toHaveAttribute("data-skin", "navy");
+  await page.keyboard.press("Escape");
+  await page.goto("/journal.html");
+  await expect(page.locator("html")).toHaveAttribute("data-skin", "navy"); // carried to other pages, set before paint
+});
