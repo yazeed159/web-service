@@ -57,42 +57,9 @@
    values -- the originals are tuned for contrast against near-black and
    read as pale/washed-out used as text on a white panel. */
 /* Light-theme accent text colours darkened to reach WCAG AA (4.5:1) on glass cards and P&L-tinted tiles. */
-:root[data-theme="light"] {
-  --bg: #f5f6f9;
-  --sidebar-bg: #ffffff;
-  --panel: #ffffff;
-  --panel-2: #f2f3f7;
-  --panel-3: #e9ebf1;
-  --border: #dfe2ea;
-  --border-soft: #e8eaf0;
-  --text: #1a1c26;
-  --text-dim: #565a6b;
-  --text-faint: #5f6371;
-  --green: #127249;
-  --green-soft: rgba(18, 114, 73, 0.13);
-  --red: #bf282f;
-  --red-soft: rgba(191, 40, 47, 0.12);
-  --blue: #3060bf;
-  --blue-soft: rgba(53, 104, 204, 0.12);
-  --amber: #865b15;
-  --amber-soft: rgba(134, 91, 21, 0.14);
-  --primary: #5b46ee;
-  --primary-2: #5a46e0;
-  --primary-soft: rgba(110, 91, 240, 0.12);
-  /* "glass" panels (modern.css layer, below) are a translucent tint over
-     whatever sits behind them -- dark near-black in dark mode, so they
-     need a light near-white tint here instead, or every frosted panel
-     (account switcher, stat cards, backtester overlays) would render as
-     a dark smudge on top of the light surfaces around it. */
-  --glass: rgba(255, 255, 255, 0.6);
-  --glass-hi: rgba(255, 255, 255, 0.82);
-  --glass-border: rgba(20, 22, 30, 0.08);
-  --glass-border-hi: rgba(20, 22, 30, 0.14);
-}
 
 * { box-sizing: border-box; }
 html { color-scheme: dark; -webkit-tap-highlight-color: transparent; }
-html[data-theme="light"] { color-scheme: light; }
 /* Buttons/links get their own :active/:hover feedback throughout this
    file, so the browser's default tap-highlight flash (a gray/blue box
    that briefly covers the tapped element) is just visual noise here --
@@ -488,9 +455,6 @@ button { font-family: var(--sans); }
 .icon-btn.icon-btn-visible { display: flex; }
 /* Theme toggle (js/common.js) -- sun/moon swap by current theme. Shows
    the icon for the theme a click will switch TO, not the current one. */
-.theme-toggle-btn .theme-icon-moon { display: none; }
-html[data-theme="light"] .theme-toggle-btn .theme-icon-sun { display: none; }
-html[data-theme="light"] .theme-toggle-btn .theme-icon-moon { display: block; }
 
 .content { padding: 26px 28px 90px; max-width: 1320px; width: 100%; margin: 0 auto; }
 
@@ -2623,44 +2587,8 @@ html:active-view-transition #page-progress-bar { display: none !important; }
    Self-contained (not built on .ui-modal-*, which is only loaded on
    rewind.html/practice.html) since this mounts on every app-shell page.
 =================================================================== */
-.shortcuts-overlay {
-  position: fixed; inset: 0; z-index: 10000;
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px;
-  
-  opacity: 0;
-  transition: opacity .16s ease;
-}
-.shortcuts-overlay.open { opacity: 1; }
-.shortcuts-box {
-  width: 100%; max-width: 360px; max-height: min(70vh, 520px); overflow-y: auto;
-  padding: 20px 20px 16px;
-  transform: scale(.95) translateY(6px);
-  transition: transform .16s cubic-bezier(.2,.9,.3,1.2);
-}
-.shortcuts-overlay.open .shortcuts-box { transform: scale(1) translateY(0); }
-.shortcuts-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
-.shortcuts-section-label {
-  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
-  color: var(--text-faint); padding: 10px 0 4px;
-}
-.shortcuts-section-label:first-of-type { padding-top: 0; }
-.shortcuts-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 14px;
-  padding: 6px 0; font-size: 13px; color: var(--text-dim);
-}
-.shortcuts-keys { flex: none; display: flex; gap: 4px; }
-.shortcuts-keys kbd {
-  font-family: var(--mono); font-size: 11px; color: var(--text);
-  background: var(--panel-3); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px;
-}
-.shortcuts-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
-.shortcuts-actions .btn-confirm { padding: 9px 16px; font-size: 13px; border-radius: var(--radius-sm); }
 @media print {
-  .sidebar, .sidebar-backdrop, .topbar, .footer,
-  .chatw-launcher, .chatw-panel, .toast-container, .shortcuts-overlay,
-  .btn-confirm, .btn-advanced, .filter-btn, .icon-btn, .btn-icon, .cal-nav-btn,
-  button, .header-search { display: none; }
+  .sidebar, .sidebar-backdrop, .topbar, .footer, .chatw-launcher, .chatw-panel, .toast-container, .btn-confirm, .btn-advanced, .filter-btn, .icon-btn, .btn-icon, .cal-nav-btn, button, .header-search { display: none; }
   .app-shell, .main { display: block; }
   .content { padding: 0; max-width: none; margin: 0; }
   body, .card, .panel-box { background: #fff; color: #000; }
@@ -3703,7 +3631,6 @@ select option, select optgroup { background: var(--panel-2); color: var(--text);
 .ds-opt.disabled { opacity: .4; cursor: not-allowed; }
 .ds-group { padding: 9px 10px 4px; font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); }
 .ds-group:first-child { padding-top: 5px; }
-html[data-theme="light"] .ds-menu { box-shadow: 0 16px 36px -14px rgba(30,35,70,.28), 0 2px 8px rgba(30,35,70,.10); }
 @media (prefers-reduced-motion: reduce) { .ds-menu, .ds-chev { transition: none; } }
 
 /* =====================================================

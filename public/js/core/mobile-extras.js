@@ -1,9 +1,8 @@
 // mobile-extras.js -- phone-first daily-use helpers, loaded on every app-shell page.
 //
 //   QuickAdd      bottom sheet to jot a note on a trade (or on today) in two taps.
-//                 Opened by the "+" in the bottom nav, by the home-screen
-//                 shortcuts (?quick=trade / ?quick=note, see manifest.json),
-//                 and by the Journal's swipe actions.
+//                 Opened by the "+" in the bottom nav and by the Journal's
+//                 swipe actions.
 //   PullRefresh   pull down at the top of a page to re-fetch its data in place.
 //                 A page opts in with PullRefresh.set(() => Promise).
 //   ScrollMemory  remembers scroll position per page so Back from a trade lands
@@ -533,22 +532,6 @@
     return { open: open, close: close, invalidate: function () { cache = { at: 0, rows: null }; } };
   })();
   window.QuickAdd = QuickAdd;
-
-  // Home-screen shortcuts / deep links: ?quick=trade | note
-  (function quickFromUrl() {
-    var q;
-    try { q = new URLSearchParams(location.search).get("quick"); } catch (e) { return; }
-    if (!q) return;
-    try {
-      var p = new URLSearchParams(location.search);
-      p.delete("quick");
-      var qs = p.toString();
-      history.replaceState(history.state, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
-    } catch (e) { /* ignore */ }
-    var go = function () { QuickAdd.open({ mode: q === "note" ? "day" : "trade" }); };
-    if (document.readyState === "complete") setTimeout(go, 150);
-    else window.addEventListener("load", function () { setTimeout(go, 150); });
-  })();
 
   // ====================================================================
   // Swipe rows (Journal cards)

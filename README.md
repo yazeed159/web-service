@@ -160,7 +160,7 @@ Built in `js/core/nav-render.js` (+ `js/core/global-search.js`, styles at the en
 The site is an installable PWA and is meant to be wrapped as an Android APK
 (PWABuilder / Bubblewrap TWA, or Capacitor pointed at the live URL).
 
-- `manifest.json` + `icons/` -- app name, icons, standalone display, theme colour.
+- `manifest.json` + `icons/` -- app name, icons, standalone display.
 - `sw.js` -- service worker. Pre-caches the whole shell on install and serves
   same-origin files (and the supabase-js / lightweight-charts CDN scripts)
   stale-while-revalidate, so page loads come from the device. API calls
@@ -299,7 +299,7 @@ The site side is done; the sync must read the new table or only the old single t
 
 ## Phone daily-use features
 
-- **`js/core/mobile-extras.js`** (loaded on every app page): quick-note sheet (`QuickAdd`, opened by the bottom-nav "+", the `?quick=trade|note` home-screen shortcuts, and Journal swipes), pull-to-refresh (`PullRefresh.set(fn)` — dashboard + Journal opt in), scroll memory (`ScrollMemory`), and Journal card swipe gestures (left: Tag/Delete, right: Note).
+- **`js/core/mobile-extras.js`** (loaded on every app page): quick-note sheet (`QuickAdd`, opened by the bottom-nav "+" and Journal swipes), pull-to-refresh (`PullRefresh.set(fn)` — dashboard + Journal opt in), scroll memory (`ScrollMemory`), and Journal card swipe gestures (left: Tag/Delete, right: Note).
 - **`js/dashboard/today-strip.js`**: the dashboard "Today" card (Today / Yesterday / This week / Last week).
 - Quick day notes are stored in `DailyNotes` as `thoughts: [{t, text}]` and listed on `daily.html`.
 - Trades are not created by hand in the app (they come from the IBKR sync / CSV import), so "log a trade" = a note/tags on a trade.
@@ -319,9 +319,8 @@ The site side is done; the sync must read the new table or only the old single t
 - **Practice order dock** (`js/practice/practice-mobile.js`, styles at the end of `css/practice.css`). On phones the order ticket is re-parented into a body-level `#pp-dock`: your shortcut buttons (key badges hidden -- no keyboard) and big BUY / SELL stay pinned above the tab bar; tap the price/size handle (or the dim background) to slide the full ticket up -- size, % presets, position, fills, the shortcuts gear. Order feedback floats above the dock so buttons never shift under your thumb. On desktop widths nothing changes and the ticket goes back to its column.
 - **Practice landscape**: `html.pp-landscape` makes the play screen full-screen -- slim header, chart filling the middle, transport row, and the dock as one strip (size - shortcuts - BUY - SELL) with the same slide-up sheet. `practice.js` only calls `PracticeMobile.sync()` / `onChartBuilt()` and tags the chart handle as `window.__ppChart`; all order logic is unchanged.
 
-## Phone daily-use: shortcut icons & resume-last-view
+## Phone daily-use: resume-last-view
 
-- **Home-screen shortcuts** now have icons (`icons/shortcut-*.png`, 96x96, declared per shortcut in `manifest.json`): long-press the installed app for Trade note, Day note, Journal, Daily plan. Android launchers show only the first four, so keep the best four first. After changing the manifest, reinstall the app (or clear its data) -- Android caches shortcuts at install time.
 - **Resume your last view** (`journal.html`, phones only): opening a bare Journal from the tab bar while a filtered/sorted view from earlier in the session exists (`sessionStorage["tl:journal:url"]`, under 6 h old) shows a chip at the top. Tap it to restore the filters, sort, depth and scroll; tap the x or change any filter to dismiss. It never auto-applies, so a fresh visit can't hide trades by surprise. Back from a trade still restores everything with no chip, as before.
 
 
@@ -335,7 +334,7 @@ The site side is done; the sync must read the new table or only the old single t
 ## Phone glass skin
 
 - On phones (`max-width: 760px`) the whole UI is restyled as frosted glass: translucent cards over a soft colour wash, a floating pill tab bar, glass modals/sheets/drawer, springy press feedback and staggered entrances. It is **pure CSS** in the `GLASS SKIN` blocks at the end of `css/common.css` (parts 1-7); delete them to revert. Parts 8-9 add the Journal, Reports, Day view, Daily plan and Trade page; **part 10** covers the remaining pages (Accounts, Live trading, Scanner, Edge analysis, Performance setup bars, Backtester, Calculator, Rewind/Practice setup + stats, Search, Report import) at every screen size. **Part 11** (end of `css/common.css`) restyles dropdowns and menus (select trigger + options, account menu, tag picker, shortcuts overlay, keycaps, quick-add sheet, chat bubbles, toasts, native checkbox/radio/range accents); the buttons are a glass pass at the end of `css/buttons.css` (frosted secondary buttons, glass segmented tracks, lit active pills, theme-aware surfaces). **Part 12** (end of `css/common.css`) is the consistency pass: one radius scale (`--r-xs…--r-xl`), leftover solid surfaces on Practice/Rewind/Calculator turned to glass, tabular numbers, glass skeletons and status pill, shared disclosure (`<summary>`) style, link and touch behaviour. `login.html` now has a desktop glass block too (it carries its own CSS). **Part 13** covers JS-built pieces: chart marker tooltips (`.pointer-tooltip`, overriding their inline styles), the account-scope switcher (CSS injected by `js/accounts/accounts.js`, overridden via `.topbar .scope-*`), the fullscreen drawing toolbar and colour popover, and the Today strip. Chart canvases (which CSS can't reach) are themed from `window.chartThemeColors()` / `window.chartCrosshair()` in `js/core/utils.js`: soft translucent grid and axis lines so the glass shows through, dashed purple crosshair with purple axis labels, and Inter on the axes. Used by the main candle chart, the MACD panes (Trade, Report) and the equity charts; the standalone share-export page keeps its own fixed chart colours (but its page chrome is glass, via a self-contained block at the end of `BASE_CSS` in `js/trade/share-export.js`). **Part 14** (end of `css/common.css`) adds fallbacks: `prefers-reduced-transparency` swaps glass for solid surfaces with no blur, `prefers-contrast: more` makes edges crisper and secondary text stronger, and touch devices skip the blur on small controls (cards, sheets, top bar and tab bar keep theirs) to keep scrolling smooth. The theme toggle reloads the page (`js/core/common.js`), so charts always draw with the right colours. The four redirect stubs (`notes`, `chat`, `playbooks`, `practice-analytics`) show a glass card with a spinner while they bounce. Desktop is untouched. `login.html` carries its own copy (it doesn't load `common.css`).
-- Dark and light themes share the same blocks: secondary-surface tokens (`--panel-2/3`, `--border*`) are made translucent on phones, and `--g-fill`, `--g-line`, `--g-hi`, `--g-blur` drive the glass.
+- Secondary-surface tokens (`--panel-2/3`, `--border*`) are made translucent on phones, and `--g-fill`, `--g-line`, `--g-hi`, `--g-blur` drive the glass.
 - Animations respect `prefers-reduced-motion`. Charts' panels deliberately skip `backdrop-filter` (it would trap the fullscreen chart).
 - The dashboard hero (`renderStats()` in `js/dashboard/app-dashboard.js`) adds a phone-only footer: last-session P&L and an "Add trade note" button (opens `QuickAdd`).
 - After changing cached assets, bump `CACHE_VERSION` in `sw.js` so installed phones pick the change up on the next open.

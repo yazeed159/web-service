@@ -10,7 +10,7 @@
      form controls ........... 16px radius, >= 44px tall, 16px text
      pills / chips ........... 999px
      page gutter ............. 14px
-   Specificity: rules start with :root so they beat page <style> blocks and
+   Specificity: rules start with :root so they beat page \3c style> blocks and
    per-component rules; !important is only used where JS writes inline
    styles (trade.js journal card) or a component forces its own value.
 =================================================================== */
@@ -184,7 +184,6 @@
 =================================================================== */
 @media (max-width: 760px) {
   :root { --g-blur: none; --g-shadow: 0 6px 18px rgba(0,0,0,.22); }
-  :root[data-theme="light"] { --g-shadow: 0 6px 16px rgba(70,60,140,.12); }
 
   /* Static background: no endless repaint under every card */
   :root body::before { animation: none; will-change: auto !important; filter: none !important; }

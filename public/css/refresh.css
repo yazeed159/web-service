@@ -9,14 +9,9 @@
   --card-rim: rgba(255,255,255,.07);
   --card-shadow: 0 1px 0 rgba(255,255,255,.05) inset, 0 10px 30px -14px rgba(0,0,0,.55);
 }
-:root[data-theme="light"] {
-  --card-rim: rgba(20,24,40,.08);
-  --card-shadow: 0 1px 0 rgba(255,255,255,.9) inset, 0 8px 24px -14px rgba(30,40,80,.22);
-}
 
 /* ---- Text contrast ---- */
 :root { --text-dim: #b6bacb; --text-faint: #9ea2b1; }
-:root[data-theme="light"] { --text-dim: #4a4e5f; --text-faint: #565a6b; }
 
 /* ---- Wider layout ---- */
 html body .content { max-width: 1560px; }
@@ -29,11 +24,6 @@ html body .content { max-width: 1560px; }
     background:
       radial-gradient(900px 520px at 78% -8%, rgba(124,92,255,.16), transparent 62%),
       radial-gradient(720px 480px at 4% 108%, rgba(56,189,248,.10), transparent 60%);
-  }
-  :root[data-theme="light"] body::before {
-    background:
-      radial-gradient(900px 520px at 78% -8%, rgba(124,92,255,.10), transparent 62%),
-      radial-gradient(720px 480px at 4% 108%, rgba(56,189,248,.08), transparent 60%);
   }
 }
 
@@ -252,8 +242,6 @@ html body .cal-grid.cal-mini > .empty-state { grid-column: 1 / -1; padding: 28px
 }
 
 /* Light mode: the chat launcher icon was white on a white glass fill */
-:root[data-theme="light"] .chatw-launcher { color: var(--primary); }
-:root[data-theme="light"] .chatw-launcher svg { stroke: currentColor; }
 
 /* Calendar tile sub-labels were below 4.5:1 on coloured tiles */
 html body .cal-cell .cell-count, html body .cal-week-box .week-count { color: var(--text-dim); }

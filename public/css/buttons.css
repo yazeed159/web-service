@@ -225,7 +225,6 @@ button.pill.tagpill:focus-visible, .int-disconnect:focus-visible {
   --btn-spring: cubic-bezier(.34, 1.56, .64, 1);
   --btn-sheen: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,0) 55%);
 }
-:root[data-theme="light"] { --btn-sheen: linear-gradient(180deg, rgba(255,255,255,.7), rgba(255,255,255,0) 60%); }
 
 /* secondary: frosted */
 .btn-advanced, .filter-btn, .icon-btn, .btn-icon, .cal-nav-btn, .sidebar-toggle {
@@ -337,22 +336,6 @@ button.pill.tagpill:focus-visible, .int-disconnect:focus-visible {
    slightly wider tracking.
 ====================================================================== */
 :root :is(
-  .nav-section-label, .section-label, .stat .label, .panel-box-head .title, .score-gauge .lbl,
-  .equity-head .label, .equity-stats .eq-stat-label, .cal-legend-label, .cal-summary-cells .cell .label,
-  .cal-dow, .cal-week-box .week-label, .score-month-extra .sde-head, .sde-label,
-  .streak-strip .cell .label, .highlight-card .label, .pnl-breakdown .cell .label, .card h2,
-  .sr-levels .col-label, .pb-label, .compare-period-title, .ins-sub, .calc-stat .lbl,
-  .bt-field > label.bt-label, .ai-summary-group-label, .shortcuts-section-label, .hs-section-label,
-  .ds-group, .hero-spark-label, .drill-calc-k, .fg-sub, .fg-stat .k, .pr-stat-cell .label,
-  .pp-order-panel .title, .pp-fill-log-block .title, .qs-label, .quiz-filter-row label,
-  .rewind-stat .rs-lbl, .rw-hero-stat .rs-lbl, .rw-field-group-label, .qz-manage-label, .qsg-label,
-  .pr-recap-col .rb-label, .quiz-reveal-box .rb-label
-) {
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  font-weight: 600;
-}
-:root :is(
   .trade-table thead th, table.data-table thead th, table.data-table th, .report-table thead th,
   .drill-inline .drill-table thead th, .quiz-review-table th
 ) {
@@ -391,7 +374,7 @@ button.pill.tagpill:focus-visible, .int-disconnect:focus-visible {
      floating  (search results, account/scope menus, dropdowns) -> 18px
      bottom sheets                                            -> 24px on top
 ====================================================================== */
-:root .ui-modal-box, :root .rpt-chart-modal-box, :root .shortcuts-box, :root .chatw-panel { border-radius: 24px !important; }
+:root .ui-modal-box, :root .rpt-chart-modal-box, :root .chatw-panel { border-radius: 24px !important; }
 :root .ds-menu, :root .account-panel, :root .topbar .scope-panel,
 :root .header-search:not(.mobile-open) .header-search-panel { border-radius: 18px; }
 :root .qa-sheet, :root .tabedit-sheet { border-radius: 24px 24px 0 0; }
@@ -458,15 +441,6 @@ button.pill.tagpill:focus-visible, .int-disconnect:focus-visible {
   --gb-blur: blur(12px) saturate(1.5);
   --gb-lit-top: color-mix(in srgb, var(--primary) 40%, rgba(255,255,255,.14));
   --gb-lit-bot: color-mix(in srgb, var(--primary) 16%, rgba(255,255,255,.03));
-}
-:root[data-theme="light"] {
-  --gb-top: rgba(255,255,255,.96);
-  --gb-bot: rgba(255,255,255,.58);
-  --gb-edge: rgba(24,28,46,.13);
-  --gb-rim: rgba(255,255,255,1);
-  --gb-drop: 0 6px 16px -9px rgba(40,50,90,.38);
-  --gb-lit-top: color-mix(in srgb, var(--primary) 26%, rgba(255,255,255,.9));
-  --gb-lit-bot: color-mix(in srgb, var(--primary) 10%, rgba(255,255,255,.55));
 }
 
 /* ---- 1. frosted (secondary) buttons ---- */

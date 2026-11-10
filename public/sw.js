@@ -20,14 +20,14 @@
 //    tunnel, POSTs) is never touched -- it goes straight to the network.
 //
 // Bump CACHE_VERSION only if you ever want to force-purge every cached file.
-var CACHE_VERSION = "v109";
+var CACHE_VERSION = "v110";
 var CACHE = "tradelog-shell-" + CACHE_VERSION;
 
 var SHELL = [
   "/", "index.html", "journal.html", "stats.html", "edge-analysis.html", "patterns.html", "tags.html", "calculator.html", "daily.html", "backtester.html",
   "rewind.html", "practice.html", "settings.html", "trade.html", "report.html", "scanner.html", "search.html", "import-trades.html",
-  "live-trading.html", "accounts.html", "review.html", "login.html", "favicon.svg", "manifest.json", "icons/icon-192.png", "icons/icon-512.png", "icons/shortcut-trade-note.png", "icons/shortcut-day-note.png", "icons/shortcut-journal.png", "icons/shortcut-daily-plan.png",
-  "js/vendor/supabase.js", "css/common.css", "css/glass.css", "css/buttons.css", "css/refresh.css", "css/theme.css", "css/skins.css", "fonts/geist-latin-wght-normal.woff2", "fonts/inter-latin-wght-normal.woff2", "fonts/ibm-plex-sans-latin-400-normal.woff2", "fonts/ibm-plex-sans-latin-500-normal.woff2", "fonts/ibm-plex-sans-latin-600-normal.woff2", "fonts/ibm-plex-mono-latin-400-normal.woff2", "fonts/ibm-plex-mono-latin-500-normal.woff2", "fonts/ibm-plex-mono-latin-600-normal.woff2", "fonts/instrument-sans-latin-wght-normal.woff2", "fonts/newsreader-latin-wght-normal.woff2", "css/mobile.css", "css/dashboard.css", "css/rewind.css", "css/practice.css", "css/quiz-shared.css",
+  "live-trading.html", "accounts.html", "review.html", "login.html", "favicon.svg", "manifest.json", "icons/icon-192.png", "icons/icon-512.png",
+  "js/vendor/supabase.js", "css/common.css", "css/glass.css", "css/buttons.css", "css/refresh.css", "fonts/geist-latin-wght-normal.woff2", "fonts/inter-latin-wght-normal.woff2", "fonts/ibm-plex-mono-latin-400-normal.woff2", "fonts/ibm-plex-mono-latin-500-normal.woff2", "fonts/ibm-plex-mono-latin-600-normal.woff2", "css/mobile.css", "css/dashboard.css", "css/rewind.css", "css/practice.css", "css/quiz-shared.css",
   "css/report.css", "css/ui-modal.css", "css/search.css", "css/stats.css", "js/core/utils.js", "js/core/mobile-extras.js", "js/dashboard/today-strip.js", "js/core/config.js",
   "js/core/auth.js", "js/accounts/accounts.js", "js/accounts/broker-connections.js", "js/core/page-transition.js", "js/core/nav-render.js", "js/core/global-search.js", "js/core/common.js", "js/core/select-enhance.js", "js/core/mobile-tables.js", "js/core/glossary.js",
   "js/core/pwa-register.js", "js/trade/grade.js", "js/trade/trade-notes.js", "js/trade/tag-catalog.js", "js/daily/daily-notes.js", "js/daily/discipline.js", "js/core/ui-modal.js", "js/trade/chart-draw.js", "js/trade/chart-indicators.js", "js/practice/practice-mobile.js",

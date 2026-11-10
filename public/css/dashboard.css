@@ -354,7 +354,6 @@ html body .bal-link {
     text-decoration-color: rgba(255, 255, 255, 0.25); text-underline-offset: 3px;
   }
 html body .bal-link:hover { color: var(--text); text-decoration-color: currentColor; }
-:root[data-theme="light"] body .bal-link { text-decoration-color: rgba(20, 22, 30, 0.3); }
 html body .kpi-grid.stat-grid {
     gap: 0 !important;
     margin: 16px 0 0;
@@ -439,7 +438,6 @@ html body .bal-slim a, html body .bal-warn a, html body .equity-panel a:not([cla
     color: var(--text); text-decoration: underline; text-decoration-color: rgba(255,255,255,.28); text-underline-offset: 3px;
   }
 html body .bal-slim a:hover, html body #equity-hint a:hover { text-decoration-color: currentColor; }
-:root[data-theme="light"] body .bal-slim a { text-decoration-color: rgba(20,22,30,.3); }
 html body .score-month-extra { margin-top: auto; padding-top: 18px; }
 html body .panel-box .panel-box-head .title,
   html body .equity-panel .equity-head .label { font-size: 14.5px !important; font-weight: 600; color: var(--text); letter-spacing: -0.01em !important; }

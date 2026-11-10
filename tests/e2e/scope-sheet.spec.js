@@ -147,14 +147,3 @@ test("Customize: hide and reorder dashboard sections, remembered after reload", 
   await page.locator('[data-toggle="month"]').click();
   await expect(page.locator('[data-dash-unit="pair"]')).toHaveClass(/dash-one/);
 });
-
-test("Customize > Look switches the whole site's skin and remembers it", async ({ page }) => {
-  await page.goto("/index.html");
-  await expect(page.locator("html")).toHaveAttribute("data-skin", "pro"); // default
-  await page.locator("#dash-customize").click();
-  await page.locator('.dl-skin[data-skin="navy"]').click();
-  await expect(page.locator("html")).toHaveAttribute("data-skin", "navy");
-  await page.keyboard.press("Escape");
-  await page.goto("/journal.html");
-  await expect(page.locator("html")).toHaveAttribute("data-skin", "navy"); // carried to other pages, set before paint
-});

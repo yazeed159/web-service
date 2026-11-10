@@ -24,28 +24,6 @@
     { id: "today", unit: "today", name: "Today's notes", note: "Plan and notes for the day" },
   ];
   const CALM_HIDDEN = ["form", "month", "recent"];
-  // Looks (css/skins.css). `dots` are a bg / panel / accent preview for the chip.
-  const SKINS = [
-    { id: "pro", name: "Pro", note: "Graphite and blue, Inter", dots: ["#0d1014", "#1a1f27", "#5b9bff"] },
-    { id: "navy", name: "Navy", note: "Deep navy, IBM Plex, monospace figures", dots: ["#0a1322", "#152642", "#5b8cff"] },
-    { id: "mono", name: "Mono", note: "Black and white, Geist", dots: ["#0a0a0a", "#181818", "#f2f2f2"] },
-    { id: "terminal", name: "Terminal", note: "Amber on black, all monospace", dots: ["#080808", "#151513", "#ffb000"] },
-    { id: "verde", name: "Verde", note: "Fintech green, rounder", dots: ["#0b1210", "#172420", "#2fd18a"] },
-    { id: "indigo", name: "Indigo", note: "Deep indigo, Linear-style", dots: ["#0e0f1a", "#1c1e31", "#7c7fff"] },
-    { id: "paper", name: "Paper", note: "Warm cream, editorial serif", dots: ["#1b1916", "#292520", "#e8dcc3"] },
-    { id: "ocean", name: "Ocean", note: "Deep teal and cyan", dots: ["#07151a", "#11292f", "#22c6d8"] },
-    { id: "rose", name: "Rosé", note: "Plum and pink, very round", dots: ["#150b12", "#2a1722", "#ff7eb0"] },
-    { id: "ember", name: "Ember", note: "Warm brown, orange, mono figures", dots: ["#120d09", "#231a12", "#ff8a2a"] },
-    { id: "broadsheet", name: "Broadsheet", note: "A different layout: top masthead, one column, newspaper rules", dots: ["#f7f4ec", "#15130f", "#a8321f"] },
-    { id: "ink", name: "Ink & brass", note: "Teal ink, brass accent, serif titles", dots: ["#0b1315", "#172428", "#e3b04b"] },
-  ];
-  const SKIN_KEY = "trade.log:skin";
-  const curSkin = () => document.documentElement.getAttribute("data-skin") || "pro";
-  function setSkin(id) {
-    document.documentElement.setAttribute("data-skin", id);
-    try { localStorage.setItem(SKIN_KEY, id); } catch (e) { /* ignore */ }
-  }
-
   const tab = document.getElementById("tab-dashboard");
   if (!tab) return;
 
@@ -115,11 +93,6 @@
       const isAll = state.hidden.length === 0;
       const list = rows();
       ui.body.innerHTML =
-        '<div class="sv-sec"><div class="sv-sec-h"><span>Look</span></div><div class="dl-skins">' +
-        SKINS.map((k) => '<button type="button" class="dl-skin' + (curSkin() === k.id ? " on" : "") + '" data-skin="' + k.id + '" aria-pressed="' + (curSkin() === k.id) + '">' +
-          '<span class="dl-dots">' + k.dots.map((c) => '<i style="background:' + c + '"></i>').join("") + '</span>' +
-          '<span class="dl-skin-name">' + k.name + '<span class="sv-sub">' + k.note + '</span></span></button>').join("") +
-        '<p class="sv-hint" style="margin-top:2px">The sun/moon button in the top bar switches each look between dark and light.</p></div></div>' +
         '<div class="sv-sec"><div class="sv-sec-h"><span>Start from</span></div><div class="sv-chips">' +
         '<button type="button" class="sv-chip' + (isAll ? " on" : "") + '" data-preset="all">Everything</button>' +
         '<button type="button" class="sv-chip' + (isCalm ? " on" : "") + '" data-preset="calm">Calm</button></div>' +
@@ -136,13 +109,11 @@
         }).join("") + "</ul></div>";
       ui.foot.innerHTML = '<div class="sv-links"><button type="button" class="sv-link" data-reset>Reset to default</button></div>';
     }
-    const keepFocusSkin = (id) => { const n = ui.body.querySelector('[data-skin="' + id + '"]'); if (n) n.focus(); };
     ui.shell.addEventListener("click", (e) => {
       const t = e.target.closest("button");
       if (!t) return;
       const keepFocus = () => { const sel = t.getAttribute("data-toggle") ? '[data-toggle="' + t.getAttribute("data-toggle") + '"]' : t.getAttribute("data-move") ? '[data-move="' + t.getAttribute("data-move") + '"][data-dir="' + t.getAttribute("data-dir") + '"]' : null; const n = sel && ui.body.querySelector(sel + ":not([disabled])"); if (n) n.focus(); };
-      if (t.hasAttribute("data-skin")) { setSkin(t.getAttribute("data-skin")); paint(); keepFocusSkin(t.getAttribute("data-skin")); }
-      else if (t.dataset.preset === "all") { state.hidden = []; save(); apply(); paint(); }
+      if (t.dataset.preset === "all") { state.hidden = []; save(); apply(); paint(); }
       else if (t.dataset.preset === "calm") { state.hidden = CALM_HIDDEN.slice(); save(); apply(); paint(); }
       else if (t.hasAttribute("data-reset")) { state = { order: UNITS.slice(), hidden: [] }; save(); apply(); paint(); }
       else if (t.hasAttribute("data-toggle")) { toggle(t.getAttribute("data-toggle")); paint(); keepFocus(); }
@@ -176,11 +147,6 @@
     ".dash-hidden-note{margin-top:18px;font-size:12.5px;color:var(--text-faint)}" +
     ".dash-hidden-btn{border:0;background:none;padding:0;font:inherit;color:var(--text-dim);text-decoration:underline;text-underline-offset:3px;cursor:pointer}" +
     ".dash-hidden-btn:hover{color:var(--text)}" +
-    ".dl-skins{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media(max-width:520px){.dl-skins{grid-template-columns:1fr}}" +
-    ".dl-skin{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--panel-2);color:var(--text);font:inherit;cursor:pointer}" +
-    ".dl-skin:hover{border-color:var(--text-faint)}.dl-skin.on{border-color:var(--primary);background:var(--primary-soft)}.dl-skin:focus-visible{outline:2px solid var(--primary);outline-offset:2px}" +
-    ".dl-dots{display:flex;flex:none;border-radius:8px;overflow:hidden;border:1px solid rgba(128,128,128,.35)}.dl-dots i{width:16px;height:30px}" +
-    ".dl-skin-name{font-weight:600;font-size:14px}" +
     ".dl-list{list-style:none;margin:0;padding:0}" +
     ".dl-row{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border-soft)}" +
     ".dl-row.beside{padding-left:20px}" +
