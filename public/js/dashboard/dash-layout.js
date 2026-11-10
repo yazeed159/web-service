@@ -28,6 +28,15 @@
   const SKINS = [
     { id: "pro", name: "Pro", note: "Graphite and blue, Inter", dots: ["#0d1014", "#1a1f27", "#5b9bff"] },
     { id: "navy", name: "Navy", note: "Deep navy, IBM Plex, monospace figures", dots: ["#0a1322", "#152642", "#5b8cff"] },
+    { id: "mono", name: "Mono", note: "Black and white, Geist", dots: ["#0a0a0a", "#181818", "#f2f2f2"] },
+    { id: "terminal", name: "Terminal", note: "Amber on black, all monospace", dots: ["#080808", "#151513", "#ffb000"] },
+    { id: "verde", name: "Verde", note: "Fintech green, rounder", dots: ["#0b1210", "#172420", "#2fd18a"] },
+    { id: "indigo", name: "Indigo", note: "Deep indigo, Linear-style", dots: ["#0e0f1a", "#1c1e31", "#7c7fff"] },
+    { id: "paper", name: "Paper", note: "Warm cream, editorial serif", dots: ["#1b1916", "#292520", "#e8dcc3"] },
+    { id: "ocean", name: "Ocean", note: "Deep teal and cyan", dots: ["#07151a", "#11292f", "#22c6d8"] },
+    { id: "rose", name: "Rosé", note: "Plum and pink, very round", dots: ["#150b12", "#2a1722", "#ff7eb0"] },
+    { id: "ember", name: "Ember", note: "Warm brown, orange, mono figures", dots: ["#120d09", "#231a12", "#ff8a2a"] },
+    { id: "broadsheet", name: "Broadsheet", note: "A different layout: top masthead, one column, newspaper rules", dots: ["#f7f4ec", "#15130f", "#a8321f"] },
     { id: "ink", name: "Ink & brass", note: "Teal ink, brass accent, serif titles", dots: ["#0b1315", "#172428", "#e3b04b"] },
   ];
   const SKIN_KEY = "trade.log:skin";
@@ -167,7 +176,7 @@
     ".dash-hidden-note{margin-top:18px;font-size:12.5px;color:var(--text-faint)}" +
     ".dash-hidden-btn{border:0;background:none;padding:0;font:inherit;color:var(--text-dim);text-decoration:underline;text-underline-offset:3px;cursor:pointer}" +
     ".dash-hidden-btn:hover{color:var(--text)}" +
-    ".dl-skins{display:flex;flex-direction:column;gap:8px}" +
+    ".dl-skins{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media(max-width:520px){.dl-skins{grid-template-columns:1fr}}" +
     ".dl-skin{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--panel-2);color:var(--text);font:inherit;cursor:pointer}" +
     ".dl-skin:hover{border-color:var(--text-faint)}.dl-skin.on{border-color:var(--primary);background:var(--primary-soft)}.dl-skin:focus-visible{outline:2px solid var(--primary);outline-offset:2px}" +
     ".dl-dots{display:flex;flex:none;border-radius:8px;overflow:hidden;border:1px solid rgba(128,128,128,.35)}.dl-dots i{width:16px;height:30px}" +
